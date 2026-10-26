@@ -6,11 +6,11 @@
 
 ## Goal
 
-Select the production-representative training workload and record a reproducible baseline. The imported upstream source revision is a source identity, not a measured workload baseline.
+Select the production-representative training workload and record a reproducible baseline. The imported upstream source revision is a source identity, not a measured workload baseline. Follow the [initial task boundary](../../docs/task-boundary.md) when recording the intended setup.
 
 ## Open selections
 
-Model and preset; dataset, tokenizer and split; sequence and packing rules; optimizer and schedule; global batch; precision, activation checkpointing and compilation; parallel degrees, process groups and physical topology; evaluation/checkpoint cadence; quality thresholds; and authorized hardware.
+Concrete model and meaning of `gift 4`; dataset, tokenizer and split; sequence and packing rules; optimizer and schedule; global batch; FP8 recipe and accumulation behavior; SAC/full-checkpointing policy; compile settings; GFSDP implementation, degrees, process groups and physical topology; evaluation/checkpoint cadence; quality thresholds; performance threshold; and authorized hardware. The task direction already names GFSDP, model and loss compilation, FP8, and SAC/full checkpointing, and deprioritizes PP for now; see the boundary record for unresolved details.
 
 ## Acceptance
 

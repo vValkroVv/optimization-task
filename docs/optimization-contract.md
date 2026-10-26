@@ -4,7 +4,7 @@
 
 Increase throughput on the selected representative end-to-end workload while preserving the objective, data, precision, distributed behavior, checkpoint continuation, and agreed quality. “End-to-end” includes recurring input, evaluation, checkpoint, and other job phases at their production cadence.
 
-The production model, preset, data, topology, precision, thresholds, and compute allocation remain unselected. Record them before using this contract to accept a candidate.
+The [initial task boundary](task-boundary.md) specifies GFSDP, model and loss compilation, FP8, and SAC/full-checkpointing directions, with PP deprioritized for now. These are task requirements, not a tested or resolved production configuration. Record the concrete model, preset, data, topology, precision recipe, thresholds, and authorized compute before using this contract to accept a candidate.
 
 ## Behavior to preserve
 
@@ -12,7 +12,7 @@ The production model, preset, data, topology, precision, thresholds, and compute
 - **Training path:** Preserve optimizer, schedule, global batch, gradient accumulation, activation checkpointing, compilation, and model execution behavior unless an explicit scope change is accepted.
 - **Distributed path:** Preserve intended rank groups, reductions, scaling, and ownership. Record physical rank placement and topology. Changing a group or reduction can change both communication and floating-point grouping.
 - **State:** Preserve loader cursor and relevant RNG streams, validation state, routing state, optimizer moments and step, and checkpoint compatibility. Test exact continuation separately from weights-only loading.
-- **Precision:** Keep the selected production formats and accumulation behavior. Reduced precision, including FP8, is outside the current stability-preserving scope unless separately authorized and evaluated.
+- **Precision:** FP8 is part of the intended target baseline. Resolve and record its recipe and accumulation behavior, then preserve them in optimization candidates. Changes beyond the selected recipe need explicit agreement and appropriate quality validation.
 
 ## Numerical acceptance
 

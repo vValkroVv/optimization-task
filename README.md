@@ -19,7 +19,7 @@ The goal is to improve representative end-to-end training throughput while prese
 | [llm-foundry/](llm-foundry/) | Flattened LLM Foundry source/reference snapshot. |
 | [ci-cd/](ci-cd/README.md) | Reserved CI/CD documentation; no active pipeline is included. |
 | [backlog/](backlog/README.md) | Current task scope, dependencies, and acceptance. |
-| [docs/](docs/README.md) | Optimization contract and research lessons. |
+| [docs/](docs/README.md) | Task boundary, optimization contract, and research lessons. |
 | [planning/](planning/README.md) | Reusable workflow and validation protocol. |
 | [runs/](runs/README.md) | Campaign reports and evidence references. |
 | [additional/](additional/README.md) | Source baseline and import provenance. |
@@ -28,6 +28,6 @@ The goal is to improve representative end-to-end training throughput while prese
 
 The selected upstream source revisions are GIFT `f840cf25e4294f93a5c91a20707c30b97e3c1dbf` and LLM Foundry `1ec1360304a182844372f6c3989c3f10288fcba8`; the import flattens recursively pinned dependency trees. Credential literals in three dependency helper files were sanitized, with paths and exceptions recorded in the import report. See [additional/baseline](additional/baseline/README.md) for provenance; sanitized snapshots are not byte-identical at those lines.
 
-The production model, workload, preset, dataset, topology, precision, numerical thresholds, and compute allocation have not been selected here. This repository contains no measured optimization result. No CI/CD pipeline is active; [ci-cd/](ci-cd/README.md) is reserved for future, scoped work.
+The initial task boundary specifies GFSDP, model and loss compilation, FP8, and SAC/full-checkpointing directions, with PP deprioritized for now. See the [task boundary](docs/task-boundary.md) for the supplied exchange and unresolved details. The exact production model, workload, preset, dataset, topology, precision recipe, numerical thresholds, and compute allocation remain open. This repository contains no measured optimization result. No CI/CD pipeline is active; [ci-cd/](ci-cd/README.md) is reserved for future, scoped work.
 
 Source snapshots are tracked files in this repository. Do not initialize nested repositories or submodules inside them. Source edits, compute, dependency installation, and publication require their own authorization.

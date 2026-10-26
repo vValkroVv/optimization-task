@@ -14,7 +14,7 @@ These lessons guide investigation; they are not results for the selected pretrai
 
 ## Candidate backlog
 
-All entries below are hypotheses. Profile first, then select one candidate that matches a measured bottleneck and inspect a pinned implementation.
+All entries below are hypotheses. Profile first, then select one candidate that matches a measured bottleneck and inspect a pinned implementation. The [initial task boundary](task-boundary.md) currently deprioritizes PP; retain it as a future profile-driven area.
 
 | Candidate area | Question to resolve before changing code |
 | --- | --- |
@@ -27,7 +27,7 @@ All entries below are hypotheses. Profile first, then select one candidate that 
 | Expert-parallel overlap | Are dispatch/combine waits exposed, and can an overlap change preserve collective ordering and state? |
 | Vocabulary-head chunking | Is head/loss storage or compute limiting the update, and are reduction order and loss semantics preserved? |
 
-FP8 is outside the current stability-preserving scope. Consider it only under a separate, explicit research authorization with precision and quality criteria.
+FP8 is required in the intended target baseline. Resolve its recipe and quality criteria before treating a specific setup as selected; preserve that recipe in optimization candidates. Changes beyond it need explicit agreement and quality validation.
 
 ## Provenance
 

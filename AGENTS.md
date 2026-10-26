@@ -2,15 +2,24 @@
 
 These rules make this clone usable on its own. The task record and current user authorization define the permitted scope.
 
+## Current prioritization
+
+- Target GFSDP, compilation of both model and loss, FP8, and SAC/full activation checkpointing. Keep `gift 4` as supplied until its exact model/preset meaning is clarified.
+- Focus initial optimization research on small models on one or two nodes; exact hardware and configuration remain to be selected.
+- Deprioritize PP for now. It is not excluded or a blocker.
+- Improve training speed without trading away numerical stability or model quality. Preserve the selected production settings when comparing candidates.
+
+See the [task boundary](docs/task-boundary.md) for the original brief and unresolved details.
+
 ## Objective and invariants
 
 Improve representative end-to-end training throughput while preserving the training objective, data, precision, distributed behavior, checkpoint continuation, and agreed model quality.
 
-Before implementation, select and record the production workload and resolved configuration: model and preset, data identity and split, sequence and packing behavior, optimizer and schedule, precision, activation checkpointing, compilation, parallel groups and physical topology, evaluation and checkpoint cadence, and quality thresholds. These choices are currently open.
+Before implementation, record the production workload and resolved configuration: model and preset, data identity and split, sequence and packing behavior, optimizer and schedule, precision, activation checkpointing, compilation, parallel groups and physical topology, evaluation and checkpoint cadence, and quality thresholds.
 
 Preserve target shifting, masks, packed-document boundaries, attention context, convolution and scan resets, loss weights and denominators, and valid-token counts. Preserve loader position and RNG ownership, validation state, routing side effects, optimizer state, and checkpoint semantics. Distinguish exact continuation from weights-only initialization.
 
-Do not change precision, disable activation checkpointing, compilation, monitoring, or required checkpoint behavior as an unreviewed speed shortcut. A precision change or objective change needs explicit agreement, an updated contract, and appropriate quality validation.
+Use FP8 in the intended target baseline after its recipe is resolved. Preserve the selected precision recipe, activation checkpointing, compilation, monitoring, and required checkpoint behavior in optimization candidates. Changes to the FP8 recipe or objective need explicit agreement, an updated contract, and appropriate quality validation.
 
 For computation-preserving changes, compare loss and elementwise gradients before clipping, then the clipping norm and scale, clipped gradients, optimizer moments, and parameter updates. Equal norms do not establish equal gradients. Separate exact structural invariants from floating-point values with agreed tolerances and stated nondeterminism. Compare eager and compiled paths where both are supported.
 
