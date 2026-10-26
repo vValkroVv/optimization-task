@@ -1,0 +1,22 @@
+# GiftMoE 3B at EP8 with dense FP8 projections and BF16 experts.
+# Non-blocking HybridEP uses capacity factor 1.0 to avoid dropping tokens.
+#
+#   torchrun --nproc_per_node=8 -m torchtitan.train configs/experiments/gift_moe_3b_hybridep_dense_fp8_compile_non_blocking.yaml
+config_version: 1
+
+imports:
+  - gift_moe_3b_hybridep_fp8_compile.yaml
+
+model:
+  config:
+    blocks:
+      mla_moe:
+        moe:
+          experts:
+            token_dispatcher: {non_blocking_capacity_factor: 1.0}
+
+# Fixed-capacity HybridEP has no valid FP8-expert gradient path yet. Dense
+# projections remain FP8; experts use BF16 so this recipe can run safely.
+fp8:
+  sparse_use_grouped_gemm: false
+  sparse_fused_swiglu_quant: true

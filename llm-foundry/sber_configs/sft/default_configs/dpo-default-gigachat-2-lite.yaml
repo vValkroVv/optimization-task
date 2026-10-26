@@ -1,0 +1,275 @@
+max_seq_len: 8192
+global_seed: 42
+
+user: jserdyuk
+
+exp_name: 9b-28_2_2_2
+run_name: dpo-28_2-2_2-1e7
+
+tensorboard_path: /home/jovyan/shares/SR004.nfs2/${user}/tensorboard/${exp_name}
+
+eos_token_id: 2
+varlen_input: false
+zero_nan_grads: false
+
+tp_size: 1
+sp_size: 1
+
+# enable_async_tp: true
+
+
+model_path: /home/jovyan/models/templates/gigar-base_model-9B-128k_digit_tokenizer-no_eos-config_only
+model:
+  name: dpo
+  dpo:
+    beta_chosen: 0.05
+    beta_rejected: 0.05
+    gamma: 0.0
+    margin_coef: 0.0
+    spectokens: [42001, 42002]
+    masked_tokens: []
+    chosen_nll_coef: 0.5
+    spectokens_nll_coef: 0.0
+    loss_coef: 1.0
+    loss_func: dpo
+    chosen_nll_norm: ref
+    mask_common_prefix: false
+    log_metrics: true
+
+  student_model:
+    config_overrides:
+      activation_checkpoint_layers_num: 35
+      attention_bias: false
+      attention_dropout: 0.0
+      attention_hidden_size: null
+      attention_type: LlamaPackedAttention
+      bos_token_id: 1
+      eos_token_id: 2
+      freeze_non_embed: false
+      fused_mlp: true
+      fused_mlp_checkpoint_lvl: 3
+      hidden_act: silu
+      hidden_size: 3584
+      initializer_range: 0.02
+      intermediate_size: 18944
+      loss_inplace_backward: true
+      max_position_embeddings: 131072
+      num_attention_heads: 28
+      num_hidden_layers: 35
+      num_key_value_heads: 4
+      parallel_embedding_type: EmbeddingParallelEmbedding
+      rms_norm_eps: 1.0e-06
+      rope_scaling:
+        factor: 4.0
+        high_freq_factor: 4.0
+        low_freq_factor: 1.0
+        original_max_position_embeddings: 32768
+        rope_type: llama3
+      rope_theta: 2800000.0
+      tie_word_embeddings: false
+      tp_size: ${tp_size}
+      vocab_size: 128256
+    init_device: meta
+    name: gigar_causal_lm
+    pretrained: false
+    pretrained_model_name_or_path: ${model_path}
+  teacher_model:
+    same_as_student: true
+
+
+# Tokenizer
+tokenizer:
+  # name: /home/jovyan/jserdyuk/tokenizers/26_23_32k_new_system
+  name: /home/jovyan/jserdyuk/data/1.8_pref/28_2/mds/configs/encode_tokenizer
+  # kwargs:
+  #   model_max_length: ${max_seq_len}
+
+global_train_batch_size: 1280 # 16M+ tokens BS
+device_train_microbatch_size: 1
+device_eval_batch_size: 1
+
+max_duration: 2370ba # 7650ba
+eval_interval: 0 # 500ba
+eval_first: false # eval on first epoch to test metrics
+eval_subset_num_batches: -1
+
+
+# Dataloaders
+train_loader:
+  max_seq_len: ${max_seq_len}
+  # pad_to_max_len: True
+  name: text
+  dpo_data: true
+  eos_token_id: ${eos_token_id}
+  sft_mode: false
+  dataset:
+    epoch_size: 379810
+    streams:
+        dpo_main:
+          local: /home/jovyan/jserdyuk/data/2.2_pref/28_2/
+          split: mds
+    shuffle: true
+    max_seq_len: ${max_seq_len}
+    shuffle_seed: ${global_seed}
+  drop_last: true
+  num_workers: 128
+
+# # Optimization
+# scheduler:
+#   name: constant_multi_step_with_gamma_with_warmup
+#   t_warmup: 50ba
+#   milestones: [2040ba, 4080ba, 6120ba, 8160ba]
+#   milestones_gamma: [0.2, 0.04, 0.008, 0.0016]
+
+# Optimization
+scheduler:
+  name: constant_multi_step_with_gamma_with_warmup
+  t_warmup: 50ba
+  milestones: [3061ba, 4920ba]
+  milestones_gamma: [0.2, 0.04]
+
+# scheduler:
+#   name: cosine_with_warmup
+#   t_warmup: 200ba
+#   alpha_f: 0
+
+# Optimization
+lr: 1.0e-07
+
+optimizer:
+  name: decoupled_adamw
+  lr: ${lr}  # min LR is 1.5e-6
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1.0e-08
+  weight_decay: 0  # wd_article * lr
+
+# Algorithms
+algorithms:
+  gradient_clipping:
+    clipping_type: norm
+    clipping_threshold: 1.0
+
+
+use_profiler: false
+profiler:
+  trace_handlers:
+    - name: json
+      params:
+      # composer.profiler.JSONTraceHandler kwargs
+        folder: ${tensorboard_path}/${run_name}/composer_profiler
+        merged_trace_filename: null
+        merged_trace_remote_file_name: null
+        overwrite: true
+        num_traces_to_keep: -1
+
+  cyclic_schedule:
+    # composer.profiler.cyclic_schedule kwargs
+    #  Number of batches to skip profiling at epoch start
+    skip_first: 86050
+    #  For each profiling cycle, number of batches to skip at the beginning of the cycle.
+    wait: 10
+    #  For each profiling cycle, number of batches to be in the warmup state after skipping
+    #   ``wait`` batches
+    warmup: 2
+    #  For each profiling cycle, number of batches to record after warming up.
+    active: 2
+    #  Number of profiling cycles to perform per epoch
+    repeat: 1
+
+  profiler_overrides:
+    # composer.profiler.Profiler kwargs
+    # BASE
+    torch_prof_folder: ${tensorboard_path}/${run_name}/torch_profiler
+    torch_prof_overwrite: true
+    torch_prof_num_traces_to_keep: -1
+    sys_prof_stats_thread_interval_seconds: 0.5
+    # METRICS
+    # sys
+    sys_prof_cpu: false
+    sys_prof_memory: false
+    sys_prof_disk: false
+    sys_prof_net: false
+    # torch
+    torch_prof_record_shapes: false
+    torch_prof_profile_memory: false
+    torch_prof_with_stack: false
+    torch_prof_memory_filename: null
+
+# System
+seed: ${global_seed}
+precision: amp_bf16
+dist_timeout: 360000
+
+gigafsdp_config:
+  activation_checkpointing: true
+  activation_checkpointing_reentrant: false
+  hybrid_group_size: 8
+  load_monolith_rank0_only: false
+  mixed_precision:
+    buffer_dtype: fp32
+    param_dtype: bf16
+    reduce_dtype: fp32
+  state_dict_type: local
+  sync_module_states: false
+  # tp_size: ${tp_size}
+
+
+# Logging
+progress_bar: true
+log_to_console: true
+console_log_interval: 1ba
+
+callbacks:
+  speed_monitor:
+    window_size: 10
+  lr_monitor: {}
+  memory_monitor: {}
+  runtime_estimator: {}
+  optimizer_monitor:
+    batch_log_interval: 10
+  scheduled_gc:
+    batch_interval: 20
+  training_metrics_monitor:
+    batch_log_interval: 250
+  stage_time_profiler: {}
+  # memory_stats_saver:
+  #   collect_memory_snapshot: ${use_profiler}
+  #   folder: '${tb_dir}/{run_name}/memory_stats_saver'
+    # save_interval: 100000000000000ba
+
+auto_log_hparams: true
+autoresume: true
+
+loggers:
+  tensorboard: 
+    log_dir: ${tensorboard_path}
+    rank_zero_only: true
+  wandb:
+    name: dummy_9b
+    project: DPO_TEST
+    group: null
+    entity: alignment
+    tags: null
+    log_artifacts: false
+    rank_zero_only: true
+    init_kwargs:
+      notes: notes
+
+# Checkpoint to local filesystem or remote object store
+
+# Save checkpoint asynchronously during training
+save_checkpoint_async: false
+
+save_interval: 550ba
+stable_save_interval: 550ba
+# save_num_checkpoints_to_keep: 2  # Important, this cleans up checkpoints saved to DISK
+save_folder: /home/jovyan/shares/SR004.nfs2/gigachat_checkpoints/pref/TEST
+
+# Load from local filesystem or remote object store
+load_weights_only: true
+load_strict_model_weights: true
+
+load_path: /home/jovyan/shares/SR004.nfs2/jserdyuk/models/GigaR-9b-128k-v28_2-v2-320gbs-bf16-batched-const-fixed-new-data-3-marta_step6413/model.pt
+teacher_load_path: /home/jovyan/shares/SR004.nfs2/jserdyuk/models/GigaR-9b-128k-v28_2-v2-320gbs-bf16-batched-const-fixed-new-data-3-marta_step6413/model.pt

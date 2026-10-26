@@ -1,0 +1,24 @@
+task: fakemmlu
+dataset_path: ai-sage/fakemmlu
+description: "The following are multiple choice questions (with answers) about basic\
+  \ reasoning.\n\n"
+test_split: test
+fewshot_split: few_shot
+fewshot_config:
+  sampler: first_n
+output_type: multiple_choice
+doc_to_text: "{{query.strip()}}\nA. {{choices[0]}}\nB. {{choices[1]}}\nC. {{choices[2]}}\nD. {{choices[3]}}\nAnswer:"
+doc_to_choice: ["A", "B", "C", "D"]
+doc_to_target: gold
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: nll
+    aggregation: mean
+    higher_is_better: false
+  - metric: nll_cond
+    aggregation: mean
+    higher_is_better: false
+metadata:
+  version: 1.0

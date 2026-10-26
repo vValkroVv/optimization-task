@@ -1,0 +1,26 @@
+eval_interval: 100ba
+
+
+icl_tasks:
+  - label: mmmu
+    dataset_uri: /home/jovyan/test_cache/datasets/vision/mmmu_small
+    dataset_json_filename: mmmu_testqa_4_choices_intrain_100_omni.jsonl
+    dataset_files_dirname: images
+    icl_task_type: mmmu
+    num_fewshot: [0]
+    max_seq_len: ${max_seq_len}
+    sft_args:
+      chatml_version: v3
+      processors:
+        # We can't just do - <<: *vision_processor since vision_processor
+        # can't be resolved
+        - name: GigaOmniVisionProcessor
+          image_aspect_ratio: anyres
+          num_image_tokens_per_crop: 256
+          image_token_id: ${image_token_id}
+          image_processor: /home/jovyan/test_cache/models/vision/InternViT-300M-448px-V2_5-no-drop-path-no-fa
+          image_grid_pinpoints: >-
+            [[448, 448], [448, 896], [896, 448], [896, 896],
+            [1344, 448], [448, 1344], [1344, 896], [896, 1344]]
+      collators:
+        - name: ImageCollator

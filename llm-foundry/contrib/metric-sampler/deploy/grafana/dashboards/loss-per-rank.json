@@ -1,0 +1,523 @@
+{
+  "uid": "ms-loss-ranks",
+  "title": "metric-sampler / Loss per rank",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "",
+  "description": "Every loss value the capture recorded, per rank and microbatch (scalars, latest attempt of each step).",
+  "time": {
+    "from": "1970-01-01T00:00:00.000Z",
+    "to": "1970-01-01T00:20:00.000Z"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "exp",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT exp FROM metric_sampler.batches GROUP BY exp ORDER BY exp = (SELECT exp FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT run FROM metric_sampler.batches WHERE exp = '${exp}' GROUP BY run ORDER BY run = (SELECT run FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' AND exp = '${exp}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "capture_interval",
+        "label": "capture_interval",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT greatest(max(capture_interval), 1) FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}'"
+      },
+      {
+        "name": "metric",
+        "label": "Metric",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT name AS metric FROM metric_sampler.metrics WHERE exp = '${exp}' AND run = '${run}' AND startsWith(name, 'loss/') AND metric_id IN (SELECT metric_id FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND step = (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') AND rank >= 0) GROUP BY name ORDER BY name = 'loss/total' DESC, name",
+        "refresh": 1
+      },
+      {
+        "name": "microbatch",
+        "label": "Microbatch",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT '-2' AS __value, 'All (mean of the rank''s microbatches)' AS __text UNION ALL SELECT toString(microbatch) AS __value, toString(microbatch) AS __text FROM (SELECT DISTINCT microbatch FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND step = (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') AND rank >= 0 AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE exp = '${exp}' AND run = '${run}' AND name = 'loss/total') ORDER BY microbatch)",
+        "refresh": 1
+      },
+      {
+        "name": "show",
+        "label": "Show ranks",
+        "description": "Ranks drawn as exact lines next to the band when a run has too many points for one line per rank",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT 'none' AS __value, 'none' AS __text UNION ALL SELECT toString(r) AS __value, toString(r) AS __text FROM (SELECT DISTINCT arrayJoin(ranks) AS r FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}' ORDER BY r)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": false,
+        "current": {
+          "text": [
+            "none"
+          ],
+          "value": [
+            "none"
+          ]
+        }
+      },
+      {
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "name": "lprsrc",
+        "label": "lprsrc",
+        "type": "query",
+        "hide": 2,
+        "query": "SELECT multiIf(ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 2 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('loss_rank', 'loss_spread') GROUP BY summary)), 'sum', ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('loss_rank_mb') GROUP BY summary)), 'mbsum', 'live') AS lprsrc"
+      },
+      {
+        "name": "step",
+        "label": "Step (tables)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT step FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}' GROUP BY step ORDER BY step > (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}')), step DESC",
+        "refresh": 1
+      },
+      {
+        "name": "step_from",
+        "label": "step_from",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 0, toUInt64(${__from}))"
+      },
+      {
+        "name": "step_to",
+        "label": "step_to",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 4294967295, toUInt64(${__to}))"
+      },
+      {
+        "name": "remember",
+        "label": "Remembered selection",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '' AS remembered SETTINGS log_comment = 'ms-selection ${__user.login} ${exp} ${run}', use_query_cache = 0"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "trend",
+      "title": "${metric} per rank over steps (microbatch ${microbatch}; long runs of many ranks: band over ranks + outliers)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 11
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "description": "With Microbatch = All each line is the mean of that rank's microbatches; pick a microbatch to see its exact values. While the shown points (ranks x steps) fit Grafana's 1M-row limit every rank is a line. Past 900k points the panel draws the min/median/max over the same rank lines at every step (every rank's value lies inside the band), the 8 ranks that deviate most from the median (largest |value - median| / interquartile range of a step, marked 'outlier') and the ranks picked in Show ranks (marked 'picked'), all with their exact values.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          },
+          "displayName": "${__field.labels.rank_name}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max over ranks"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.fillBelowTo",
+                "value": "min over ranks"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 18
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "min over ranks"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "median over ranks"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1f60c4"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(measured.rank_name, 'No data') AS rank_name, measured.value AS value FROM (WITH ranks AS (SELECT step, rank, value FROM metric_sampler.loss_rank_${lprsrc}(exp_filter = '${exp}', run_filter = '${run}', metric_filter = '${metric}', microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), band AS (SELECT step, min(value) AS low, quantileExact(0.25)(value) AS q1, quantileExact(0.5)(value) AS mid, quantileExact(0.75)(value) AS q3, max(value) AS high FROM ranks GROUP BY step), deviating AS (SELECT r.rank AS rank FROM ranks AS r INNER JOIN band AS b ON r.step = b.step GROUP BY r.rank ORDER BY max(abs(r.value - b.mid) / nullIf(b.q3 - b.q1, 0)) DESC NULLS LAST, r.rank LIMIT 8), observed AS (SELECT step, concat('rank ', leftPad(toString(rank), 3, '0')) AS rank_name, value FROM ranks WHERE (SELECT count() FROM ranks) <= 900000 UNION ALL SELECT step, band_name AS rank_name, band_value AS value FROM band ARRAY JOIN ['max over ranks', 'median over ranks', 'min over ranks'] AS band_name, [high, mid, low] AS band_value WHERE (SELECT count() FROM ranks) > 900000 UNION ALL SELECT step, concat(concat('rank ', leftPad(toString(rank), 3, '0')), if(rank IN (SELECT rank FROM deviating), ' (outlier)', ' (picked)')) AS rank_name, value FROM ranks WHERE (SELECT count() FROM ranks) > 900000 AND (rank IN (SELECT rank FROM deviating) OR toString(rank) IN (${show:sqlstring}))), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY rank_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, rank_name, value FROM marked UNION ALL SELECT step + 1 AS step, rank_name, CAST(NULL AS Nullable(Float64)) AS value FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY rank_name, step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "rank_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "trend",
+      "title": "${metric} spread across ranks per step (min, median, max over every rank and microbatch)",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, min, median, max FROM metric_sampler.loss_spread_${lprsrc}(exp_filter = '${exp}', run_filter = '${run}', metric_filter = '${metric}', microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, min, median, max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS min, CAST(NULL AS Nullable(Float64)) AS median, CAST(NULL AS Nullable(Float64)) AS max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "${metric} at step ${step}: every rank and microbatch (sorted, highest first)",
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT rank, microbatch, node, value FROM metric_sampler.loss_per_rank_step(exp_filter = '${exp}', run_filter = '${run}', metric_filter = '${metric}', step_filter = toUInt32OrZero(${step:sqlstring})) WHERE (ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 OR microbatch = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) ORDER BY value DESC SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "${metric} per rank over the run (mean, min, max, steps where the rank was the highest)",
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH per_step AS (SELECT step, rank, node, value FROM metric_sampler.loss_rank_${lprsrc}(exp_filter = '${exp}', run_filter = '${run}', metric_filter = '${metric}', microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3))), ranked AS (SELECT *, max(value) OVER (PARTITION BY step) AS step_max FROM per_step) SELECT rank, any(node) AS node, avg(value) AS mean, min(value) AS min, max(value) AS max, countIf(value = step_max) AS steps_highest, count() AS steps FROM ranked GROUP BY rank ORDER BY mean DESC SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 101,
+      "type": "table",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Per-token loss inside every rank and microbatch at step ${step} (exact quantiles, highest max first)",
+      "description": "From loss/token_quantiles: exact empirical quantiles of the main head's per-token loss over each rank's and microbatch's valid tokens, before they are averaged into the loss.",
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "noValue": "No per-token loss quantiles were recorded at this step"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT q.node AS node, q.rank AS rank, q.microbatch AS microbatch, q.quantiles[1] AS min, q.quantiles[2] AS p1, q.quantiles[3] AS p5, q.quantiles[4] AS p25, q.quantiles[5] AS median, q.quantiles[6] AS p75, q.quantiles[7] AS p95, q.quantiles[8] AS p99, q.quantiles[9] AS max FROM metric_sampler.exact_quantiles_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = -2, microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) AS q WHERE q.metric = 'loss/token_quantiles' AND q.step = toUInt32OrZero(${step:sqlstring}) AND q.quantiles_present ORDER BY max DESC, rank, microbatch SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "type": "heatmap",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Token share per stream on every rank at step ${step} (x: rank; y: stream)",
+      "description": "From loss/stream_count: each rank's valid tokens by data stream (all microbatches, or the selected one), as a share of the rank's tokens.",
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "No per-stream token counts (loss/stream_count) were recorded at this step"
+        },
+        "overrides": []
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH counts AS (SELECT ec.attempt AS attempt, ec.rank AS rank, ec.`values` AS counts FROM metric_sampler.expert_counts AS ec FINAL INNER JOIN metric_sampler.latest_attempt_step AS las ON ec.exp = las.exp AND ec.run = las.run AND ec.step = las.step AND ec.attempt = las.attempt WHERE ec.exp = '${exp}' AND ec.run = '${run}' AND ec.step = toUInt32OrZero(${step:sqlstring}) AND ec.layer <= 255 AND ec.rank >= 0 AND ec.source_metric_id = 0 AND (ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 OR ec.microbatch = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) AND ec.metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE exp = '${exp}' AND run = '${run}' AND name = 'loss/stream_count')), per_stream AS (SELECT attempt, rank, i - 1 AS stream_id, sum(counts[i]) AS tokens FROM counts ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY attempt, rank, stream_id) SELECT p.rank AS rank, concat(leftPad(toString(p.stream_id), 2, '0'), ' ', if(s.name = '', concat('stream_', toString(p.stream_id)), s.name)) AS stream, p.tokens / sum(p.tokens) OVER (PARTITION BY p.rank) AS token_share FROM per_stream AS p LEFT JOIN metric_sampler.streams AS s FINAL ON s.exp = '${exp}' AND s.run = '${run}' AND s.attempt = p.attempt AND s.stream_id = p.stream_id ORDER BY rank, stream SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "rank",
+            "columnField": "stream",
+            "valueField": "token_share",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "rank\\stream",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ]
+}

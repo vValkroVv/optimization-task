@@ -1,0 +1,114 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: clickhouse
+    folder: metric-sampler
+    interval: 1m
+    rules:
+      # Fires when ClickHouse has not answered a trivial query for two minutes: the container stopped or crashed,
+      # or the server is too overloaded to serve the dashboards. A failed or empty query counts as down.
+      - uid: ms-clickhouse-down
+        title: ClickHouse is not answering
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: metric-sampler-ch
+            model:
+              refId: A
+              editorType: sql
+              format: 1
+              queryType: table
+              rawSql: "SELECT toFloat64(1) AS up SETTINGS use_query_cache = 0"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: ClickHouse of the metric sampler has not answered for two minutes; dashboards and ingest are stopped.
+        labels:
+          service: metric-sampler-clickhouse
+  - orgId: 1
+    name: backend
+    folder: metric-sampler
+    interval: 5m
+    rules:
+      # The data disk keeps the newest raw parts and the summaries; it fills quickly if the cold tier stops moving
+      # parts to the cold volume.
+      - uid: ms-data-disk-free
+        title: Data disk below 1.5 TB free
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: metric-sampler-ch
+            model:
+              refId: A
+              editorType: sql
+              format: 1
+              queryType: table
+              rawSql: "SELECT toFloat64(disk_free) / 1e12 AS free_tb FROM metric_sampler.backend_disks SETTINGS use_query_cache = 0"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1.5]
+        noDataState: KeepLast
+        execErrState: KeepLast
+        for: 10m
+        annotations:
+          summary: The ClickHouse data disk has less than 1.5 TB free; ingest stops when it is full.
+        labels:
+          service: metric-sampler-clickhouse
+      # Summaries more than 200 steps (about an hour of training) behind the steps whose raw rows are complete, for a
+      # run ingested within the last hour: the backend is not keeping up and the dashboards fall behind.
+      - uid: ms-summaries-behind
+        title: Summaries over 200 steps behind a live run
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: metric-sampler-ch
+            model:
+              refId: A
+              editorType: sql
+              format: 1
+              queryType: table
+              rawSql: "SELECT toFloat64(ifNull(max(behind), 0)) AS behind FROM (SELECT c.complete_through - max(p.complete_through) AS behind FROM metric_sampler.complete_steps_latest AS c INNER JOIN metric_sampler.summary_progress AS p ON p.exp = c.exp AND p.run = c.run WHERE c.last_ingested >= now() - INTERVAL 1 HOUR GROUP BY p.summary, c.exp, c.run, c.complete_through) SETTINGS use_query_cache = 0, join_algorithm = 'hash'"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [200]
+        noDataState: KeepLast
+        execErrState: KeepLast
+        for: 30m
+        annotations:
+          summary: A summary of a live run is more than 200 steps behind its complete steps; the backend is not keeping up.
+        labels:
+          service: metric-sampler-clickhouse

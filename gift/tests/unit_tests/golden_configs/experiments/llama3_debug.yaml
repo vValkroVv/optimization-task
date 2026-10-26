@@ -1,0 +1,988 @@
+materialized_model:
+  __type__: model:llama3
+  blocks: &mapping_87c838572c32cc07
+    dense:
+      __type__: transformer_block:residual
+      attention:
+        __type__: attention:gqa
+        dim: null
+        gate: null
+        head_dim: null
+        hidden_z_loss: null
+        init_role: null
+        inner_attention:
+          __type__: inner_attention:sdpa
+          hidden_z_loss: null
+          init_role: null
+          param_init: null
+          sharding_config: null
+        mask_type: null
+        n_heads: 16
+        n_kv_heads: null
+        param_init: null
+        qk_norm: null
+        qkv_linear: null
+        sharding_config: null
+        use_rope: true
+        wo: null
+      attention_norm: &norm_rmsnorm_420c6f4a5f3651c1
+        __type__: norm:rmsnorm
+        elementwise_affine: true
+        eps: 1.0e-05
+        hidden_z_loss: null
+        init_role: null
+        normalized_shape: null
+        param_init: null
+        sharding_config: null
+      attn_residual_scale: null
+      dim: null
+      feed_forward:
+        __type__: feed_forward:llama
+        dense_fused_swiglu_quant: true
+        dim: null
+        ffn_dim_multiplier: null
+        hidden_dim: null
+        hidden_z_loss: null
+        init_role: null
+        multiple_of: 256
+        param_init: null
+        sharding_config: null
+        swiglu_limit: 0.0
+        use_shared_quantizer: false
+        w1: null
+        w2: null
+        w3: null
+      ffn_norm: *norm_rmsnorm_420c6f4a5f3651c1
+      ffn_residual_scale: null
+      hidden_z_loss: null
+      init_role: null
+      layer_id: null
+      moe: null
+      param_init: null
+      post_attn_norm: null
+      post_ffn_norm: null
+      sharding_config: null
+  converters: []
+  dim: 256
+  enable_weight_tying: false
+  hidden_z_loss: null
+  hidden_z_loss_patterns: {}
+  init: &InitPolicy_ed0342fa18fd5816
+    __type__: torchtitan.config.schema.models.common.init_policy.InitPolicy
+    conv: null
+    embedding:
+      weight:
+        __type__: param_init:normal
+        mean: 0.0
+        std: 1.0
+    experts:
+      w13_E2FD:
+        __type__: param_init:fused_w13
+        gate:
+          __type__: param_init:trunc_normal
+          a: -2.0
+          b: 2.0
+          mean: 0.0
+          std: 0.02
+        up:
+          __type__: param_init:depth_scaled
+          base:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.02
+      w2_EDF:
+        __type__: param_init:depth_scaled
+        base:
+          __type__: param_init:trunc_normal
+          a: -2.0
+          b: 2.0
+          mean: 0.0
+          std: 0.02
+    gated_delta: null
+    gated_norm: null
+    linear:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:trunc_normal
+        a: -2.0
+        b: 2.0
+        mean: 0.0
+        std: 0.02
+    linear_out: &mapping_027190cb8b50e9c6
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:depth_scaled
+        base:
+          __type__: param_init:trunc_normal
+          a: -2.0
+          b: 2.0
+          mean: 0.0
+          std: 0.02
+    lm_head:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:dim_scaled
+        base:
+          __type__: param_init:trunc_normal
+          a: -2.0
+          b: 2.0
+          mean: 0.0
+          std: 0.02
+    norm:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:ones
+    o_norm: null
+    router_gate: *mapping_027190cb8b50e9c6
+    sinks: null
+  init_role: null
+  layers:
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:gqa
+      dim: 256
+      gate: null
+      head_dim: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      mask_type: MaskType.CAUSAL
+      n_heads: 16
+      n_kv_heads: null
+      param_init: null
+      qk_norm: null
+      qkv_linear: &qkv_separate_188ba5b221f222f7
+        __type__: qkv:separate
+        head_dim: 16
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+        wkv: &linear_linear_36cc061a87aa6477
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: linear
+          out_features: 256
+          param_init:
+            bias:
+              __type__: param_init:zeros
+            weight:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.02
+          sharding_config: null
+        wq: *linear_linear_36cc061a87aa6477
+      sharding_config: null
+      use_rope: true
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_c09f5b54dbbe0bde
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.014142135623730949
+        sharding_config: null
+    attention_norm: &norm_rmsnorm_98e7752e8c417631
+      __type__: norm:rmsnorm
+      elementwise_affine: true
+      eps: 1.0e-05
+      hidden_z_loss: null
+      init_role: norm
+      normalized_shape: 256
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:ones
+      sharding_config: null
+    attn_residual_scale: null
+    dim: 256
+    feed_forward:
+      __type__: feed_forward:llama
+      dense_fused_swiglu_quant: true
+      dim: 256
+      ffn_dim_multiplier: null
+      hidden_dim: 768
+      hidden_z_loss: null
+      init_role: ''
+      multiple_of: 256
+      param_init: null
+      sharding_config: null
+      swiglu_limit: 0.0
+      use_shared_quantizer: false
+      w1: &linear_linear_0c6a2d8f14ec8223
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear
+        out_features: 768
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.02
+        sharding_config: null
+      w2:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 768
+        init_role: linear_out
+        out_features: 256
+        param_init: *mapping_c09f5b54dbbe0bde
+        sharding_config: null
+      w3:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 768
+        param_init: *mapping_c09f5b54dbbe0bde
+        sharding_config: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 0
+    moe: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:gqa
+      dim: 256
+      gate: null
+      head_dim: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      mask_type: MaskType.CAUSAL
+      n_heads: 16
+      n_kv_heads: null
+      param_init: null
+      qk_norm: null
+      qkv_linear: *qkv_separate_188ba5b221f222f7
+      sharding_config: null
+      use_rope: true
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 256
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.01
+        sharding_config: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward:
+      __type__: feed_forward:llama
+      dense_fused_swiglu_quant: true
+      dim: 256
+      ffn_dim_multiplier: null
+      hidden_dim: 768
+      hidden_z_loss: null
+      init_role: ''
+      multiple_of: 256
+      param_init: null
+      sharding_config: null
+      swiglu_limit: 0.0
+      use_shared_quantizer: false
+      w1: *linear_linear_0c6a2d8f14ec8223
+      w2:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 768
+        init_role: linear_out
+        out_features: 256
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.01
+        sharding_config: null
+      w3:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 768
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.01
+        sharding_config: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 1
+    moe: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:gqa
+      dim: 256
+      gate: null
+      head_dim: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      mask_type: MaskType.CAUSAL
+      n_heads: 16
+      n_kv_heads: null
+      param_init: null
+      qk_norm: null
+      qkv_linear: *qkv_separate_188ba5b221f222f7
+      sharding_config: null
+      use_rope: true
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_c4a71de647f5f877
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.008164965809277261
+        sharding_config: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward:
+      __type__: feed_forward:llama
+      dense_fused_swiglu_quant: true
+      dim: 256
+      ffn_dim_multiplier: null
+      hidden_dim: 768
+      hidden_z_loss: null
+      init_role: ''
+      multiple_of: 256
+      param_init: null
+      sharding_config: null
+      swiglu_limit: 0.0
+      use_shared_quantizer: false
+      w1: *linear_linear_0c6a2d8f14ec8223
+      w2:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 768
+        init_role: linear_out
+        out_features: 256
+        param_init: *mapping_c4a71de647f5f877
+        sharding_config: null
+      w3:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 768
+        param_init: *mapping_c4a71de647f5f877
+        sharding_config: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 2
+    moe: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:gqa
+      dim: 256
+      gate: null
+      head_dim: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      mask_type: MaskType.CAUSAL
+      n_heads: 16
+      n_kv_heads: null
+      param_init: null
+      qk_norm: null
+      qkv_linear: *qkv_separate_188ba5b221f222f7
+      sharding_config: null
+      use_rope: true
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_c2635762f6b162aa
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.0070710678118654745
+        sharding_config: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward:
+      __type__: feed_forward:llama
+      dense_fused_swiglu_quant: true
+      dim: 256
+      ffn_dim_multiplier: null
+      hidden_dim: 768
+      hidden_z_loss: null
+      init_role: ''
+      multiple_of: 256
+      param_init: null
+      sharding_config: null
+      swiglu_limit: 0.0
+      use_shared_quantizer: false
+      w1: *linear_linear_0c6a2d8f14ec8223
+      w2:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 768
+        init_role: linear_out
+        out_features: 256
+        param_init: *mapping_c2635762f6b162aa
+        sharding_config: null
+      w3:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 768
+        param_init: *mapping_c2635762f6b162aa
+        sharding_config: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 3
+    moe: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:gqa
+      dim: 256
+      gate: null
+      head_dim: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      mask_type: MaskType.CAUSAL
+      n_heads: 16
+      n_kv_heads: null
+      param_init: null
+      qk_norm: null
+      qkv_linear: *qkv_separate_188ba5b221f222f7
+      sharding_config: null
+      use_rope: true
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_126a7b9fb3d54b90
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.006324555320336759
+        sharding_config: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward:
+      __type__: feed_forward:llama
+      dense_fused_swiglu_quant: true
+      dim: 256
+      ffn_dim_multiplier: null
+      hidden_dim: 768
+      hidden_z_loss: null
+      init_role: ''
+      multiple_of: 256
+      param_init: null
+      sharding_config: null
+      swiglu_limit: 0.0
+      use_shared_quantizer: false
+      w1: *linear_linear_0c6a2d8f14ec8223
+      w2:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 768
+        init_role: linear_out
+        out_features: 256
+        param_init: *mapping_126a7b9fb3d54b90
+        sharding_config: null
+      w3:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 768
+        param_init: *mapping_126a7b9fb3d54b90
+        sharding_config: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 4
+    moe: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:gqa
+      dim: 256
+      gate: null
+      head_dim: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      mask_type: MaskType.CAUSAL
+      n_heads: 16
+      n_kv_heads: null
+      param_init: null
+      qk_norm: null
+      qkv_linear: *qkv_separate_188ba5b221f222f7
+      sharding_config: null
+      use_rope: true
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_3602224216d6d7ed
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.005773502691896258
+        sharding_config: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward:
+      __type__: feed_forward:llama
+      dense_fused_swiglu_quant: true
+      dim: 256
+      ffn_dim_multiplier: null
+      hidden_dim: 768
+      hidden_z_loss: null
+      init_role: ''
+      multiple_of: 256
+      param_init: null
+      sharding_config: null
+      swiglu_limit: 0.0
+      use_shared_quantizer: false
+      w1: *linear_linear_0c6a2d8f14ec8223
+      w2:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 768
+        init_role: linear_out
+        out_features: 256
+        param_init: *mapping_3602224216d6d7ed
+        sharding_config: null
+      w3:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 768
+        param_init: *mapping_3602224216d6d7ed
+        sharding_config: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 5
+    moe: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  lm_head:
+    __type__: linear:linear
+    bias: false
+    hidden_z_loss: null
+    in_features: 256
+    init_role: lm_head
+    out_features: 2048
+    param_init:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:trunc_normal
+        a: -0.1875
+        b: 0.1875
+        mean: 0.0
+        std: 0.0625
+    sharding_config: null
+  mtp: null
+  norm: *norm_rmsnorm_98e7752e8c417631
+  param_init: null
+  rope:
+    __type__: rope:complex
+    cache_len: null
+    dim: 16
+    hidden_z_loss: null
+    init_role: ''
+    max_seq_len: 131072
+    param_init: null
+    scaling: &rope_scaling_llama_02f994927d77a2d7
+      __type__: rope_scaling:llama
+      high_freq_factor: 4.0
+      low_freq_factor: 1.0
+      original_max_position_embeddings: 8192
+      scaling_factor: 8.0
+    sharding_config: null
+    theta: 500000.0
+  sharding_config: null
+  tok_embeddings:
+    __type__: torchtitan.config.schema.models.common.embeddings.token_embeddings.EmbeddingConfig
+    embedding_dim: 256
+    hidden_z_loss: null
+    init_role: embedding
+    num_embeddings: 2048
+    param_init:
+      weight:
+        __type__: param_init:normal
+        mean: 0.0
+        std: 1.0
+    sharding_config: null
+  vocab_size: 2048
+model:
+  __type__: torchtitan.config.sections.ModelSection
+  config:
+    __type__: model:llama3
+    blocks: *mapping_87c838572c32cc07
+    converters: []
+    dim: 256
+    enable_weight_tying: false
+    hidden_z_loss: null
+    hidden_z_loss_patterns: {}
+    init: *InitPolicy_ed0342fa18fd5816
+    init_role: null
+    layers:
+    - __type__: torchtitan.config.schema.models.common.decoder_blocks.layer_group.LayerGroupConfig
+      block: dense
+      cycle: null
+      repeat: 6
+    lm_head: null
+    mtp: null
+    norm: *norm_rmsnorm_420c6f4a5f3651c1
+    param_init: null
+    rope:
+      __type__: rope:complex
+      cache_len: null
+      dim: 16
+      hidden_z_loss: null
+      init_role: null
+      max_seq_len: 131072
+      param_init: null
+      scaling: *rope_scaling_llama_02f994927d77a2d7
+      sharding_config: null
+      theta: 500000.0
+    sharding_config: null
+    tok_embeddings: null
+    vocab_size: 2048
+  label: debugmodel
+trainer:
+  __type__: torchtitan.config.schema.trainer.TrainerConfig
+  activation_checkpoint:
+    __type__: torchtitan.config.configs.ActivationCheckpointConfig
+    debug: false
+    determinism_check: default
+    early_stop: false
+    memory_budget: 0.5
+    mode: selective
+    per_op_sac_force_recompute_mm_shapes_by_fqns:
+    - moe.router.gate
+    preserve_rng_state: true
+    visualize_memory_budget_pareto: false
+  callbacks: {}
+  checkpoint:
+    __type__: checkpoint:default
+    async_mode: disabled
+    create_seed_checkpoint: false
+    ema_folder: ema_checkpoint
+    enable: false
+    enable_first_step_checkpoint: false
+    exclude_from_loading: []
+    export_dtype: float32
+    folder: checkpoint
+    hf_remote_code_dir: ''
+    initial_load_in_hf: false
+    initial_load_in_hf_quantized: false
+    initial_load_model_only: true
+    initial_load_path: null
+    interval: 10
+    keep_latest_k: 10
+    last_save_ema_model_also: false
+    last_save_in_hf: false
+    last_save_model_only: false
+    load_only: false
+    load_step: -1
+    save_in_hf: false
+  comm:
+    __type__: torchtitan.config.configs.CommConfig
+    init_timeout_seconds: 3600
+    mode: default
+    save_traces_file_prefix: rank_
+    save_traces_folder: comm_traces
+    trace_buf_size: 20000
+    train_timeout_seconds: 1800
+  compile:
+    __type__: torchtitan.config.configs.CompileConfig
+    backend: inductor
+    components:
+    - model
+    - loss
+    enable: false
+  dataloader:
+    __type__: dataloader:hf_text
+    dataset: c4_test
+    dataset_path: null
+    infinite: true
+    num_workers: 0
+    persistent_workers: false
+    pin_memory: false
+    prefetch_factor: null
+  debug:
+    __type__: torchtitan.config.configs.DebugConfig
+    batch_invariant: false
+    detect_anomaly: false
+    deterministic: false
+    deterministic_warn_only: false
+    enable_structured_logging: true
+    moe_force_first_group: false
+    moe_force_load_balance: false
+    print_config: false
+    seed: null
+  dump_folder: ./outputs
+  fp8:
+    __type__: torchtitan.config.configs.FP8Config
+    deep_gemm_warmup_on_start: true
+    dense_fused_swiglu_quant: true
+    dense_include_linear_layers: ''
+    dense_use_shared_quantizer: false
+    sparse_deep_gemm_num_sms: 116
+    sparse_fused_swiglu_quant: true
+    sparse_use_grouped_gemm: false
+  hf_assets_path: ./tests/assets/tokenizer
+  loss:
+    __type__: loss:chunked_cross_entropy
+    num_chunks: 8
+  lr_scheduler:
+    __type__: torchtitan.config.schema.components.lr_scheduler.LRSchedulersContainerConfig
+    decay_ratio: 0.8
+    decay_type: linear
+    min_lr_factor: 0.0
+    total_steps: null
+    warmup_steps: 2
+  metrics:
+    __type__: torchtitan.config.schema.components.metrics.MetricsProcessorConfig
+    disable_color_printing: false
+    enable_tensorboard: false
+    enable_wandb: false
+    log_freq: 1
+    save_for_all_ranks: false
+    save_tb_folder: tb
+    tb_folder_per_launch: false
+    tb_rotate_mib: 64
+  model_spec: null
+  optimizer:
+    __type__: optimizer:default
+    beta1: 0.9
+    beta2: 0.95
+    eps: 1.0e-08
+    implementation: fused
+    lr: 0.0008
+    name: AdamW
+    param_groups: []
+    weight_decay: 0.1
+  parallelism:
+    __type__: torchtitan.config.configs.ParallelismConfig
+    context_parallel_degree: 1
+    context_parallel_load_balancer: headtail
+    data_parallel_replicate_degree: 1
+    data_parallel_shard_degree: -1
+    disable_loss_parallel: false
+    enable_async_tensor_parallel: false
+    enable_fsdp_symm_mem: false
+    enable_sequence_parallel: true
+    expert_parallel_degree: 1
+    fsdp_backend: fsdp2
+    fsdp_reshard_after_forward: default
+    full_dtensor: false
+    gfsdp_match_fsdp2_init: false
+    module_fqns_per_model_part: null
+    pipeline_parallel_balancing: layer_count
+    pipeline_parallel_degree: 1
+    pipeline_parallel_first_stage_less_layers: 1
+    pipeline_parallel_grad_reduce: 'off'
+    pipeline_parallel_last_stage_less_layers: 1
+    pipeline_parallel_layers_per_stage: null
+    pipeline_parallel_microbatch_size: 1
+    pipeline_parallel_module_costs_ms: {}
+    pipeline_parallel_num_stages_per_rank: null
+    pipeline_parallel_pool_recv_buffers: false
+    pipeline_parallel_schedule: Interleaved1F1B
+    pipeline_parallel_schedule_csv: ''
+    tensor_parallel_degree: 1
+  profiler:
+    __type__: torchtitan.config.schema.tools.profiler.ProfilerConfig
+    enable_memory_snapshot: false
+    enable_profiling: false
+    profile_freq: 10
+    profiler_active: 1
+    profiler_repeat: null
+    profiler_skip_first: null
+    profiler_skip_first_wait: null
+    profiler_warmup: 3
+    save_memory_snapshot_folder: profiling/memory_snapshot
+    save_traces_folder: profiling/traces
+    trace_post_processor: null
+  tokenizer:
+    __type__: tokenizer:huggingface
+  training:
+    __type__: torchtitan.config.configs.TrainingConfig
+    dtype: float32
+    enable_cpu_offload: false
+    gc_debug: false
+    gc_freq: 50
+    global_batch_size: -1
+    local_batch_size: 8
+    max_norm: 1.0
+    mixed_precision_param: bfloat16
+    mixed_precision_reduce: float32
+    seq_len: 2048
+    steps: 10
+  validator:
+    __type__: validator:default
+    dataloader:
+      __type__: dataloader:hf_text
+      dataset: c4_validation
+      dataset_path: null
+      infinite: false
+      num_workers: 0
+      persistent_workers: false
+      pin_memory: false
+      prefetch_factor: null
+    enable: false
+    freq: 5
+    steps: 10

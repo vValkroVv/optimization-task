@@ -1,0 +1,92 @@
+user:
+
+exp_name:
+run_name:
+
+tensorboard_path: /home/jovyan/${user}/tensorboard/${exp_name}
+save_folder: /home/jovyan/${user}/checkpoints/${exp_name}/${run_name}
+logs_path: ${tensorboard_path}
+
+model_path: /home/jovyan/models/templates/gigar-base_model-9B-128k_digit_tokenizer-no_eos-config_only_yarn
+tokenizer:
+  name: /home/jovyan/models/GigaChat3/GigaSeek-10B-1A-pretrain/ep1_ba377500/artifacts/tokenizer
+
+
+load_path: /workspace-SR008.nfs2/fedorovgv/tmp/GigaSeek_10B_mono_e82c6a7ac9b5923a475f4ee4764a26651b8fb419e2f77bebd4061d8bef612e1f_gigafsdp_32_sharded
+teacher_load_path: /workspace-SR008.nfs2/fedorovgv/tmp/GigaSeek_10B_mono_e82c6a7ac9b5923a475f4ee4764a26651b8fb419e2f77bebd4061d8bef612e1f_gigafsdp_32_sharded
+
+# DPO/Model params (editable)
+model:
+  dpo:
+    beta_chosen: 0.05
+    beta_rejected: 0.05
+    gamma: 0.0
+    weighted_gamma: 1.0
+    n_tokens: -1
+    margin_coef: 0.0
+    spectokens: [42001, 42002]
+    masked_tokens: []
+    chosen_nll_coef: 0.25
+    shiza_nll_coef: 0.95
+    spectokens_nll_coef: 0
+    loss_coef: 1.1
+    loss_func: dpo
+    chosen_nll_norm: ref
+    func_shiza: true
+    mask_common_prefix: false
+    log_metrics: true
+
+global_train_batch_size: 160
+device_train_microbatch_size: 1
+device_eval_batch_size: 1
+
+max_duration: 2370ba
+eval_interval: 550ba
+
+# Batch sizes
+train_loader:
+  dataset:
+    epoch_size: 379810
+    streams:
+      dpo_main:
+        local: /workspace-SR008.nfs2/datasets/GigaSets/3.1_pref/
+  num_workers: 128
+
+# Optimization
+lr: 1.0e-07
+optimizer:
+  lr: ${lr}
+  weight_decay: 0
+
+scheduler:
+  name: constant_multi_step_with_gamma_with_warmup
+  t_warmup: 50ba
+  milestones: [3061ba, 4920ba]
+  milestones_gamma: [0.2, 0.04]
+
+# Logging
+loggers:
+  tensorboard:
+    log_dir: ${tensorboard_path}
+    rank_zero_only: true
+  # wandb:                          # ВАЖНО! Чтобы подключить wnb нужно настроить sber_configs/.wandb.env
+  #   name: ${exp_name}
+  #   project: DPO_TEST                     # имя проекта
+  #   group: null
+  #   entity: alignment             # название team для команбы алаймента
+  #   tags: null
+  #   log_artifacts: false
+  #   rank_zero_only: true
+  #   save_folder: ${save_folder}
+  #   init_kwargs:
+  #     notes: notes
+
+auto_log_hparams: true
+autoresume: true # При перезапуске обучения модель продолжит обучаться
+
+save_interval: 550ba
+stable_save_interval: 550ba
+
+load_weights_only: true
+load_strict_model_weights: true
+

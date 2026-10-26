@@ -1,0 +1,25 @@
+# Llama3 debug model on the bundled c4_test corpus.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/llama3_debug.yaml
+config_version: 1
+
+imports:
+  - ../presets/models/llama3/debugmodel.yaml
+  - ../presets/train/debug.yaml
+
+loss:
+  type: chunked_cross_entropy
+
+parallelism:
+  pipeline_parallel_schedule: Interleaved1F1B
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false
+
+validator:
+  freq: 5
+  steps: 10
+
+model:
+  config: {}

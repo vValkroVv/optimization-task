@@ -1,0 +1,13 @@
+# Graph-trainer mixin: layer over a base experiment to train it through the
+# graph trainer (make_fx tracing, graph passes, CUDA graphs). The experiment
+# must also set `model.config.type` to the matching `graph_trainer/<family>`
+# type; pre-submit rejects a mismatched trainer/model pair.
+trainer:
+  type: graph_trainer
+
+# TODO: the graph trainer does not support ChunkedCELoss yet.
+loss:
+  type: cross_entropy
+
+compile:
+  enable: true      # mode defaults to aot_fx_trace

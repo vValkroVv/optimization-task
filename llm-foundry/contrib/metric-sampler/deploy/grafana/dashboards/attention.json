@@ -1,0 +1,2979 @@
+{
+  "uid": "ms-attention",
+  "title": "metric-sampler / Attention",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "",
+  "description": "Attention statistics of every softmax (MLA) and linear (GDN) layer, exact over every rank, microbatch and row: means are sums over the counted rows divided by the rows, minima and maxima are over every row. The trends and heatmaps use the training step as seconds since 1970-01-01 UTC because Grafana plots a time axis; read 00:05:00 as step 300.",
+  "time": {
+    "from": "1970-01-01T00:00:00.000Z",
+    "to": "1970-01-01T00:20:00.000Z"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "exp",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT exp FROM metric_sampler.batches GROUP BY exp ORDER BY exp = (SELECT exp FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0"
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT run FROM metric_sampler.batches WHERE exp = '${exp}' GROUP BY run ORDER BY run = (SELECT run FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' AND exp = '${exp}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0"
+      },
+      {
+        "name": "capture_interval",
+        "label": "capture_interval",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT greatest(max(capture_interval), 1) FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}'"
+      },
+      {
+        "name": "kind",
+        "label": "Kind (softmax: MLA, linear: GDN)",
+        "type": "custom",
+        "query": "softmax : softmax, linear : linear",
+        "current": {
+          "text": "softmax",
+          "value": "softmax"
+        }
+      },
+      {
+        "name": "layer",
+        "label": "Layer",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT DISTINCT layer FROM metric_sampler.router_vectors WHERE exp = '${exp}' AND run = '${run}' AND layer <= 255 AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = if('${kind}' = 'softmax', 'attn/softmax/lse_stats', 'attn/linear/norm_stats')) AND step >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') - 200 ORDER BY layer"
+      },
+      {
+        "name": "head",
+        "label": "Head",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT arrayJoin(range(toUInt32(max(intDiv(length(`values`) - 1, 3))))) AS head FROM metric_sampler.router_vectors WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${layer:sqlstring}) AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = if('${kind}' = 'softmax', 'attn/softmax/lse_stats', 'attn/linear/norm_stats')) AND step >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') - 5"
+      },
+      {
+        "name": "rank",
+        "label": "Rank",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '-2' AS __value, 'All (aggregate)' AS __text UNION ALL SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT rank AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "current": {
+          "text": "All (aggregate)",
+          "value": "-2"
+        }
+      },
+      {
+        "name": "microbatch",
+        "label": "Microbatch",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '-2' AS __value, 'All (aggregate)' AS __text UNION ALL SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT microbatch AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "current": {
+          "text": "All (aggregate)",
+          "value": "-2"
+        }
+      },
+      {
+        "name": "asrc",
+        "label": "asrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 3 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('attention_softmax', 'attention_linear', 'attention_entropy_hist') GROUP BY summary)), 'all', 'live') AS asrc"
+      },
+      {
+        "name": "rsrc",
+        "label": "rsrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('attention_rank') GROUP BY summary)), 'all', 'live') AS rsrc"
+      },
+      {
+        "name": "latest_step",
+        "label": "latest_step",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if('${asrc}' = 'all', greatest((SELECT max(step) FROM metric_sampler.summary_attention_softmax WHERE exp = '${exp}' AND run = '${run}' AND head = -1 AND step <= (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}'))), (SELECT max(step) FROM metric_sampler.summary_attention_linear WHERE exp = '${exp}' AND run = '${run}' AND head = -1 AND step <= (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}')))), (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}' AND step <= (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}'))))"
+      },
+      {
+        "name": "step_from",
+        "label": "step_from",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 0, toUInt64(${__from}))"
+      },
+      {
+        "name": "step_to",
+        "label": "step_to",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 4294967295, toUInt64(${__to}))"
+      },
+      {
+        "name": "remember",
+        "label": "Remembered selection",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '' AS remembered SETTINGS log_comment = 'ms-selection ${__user.login} ${exp} ${run}', use_query_cache = 0"
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Overview: softmax and linear layers",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Latest recorded step, every layer by kind",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT * FROM (SELECT 'softmax' AS kind, layer, rows, stat_rows, ent_mean AS entropy, entn_mean AS entropy_normalized, pmax_mean AS max_probability, sink_mean AS sink_mass, local_mean AS local_mass, mlogit_max AS max_qk_logit, lse_mean, CAST(NULL AS Nullable(Float64)) AS beta, CAST(NULL AS Nullable(Float64)) AS alpha, CAST(NULL AS Nullable(Float64)) AS g, CAST(NULL AS Nullable(Float32)) AS o_amax, CAST(NULL AS Nullable(Float64)) AS state_norm FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = toUInt32OrZero(${latest_step:sqlstring}), step_to = toUInt32OrZero(${latest_step:sqlstring})) WHERE exp = '${exp}' AND run = '${run}' AND step = toUInt32OrZero(${latest_step:sqlstring}) AND head = -1 UNION ALL SELECT 'linear' AS kind, layer, rows, toUInt64(0) AS stat_rows, CAST(NULL AS Nullable(Float64)) AS entropy, CAST(NULL AS Nullable(Float64)) AS entropy_normalized, CAST(NULL AS Nullable(Float64)) AS max_probability, CAST(NULL AS Nullable(Float64)) AS sink_mass, CAST(NULL AS Nullable(Float64)) AS local_mass, CAST(NULL AS Nullable(Float32)) AS max_qk_logit, CAST(NULL AS Nullable(Float64)) AS lse_mean, beta_mean AS beta, alpha_mean AS alpha, g_mean AS g, o_amax, state_norm_mean AS state_norm FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = toUInt32OrZero(${latest_step:sqlstring}), step_to = toUInt32OrZero(${latest_step:sqlstring})) WHERE exp = '${exp}' AND run = '${run}' AND step = toUInt32OrZero(${latest_step:sqlstring}) AND head = -1) ORDER BY layer SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "Softmax layers show their attention statistics and linear layers their gate and state statistics; the other columns of a row stay empty. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). "
+    },
+    {
+      "id": 3,
+      "type": "trend",
+      "title": "Layers recorded per step, by kind",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "kind"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.kind, ''), 'No data') AS kind, measured.layers AS layers FROM (WITH observed AS (SELECT step, kind, layers FROM (SELECT step, 'softmax' AS kind, count() AS layers FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 GROUP BY step UNION ALL SELECT step, 'linear' AS kind, count() AS layers FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 GROUP BY step) ORDER BY kind, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY kind ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, kind, layers FROM marked UNION ALL SELECT step + 1 AS step, kind, CAST(NULL AS Nullable(Float64)) AS layers FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.kind}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "Softmax attention: per layer",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 5,
+      "type": "trend",
+      "title": "Attention entropy by layer, mean over rows and heads (nats)",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.ent_mean AS ent_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, ent_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND ent_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, ent_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS ent_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Entropy of each query row's attention distribution, -sum p log p. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 6,
+      "type": "trend",
+      "title": "Attention entropy by layer, minimum over rows and heads (nats)",
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.ent_min AS ent_min FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, ent_min FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND ent_min IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, ent_min FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS ent_min FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. The smallest row entropy of any head: values near 0 mean a row attends to a single key. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 7,
+      "type": "trend",
+      "title": "Attention entropy by layer, maximum over rows and heads (nats)",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.ent_max AS ent_max FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, ent_max FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND ent_max IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, ent_max FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS ent_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. The largest row entropy of any head. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 8,
+      "type": "trend",
+      "title": "Normalized attention entropy by layer (entropy / log of the number of keys)",
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.entn_mean AS entn_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, entn_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND entn_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, entn_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS entn_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. 1 is uniform attention over the allowed keys, 0 is a single key. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 9,
+      "type": "trend",
+      "title": "Average maximum attention probability by layer",
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.pmax_mean AS pmax_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, pmax_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND pmax_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, pmax_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS pmax_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Mean over rows of the largest attention probability. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 10,
+      "type": "trend",
+      "title": "Average log of the minimum attention probability by layer",
+      "gridPos": {
+        "x": 12,
+        "y": 39,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.lpmin_mean AS lpmin_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, lpmin_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND lpmin_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, lpmin_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS lpmin_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Mean over rows of the log of the smallest probability among the allowed keys. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 11,
+      "type": "trend",
+      "title": "Maximum QK logit by layer (over rows and heads)",
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.mlogit_max AS mlogit_max FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, mlogit_max FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND mlogit_max IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, mlogit_max FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS mlogit_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Largest softmax_scale * q.k among the allowed keys. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 12,
+      "type": "trend",
+      "title": "LSE by layer, mean over rows and heads",
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.lse_mean AS lse_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, lse_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND lse_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, lse_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS lse_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Log-partition of the softmax per query row and head, from the flash-attention LSE. Every row counts. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 13,
+      "type": "trend",
+      "title": "Sink mass by layer (attention on the first key of the document)",
+      "gridPos": {
+        "x": 0,
+        "y": 57,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.sink_mean AS sink_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, sink_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND sink_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, sink_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS sink_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Mean over rows of the probability on the first key of the row's document. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 14,
+      "type": "trend",
+      "title": "Mean attention distance by layer (tokens)",
+      "gridPos": {
+        "x": 12,
+        "y": 57,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.dist_mean AS dist_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, dist_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND dist_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, dist_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS dist_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Mean over rows of sum_j p_ij (i - j), the attention-weighted distance to the keys. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 15,
+      "type": "trend",
+      "title": "Local mass by layer (attention on the last 128 keys)",
+      "gridPos": {
+        "x": 0,
+        "y": 66,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.local_mean AS local_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, local_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND local_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, local_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS local_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Mean over rows of the probability on the last 128 allowed keys. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 16,
+      "type": "trend",
+      "title": "Gate logit by layer, mean (gated layers only)",
+      "gridPos": {
+        "x": 12,
+        "y": 66,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.gate_mean AS gate_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, gate_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND gate_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, gate_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS gate_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Per-token mean gate logit of the head; only layers with gated attention record it. Every row counts. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "Softmax attention: selected layer",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 75,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 18,
+      "type": "trend",
+      "title": "Attention entropy, layer ${layer}: mean, min and max over rows and heads (nats)",
+      "gridPos": {
+        "x": 0,
+        "y": 76,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, ent_mean, ent_min, ent_max FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, ent_mean, ent_min, ent_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS ent_mean, CAST(NULL AS Nullable(Float64)) AS ent_min, CAST(NULL AS Nullable(Float64)) AS ent_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. The band spans the smallest and the largest row entropy of any head. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 19,
+      "type": "trend",
+      "title": "Normalized attention entropy, layer ${layer}: mean, min and max",
+      "gridPos": {
+        "x": 12,
+        "y": 76,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, entn_mean, entn_min, entn_max FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, entn_mean, entn_min, entn_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS entn_mean, CAST(NULL AS Nullable(Float64)) AS entn_min, CAST(NULL AS Nullable(Float64)) AS entn_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. The band spans the smallest and the largest normalized row entropy of any head. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 20,
+      "type": "trend",
+      "title": "LSE, layer ${layer}: mean, min and max",
+      "gridPos": {
+        "x": 0,
+        "y": 85,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, lse_mean, lse_min, lse_max FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, lse_mean, lse_min, lse_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS lse_mean, CAST(NULL AS Nullable(Float64)) AS lse_min, CAST(NULL AS Nullable(Float64)) AS lse_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Every row counts. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 21,
+      "type": "trend",
+      "title": "Entropy standard deviation over rows and heads, layer ${layer} (nats)",
+      "gridPos": {
+        "x": 12,
+        "y": 85,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, ent_std FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, ent_std FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS ent_std FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. From the sums of the entropy and of its square, clamped at zero before the square root. Row statistics cover the query rows with at least 32 allowed keys. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 22,
+      "type": "heatmap",
+      "title": "Attention entropy per head, layer ${layer} (x: step; y: head; colour: mean entropy in nats)",
+      "gridPos": {
+        "x": 0,
+        "y": 94,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT step, concat('h', leftPad(toString(head), 2, '0')) AS head_name, ent_mean AS value FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND head >= 0 ORDER BY step, head_name SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "head_name",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\head_name",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Softmax (MLA) layers: pick Kind = softmax. Entropy of each query row's attention distribution. Row statistics cover the query rows with at least 32 allowed keys. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Drag over steps to zoom, or pick a wall-clock time range such as 'Last 7 days' to see every step again."
+    },
+    {
+      "id": 23,
+      "type": "heatmap",
+      "title": "Average maximum attention probability per head, layer ${layer} (x: step; y: head)",
+      "gridPos": {
+        "x": 0,
+        "y": 106,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT step, concat('h', leftPad(toString(head), 2, '0')) AS head_name, pmax_mean AS value FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND head >= 0 ORDER BY step, head_name SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "head_name",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\head_name",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Softmax (MLA) layers: pick Kind = softmax. Mean over rows of the largest attention probability. Row statistics cover the query rows with at least 32 allowed keys. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Drag over steps to zoom, or pick a wall-clock time range such as 'Last 7 days' to see every step again."
+    },
+    {
+      "id": 24,
+      "type": "heatmap",
+      "title": "Sink mass per head, layer ${layer} (x: step; y: head)",
+      "gridPos": {
+        "x": 0,
+        "y": 118,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT step, concat('h', leftPad(toString(head), 2, '0')) AS head_name, sink_mean AS value FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND head >= 0 ORDER BY step, head_name SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "head_name",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\head_name",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Softmax (MLA) layers: pick Kind = softmax. Mean over rows of the probability on the first key of the row's document. Row statistics cover the query rows with at least 32 allowed keys. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Drag over steps to zoom, or pick a wall-clock time range such as 'Last 7 days' to see every step again."
+    },
+    {
+      "id": 25,
+      "type": "table",
+      "title": "Latest recorded step, layer ${layer}: statistics per head",
+      "gridPos": {
+        "x": 0,
+        "y": 130,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT head, rows, stat_rows, ent_mean, ent_std, ent_min, ent_max, entn_mean, pmax_mean, pmax_max, lpmin_mean, mlogit_mean, mlogit_max, coll_mean, sink_mean, sink_max, dist_mean, local_mean, lse_mean, lse_min, lse_max, q_nope_norm_mean, q_rope_norm_mean, k_nope_norm_mean, k_rope_norm_mean, v_norm_mean, q_amax, k_amax, v_amax, gate_mean, gate_min, gate_max FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = toUInt32OrZero(${latest_step:sqlstring}), step_to = toUInt32OrZero(${latest_step:sqlstring})) WHERE exp = '${exp}' AND run = '${run}' AND step = toUInt32OrZero(${latest_step:sqlstring}) AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY head SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "Softmax (MLA) layers: pick Kind = softmax. Head -1 is the layer as a whole. Row statistics cover the query rows with at least 32 allowed keys. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. "
+    },
+    {
+      "id": 26,
+      "type": "heatmap",
+      "title": "Normalized attention entropy histogram, layer ${layer} (x: step; y: bin k covering [k/32, (k+1)/32); colour: share of rows)",
+      "gridPos": {
+        "x": 0,
+        "y": 140,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT step, concat('b', leftPad(toString(bin_index - 1), 2, '0')) AS bin, bin_count / nullIf(arraySum(counts), 0) AS value FROM metric_sampler.attention_entropy_hist_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) ARRAY JOIN counts AS bin_count, arrayEnumerate(counts) AS bin_index WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND head = -1 ORDER BY step, bin SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "bin",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\bin",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Softmax (MLA) layers: pick Kind = softmax. Share of the counted rows in each of 32 equal bins of the normalized entropy, pooled over heads. Row statistics cover the query rows with at least 32 allowed keys. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. "
+    },
+    {
+      "id": 27,
+      "type": "trend",
+      "title": "Normalized attention entropy quantiles, layer ${layer}: median over ranks and microbatches",
+      "gridPos": {
+        "x": 0,
+        "y": 152,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, p05, p25, p50, p75, p95, minimum, maximum FROM (SELECT rv.step AS step, quantileExact(0.5)(rv.`values`[3]) AS p05, quantileExact(0.5)(rv.`values`[4]) AS p25, quantileExact(0.5)(rv.`values`[5]) AS p50, quantileExact(0.5)(rv.`values`[6]) AS p75, quantileExact(0.5)(rv.`values`[7]) AS p95, min(rv.`values`[1]) AS minimum, max(rv.`values`[9]) AS maximum FROM metric_sampler.router_vectors AS rv FINAL INNER JOIN metric_sampler.latest_attempt_step AS las ON (rv.exp = las.exp) AND (rv.run = las.run) AND (rv.step = las.step) AND (rv.attempt = las.attempt) INNER JOIN metric_sampler.metric_names AS mn ON (mn.exp = rv.exp) AND (mn.run = rv.run) AND (mn.attempt = rv.attempt) AND (mn.metric_id = rv.metric_id) WHERE rv.exp = '${exp}' AND rv.run = '${run}' AND rv.step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND rv.layer = toInt32OrNull(${layer:sqlstring}) AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rv.rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) AND (ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 OR rv.microbatch = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) AND length(rv.`values`) = 9 AND isFinite(rv.`values`[5]) AND mn.name = 'attn/softmax/entropy_quantiles' AND rv.metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'attn/softmax/entropy_quantiles') GROUP BY rv.step) WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, p05, p25, p50, p75, p95, minimum, maximum FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS p05, CAST(NULL AS Nullable(Float64)) AS p25, CAST(NULL AS Nullable(Float64)) AS p50, CAST(NULL AS Nullable(Float64)) AS p75, CAST(NULL AS Nullable(Float64)) AS p95, CAST(NULL AS Nullable(Float64)) AS minimum, CAST(NULL AS Nullable(Float64)) AS maximum FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Exact quantiles of the normalized entropy of one rank and microbatch (all rows and heads of the layer). Populations are never merged: each line is the median over the selected ranks and microbatches of that population's quantile, and the extremes are the smallest minimum and the largest maximum of any population. rank=${rank}, microbatch=${microbatch}. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 28,
+      "type": "trend",
+      "title": "Query, key and value vector norms, layer ${layer}, head ${head}",
+      "gridPos": {
+        "x": 12,
+        "y": 152,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, q_nope_norm_mean, q_rope_norm_mean, k_nope_norm_mean, k_rope_norm_mean, v_norm_mean FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = toInt16OrNull(${head:sqlstring}) AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, q_nope_norm_mean, q_rope_norm_mean, k_nope_norm_mean, k_rope_norm_mean, v_norm_mean FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS q_nope_norm_mean, CAST(NULL AS Nullable(Float64)) AS q_rope_norm_mean, CAST(NULL AS Nullable(Float64)) AS k_nope_norm_mean, CAST(NULL AS Nullable(Float64)) AS k_rope_norm_mean, CAST(NULL AS Nullable(Float64)) AS v_norm_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Mean over tokens of the L2 norm of each token's head slice; q and k are split into their no-position (nope) and rotary (rope) parts. Every row counts. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 29,
+      "type": "trend",
+      "title": "Query, key and value amax, layer ${layer}, head ${head}",
+      "gridPos": {
+        "x": 0,
+        "y": 161,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, q_amax, k_amax, v_amax FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = toInt16OrNull(${head:sqlstring}) AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, q_amax, k_amax, v_amax FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS q_amax, CAST(NULL AS Nullable(Float64)) AS k_amax, CAST(NULL AS Nullable(Float64)) AS v_amax FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Largest absolute element of the head slice over every token. Every row counts. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 30,
+      "type": "trend",
+      "title": "Gate logit, layer ${layer}, head ${head}: mean, min and max",
+      "gridPos": {
+        "x": 12,
+        "y": 161,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, gate_mean, gate_min, gate_max FROM metric_sampler.attention_softmax_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = toInt16OrNull(${head:sqlstring}) AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, gate_mean, gate_min, gate_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS gate_mean, CAST(NULL AS Nullable(Float64)) AS gate_min, CAST(NULL AS Nullable(Float64)) AS gate_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Per-token mean gate logit of the head; only layers with gated attention record it. Every row counts. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 31,
+      "type": "row",
+      "title": "Softmax attention: ranks",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 170,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 32,
+      "type": "trend",
+      "title": "Attention entropy spread over ranks, layer ${layer}: min, median and max of the per-rank mean (nats)",
+      "gridPos": {
+        "x": 0,
+        "y": 171,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, ent_min_rank, ent_median_rank, ent_max_rank, ent_selected_rank FROM (SELECT step, min(ent_mean) AS ent_min_rank, quantileExact(0.5)(ent_mean) AS ent_median_rank, max(ent_mean) AS ent_max_rank, if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, CAST(NULL AS Nullable(Float64)), maxIf(ent_mean, rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3))) AS ent_selected_rank FROM metric_sampler.attention_rank_${rsrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = -2, microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) GROUP BY step) WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, ent_min_rank, ent_median_rank, ent_max_rank, ent_selected_rank FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS ent_min_rank, CAST(NULL AS Nullable(Float64)) AS ent_median_rank, CAST(NULL AS Nullable(Float64)) AS ent_max_rank, CAST(NULL AS Nullable(Float64)) AS ent_selected_rank FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ent_min_rank"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "min over ranks"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ent_median_rank"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "median over ranks"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ent_max_rank"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "max over ranks"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ent_selected_rank"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "selected rank"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Softmax (MLA) layers: pick Kind = softmax. Each rank's mean entropy over its rows, heads and microbatches. Every rank is included whatever Rank is selected; the selected rank is drawn as its own line. Row statistics cover the query rows with at least 32 allowed keys. rank=${rank}, microbatch=${microbatch}. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 33,
+      "type": "table",
+      "title": "Per-rank statistics, layer ${layer}, head ${head}, latest recorded step (Rank All: rank 0)",
+      "gridPos": {
+        "x": 0,
+        "y": 180,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, metric, rows, stat, value FROM metric_sampler.attention_heads_per_rank_selected(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, 0, ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) ARRAY JOIN stat_names AS stat, stats AS value WHERE step = toUInt32OrZero(${latest_step:sqlstring}) AND layer = toInt32OrZero(${layer:sqlstring}) AND head = toInt16OrZero(${head:sqlstring}) ORDER BY microbatch, metric, stat SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "Every field of the head's vectors on each microbatch of one rank, from the raw tables: *_sum fields add up over the counted rows (mean = sum / rows). With Rank = All the table shows rank 0."
+    },
+    {
+      "id": 34,
+      "type": "row",
+      "title": "Linear attention",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 190,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 35,
+      "type": "trend",
+      "title": "Beta (write strength) by layer, mean over tokens and heads",
+      "gridPos": {
+        "x": 0,
+        "y": 191,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.beta_mean AS beta_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, beta_mean FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND beta_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, beta_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS beta_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. Mean over tokens of the delta-rule write strength. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 36,
+      "type": "trend",
+      "title": "Alpha (decay, exp(g)) by layer, mean over tokens and heads",
+      "gridPos": {
+        "x": 12,
+        "y": 191,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.alpha_mean AS alpha_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, alpha_mean FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND alpha_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, alpha_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS alpha_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. Mean over tokens of the state decay factor exp(g). Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 37,
+      "type": "trend",
+      "title": "g (log decay) by layer, mean over tokens and heads",
+      "gridPos": {
+        "x": 0,
+        "y": 200,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.g_mean AS g_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, g_mean FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND g_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, g_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS g_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. Mean over tokens of the log-decay g. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 38,
+      "type": "trend",
+      "title": "Output amax by layer (attention output before the output norm)",
+      "gridPos": {
+        "x": 12,
+        "y": 200,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.o_amax AS o_amax FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, o_amax FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND o_amax IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, o_amax FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS o_amax FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. Largest absolute element of the output over every token and head. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 39,
+      "type": "trend",
+      "title": "Recurrent state norm by layer, mean over documents and heads",
+      "gridPos": {
+        "x": 0,
+        "y": 209,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.state_norm_mean AS state_norm_mean FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, state_norm_mean FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = -1, step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND state_norm_mean IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, state_norm_mean FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS state_norm_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. Frobenius norm of the final recurrent state of each document; counted per document. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 40,
+      "type": "trend",
+      "title": "Beta, layer ${layer}: mean, min and max over tokens and heads",
+      "gridPos": {
+        "x": 12,
+        "y": 209,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, beta_mean, beta_min, beta_max FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, beta_mean, beta_min, beta_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS beta_mean, CAST(NULL AS Nullable(Float64)) AS beta_min, CAST(NULL AS Nullable(Float64)) AS beta_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. The band spans the smallest and the largest write strength of any head. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 41,
+      "type": "trend",
+      "title": "Alpha, layer ${layer}: mean, min and max over tokens and heads",
+      "gridPos": {
+        "x": 0,
+        "y": 218,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, alpha_mean, alpha_min, alpha_max FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, alpha_mean, alpha_min, alpha_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS alpha_mean, CAST(NULL AS Nullable(Float64)) AS alpha_min, CAST(NULL AS Nullable(Float64)) AS alpha_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. The band spans the smallest and the largest decay factor of any head. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 42,
+      "type": "trend",
+      "title": "Value and output norms, layer ${layer}",
+      "gridPos": {
+        "x": 12,
+        "y": 218,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, v_norm_mean, o_norm_mean FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, v_norm_mean, o_norm_mean FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS v_norm_mean, CAST(NULL AS Nullable(Float64)) AS o_norm_mean FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. Mean over tokens and heads of the L2 norm of the value and of the attention output before the output norm. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 43,
+      "type": "trend",
+      "title": "State norm, layer ${layer}: mean and max over documents and heads",
+      "gridPos": {
+        "x": 0,
+        "y": 227,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, state_norm_mean, state_norm_max FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND head = -1 AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, state_norm_mean, state_norm_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS state_norm_mean, CAST(NULL AS Nullable(Float64)) AS state_norm_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. Frobenius norm of the final recurrent state of each document. Per layer: the mean over its heads (minimum of the minima, maximum of the maxima). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 44,
+      "type": "heatmap",
+      "title": "Beta per head, layer ${layer} (x: step; y: value head)",
+      "gridPos": {
+        "x": 0,
+        "y": 236,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT step, concat('h', leftPad(toString(head), 2, '0')) AS head_name, beta_mean AS value FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND head >= 0 ORDER BY step, head_name SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "head_name",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\head_name",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Linear (GDN) layers: pick Kind = linear. Mean over tokens of the delta-rule write strength. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Drag over steps to zoom, or pick a wall-clock time range such as 'Last 7 days' to see every step again."
+    },
+    {
+      "id": 45,
+      "type": "heatmap",
+      "title": "Alpha per head, layer ${layer} (x: step; y: value head)",
+      "gridPos": {
+        "x": 0,
+        "y": 248,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT step, concat('h', leftPad(toString(head), 2, '0')) AS head_name, alpha_mean AS value FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND head >= 0 ORDER BY step, head_name SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "head_name",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\head_name",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Linear (GDN) layers: pick Kind = linear. Mean over tokens of the state decay factor exp(g). rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. Drag over steps to zoom, or pick a wall-clock time range such as 'Last 7 days' to see every step again."
+    },
+    {
+      "id": 46,
+      "type": "trend",
+      "title": "A = exp(A_log) per head, layer ${layer}",
+      "gridPos": {
+        "x": 0,
+        "y": 260,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "head_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.head_name, ''), 'No data') AS head_name, measured.decay_a AS decay_a FROM (WITH observed AS (SELECT step, concat('head ', toString(head)) AS head_name, decay_a FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND head >= 0 ORDER BY head, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY head_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, head_name, decay_a FROM marked UNION ALL SELECT step + 1 AS step, head_name, CAST(NULL AS Nullable(Float64)) AS decay_a FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.head_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. The learned decay parameter of each value head; identical on every rank, so a rank or microbatch selection does not apply. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 47,
+      "type": "trend",
+      "title": "softplus(dt_bias) per head, layer ${layer}",
+      "gridPos": {
+        "x": 12,
+        "y": 260,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "head_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.head_name, ''), 'No data') AS head_name, measured.dt_bias AS dt_bias FROM (WITH observed AS (SELECT step, concat('head ', toString(head)) AS head_name, dt_bias FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND head >= 0 ORDER BY head, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY head_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, head_name, dt_bias FROM marked UNION ALL SELECT step + 1 AS step, head_name, CAST(NULL AS Nullable(Float64)) AS dt_bias FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.head_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Linear (GDN) layers: pick Kind = linear. The learned time-step bias of each value head after softplus; identical on every rank, so a rank or microbatch selection does not apply. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 48,
+      "type": "table",
+      "title": "Latest recorded step, linear layer ${layer}: statistics per value head",
+      "gridPos": {
+        "x": 0,
+        "y": 269,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT head, rows, documents, beta_mean, beta_min, beta_max, alpha_mean, alpha_min, alpha_max, g_mean, v_norm_mean, o_norm_mean, o_amax, state_norm_mean, state_norm_max, decay_a, dt_bias FROM metric_sampler.attention_linear_${asrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), step_from = toUInt32OrZero(${latest_step:sqlstring}), step_to = toUInt32OrZero(${latest_step:sqlstring})) WHERE exp = '${exp}' AND run = '${run}' AND step = toUInt32OrZero(${latest_step:sqlstring}) AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY head SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "Linear (GDN) layers: pick Kind = linear. Head -1 is the layer as a whole. rank=${rank}, microbatch=${microbatch}. All merges every rank and microbatch of a step exactly; a selection reads the raw tables, which is slow over many steps. "
+    }
+  ]
+}

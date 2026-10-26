@@ -1,0 +1,23 @@
+# Data mixin for Qwen3-VL debug runs: the Qwen3-VL special tokens and the
+# bundled cc12m_test image-caption corpus through the multimodal loader.
+#
+# The three patch knobs must match `model.config.vision`; config-check enforces it.
+tokenizer:
+  type: multimodal
+  image_token: <|image_pad|>
+  video_token: <|video_pad|>
+  vision_start_token: <|vision_start|>
+  vision_end_token: <|vision_end|>
+  pad_token: <|endoftext|>
+
+dataloader:
+  type: hf_multimodal
+  dataset: cc12m-test
+  max_images_per_batch: 128
+  patch_size: 16
+  temporal_patch_size: 2
+  spatial_merge_size: 2
+  min_pixels: 65536
+  max_pixels: 16777216
+  image_mean: [0.5, 0.5, 0.5]
+  image_std: [0.5, 0.5, 0.5]

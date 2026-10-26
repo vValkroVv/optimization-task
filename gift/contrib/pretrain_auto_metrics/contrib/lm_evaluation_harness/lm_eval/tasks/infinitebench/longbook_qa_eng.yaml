@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_longbook_qa_eng
+task_alias: En.QA
+dataset_kwargs:
+  data_name: longbook_qa_eng
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: longbook_qa_eng
+      context: "After the storm, Lena returns to the lighthouse and discovers that the keeper left a sealed notebook beneath the oil cabinet. The notebook contains tide observations and a warning about the northern reef."
+      input: "What did Lena find beneath the oil cabinet?"
+      answer:
+        - "a sealed notebook"
+    - infinitebench_task: longbook_qa_eng
+      context: "Jonas wins the village race not by taking the shorter bridge path, which is closed, but by following the old canal road his grandfather once used to deliver mail."
+      input: "Which route helps Jonas win the race?"
+      answer:
+        - "the old canal road"
+    - infinitebench_task: longbook_qa_eng
+      context: "The museum curator realizes the portrait is a fake when she notices the signature uses a blue pigment that was not manufactured until forty years after the painter died."
+      input: "What proves that the portrait is a fake?"
+      answer:
+        - "the signature uses a blue pigment made after the painter died"
+generation_kwargs:
+  max_gen_toks: 40
+  temperature: 0.0
+  do_sample: false
+  until: []

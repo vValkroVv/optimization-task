@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_longbook_qa_chn
+task_alias: Zh.QA
+dataset_kwargs:
+  data_name: longbook_qa_chn
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: longbook_qa_chn
+      context: "雨停后，林舟回到茶馆，在柜台下面找到一本蓝色账簿。账簿里记录了失踪商队最后一次经过山口的日期。"
+      input: "林舟在柜台下面找到了什么？"
+      answer:
+        - "一本蓝色账簿"
+    - infinitebench_task: longbook_qa_chn
+      context: "小说结尾，阿宁没有乘船离开小镇，而是留下来修复旧码头，因为她答应祖父要让渔民重新安全靠岸。"
+      input: "阿宁为什么留下来修复旧码头？"
+      answer:
+        - "因为她答应祖父要让渔民重新安全靠岸"
+    - infinitebench_task: longbook_qa_chn
+      context: "赵师傅发现钟楼慢了十分钟。原因不是齿轮损坏，而是一枚硬币卡在摆锤旁边，影响了摆动。"
+      input: "钟楼为什么慢了十分钟？"
+      answer:
+        - "一枚硬币卡在摆锤旁边"
+generation_kwargs:
+  max_gen_toks: 40
+  temperature: 0.0
+  do_sample: false
+  until: []

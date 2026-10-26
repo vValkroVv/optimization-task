@@ -1,0 +1,38 @@
+# The monitors the metric sampler's monitor family reads, with the settings it requires, in the order they run.
+# TrainJobLLMF adds those the training config lacks, before the metric_sampler callback; a monitor the config has
+# keeps its own settings, which TrainJobAssertor checks.
+lr_monitor: {}
+speed_monitor:
+  window_size: 10
+memory_monitor: {}
+stage_time_profiler: {}
+training_metrics_monitor:
+  batch_log_interval: 480
+optimizer_monitor:
+  batch_log_interval: 480
+optimizer_health_monitor:
+  batch_log_interval: 480
+update_weight_ratio_monitor:
+  batch_log_interval: 480
+  log_level: fqn
+router_margin_monitor:
+  batch_log_interval: 120
+  near_m: 4
+  ema_decay: 0.9
+topk_accuracy_monitor:
+  k_values: [1, 5, 20]
+  batch_log_interval: 120
+weight_monitor:
+  interval: 960ba
+  only_log_wandb: false
+  tp_size: 1
+  stat_list: [amax, l2norm]
+activation_monitor:
+  interval: 480ba
+  only_log_wandb: false
+  keep_only_module_types: [proj, conv, lm_head, embed_tokens, gate]
+  ignore_module_types: [_tp_linear_submodule]
+  log_module_output: false
+  log_gradients: true
+  log_grad_input: false
+  stat_list: [amax, l2norm]

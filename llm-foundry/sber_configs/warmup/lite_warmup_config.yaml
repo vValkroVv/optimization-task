@@ -1,0 +1,56 @@
+triton:
+  cache_dir: "<path to save triton configs>"
+  kernel_groups:
+    - "blocks_quantization"
+    - "row_quantization"
+    - "row2col_te"
+    - "row2col_deepgemm"
+    - "fused_swiglu"
+    - "mla_q_rope"
+    - "permute_fwd"
+    - "permute_bwd"
+    - "unpermute_fwd"
+    - "unpermute_bwd"
+    - "fused_g"
+    - "conv1d"
+    - "layer_norm"
+  dense_groups:
+    - "dense_block_quantize"
+    - "dense_row2col"
+    - "dense_fused_swiglu"
+  num_groups: 16 # num_experts // ep_size
+  hid_dim: 1536
+  int_dim: 1280
+  qk_rope_head_dim: 64
+  qk_nope_head_dim: 128
+  batch_sizes: [1, 2, 4]
+  seq_lens: [4096, 8192]
+  rope_num_heads: 1
+  dense_hid_dim: 1536
+  dense_int_dim: 8960
+  tokens_small: 4096
+  tokens_large: 150000
+  # FLA args
+  num_heads: 16        # linear_num_key_heads
+  num_v_heads: 32      # linear_num_value_heads (FusedG gate width)
+  head_dim: 128        # linear_key_head_dim
+  head_v_dim: 128      # linear_value_head_dim
+  conv_kernel_dim: 4   # linear_conv_kernel_dim
+  layer_norm_dim: 128  # linear_value_head_dim
+  layer_norm_max_rows: 851968  # 13 * 65536; covers all 64-rank trace NB buckets
+
+deep_gemm:
+  cache_dir: "<path to save deepgemm configs>"
+  gemm_groups:
+    - "w1_m_grouped"
+    - "w1_m_grouped_nt_for_dgrad_transposed"
+    - "w1_k_grouped"
+    - "w2_m_grouped"
+    - "w2_m_grouped_nt_for_dgrad_transposed"
+    - "w2_k_grouped"
+  hid_dim: 1536
+  int_dim: 1280
+  num_groups: 16  # num_routed_experts // ep_size
+  num_sms: 116
+  min_size: 128
+  max_size: 64000

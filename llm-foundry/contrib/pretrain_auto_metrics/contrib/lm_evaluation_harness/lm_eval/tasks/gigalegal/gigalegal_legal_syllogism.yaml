@@ -1,0 +1,44 @@
+task: gigalegal_legal_syllogism
+
+dataset_path: ai-sage/gigalegal
+dataset_kwargs:
+  data_files:
+    train: legal_syllogism.json
+
+validation_split: train
+
+output_type: generate_until
+
+doc_to_text: "Ты — эксперт по юриспруденции и логическому анализу.\nТебе даны:\n1) общее правовое положение;\n2) конкретная ситуация;\n3) юридический вопрос с ответом «Да» или «Нет».\n\nПроанализируй данные и ответь на вопрос.\n\nОбщее правовое положение:\n{{general_statement}}\n\nКонкретная ситуация:\n{{specific_statement}}\n\nЮридический вопрос:\n{{question}}\n\nОтветь одним словом: Да или Нет или Неизвестно.\nНе пиши ничего кроме ответа."
+doc_to_target: "{{answer}}"
+repeats: 1
+
+num_fewshot: 0
+
+generation_kwargs:
+  until:
+    - "</s>"
+    - "<|im_end|>"
+    - "<|eot_id|>"
+    - "\n\n"
+  max_gen_toks: 10
+  do_sample: false
+  temperature: 0
+  top_p: 0.95
+  
+filter_list:
+  - name: extract_yes_no_k
+    filter:
+      - function: regex
+        regex_pattern: '(?is)\b(Да|Нет|Неизвестно)\b'
+      - function: take_first_k
+        k: 1
+
+process_results: !function utils.process_results_passk
+metric_list:
+  - metric: pass@1
+    aggregation: mean
+    higher_is_better: true
+
+metadata:
+  version: 1.0

@@ -1,0 +1,72 @@
+tag:
+  - math_word_problems
+task: aime26
+dataset_path: MathArena/aime_2026
+output_type: generate_until
+training_split: train
+test_split: train
+doc_to_text: "Please reason step by step, and put your final answer within \\boxed{}.\nThe answer is an integer between 0 and 999 inclusive.\n\n{{problem}}\n\n"
+doc_to_target: "{{answer}}"
+filter_list:
+  - name: "scored"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.score_all_responses
+metric_list:
+  - metric: !function utils.pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+  - metric: !function utils.mean_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+generation_kwargs:
+  until:
+    - "Question:"
+    - "</s>"
+    - "<|im_end|>"
+    - "<|eot_id|>"
+    - "Please reason step by step, and put your final answer within"
+  do_sample: true
+  temperature: 0.6
+  top_p: 0.95
+  max_gen_toks: 32768
+repeats: 32
+metadata:
+  version: 0.0
+fewshot_config:
+  sampler: first_n
+  samples:
+  - problem: |
+      Convert the point $(0,3)$ in rectangular coordinates to polar coordinates. Enter your answer in the form $(r,\theta),$ where $r > 0$ and $0 \le \theta < 2 \pi.$
+    answer: |
+      We have that $r = \sqrt{0^2 + 3^2} = 3.$ Also, if we draw the line connecting the origin and $(0,3),$ this line makes an angle of $\frac{\pi}{2}$ with the positive $x$-axis.
+      [asy]
+      unitsize(0.8 cm);
+      draw((-0.5,0)--(3.5,0));
+      draw((0,-0.5)--(0,3.5));
+      draw(arc((0,0),3,0,90),red,Arrow(6));
+      dot((0,3), red);
+      label("$(0,3)$", (0,3), W);
+      dot((3,0), red);
+      [/asy]
+      Therefore, the polar coordinates are $\boxed{\left( 3, \frac{\pi}{2} \right)}.$
+  - problem: |
+      Define
+      \[p = \sum_{k = 1}^\infty \frac{1}{k^2} \quad \text{and} \quad q = \sum_{k = 1}^\infty \frac{1}{k^3}.\]Find a way to write
+      \[\sum_{j = 1}^\infty \sum_{k = 1}^\infty \frac{1}{(j + k)^3}\]in terms of $p$ and $q.$
+    answer: |
+      We count the number of times $\frac{1}{n^3}$ appears in the sum
+      \[\sum_{j = 1}^\infty \sum_{k = 1}^\infty \frac{1}{(j + k)^3},\]where $n$ is a fixed positive integer. (In other words, we are conditioning the sum on $j + k$.) We get a term of $\frac{1}{n^3}$ each time $j + k = n.$ The pairs $(j,k)$ that work are $(1,n - 1),$ $(2,n - 2),$ $\dots,$ $(n - 1,1),$ for a total of $n - 1$ pairs. Therefore,
+      \begin{align*}
+      \sum_{j = 1}^\infty \sum_{k = 1}^\infty \frac{1}{(j + k)^3} &= \sum_{n = 1}^\infty \frac{n - 1}{n^3} \\
+      &= \sum_{n = 1}^\infty \left( \frac{n}{n^3} - \frac{1}{n^3} \right) \\
+      &= \sum_{n = 1}^\infty \left( \frac{1}{n^2} - \frac{1}{n^3} \right) \\
+      &= \sum_{n = 1}^\infty \frac{1}{n^2} - \sum_{n = 1}^\infty \frac{1}{n^3} \\
+      &= \boxed{p - q}.
+      \end{align*}
+  - problem: |
+      If $f(x) = \frac{3x-2}{x-2}$, what is the value of $f(-2) +f(-1)+f(0)$? Express your answer as a common fraction.
+    answer: |
+      $f(-2)+f(-1)+f(0)=\frac{3(-2)-2}{-2-2}+\frac{3(-1)-2}{-1-2}+\frac{3(0)-2}{0-2}=\frac{-8}{-4}+\frac{-5}{-3}+\frac{-2}{-2}=2+\frac{5}{3}+1=\boxed{\frac{14}{3}}$

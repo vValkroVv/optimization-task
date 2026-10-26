@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_longdialogue_qa_eng
+task_alias: En.Dia
+dataset_kwargs:
+  data_name: longdialogue_qa_eng
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: longdialogue_qa_eng
+      context: "MAYA: The train leaves before sunrise.\nELI: I packed the lantern and maps.\nMAYA: Then meet me by the old platform.\nELI: I will, $$MASK$$."
+      input: "Which character name was replaced by $$MASK$$?"
+      answer:
+        - "MAYA"
+    - infinitebench_task: longdialogue_qa_eng
+      context: "ROSA: The gallery closes at seven.\nBEN: I can finish the labels before then.\nROSA: Put the landscape near the door.\nBEN: Understood, $$MASK$$."
+      input: "Which character name was replaced by $$MASK$$?"
+      answer:
+        - "ROSA"
+    - infinitebench_task: longdialogue_qa_eng
+      context: "NORA: We should call the client first.\nJAMES: The contract is already on my desk.\nNORA: Good, send it after lunch.\nJAMES: I will handle it, $$MASK$$."
+      input: "Which character name was replaced by $$MASK$$?"
+      answer:
+        - "NORA"
+generation_kwargs:
+  max_gen_toks: 40
+  temperature: 0.0
+  do_sample: false
+  until: []

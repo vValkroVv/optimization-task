@@ -1,0 +1,16 @@
+# Llama3 debug model with Float8 dense linears. Needs an H100-class
+# GPU; the include regex covers the attention output and FFN projections only.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/llama3_debug_float8.yaml
+config_version: 1
+
+imports:
+  - llama3_debug.yaml
+
+fp8:
+  dense_include_linear_layers: '.*\.(w1|w2|w3|wo)$'
+  sparse_use_grouped_gemm: true
+  dense_use_shared_quantizer: true
+
+model:
+  config: {}

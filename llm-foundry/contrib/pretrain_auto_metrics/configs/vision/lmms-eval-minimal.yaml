@@ -1,0 +1,59 @@
+---
+run_name: lmms-eval-minimal
+exp_name: lmms-eval-minimal
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+    policy: cache_aware
+    cache-threshold: 0.50
+    balance-abs-threshold: 4
+    balance-rel-threshold: 1.10
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf
+
+  preparation:
+    skip: true
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    # REQUIRED for lmms_eval. Keep all three ChatML settings explicit.
+    # Prefer the exact tokenizer and template from the HF checkpoint.
+    template-version: v4
+    tokenizer-path: /path/to/hf_model
+    chat-template: /path/to/hf_model/chat_template.jinja
+    # If the checkpoint template is missing, use a matching external v4
+    # template from sft-data-tokenizer or a compatible shared_res bundle.
+
+  inference:
+    allow-auto-truncate: true
+    tp: 8
+    disable-fast-image-processor: true
+    attention-backend: triton
+
+  model_info:
+    model_class: vision
+    size: lite
+    username: ${user}
+
+  evaluators:
+    lmms_eval:
+      chatml_version: ${autometrics.obm_proxy.template-version}
+      runs:
+        smoke:
+          benchmarks:
+            tasks:
+              - giga_countbench
+            limit: 5

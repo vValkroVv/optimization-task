@@ -1,0 +1,119 @@
+# Editable fields
+
+exp_name: GigaChat-lora-9b-128k
+enable_async_tp: false
+max_seq_len: 131072
+# max_seq_len: 32768
+tp_size: 1
+sp_size: 1
+
+lr: 5.0e-7
+
+# PT Checkpoint
+
+load_path: '/home/jovyan/lora_api_service_models/GigaR-9b-128k-v28_2-v2-320gbs-bf16-batched-const-fixed-new-data-3-marta/ep5-ba6413-fsdp/ep5-ba6413_rank0.pt'
+
+# FULL SHARD
+global_train_batch_size: 16
+device_train_microbatch_size: 1 # global_train_batch_size = GPU * grad_accum * device_train_microbatch_size
+device_eval_batch_size: 8
+
+optimizer:
+  lr: ${lr}
+model:
+  name: gigar_causal_lm
+  config_overrides:
+    activation_checkpoint_layers_num: 35
+    attention_bias: false
+    attention_dropout: 0.0
+    attention_hidden_size: null
+    attention_type: LlamaPackedAttention
+    bos_token_id: 1
+    eos_token_id: 2
+    freeze_non_embed: false
+    fused_mlp: false
+    fused_mlp_checkpoint_lvl: 3
+    hidden_act: silu
+    hidden_size: 3584
+    initializer_range: 0.02
+    intermediate_size: 18944
+    loss_inplace_backward: true
+    max_position_embeddings: 131072
+    num_attention_heads: 28
+    num_hidden_layers: 35
+    num_key_value_heads: 4
+    parallel_embedding_type: EmbeddingParallelEmbedding
+    rms_norm_eps: 1.0e-06
+    rope_scaling:
+      factor: 4.0
+      high_freq_factor: 4.0
+      low_freq_factor: 1.0
+      original_max_position_embeddings: 32768
+      rope_type: llama3
+    rope_theta: 2800000.0
+    tie_word_embeddings: false
+    tp_size: ${tp_size}
+    vocab_size: 128256
+  lora:
+     args:
+       lora_alpha: 128
+       peft_type: LORA
+       r: 32
+       target_modules:
+         - qkv_proj
+         - up_proj
+         - down_proj
+       use_dora: false
+       use_rslora: false
+       lora_dropout: 0.3
+       bias: 'none'
+       lora_bias: False
+  pretrained: false
+
+# TOKENIZER
+
+# DATALOADER
+train_loader:
+  dataset:
+    partition_algo: 'orig'
+    num_canonical_nodes: 1
+    streams:
+      v27_4:
+        local:  /home/jovyan/irgaynulin/lora_api_all_you_need/v27_4_10_persents_32k_9b_1
+        split: mds
+data_proportion: 1.0  # Scale size of complete dataset by itself, by default = 1.0
+
+# NUMBER OF EPOCH 
+max_duration: 11496ba
+eval_interval: 0ba
+save_interval: 200ba
+
+
+
+# SAVE PATH
+save_folder: /home/jovyan/irgaynulin/llmf/llmf_checkpoints/${exp_name}
+
+
+gigafsdp_config:
+  save_gigafsdp_sharded_folder_path: "/home/jovyan/temp/${exp_name}" # напдо менять если меняешь параметры лора 
+# TENSORBOARD PATH
+loggers:
+  tensorboard: 
+    log_dir: /home/jovyan/irgaynulin/llmf/llmf_tensorboard/${exp_name}
+  wandb:
+    name: ${exp_name}
+    project: lora_api_service
+    group: null
+    entity: alignment
+    tags: null
+    log_artifacts: false
+    rank_zero_only: true
+    save_folder: ${save_folder}
+    init_kwargs:
+      notes: 
+        global_train_batch_size: ${global_train_batch_size}
+        max_seq_len: ${max_seq_len}
+        lr: ${lr}
+        max_duration: ${max_duration}
+        load_path: ${load_path}
+

@@ -1,0 +1,26 @@
+# Model preset: llama3 "3B".
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: 3B
+  config:
+    type: llama3
+    dim: 3072
+    vocab_size: 128256
+    enable_weight_tying: true
+    norm: &norm {type: rmsnorm}
+    rope:
+      type: complex
+      dim: 128
+      max_seq_len: 131072
+      theta: 500000.0
+      scaling: {type: llama}
+    blocks:
+      dense:
+        attention: {type: gqa, n_heads: 24, n_kv_heads: 8}
+        feed_forward: {type: llama, multiple_of: 1024, ffn_dim_multiplier: 1.0}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: dense, repeat: 28}

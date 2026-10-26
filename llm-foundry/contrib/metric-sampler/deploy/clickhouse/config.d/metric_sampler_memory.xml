@@ -1,0 +1,8 @@
+<clickhouse>
+    <!-- ClickHouse shares its host with other services: it keeps to a third of the host's memory (bytes below: 128 GiB)
+         instead of the default 90%. Over the limit a query fails and is retried instead of the host running short.
+         New merges wait while merges hold a quarter of it (32 GiB). max_server_memory_usage takes effect on
+         SYSTEM RELOAD CONFIG, the merge limit on restart. -->
+    <max_server_memory_usage>137438953472</max_server_memory_usage>
+    <merges_mutations_memory_usage_soft_limit>34359738368</merges_mutations_memory_usage_soft_limit>
+</clickhouse>

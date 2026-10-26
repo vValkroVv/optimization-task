@@ -1,0 +1,383 @@
+include:
+  - project: 'gigallms/ci-cd'
+    ref: main
+    file:
+      - 'base/variables.yml'
+      - 'base/templates.yml'
+      - 'base/rules.yml'
+      - 'components/build.yml'
+      - 'components/validate.yml'
+      - 'components/tests.yml'
+      - 'components/release.yml'
+      - 'components/linters.yml'
+      - 'components/papaya.yml'
+      - 'pipelines/check_submodules.yml'
+
+variables:
+  RELEASE_BRANCH: "main"
+  PROJECT_NAME: "llm-foundry"
+  REGISTRY_BASE: "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0"
+  DOCKERFILE_PATH: "sber_docker/Dockerfile"
+
+# ==============================================================================
+# ОПРЕДЕЛЯЕМ КАКИЕ ФАЙЛЫ ВАЖНЫ ДЛЯ РАЗНЫХ ТИПОВ ТЕСТОВ
+# ==============================================================================
+
+.changes:
+  # Основные изменения требующие полного тестирования
+  core: &core_changes
+    - contrib/composer
+    - contrib/gigafsdp
+    - contrib/streaming
+    - llmfoundry/models/distil/**/*
+    - llmfoundry/models/gigamix/**/*
+    - llmfoundry/models/giga_mix/**/*
+    - llmfoundry/models/gigar/**/*
+    - scripts/train/train.py
+    - sber_scripts/submit_test_job.py
+    - sber_tests/integration/**/*
+    - sber_tests/test_utils/**/*
+    - sber_tests/configs/**/*
+    - llmfoundry/callbacks/**/*
+    - llmfoundry/data/**/*
+    - llmfoundry/optim/**/*
+    - llmfoundry/utils/**/*
+    - llmfoundry/models/hf/**/*
+    - llmfoundry/models/layers/**/*
+    - llmfoundry/models/ops/**/*
+    - llmfoundry/models/parallel/**/*
+    - llmfoundry/models/teacher_student/**/*
+    - llmfoundry/models/utils/**/*
+    - llmfoundry/models/model_registry.py
+    - llmfoundry/models/__init__.py
+    - llmfoundry/__init__.py
+
+  # Изменения которые не требуют тестов
+  skip: &skip_changes
+    - mcli/**/*
+    - papaya_scripts/**/*
+    - sber_benchmarks/**/*
+    - sber_configs/**/*
+    - sber_docker/**/*
+    - sber_notebooks/**/*
+    - contrib/pretrain_auto_metrics
+    - contrib/job_submitter
+    - contrib/gigachat-utils
+    - scripts/!(train/train.py)**/*
+    - tests/**/*
+    - "**/*.md"
+    - "**/*.txt"
+    - "**/*.rst"
+    - ".gitignore"
+    - ".pre-commit-config.yaml"
+    - ".yamllint.yaml"
+    - "pyproject.toml"
+    - "setup.py"
+
+  # Изменеия по модальностям/отдельным тестам
+  dpo: &dpo_changes
+    - llmfoundry/models/dpo/**/*
+
+  vision: &vision_changes
+    - llmfoundry/models/gigaomni/**/*
+
+  speech: &speech_changes
+    - llmfoundry/models/gigaspeech/**/*
+
+  tts: &tts_changes
+    - llmfoundry/models/gigatts/**/*
+
+
+# ==============================================================================
+# Валидация
+# ==============================================================================
+
+validate:mr:
+  extends: .validate:mr
+  variables:
+    GIT_STRATEGY: none
+
+# ==============================================================================
+# Сборка
+# ==============================================================================
+
+build:docker_base:
+  extends: .build:docker_base
+
+build:papaya_docker:
+  extends: .build:papaya_docker
+  needs:
+    - job: build:docker_base
+      artifacts: true
+
+# ==============================================================================
+# ТЕСТЫ - шаблоны тестов тянутся из gigallms/ci-cd/components/tests.yml
+#       - рули тянутся из gigallms/ci-cd/base/rules.yml
+# ==============================================================================
+# Шаблоны
+# ==============================================================================
+
+.test:auto_modality:block_core:
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
+      changes: *core_changes
+      when: never
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED != "true"
+      when: never
+
+.test:modality:
+  extends: .test:integration
+  before_script:
+    - python3.11 -m venv "$PROJECT_NAME"
+    - source "$PROJECT_NAME/bin/activate"
+    - pip install bitmath pandas numexpr typer omegaconf GitPython requests
+    - pip install job-submitter --extra-index-url "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ai.cloud.ru/api/v4/groups/gigallms/-/packages/pypi/simple"
+  script:
+    - echo 'TEST_MODALITY is:' $TEST_MODALITY
+    - >-
+      NUMEXPR_NUM_THREADS=1 python sber_scripts/submit_test_job.py
+      --modality $TEST_MODALITY
+
+.test:sr008:
+  variables:
+    CLUSTER_KEY: "SR008"
+    GIT_SUBMODULE_STRATEGY: recursive
+
+.test:integration:
+  extends:
+    - .cloud_sr008_job
+    - .test:sr008
+    - .with_test_artifacts
+  stage: test
+  variables:
+    TESTS_PARALLEL: "1"
+    CLEAR_RUN_DIR: "1"
+    USE_FA3: "0"
+    XFAIL_VISION: "0"
+    XFAIL_SFT: "0"
+    XFAIL_TTS: "0"
+
+.test:unit:variables:
+  extends:
+    - .test:unit:sr008
+    - .test:sr008
+  variables:
+    TESTS_PARALLEL: 0
+  before_script:
+    - python3.11 -m venv "$PROJECT_NAME"
+    - source "$PROJECT_NAME/bin/activate"
+    - pip install bitmath pandas numexpr typer omegaconf GitPython requests
+    - pip install job-submitter --extra-index-url "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ai.cloud.ru/api/v4/groups/gigallms/-/packages/pypi/simple"
+
+# ==============================================================================
+# Сами тесты
+# ==============================================================================
+
+test:integration:all:
+  extends:
+    - .test:modality
+    - .base_job
+  needs: []
+  variables:
+    TEST_MODALITY: "ALL"
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
+      changes: *core_changes
+      when: manual
+    - !reference [ .rules:integrations_for_mr, rules ]
+    - when: manual
+
+run:unit:all:
+  extends:
+    - .test:unit:variables
+    - .rules:mr_to_protected
+  needs: []
+  variables:
+    TEST_MODALITY: "UNIT"
+  rules:
+    - !reference [.rules:mr_to_protected, rules]
+    - !reference [.rules:no_mr, rules]
+    - when: manual
+
+# ==============================================================================
+# Авто тесты в зависимости от изменений
+# ==============================================================================
+
+test:skip:
+  extends: .python_job
+  stage: test
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "Изменения не требуют запуска тестов"
+  rules:
+    - !reference [ .test:auto_modality:block_core, rules ]
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
+      changes: *skip_changes
+      when: always
+    - when: never
+
+test:dpo:auto:
+  extends:
+    - .test:modality
+  variables:
+    TEST_MODALITY: "DPO"
+  rules:
+    - !reference [ .test:auto_modality:block_core, rules ]
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
+      changes: *dpo_changes
+      when: manual
+    - when: never
+
+test:vision:auto:
+  extends:
+    - .test:modality
+  variables:
+    TEST_MODALITY: "VISION"
+  rules:
+    - !reference [ .test:auto_modality:block_core, rules ]
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
+      changes: *vision_changes
+      when: manual
+    - when: never
+
+test:speech:auto:
+  extends:
+    - .test:modality
+  variables:
+    TEST_MODALITY: "SPEECH"
+  rules:
+    - !reference [ .test:auto_modality:block_core, rules ]
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
+      changes: *speech_changes
+      when: manual
+    - when: never
+
+test:tts:auto:
+  extends:
+    - .test:modality
+  variables:
+    TEST_MODALITY: "TTS"
+  rules:
+    - !reference [ .test:auto_modality:block_core, rules ]
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
+      changes: *tts_changes
+      when: manual
+    - when: never
+
+# ==============================================================================
+# ТЕСТЫ - вызов дебага модальностей, если в описании мердж реквеста есть
+# test:debug
+# ==============================================================================
+
+test:core:debug:
+  extends:
+    - .test:modality
+    - .rules:debug_tests
+  variables:
+    TEST_MODALITY: "CORE"
+
+test:sft:debug:
+  extends:
+    - .test:modality
+    - .rules:debug_tests
+  variables:
+    TEST_MODALITY: "SFT"
+
+test:vision:debug:
+  extends:
+    - .test:modality
+    - .rules:debug_tests
+  variables:
+    TEST_MODALITY: "VISION"
+
+test:video:debug:
+  extends:
+    - .test:modality
+    - .rules:debug_tests
+  variables:
+    TEST_MODALITY: "VIDEO"
+
+test:speech:debug:
+  extends:
+    - .test:modality
+    - .rules:debug_tests
+  variables:
+    TEST_MODALITY: "SPEECH"
+
+test:tts:debug:
+  extends:
+    - .test:modality
+    - .rules:debug_tests
+  variables:
+    TEST_MODALITY: "TTS"
+
+# ==============================================================================
+# Tриггер пайплайнов
+# ==============================================================================
+
+save:job_id:
+  extends:
+    - .papaya:save_job_id
+    - .rules:on_trigger:always
+    - .rules:always_no_mr
+  stage: build
+
+trigger:papaya:
+  extends:
+    - .papaya:trigger
+    - .rules:on_trigger:always
+    - .rules:always_no_mr
+  stage: build
+  needs:
+    - job: save:job_id
+      artifacts: true
+
+trigger:release:
+  rules:
+    - !reference [.rules:on_trigger:always, rules]
+    - !reference [.rules:push_by_release_users, rules]
+  stage: build
+  needs: []
+  trigger:
+    include:
+      - project: 'gigallms/ci-cd'
+        ref: main
+        file: 'pipelines/release-pipe.yml'
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    RELEASE_VERSION: $CI_COMMIT_TAG
+    SOURCE_PROJECT: $CI_PROJECT_PATH
+    PARENT_PROJECT_NAME: $CI_PROJECT_NAME
+    PARENT_PROJECT_PATH: $CI_PROJECT_PATH
+    PARENT_JOB_ID: $CI_JOB_ID
+    GIT_CLONE_PATH: "/home/jovyan/vmamedov/builds/$PARENT_JOB_ID/$PARENT_PROJECT_NAME"
+
+sync_mirror:
+  extends: .papaya:sync_mirror
+  image: 'cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/ci-cd:2026_09_30_commit6e04f4e0'
+  variables:
+    MIRROR_SOURCE_MODE: 'local'
+    MIRROR_PROJECT_PATH: 'learn-llms/mirrors/llm-foundry'
+    MIRROR_BRANCH: '$CI_COMMIT_BRANCH'
+    MIRROR_DRY_RUN: '0'
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true

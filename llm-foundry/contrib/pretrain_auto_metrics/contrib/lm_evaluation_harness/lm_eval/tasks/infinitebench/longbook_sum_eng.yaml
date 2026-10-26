@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_longbook_sum_eng
+task_alias: En.Sum
+dataset_kwargs:
+  data_name: longbook_sum_eng
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: longbook_sum_eng
+      context: "A village librarian discovers that old weather journals predict seasonal floods. She persuades skeptical farmers to move their grain before a storm, then starts a public archive so future warnings are not ignored."
+      input: "Summarize the book."
+      answer:
+        - "A librarian uses forgotten weather journals to predict a flood, save the village grain, and establish an archive for future warnings."
+    - infinitebench_task: longbook_sum_eng
+      context: "Two estranged brothers inherit a failing clock shop. One wants to sell it, while the other repairs a rare tower clock for the town square. Working together on the mechanism helps them understand their father's choices and keep the shop open."
+      input: "Summarize the book."
+      answer:
+        - "Estranged brothers reconnect while repairing a town clock and decide to preserve their inherited clock shop."
+    - infinitebench_task: longbook_sum_eng
+      context: "An engineer on a remote island builds a radio from discarded parts after supply ships stop arriving. Her broadcasts connect nearby islands, organize relief deliveries, and reveal that the shipping company hid navigation failures."
+      input: "Summarize the book."
+      answer:
+        - "A stranded island engineer builds a radio network that coordinates relief and exposes a shipping company's cover-up."
+generation_kwargs:
+  max_gen_toks: 1200
+  temperature: 0.0
+  do_sample: false
+  until: []

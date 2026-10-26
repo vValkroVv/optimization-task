@@ -1,0 +1,15 @@
+# Llama3 debug model with FlexAttention. The CI's context-parallel cases run on this
+# config: full_dtensor + CP needs flex, not SDPA / varlen.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/llama3_debug_flex_attn.yaml
+config_version: 1
+
+imports:
+  - llama3_debug.yaml
+
+model:
+  config:
+    blocks:
+      dense:
+        attention:
+          inner_attention: {type: flex}

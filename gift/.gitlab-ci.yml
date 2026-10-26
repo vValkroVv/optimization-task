@@ -1,0 +1,301 @@
+---
+include:
+  - project: 'gigallms/ci-cd'
+    ref: main
+    file:
+      - 'base/variables.yml'
+      - 'base/templates.yml'
+      - 'base/rules.yml'
+      - 'components/linters.yml'
+      - 'components/build.yml'
+      - 'components/validate.yml'
+      - 'components/test_templates.yml'
+      - 'components/pre_commit.yml'
+      - 'components/papaya.yml'
+      - 'pipelines/check_submodules.yml'
+
+variables:
+  RELEASE_BRANCH: "main"
+  PROJECT_NAME: "torchtitan"
+  REGISTRY_BASE: "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0"
+  DOCKERFILE_PATH: "gift_docker/Dockerfile"
+  PIP_BREAK_SYSTEM_PACKAGES: "1"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTHONUNBUFFERED: "1"
+  TORCHTITAN_INTEGRATION_OUTPUT_DIR: "artifacts-to-be-uploaded"
+  # Integration jobs run on the torchtitan image pinned in gift_docker/images.json.
+  TORCHTITAN_VENV: "$CI_PROJECT_DIR/.ci-venv"
+  TORCHTITAN_JS_VENV: "$CI_PROJECT_DIR/.ci-js-venv"
+  CI_CD_SCRIPTS: "/tmp/ci-cd-$CI_JOB_ID"
+  PYPI_EXTRA_INDEX_PROJECT_IDS: "2577"
+
+stages:
+  - lint
+  - validate
+  - build
+  - unit
+  - integration
+  - papaya
+  - release
+  - deploy
+
+lint:pre_commit:
+  extends: .pre_commit:changed_files
+  variables:
+    PRE_COMMIT_SKIP_HOOKS: "pyrefly-check,lychee-link-checker"
+
+# Every experiment YAML must pass the torch-free pre-submit check (the same
+# `run_pre_submit()` path config-check and the job submitter use): YAML +
+# imports, the strict typed decode (model tree included) and every Config's
+# `validate(ctx)`.
+lint:config_check:
+  extends: .test:python
+  stage: lint
+  needs: []
+  before_script:
+    - python --version
+    - python -m pip install --no-input "pyyaml>=6"
+  script:
+    - |
+      status=0
+      for config in configs/experiments/*.yaml; do
+        if ! python scripts/config_check.py "$config"; then
+          status=1
+        fi
+      done
+      exit "$status"
+  rules:
+    - !reference [.rules:mr_any, rules]
+    - !reference [.rules:push_to_main, rules]
+    - when: manual
+      allow_failure: true
+
+check:submodules:
+  script:
+    - git submodule foreach -q 'git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"'
+    - git submodule update --remote --depth 1 contrib/
+    - git diff --exit-code --submodule=short -- contrib/
+
+validate:merge_request:title:
+  extends: .validate:mr_title_regex
+  variables:
+    MR_TITLE_PATTERN: '^(\[BREAKING\][[:space:]]+)?\[[^][]+([,][[:space:]]*[^][]+)*\][[:space:]]+(feat|fix|chore|docs|style|refactor|test|perf|ci|build|revert):[[:space:]].+'
+    MR_TITLE_FORMAT: '[{modules}] {type}: {description} or [BREAKING] [{modules}] {type}: {description}'
+    MR_TITLE_EXAMPLES: |
+      [trainer] fix: handle empty dataset
+      [trainer, tests] feat: add convergence smoke test
+      [BREAKING] [config] refactor: rename optimizer section
+
+.torchtitan:install_unit_dev:
+  variables:
+    UV_INDEX_PYTORCH_NIGHTLY_CU130_USERNAME: "gitlab-ci-token"
+    UV_INDEX_PYTORCH_NIGHTLY_CU130_PASSWORD: "${CI_JOB_TOKEN}"
+  before_script:
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - rm -rf "$TORCHTITAN_VENV"
+    - python3.12 -m venv "$TORCHTITAN_VENV"
+    - source "$TORCHTITAN_VENV/bin/activate"
+    - python --version
+    - uv --version
+    - >
+      (cd ./gift_docker && uv sync \
+        --frozen \
+        --inexact \
+        --active \
+        --extra runtime \
+        --extra dev \
+        --extra model-suites \
+        --extra streaming \
+        --extra kiwi \
+        --extra nightly-cu130 \
+        --no-install-project \
+        --prerelease allow)
+    - uv pip install --no-build-isolation --no-deps ./contrib/streaming
+    - uv pip install --no-build-isolation --no-deps ./contrib/job_submitter/contrib/sqlite_s3_query
+    - uv pip install --no-build-isolation --no-deps ./contrib/flash-linear-attention
+    - python -c "import numpy, pandas, torch, omegaconf; print(f'numpy={numpy.__version__}, pandas={pandas.__version__}, torch={torch.__version__}, omegaconf={omegaconf.__version__}')"
+    - python -c "import streaming, tree_sitter, tree_sitter_language_pack; import torchtitan.config.build, torchtitan.config.schema.models.gift_moe.gift_3_5.model; print(f'streaming={streaming.__version__}')"
+    - python -c "import fla; print(f'fla={fla.__version__}')"
+
+test:unit:
+  extends:
+    - .test:python
+    - .test:pytest_reports
+    - .torchtitan:install_unit_dev
+  stage: unit
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+    - source "$TORCHTITAN_VENV/bin/activate"
+    - |
+      pytest -s tests/unit_tests/ \
+        --tb=short \
+        -v \
+        --cov=torchtitan \
+        --cov-report=term-missing:skip-covered \
+        --cov-report=xml:coverage.xml \
+        --junitxml=pytest-report.xml
+  rules:
+    - !reference [.rules:mr_any, rules]
+    - !reference [.rules:push_to_main, rules]
+    - when: manual
+      allow_failure: true
+
+.torchtitan:integration:
+  extends:
+    - .test:sr008_remote
+    - .test:uploaded_artifacts
+  stage: integration
+  timeout: 3 hours
+  rules:
+    - !reference [.rules:mr_to_protected, rules]
+    - when: manual
+      allow_failure: true
+  variables:
+    CLUSTER_KEY: "SR008"
+    NGPU: "8"
+    GIT_SUBMODULE_STRATEGY: recursive
+    # Checkpoints and traces can exceed the GitLab artifact size limit.
+    TEST_ARTIFACTS_PATH: "$TORCHTITAN_INTEGRATION_OUTPUT_DIR/cloud-job/"
+    TORCHTITAN_CLOUD_ARTIFACT_DIR: "$TORCHTITAN_INTEGRATION_OUTPUT_DIR/cloud-job"
+    TORCHTITAN_CLOUD_REGION: "SR008"
+    TORCHTITAN_CLOUD_QUEUE: "pretrain-ml-test"
+    TORCHTITAN_CLOUD_PRIORITY_CLASS: "medium"
+    SR008_RETURN_PATHS: "$TORCHTITAN_CLOUD_ARTIFACT_DIR"
+    UV_INDEX_GITLAB_USERNAME: "gitlab-ci-token"
+    UV_INDEX_GITLAB_PASSWORD: "$CI_JOB_TOKEN"
+  before_script:
+    - echo "Submitting integration tests to SR008 GPU cluster via job-submitter (no local GPU tests)"
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - rm -rf "$TORCHTITAN_JS_VENV"
+    - python -m venv "$TORCHTITAN_JS_VENV"
+    - source "$TORCHTITAN_JS_VENV/bin/activate"
+    - python --version
+    - python -m pip install --upgrade pip uv
+    - rm -rf "${CI_CD_SCRIPTS}"
+    - git clone --depth 1 --branch main https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/gigallms/ci-cd.git "${CI_CD_SCRIPTS}"
+    - bash "${CI_CD_SCRIPTS}/scripts/bootstrap_private_pypi.sh"
+    - (cd contrib/job_submitter && uv sync --frozen --active --no-install-project)
+    - uv pip install --no-deps ./contrib/job_submitter
+    - !reference [.sr008_remote_job, before_script]
+
+test:integration:smoke:
+  extends: .torchtitan:integration
+  needs: []
+  variables:
+    NGPU: "1"
+    OUTPUT_DIR: "$TORCHTITAN_INTEGRATION_OUTPUT_DIR/smoke"
+  script:
+    - >
+      sr008_run python scripts/ci/submit_integration_job.py
+      --suite smoke
+      --ngpu "$NGPU"
+      --output-dir "$OUTPUT_DIR"
+      --artifact-dir "$TORCHTITAN_CLOUD_ARTIFACT_DIR"
+
+test:integration:features:
+  extends: .torchtitan:integration
+  needs: []
+  variables:
+    NGPU: "8"
+    OUTPUT_DIR: "$TORCHTITAN_INTEGRATION_OUTPUT_DIR/features"
+  script:
+    - >
+      sr008_run python scripts/ci/submit_integration_job.py
+      --suite features
+      --ngpu "$NGPU"
+      --output-dir "$OUTPUT_DIR"
+      --artifact-dir "$TORCHTITAN_CLOUD_ARTIFACT_DIR"
+
+test:integration:features:torchcomms:
+  extends: .torchtitan:integration
+  needs: []
+  variables:
+    NGPU: "8"
+    OUTPUT_DIR: "$TORCHTITAN_INTEGRATION_OUTPUT_DIR/features_torchcomms"
+  script:
+    - >
+      sr008_run python scripts/ci/submit_integration_job.py
+      --suite features_torchcomms
+      --ngpu "$NGPU"
+      --output-dir "$OUTPUT_DIR"
+      --artifact-dir "$TORCHTITAN_CLOUD_ARTIFACT_DIR"
+
+test:integration:models:
+  extends: .torchtitan:integration
+  needs: []
+  variables:
+    NGPU: "8"
+    OUTPUT_DIR: "$TORCHTITAN_INTEGRATION_OUTPUT_DIR/models"
+  script:
+    - >
+      sr008_run python scripts/ci/submit_integration_job.py
+      --suite models
+      --ngpu "$NGPU"
+      --output-dir "$OUTPUT_DIR"
+      --artifact-dir "$TORCHTITAN_CLOUD_ARTIFACT_DIR"
+
+test:integration:h100:
+  extends: .torchtitan:integration
+  needs: []
+  variables:
+    NGPU: "8"
+    OUTPUT_DIR: "$TORCHTITAN_INTEGRATION_OUTPUT_DIR/h100"
+  script:
+    - >
+      sr008_run python scripts/ci/submit_integration_job.py
+      --suite h100
+      --ngpu "$NGPU"
+      --output-dir "$OUTPUT_DIR"
+      --artifact-dir "$TORCHTITAN_CLOUD_ARTIFACT_DIR"
+
+build:docker_base:
+  extends:
+    - .build:docker_base
+  variables:
+    UV_INDEX_PYTORCH_NIGHTLY_CU130_USERNAME: "gitlab-ci-token"
+    UV_INDEX_PYTORCH_NIGHTLY_CU130_PASSWORD: "${CI_JOB_TOKEN}"
+  before_script:
+    - !reference [.build:docker_base, before_script]
+    - uv --version
+    - uv lock --project gift_docker --python python3.12 --prerelease allow
+  allow_failure: true
+
+build:papaya_docker:
+  extends: .build:papaya_docker
+  stage: build
+  allow_failure: true
+  needs:
+    - job: build:docker_base
+      artifacts: true
+
+save:job_id:
+  extends:
+    - .papaya:save_job_id
+    - .rules:on_trigger:always
+    - .rules:always_no_mr
+  stage: papaya
+
+trigger:papaya:
+  extends:
+    - .papaya:trigger
+    - .rules:on_trigger:always
+    - .rules:always_no_mr
+  stage: papaya
+  needs:
+    - job: save:job_id
+      artifacts: true
+      optional: true
+
+sync_mirror:
+  extends: .papaya:sync_mirror
+  image: 'cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/ci-cd:2026_09_30_commit6e04f4e0'
+  variables:
+    MIRROR_SOURCE_MODE: 'local'
+    MIRROR_PROJECT_PATH: 'learn-llms/mirrors/gift'
+    MIRROR_BRANCH: '$CI_COMMIT_BRANCH'
+    MIRROR_DRY_RUN: '0'
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true

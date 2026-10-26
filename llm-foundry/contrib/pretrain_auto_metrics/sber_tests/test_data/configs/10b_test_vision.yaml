@@ -1,0 +1,82 @@
+---
+run_name: 10b-lmms-eval-golden-smoke
+exp_name: 10b-lmms-eval-golden-smoke
+user: mimishchenko
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+
+  router:
+    host: 0.0.0.0
+
+  obm_proxy:
+    template-version: v4.1
+    chat-template: /home/jovyan/models/10b_vision_test_no_delete/processors/GigaVisionProcessor/chat_template.jinja
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    tp: 8
+    tokenizer-path: /home/jovyan/models/10b_vision_test_no_delete/processors/GigaVisionProcessor
+    processor_internal_path: processors/GigaVisionProcessor
+    disable-radix-cache: true
+    disable-fast-image-processor: true
+    enable-deterministic-inference: true
+    attention-backend: triton
+
+  model_info:
+    model_class: vision
+    size: lite
+    username: ${user}
+
+  evaluators:
+    lmms_eval:
+      chatml_version: v4.1
+      gigavision:
+        results:
+          export:
+            mode: runs
+      runs:
+        ai2d_smoke:
+          benchmarks:
+            mode: grouped
+            tasks:
+              - ai2d
+            limit: 5
+
+        sequential_mixed_smoke:
+          benchmarks:
+            tasks:
+              - docvqa_val
+              - ocrbench_v2
+            categories:
+              - hallucination
+            limit: 10
+
+        hallucination_group_smoke:
+          benchmarks:
+            mode: grouped
+            categories:
+              - hallucination
+            limit: 5
+
+        mixed_overlap_smoke:
+          benchmarks:
+            mode: grouped
+            tasks:
+              - ai2d
+              - chartqa_giga
+            categories:
+              - hallucination
+            limit: 5

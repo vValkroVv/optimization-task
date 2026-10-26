@@ -1,0 +1,46 @@
+# Base GiftMoE debug model on a real streaming (MDS) corpus with a real
+# 128256-vocab tokenizer, both on the SR008 shared filesystem. Runs only
+# where that share is mounted; the bundled alternative is gift_moe_debug_mds.
+#
+#   torchrun --nproc_per_node=4 -m torchtitan.train configs/experiments/gift_moe_streaming_debug.yaml
+config_version: 1
+
+imports:
+  - ../presets/models/gift_moe/debugmodel.yaml
+  - ../presets/train/debug.yaml
+
+model:
+  config: {vocab_size: 128256}
+
+loss:
+  type: chunked_cross_entropy
+
+hf_assets_path: /home/jovyan/shares/SR008.fs2/abeletsky/ckpt/pretrain_upcycling/2.5B_mbs-10_GPU-64/ep0_ba37500/artifacts/tokenizer
+
+dataloader:
+  type: streaming_text
+  dataset:
+    streams:
+      - name: numina_cot
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/math
+        split: numina_cot
+    fim_rates:
+      vanilla_fim: 0.0
+      inline_fim: 0.0
+      multiline_fim: 0.0
+      syntax_aware_fim: 0.0
+    shuffle: false
+    num_canonical_nodes: 60
+  drop_last: true
+  num_workers: 4
+  infinite: true
+
+training:
+  seq_len: 4096
+
+parallelism:
+  expert_parallel_degree: 1
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false

@@ -1,0 +1,211 @@
+stages:
+  - check
+  - runtime
+  - build
+
+prepare:swe-dataset:
+  stage: check
+  tags:
+    - advanced
+  variables:
+    SWE_BENCH_REF: "37db108843a49bb31a592e37a75e2c40dc3f9749"
+    SWE_BENCH_CHECKOUT_ROOT: "$CI_PROJECT_DIR/swe_uv_image_poc/build/harbor-datasets"
+  script:
+    - |
+      if [ -f "${SWE_IMAGE_MODE:-}" ]; then
+        SWE_IMAGE_MODE="$(cat "$SWE_IMAGE_MODE")"
+      fi
+      case "$SWE_IMAGE_MODE" in
+        pilot|batch|all) ;;
+        *) echo "SWE_IMAGE_MODE must be pilot, batch, or all" >&2; exit 2 ;;
+      esac
+
+      retry_git() {
+        for attempt in 1 2 3; do
+          if git -c http.version=HTTP/1.1 "$@"; then
+            return 0
+          fi
+          [ "$attempt" -lt 3 ] || return 1
+          sleep $((attempt * 10))
+        done
+      }
+      rm -rf "$SWE_BENCH_CHECKOUT_ROOT"
+      retry_git clone --no-checkout --depth 1 --filter=blob:none \
+        https://github.com/harbor-framework/harbor-datasets.git \
+        "$SWE_BENCH_CHECKOUT_ROOT"
+      git -C "$SWE_BENCH_CHECKOUT_ROOT" sparse-checkout set datasets/swebench-verified
+      retry_git -C "$SWE_BENCH_CHECKOUT_ROOT" fetch --depth 1 origin "$SWE_BENCH_REF"
+      git -C "$SWE_BENCH_CHECKOUT_ROOT" checkout --detach FETCH_HEAD
+      rm -rf "$SWE_BENCH_CHECKOUT_ROOT/.git"
+  artifacts:
+    paths:
+      - swe_uv_image_poc/build/harbor-datasets/datasets/swebench-verified/
+    expire_in: 1 day
+  rules:
+    - if: '$SWE_IMAGE_MODE == "pilot" || $SWE_IMAGE_MODE == "batch" || $SWE_IMAGE_MODE == "all"'
+
+check:docker-registry-access:
+  stage: check
+  tags:
+    - advanced
+  needs: []
+  variables:
+    REGISTRY_HOST: docker.sberdevices.ru
+  script:
+    - echo "=== runner host ==="
+    - hostname
+    - echo "=== DNS config ==="
+    - cat /etc/resolv.conf || true
+    - echo "=== DNS resolution ==="
+    - getent hosts "$REGISTRY_HOST" || echo "$REGISTRY_HOST -> no resolution"
+    - echo "=== registry /v2/ probes (curl uses the SYSTEM CA bundle) ==="
+    - curl -sS -o /dev/null -w "$REGISTRY_HOST /v2/ (unauth) -> %{http_code}\n" --max-time 10 "https://$REGISTRY_HOST/v2/" || true
+    - curl -sS -o /dev/null -w "$REGISTRY_HOST /v2/ (auth)   -> %{http_code}\n" --max-time 10 -u "$RLI_USER:$RLI_PASSWORD" "https://$REGISTRY_HOST/v2/" || true
+    - echo "=== TLS cert issuer (which CA signed the registry cert?) ==="
+    - echo | openssl s_client -connect "$REGISTRY_HOST:443" -servername "$REGISTRY_HOST" 2>/dev/null | openssl x509 -noout -subject -issuer -dates || echo "openssl probe failed"
+    - echo "=== docker login attempt (uses the DOCKER DAEMON trust store) ==="
+    - echo "$RLI_PASSWORD" | docker login "$REGISTRY_HOST" -u "$RLI_USER" --password-stdin || true
+  after_script:
+    - docker logout docker.sberdevices.ru || true
+  rules:
+    - when: manual
+
+build:swe-uv-poc:
+  stage: build
+  tags:
+    - advanced
+  needs: []
+  variables:
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - docker --version
+    - test -n "$RLI_USER"
+    - test -n "$RLI_PASSWORD"
+    - echo "$RLI_PASSWORD" | docker login docker.sberdevices.ru -u "$RLI_USER" --password-stdin
+    - |
+      if [[ -n "${DOCKERHUB_USER:-}" && -n "${DOCKERHUB_TOKEN:-}" ]]; then
+        echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USER" --password-stdin
+      else
+        echo "Docker Hub creds not set; anonymous pulls may hit rate limits."
+      fi
+  script:
+    - ./swe_uv_image_poc/scripts/build_push_uv_image.sh django__django-13343 "$SWE_BENCH_DATASET_ROOT"
+  after_script:
+    - docker logout docker.sberdevices.ru || true
+    - docker logout docker.io || true
+  timeout: 2h
+  rules:
+    - when: manual
+
+build:harness-runtime-1.0.2:
+  stage: runtime
+  tags:
+    - advanced
+  needs: []
+  variables:
+    DOCKER_BUILDKIT: "1"
+    RUNTIME_IMAGE_REPOSITORY: "docker.sberdevices.ru/gigarli/environments/swe-bench_harness-runtime"
+  before_script:
+    - docker --version
+    - test -n "$RLI_USER"
+    - test -n "$RLI_PASSWORD"
+    - echo "$RLI_PASSWORD" | docker login docker.sberdevices.ru -u "$RLI_USER" --password-stdin
+  script:
+    - mkdir -p swe_uv_image_poc/outputs/harness-runtime-1.0.2
+    - export RUNTIME_IMAGE="$RUNTIME_IMAGE_REPOSITORY:$CI_COMMIT_SHA"
+    - docker build --pull --platform linux/amd64 -f swe_uv_image_poc/Dockerfile.harness-runtime-1.0.2 -t "$RUNTIME_IMAGE" .
+    - docker push "$RUNTIME_IMAGE"
+    - docker image inspect "$RUNTIME_IMAGE" --format '{{index .RepoDigests 0}}' | tee swe_uv_image_poc/outputs/harness-runtime-1.0.2/image-ref.txt
+    - grep -q '@sha256:' swe_uv_image_poc/outputs/harness-runtime-1.0.2/image-ref.txt
+  after_script:
+    - docker logout docker.sberdevices.ru || true
+  artifacts:
+    paths:
+      - swe_uv_image_poc/outputs/harness-runtime-1.0.2/
+    expire_in: 30 days
+  timeout: 2h
+  rules:
+    - if: '$SWE_IMAGE_VERSION == "1.0.2" && ($SWE_IMAGE_MODE == "pilot" || $SWE_IMAGE_MODE == "batch" || $SWE_IMAGE_MODE == "all")'
+
+manifest:swe-images:
+  stage: check
+  tags:
+    - advanced
+  needs:
+    - job: prepare:swe-dataset
+      artifacts: true
+  variables:
+    SWE_BENCH_DATASET_ROOT: "$CI_PROJECT_DIR/swe_uv_image_poc/build/harbor-datasets/datasets/swebench-verified"
+    SWE_BENCH_REF: "37db108843a49bb31a592e37a75e2c40dc3f9749"
+  script:
+    - |
+      if [ -f "${SWE_IMAGE_MODE:-}" ]; then
+        SWE_IMAGE_MODE="$(cat "$SWE_IMAGE_MODE")"
+      fi
+      case "$SWE_IMAGE_MODE" in
+        pilot|batch|all) ;;
+        *) echo "SWE_IMAGE_MODE must be pilot, batch, or all" >&2; exit 2 ;;
+      esac
+      if [ -f "${SWE_IMAGE_VERSION:-}" ]; then
+        SWE_IMAGE_VERSION="$(cat "$SWE_IMAGE_VERSION")"
+      fi
+      SWE_IMAGE_VERSION="${SWE_IMAGE_VERSION:-1.0.1}"
+      case "$SWE_IMAGE_VERSION" in
+        1.0.1|1.0.2) ;;
+        *) echo "SWE_IMAGE_VERSION must be 1.0.1 or 1.0.2" >&2; exit 2 ;;
+      esac
+    - python3 ./swe_uv_image_poc/scripts/manifest.py "$SWE_BENCH_DATASET_ROOT" manifest.json --dataset-ref "$SWE_BENCH_REF"
+    - |
+      SWE_MAX_PARALLEL_JOBS="${SWE_MAX_PARALLEL_JOBS:-5}"
+      case "$SWE_MAX_PARALLEL_JOBS" in
+        ''|*[!0-9]*|0)
+          echo "SWE_MAX_PARALLEL_JOBS must be a positive integer" >&2
+          exit 2
+          ;;
+      esac
+      pipeline_args=(--max-parallel-jobs "$SWE_MAX_PARALLEL_JOBS")
+      if [ "$SWE_IMAGE_MODE" = pilot ]; then
+        if [ -n "${SWE_PILOT_TASKS_PATH:-}" ]; then
+          pipeline_args+=(--pilot-tasks-path "$SWE_PILOT_TASKS_PATH")
+        fi
+        python3 ./swe_uv_image_poc/scripts/pipeline.py manifest.json child-pipeline.yml \
+          --mode pilot --image-version "$SWE_IMAGE_VERSION" "${pipeline_args[@]}"
+      elif [ "$SWE_IMAGE_MODE" = all ]; then
+        python3 ./swe_uv_image_poc/scripts/pipeline.py manifest.json child-pipeline.yml \
+          --mode all --image-version "$SWE_IMAGE_VERSION" "${pipeline_args[@]}"
+      else
+        if [ -f "${SWE_BATCH_INDEX:-}" ]; then
+          SWE_BATCH_INDEX="$(cat "$SWE_BATCH_INDEX")"
+        fi
+        case "${SWE_BATCH_INDEX:-}" in
+          ''|*[!0-9]*) echo "SWE_BATCH_INDEX must be a non-negative integer" >&2; exit 2 ;;
+        esac
+        python3 ./swe_uv_image_poc/scripts/pipeline.py manifest.json child-pipeline.yml \
+          --mode batch --batch-index "$SWE_BATCH_INDEX" \
+          --image-version "$SWE_IMAGE_VERSION" "${pipeline_args[@]}"
+      fi
+  artifacts:
+    paths:
+      - manifest.json
+      - child-pipeline.yml
+    expire_in: 30 days
+  rules:
+    - if: '$SWE_IMAGE_MODE == "pilot" || $SWE_IMAGE_MODE == "batch" || $SWE_IMAGE_MODE == "all"'
+
+trigger:swe-images:
+  stage: build
+  needs:
+    - job: manifest:swe-images
+      artifacts: true
+    - job: build:harness-runtime-1.0.2
+      artifacts: true
+      optional: true
+  trigger:
+    include:
+      - artifact: child-pipeline.yml
+        job: manifest:swe-images
+    strategy: depend
+  variables:
+    PARENT_PIPELINE_ID: "$CI_PIPELINE_ID"
+  rules:
+    - if: '$SWE_IMAGE_MODE == "pilot" || $SWE_IMAGE_MODE == "batch" || $SWE_IMAGE_MODE == "all"'

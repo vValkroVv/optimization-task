@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_code_run
+task_alias: Code.Run
+dataset_kwargs:
+  data_name: code_run
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: code_run
+      context: "def func_1(x):\n    total = x + 4\n    return total * 2"
+      input: "What is the value of func_1(3)?"
+      answer:
+        - "14"
+    - infinitebench_task: code_run
+      context: "def func_2(x):\n    value = x * x\n    return value - 5"
+      input: "What is the value of func_2(6)?"
+      answer:
+        - "31"
+    - infinitebench_task: code_run
+      context: "def func_3(x):\n    if x < 0:\n        return -x + 7\n    return x + 7"
+      input: "What is the value of func_3(-4)?"
+      answer:
+        - "11"
+generation_kwargs:
+  max_gen_toks: 5
+  temperature: 0.0
+  do_sample: false
+  until: []

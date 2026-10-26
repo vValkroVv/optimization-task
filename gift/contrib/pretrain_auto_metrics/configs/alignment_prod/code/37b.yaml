@@ -1,0 +1,117 @@
+---
+run_name: <run_name>
+exp_name: <exp_name>
+user: <user>
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 65536
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    shared_params:
+      allow-auto-truncate: true
+      enable-dp-attention: true
+      disable-prefill-cuda-graph: true
+    prefill_fraction: 0.5
+    prefill:
+      tp: 2
+      ep: 2
+      dp: 2
+      pp: 4
+      mem-fraction-static: 0.70
+      max-running-requests: 256
+      max-mamba-cache-size: 1280
+      chunked-prefill-size: 32768
+    decode:
+      tp: 8
+      ep: 8
+      dp: 8
+      mem-fraction-static: 0.80
+      max-running-requests: 1536
+      max-mamba-cache-size: 3072
+      auto-mtp: true
+      disaggregation-decode-extra-slots: 4
+      enable-gdn-spec-replay-commit: true
+
+  model_info:
+    model_class: "sft"
+    size: "max"
+    username: ${user}
+
+  obm_proxy:
+    chat-template-kwargs:
+      reasoning: true
+      use_devsystem: false
+      use_suggester: false
+    reasoning-token-budget: 32768
+    chat-template: <path to jinja template>
+
+  evaluators:
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          log_samples: true
+
+    terminal_bench:
+      agent: mini-swe-agent
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 89
+
+    harbor_rli:
+      runs:
+        - benchmark: terminal-bench-2.1
+          agent: mini-swe-agent
+          pass-at-k: 1
+          max-tokens: 16384
+          agent-timeout: 25200
+          n-concurrent: 89
+        - benchmark: swe-bench-multilingual
+          agent: mini-swe-agent
+          pass-at-k: 1
+          max-tokens: 16384
+          agent-timeout: 25200
+          n-concurrent: 64
+
+    pier_rli:
+      benchmark: deepswe
+      pass-at-k: 1
+      command-timeout: 30
+      agent: mini-swe-agent
+      max-tokens: 16384
+      agent-timeout: 36000
+      n-concurrent: 64
+
+    swe_bench:
+      agent: mini-swe-agent
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 64
+
+    nl2repo:
+      agent: openhands-sdk
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 32

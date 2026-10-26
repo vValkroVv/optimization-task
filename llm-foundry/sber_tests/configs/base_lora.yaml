@@ -1,0 +1,61 @@
+max_seq_len: 1024
+sft_mode: true
+
+tokenizer:
+  kwargs:
+    legacy: true
+    model_max_length: ${max_seq_len}
+    use_fast: false
+  name: /home/jovyan/test_cache/tokenizers/tokenizer_chatml
+
+
+model:
+  config_overrides:
+    vocab_size: 61040
+  lora:
+    args:
+      bias: none
+      init_lora_weights: true
+      lora_alpha: 128
+      lora_bias: false
+      lora_dropout: 0.05
+      peft_type: LoRA-FA
+      r: 32
+      rank_pattern: {}
+      target_modules:
+      - qkv_proj
+      - up_proj
+      - down_proj
+      - gate_proj
+      use_dora: false
+      use_rslora: false
+
+
+train_loader:
+  name: text
+  sft_mode: ${sft_mode}
+  dataset:
+    epoch_size: 842303
+    streams:
+      default:
+        local: /home/jovyan/test_cache/datasets/sft/Infinity_Inference_0625_20k_instructs/
+        split: mds
+
+icl_tasks:
+- dataset_uri: /home/jovyan/metrics/short_version/mmlu_small
+  has_categories: ${sft_mode}
+  icl_task_type: mmlu
+  label: mmlu
+  max_seq_len: 8192
+  num_fewshot:
+  - 0
+  - 5
+  num_workers: 1
+  persistent_workers: false
+  pin_memory: true
+  prefetch_factor: 2
+  sft_args:
+    assistant_precursor: <|message_sep|>assistant<|role_sep|>
+    sentinel_token: ''
+    system_precursor: ''
+    user_precursor: <|message_sep|>user<|role_sep|>

@@ -1,0 +1,243 @@
+global_seed: 42
+
+
+speedup_llama: false
+varlen_input: false
+zero_nan_grads: false
+tp_size: 1
+sp_size: 1
+sft_mode: true
+vision_mode: true
+
+model_type: giga_tts
+####
+#### Models
+####
+model:
+  name: gigatts_causal_lm
+  init_device: cpu
+  llm:
+    type: gigar
+    params:
+      num_hidden_layers: 35
+      rope_theta: 29630000.0
+      attention_dropout: 0.0
+      bos_token_id: 1
+      eos_token_id: 2
+      hidden_act: silu
+      hidden_size: 3584
+      initializer_range: 0.02
+      intermediate_size: 18944
+      max_position_embeddings: 131072
+      num_attention_heads: 28
+      num_key_value_heads: 4
+      rms_norm_eps: 1.0e-06
+      rope_scaling: null
+      tie_word_embeddings: false
+      vocab_size: 128256
+      tp_size: ${tp_size}
+      loss_inplace_backward: true
+      attention_hidden_size: null
+      attention_bias: false
+      freeze_non_embed: false
+
+      # layers
+      attention_type: LlamaPackedAttention
+      parallel_embedding_type: EmbeddingParallelEmbedding
+
+      # use checkpointing
+      activation_checkpoint_layers_num: 35
+      fused_mlp: False
+      fused_mlp_checkpoint_lvl: 0
+
+      # optimization
+      delete_logits: true
+
+
+tokenizer:
+  kwargs:
+    model_max_length: ${max_seq_len}
+    use_fast: true
+
+####
+#### Data
+####
+train_loader:
+  name: tts
+  sft_mode: ${sft_mode}
+  collate_attention_mask: False
+  dataset:
+    shuffle: true
+    shuffle_seed: ${global_seed}
+  drop_last: true
+  num_workers: 4
+
+eval_loader:
+  name: tts
+  sft_mode: ${sft_mode}
+  collate_attention_mask: False
+  dataset:
+    shuffle: false
+    shuffle_seed: ${global_seed}
+  drop_last: true
+  num_workers: 4
+
+data_proportion: 1
+eval_before_train: regular
+
+
+####
+#### Training
+####
+scheduler:
+  name: cosine_with_warmup
+  t_warmup: 500ba
+  alpha_f: 0
+
+
+optimizer:
+  betas:
+    - 0.9
+    - 0.99  # Set to 0.95?
+  eps: 1.0e-08
+  weight_decay: 0.0
+
+algorithms:
+  gradient_clipping:
+    clipping_type: norm
+    clipping_threshold: 1.0
+
+
+####
+#### GigaFSDP
+####
+seed: ${global_seed}
+precision: amp_bf16
+dist_timeout: 36000
+
+gigafsdp_config:
+  tp_size: ${tp_size}
+  load_monolith_rank0_only: false
+  state_dict_type: local
+  sync_module_states: false
+  # --- optional gigafsdp params ---
+  # hpz_first_layers_num: 40
+  # hpz_group_size: 4
+  # hybrid_group_size: 256
+  activation_checkpointing: true
+  activation_checkpointing_reentrant: false
+  mixed_precision:
+    param_dtype: bf16
+    buffer_dtype: fp32
+    reduce_dtype: fp32
+
+
+####
+#### Logging
+####
+
+progress_bar: true
+log_to_console: true
+console_log_interval: 50ba
+
+callbacks:
+  speed_monitor:
+    window_size: 10
+  lr_monitor: {}
+  memory_monitor: {}
+  runtime_estimator: {}
+  optimizer_monitor:
+    batch_log_interval: 100
+  scheduled_gc:
+    batch_interval: 100
+  training_metrics_monitor:
+    batch_log_interval: 500
+
+  #### profiling
+  #memory_stats_saver:
+  #  collect_memory_snapshot: true
+  #  folder: ${log_dir}/profilers/${exp_name}/memory_stats_saver
+  #  save_interval: 2ba
+  ####
+
+
+auto_log_hparams: true
+
+loggers:
+  tensorboard:
+    log_dir: ${log_dir}/tensorboards/${exp_name}
+    rank_zero_only: true
+
+save_folder: ${log_dir}/checkpoints/${exp_name}
+
+###
+### Profiler
+###
+use_profiler: false
+profiler:
+  trace_handlers:
+    - name: json
+      params:
+      # composer.profiler.JSONTraceHandler kwargs
+        folder: ${log_dir}/profilers/${exp_name}/composer
+        merged_trace_filename: null
+        merged_trace_remote_file_name: null
+        overwrite: true
+        num_traces_to_keep: -1
+
+  cyclic_schedule:
+    # composer.profiler.cyclic_schedule kwargs
+    #  Number of batches to skip profiling at epoch start
+    skip_first: 110
+    #  For each profiling cycle, number of batches to skip at the beginning of the cycle.
+    wait: 10
+    #  For each profiling cycle, number of batches to be in the warmup state after skipping
+    #   ``wait`` batches
+    warmup: 2
+    #  For each profiling cycle, number of batches to record after warming up.
+    active: 2
+    #  Number of profiling cycles to perform per epoch
+    repeat: 1
+
+  profiler_overrides:
+    # composer.profiler.Profiler kwargs
+    # BASE
+    torch_prof_folder: ${log_dir}/profilers/${exp_name}/torch
+    torch_prof_overwrite: true
+    torch_prof_num_traces_to_keep: -1
+    sys_prof_stats_thread_interval_seconds: 0.5
+    # METRICS
+    # sys
+    sys_prof_cpu: false
+    sys_prof_memory: false
+    sys_prof_disk: false
+    sys_prof_net: false
+    # torch
+    torch_prof_record_shapes: false
+    torch_prof_profile_memory: false
+    torch_prof_with_stack: false
+    torch_prof_memory_filename: null
+
+
+
+###
+### Checkpoints
+###
+save_num_checkpoints_to_keep: 1
+autoresume: true
+load_weights_only: true
+
+# for sharded monolith
+load_strict_model_weights: false
+
+# Save checkpoint asynchronously during training
+save_checkpoint_async: true
+
+# Compute hashes for saved/loaded checkpoints and check for corruption
+compute_checkpoint_hashes: true
+
+# If specified only every `stable_save_interval`-th checkpoint will be considered as "stable" and preserved
+# the rest will be considered as "quick" and deleted after the creation of a new checkpoint
+# `stable_save_interval` must be divisible by `save_interval`
+# note: only checkpoints created during a given launch will be deleted
+stable_save_interval: null

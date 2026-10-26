@@ -1,0 +1,16 @@
+# A fragment, not a standalone stack: merge the service into the compose file of the ClickHouse server and keep the
+# image tag equal to the server's version.
+services:
+  ingest:
+    image: clickhouse/clickhouse-server:26.6
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          clickhouse-client --host ${METRIC_SAMPLER_CLICKHOUSE_HOST:?set the compose service name of the ClickHouse server} --multiquery < /sql/ingest.sql
+          sleep 30
+        done
+    volumes:
+      - ../../metric_sampler/cloud/ingest.sql:/sql/ingest.sql:ro
+    restart: unless-stopped

@@ -1,0 +1,35 @@
+<clickhouse>
+    <!-- System logs are diagnostics: kept for days instead of forever, and the server log stops at `information`.
+         query_log and part_log keep 30 days: viewer_selection reads the last 30 days of dashboard selections.
+         The metrics are sampled every 10 s instead of every second: the Backend dashboard reads them per interval
+         of tens of seconds. -->
+    <asynchronous_metrics_update_period_s>10</asynchronous_metrics_update_period_s>
+    <logger>
+        <level>information</level>
+    </logger>
+    <text_log>
+        <level>information</level>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </text_log>
+    <trace_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </trace_log>
+    <processors_profile_log remove="1"/>
+    <query_log>
+        <ttl>event_date + INTERVAL 30 DAY DELETE</ttl>
+    </query_log>
+    <part_log>
+        <ttl>event_date + INTERVAL 30 DAY DELETE</ttl>
+    </part_log>
+    <query_metric_log>
+        <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+        <collect_interval_milliseconds>10000</collect_interval_milliseconds>
+    </query_metric_log>
+    <metric_log>
+        <ttl>event_date + INTERVAL 14 DAY DELETE</ttl>
+        <collect_interval_milliseconds>10000</collect_interval_milliseconds>
+    </metric_log>
+    <asynchronous_metric_log>
+        <ttl>event_date + INTERVAL 14 DAY DELETE</ttl>
+    </asynchronous_metric_log>
+</clickhouse>

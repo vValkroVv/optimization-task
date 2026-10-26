@@ -1,0 +1,75 @@
+# GRPO on the sum-digits task with Qwen3-0.6B: 6 GPUs (4 generator TP + 2
+# policy-trainer TP).
+#
+#   python torchtitan/experiments/rl/grpo.py configs/experiments/rl_grpo_qwen3_0_6b.yaml
+#
+# Needs the RL runtime (Monarch, TorchStore, vLLM), which no image ships yet:
+# config-check validates the document structurally everywhere and decodes it
+# only where that runtime is installed.
+config_version: 1
+
+imports:
+  - ../presets/models/qwen3/0_6b.yaml
+
+trainer:
+  type: rl
+
+model:
+  config:
+    blocks:
+      dense:
+        attention:
+          inner_attention: {type: varlen}
+
+hf_assets_path: torchtitan/experiments/rl/example_checkpoint/Qwen3-0.6B
+num_steps: 10
+num_prompts_per_step: 5
+num_validation_samples: 20
+
+compile:
+  enable: true
+  backend: aot_eager
+
+env: {type: sum_digits, seed: 42, correctness_reward: 1.0, format_reward: 0.3}
+validation_env: {type: sum_digits, seed: 99, correctness_reward: 1.0, format_reward: 0.3}
+
+metrics:
+  enable_wandb: true
+
+batcher:
+  batch:
+    local_batch_size: 2
+    global_batch_size: 8
+    seq_len: 2048
+
+policy_trainer:
+  optimizer:
+    lr: 2.0e-6
+  lr_scheduler:
+    warmup_steps: 2
+    decay_type: linear
+  parallelism:
+    data_parallel_shard_degree: 1
+    tensor_parallel_degree: 2
+    disable_loss_parallel: true
+  checkpoint:
+    enable: true
+    initial_load_in_hf: true
+    interval: 10
+    last_save_model_only: false
+  loss: {type: grpo}
+
+generator:
+  model_dtype: bfloat16
+  parallelism:
+    tensor_parallel_degree: 4
+    data_parallel_replicate_degree: 1
+    enable_sequence_parallel: false
+    disable_loss_parallel: true
+  checkpoint:
+    enable: false
+  sampling:
+    n: 8
+    temperature: 0.8
+    top_p: 0.95
+    max_tokens: 100

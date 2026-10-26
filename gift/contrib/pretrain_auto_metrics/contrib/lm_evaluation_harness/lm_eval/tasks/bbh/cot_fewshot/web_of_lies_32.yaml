@@ -1,0 +1,23 @@
+include: web_of_lies.yaml
+task: bbh_cot_fewshot_web_of_lies_32
+repeats: 32
+filter_list:
+  - name: "scored"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.score_all_responses
+metric_list:
+  - metric: !function utils.pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+  - metric: !function utils.mean_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+generation_kwargs:
+  until: ["</s>", "Q", "\n\n"]
+  max_gen_toks: 1024
+  do_sample: true
+  temperature: 0.6
+  top_p: 0.95

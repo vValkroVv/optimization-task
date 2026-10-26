@@ -1,0 +1,26 @@
+# Model preset: qwen3 "4B".
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: 4B
+  config:
+    type: qwen3
+    dim: 2560
+    vocab_size: 151936
+    enable_weight_tying: true
+    norm: &norm {type: rmsnorm, eps: 1.0e-06}
+    rope: {type: cos_sin, dim: 128, max_seq_len: 4096, theta: 1000000.0}
+    blocks:
+      dense:
+        attention:
+          type: gqa
+          n_heads: 32
+          qk_norm: *norm
+          n_kv_heads: 8
+          head_dim: 128
+        feed_forward: {hidden_dim: 9728}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: dense, repeat: 36}

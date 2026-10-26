@@ -1,0 +1,180 @@
+dpo_mode: true
+
+max_seq_len: 8192
+
+global_seed: 42
+
+eos_token_id: 2
+speedup_llama: false
+varlen_input: false
+zero_nan_grads: false
+
+tp_size: 1
+sp_size: 1
+
+model:
+  name: dpo
+  dpo:
+    beta_chosen: 0.05
+    beta_rejected: 0.05
+    gamma: 0.0
+    weighted_gamma: 1.0
+    n_tokens: -1
+    margin_coef: 0.0
+    spectokens: [42001, 42002]
+    masked_tokens: []
+    chosen_nll_coef: 0.25
+    shiza_nll_coef: 0.95
+    spectokens_nll_coef: 0
+    loss_coef: 1.0
+    loss_func: dpo
+    chosen_nll_norm: ref
+    func_shiza: true
+    mask_common_prefix: false
+    log_metrics: true
+  student_model:
+    config_overrides:
+      sp_split_type: zigzag
+      activation_checkpoint_layers_num: 35
+      attention_bias: false
+      attention_dropout: 0.0
+      attention_hidden_size: null
+      attention_type: LlamaPackedAttention
+      bos_token_id: 1
+      eos_token_id: 2
+      freeze_non_embed: false
+      fused_mlp: true
+      fused_mlp_checkpoint_lvl: 3
+      hidden_act: silu
+      hidden_size: 3584
+      initializer_range: 0.02
+      intermediate_size: 18944
+      loss_inplace_backward: true
+      max_position_embeddings: 131072
+      num_attention_heads: 28
+      num_hidden_layers: 35
+      num_key_value_heads: 4
+      parallel_embedding_type: EmbeddingParallelEmbedding
+      rms_norm_eps: 1.0e-06
+      rope_scaling:
+        factor: 4.0
+        high_freq_factor: 4.0
+        low_freq_factor: 1.0
+        original_max_position_embeddings: 32768
+        rope_type: llama3
+      rope_theta: 2800000.0
+      tie_word_embeddings: false
+      tp_size: ${tp_size}
+      vocab_size: 128256
+    init_device: meta
+    name: gigar_causal_lm
+    pretrained: false
+    pretrained_model_name_or_path: ${model_path}
+  teacher_model:
+    same_as_student: true
+
+
+eval_first: true
+eval_subset_num_batches: 10
+
+train_loader:
+  max_seq_len: ${max_seq_len}
+  name: text
+  dpo_data: true
+  eos_token_id: ${eos_token_id}
+  sft_mode: false
+  dataset:
+    epoch_size: 379810  # вынести
+    streams:
+        dpo_main:
+          split: mds
+    shuffle: true
+    max_seq_len: ${max_seq_len}
+    shuffle_seed: ${global_seed}
+  drop_last: true
+  num_workers: 128
+
+scheduler: # вынести
+  name: constant_multi_step_with_gamma_with_warmup
+  t_warmup: 50ba
+  milestones: [3061ba, 4920ba]
+  milestones_gamma: [0.2, 0.04]
+
+optimizer:
+  name: decoupled_adamw
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1.0e-08
+  weight_decay: 0
+
+algorithms:
+  gradient_clipping:
+    clipping_type: norm
+    clipping_threshold: 1.0
+
+icl_tasks:
+- dataset_uri: /home/jovyan/vmamedov/mmlu/all
+  label: mmlu
+  gauntlet_tags:
+  - en
+  icl_task_type: mmlu
+  max_seq_len: 4096
+  num_fewshot:
+  - 0
+  - 5
+  num_workers: 1
+  persistent_workers: false
+  pin_memory: true
+  prefetch_factor: 2
+
+use_profiler: false
+profiler:
+  trace_handlers:
+    - name: json
+      params:
+        overwrite: true
+        num_traces_to_keep: -1
+  cyclic_schedule:
+    skip_first: 86050
+    wait: 10
+    warmup: 2
+    active: 2
+    repeat: 1
+  profiler_overrides:
+    torch_prof_overwrite: true
+    torch_prof_num_traces_to_keep: -1
+    sys_prof_stats_thread_interval_seconds: 0.5
+    sys_prof_cpu: false
+    sys_prof_memory: false
+    sys_prof_disk: false
+    sys_prof_net: false
+    torch_prof_record_shapes: false
+    torch_prof_profile_memory: false
+    torch_prof_with_stack: false
+    torch_prof_memory_filename: null
+
+seed: ${global_seed}
+precision: amp_bf16
+dist_timeout: 360000
+
+gigafsdp_config:
+  activation_checkpointing: true
+  activation_checkpointing_reentrant: false
+  hybrid_group_size: 8
+  load_monolith_rank0_only: false
+  mixed_precision:
+    buffer_dtype: fp32
+    param_dtype: bf16
+    reduce_dtype: fp32
+  state_dict_type: local
+  sync_module_states: false
+
+progress_bar: true
+log_to_console: false
+console_log_interval: 1ba
+
+auto_log_hparams: true
+autoresume: true
+
+save_checkpoint_async: false

@@ -1,0 +1,36 @@
+---
+common: &common
+  batch_size: 16
+  model_args: &model_common
+    base_url: http://127.0.0.1:30000/generate
+    num_concurrent: 8
+    tokenized_requests: true
+    max_length: 8192
+  trust_remote_code: true
+  confirm_run_unsafe_code: true
+
+pretrain:
+  # ----- fewshot = 0 -----
+  truthfulqa_gen:
+    <<: *common
+    num_fewshot: 0
+
+  # ----- fewshot = 3 -----
+  bbh:
+    <<: *common
+    num_fewshot: 3
+
+  # ----- fewshot = 4 -----
+  gsm8k:
+    <<: *common
+    num_fewshot: 4
+
+  # ----- fewshot = 5 -----
+  xwinograd:
+    <<: *common
+    num_fewshot: 5
+
+  # ----- fewshot = 8 -----
+  mgsm_direct_en:
+    <<: *common
+    num_fewshot: 8

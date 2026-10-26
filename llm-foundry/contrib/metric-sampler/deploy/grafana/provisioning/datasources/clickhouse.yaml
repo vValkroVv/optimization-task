@@ -1,0 +1,17 @@
+apiVersion: 1
+datasources:
+  - name: metric-sampler ClickHouse
+    uid: metric-sampler-ch
+    type: grafana-clickhouse-datasource
+    isDefault: true
+    editable: false
+    jsonData:
+      host: ${METRIC_SAMPLER_CLICKHOUSE_HOST}
+      port: 8123
+      protocol: http
+      username: grafana_reader
+      defaultDatabase: metric_sampler
+      # Seconds; it becomes the query's max_execution_time, which the reader profile caps at 300.
+      queryTimeout: "240"
+    secureJsonData:
+      password: $__file{/run/secrets/grafana_reader_password}

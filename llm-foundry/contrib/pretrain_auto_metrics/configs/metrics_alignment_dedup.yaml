@@ -1,0 +1,400 @@
+---
+run_name: <run_name>
+exp_name: <exp_name>
+user: <user>
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 65536
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    allow-auto-truncate: true
+    tp: 32
+    ep: 32
+    max-running-requests: 128
+    mem-fraction-static: 0.75
+    context-length: 65536
+
+
+  model_info:
+    model_class: "sft"
+    size: "lite"
+    username: ${user}
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    chat-template-kwargs:
+      reasoning: false
+      use_devsystem: true
+      default_devsystem: ""
+    chat-template: <chat_template>
+
+
+  evaluators:
+    safety_unified:
+      judges:
+        Qwen3-235B-A22B-Instruct-2507-FP8: all
+        Qwen3.5-397B-A17B-FP8: all
+      selection_manifest: big_pipeline.json
+      domain_rules_file: domain_rules.json
+
+    tau3:
+      num-trials: 3
+      domains:
+        - airline
+        - retail
+        - telecom
+        - banking_knowledge
+      user_model_name: Qwen3-235B-A22B-Instruct-2507-FP8
+
+    new_obm:
+      obm_config: openai
+
+      all:
+        tasks:
+          - cruxeval_cot
+          - human_eval
+          - human_eval_plus
+          - lbpp_python
+          - mbpp
+          - mbpp_plus
+          - scicode
+          - cycles_bpe
+          - cycles_ultra_bpe
+          - dubles_app
+          - dubles_long_chats
+          - struct_eval
+          - text2image_calculator_fpr
+          - bfcl_v3_irrelevance
+          - bfcl_v3_java
+          - bfcl_v3_javascript
+          - bfcl_v3_live_irrelevance
+          - bfcl_v3_live_multiple
+          - bfcl_v3_live_parallel
+          - bfcl_v3_live_parallel_multiple
+          - bfcl_v3_live_simple
+          - bfcl_v3_multiple
+          - bfcl_v3_parallel
+          - bfcl_v3_parallel_multiple
+          - bfcl_v3_simple
+          - bfcl_v3_sql
+          - ifeval_fc
+          - markup_functions
+          - graphwalks
+          - libra
+          - mrcr
+          - aime_2025
+          - aime_2026
+          - arxiv_math
+          - gsm8k
+          - hmmt
+          - math_500
+          - math_equations
+          - poly_math
+          - t_math
+          - big_bench_hard_cot
+          - drop
+          - gpqa_diamond_cot
+          - ifeval
+          - ifeval_ru
+          - mmlu
+          - mmlu_pro
+          - mmlu_ru
+          - natural_plan
+          - rubq_ru
+          - apk
+          - bank_deposits
+          - chartered_financial_analyst
+          - conversation_operations
+          - cyber_safety
+          - dzo_leasing
+          - factoring_corporate_governance
+          - gdpr
+          - grc_law_legaltech
+          - grc_law_legaltech_context
+          - kib_analiz
+          - kib_birzy_dgr
+          - kib_biznes_kards_dtb
+          - kib_brock_obsluzhivanie
+          - kib_farmocevtica_drkb
+          - kib_fsfr
+          - kib_fxdesk
+          - kib_individual_tariff
+          - kib_ispolnitelnoe_proizvodstvo_dtb
+          - kib_konversionnye_oper_gmmc
+          - kib_l1_apartment_buildings
+          - kib_l1_builders
+          - kib_l1_commercial_real_estate
+          - kib_l1_electric_power
+          - kib_l1_finmath
+          - kib_l1_fish
+          - kib_l1_gas
+          - kib_l1_metallurgy
+          - kib_l1_oil
+          - kib_l1_residental_real_estate
+          - kib_l1_services
+          - kib_l1_telecom
+          - kib_l1_thermal_power_engineering
+          - kib_l1_tourism
+          - kib_l1_trade
+          - kib_l1_transport_and_logistics
+          - kib_lpk_drkb
+          - kib_ramochnye_soglasheniya
+          - kib_raschetnoe_obslyzhivanie_dtb
+          - kib_raschety_platezhy_dtb
+          - latex
+          - markdown_formatting
+          - online_kassy
+          - science_crowd_biology
+          - science_crowd_chemistry
+          - science_crowd_math
+          - serv_cybersecurity_cissp_en
+          - serv_cybersecurity_cissp_ru
+          - serv_cybersecurity_pers_data
+          - unwanted_phrases
+          - dzo_korus
+          - agoq_agrobench
+          - agoq_agrochemistry
+          - agoq_aquabench
+          - agoq_foodbench
+          - agoq_forestbench
+          - agoq_gardenbench
+          - agoq_vetbench
+          - agoq_zoobench
+          - cfa_lvl_1
+          - cfa_lvl_2
+          - cfa_lvl_3
+          - financial_risk_manager
+          - hse_education
+          - hse_finance
+          - hse_law
+          - medicine_long
+          - medicine_short
+
+    new_obm_judged:
+      obm_config: openai
+      all:
+        tasks:
+          - pollux
+          - simpleqa
+          - imo_answer_bench
+      judges:
+        pollux-judge-32b:
+          - pollux
+        Qwen3-235B-A22B-Instruct-2507-FP8:
+          - simpleqa
+          - imo_answer_bench
+          - hle
+
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          log_samples: true
+
+        jsonschema_bench:
+          log_samples: true
+
+        ifbench:
+          log_samples: true
+
+    mera:
+      # System prompt applied to all MERA tasks. Keep "none" to use the default
+      # prompt, or replace it with a custom string. Individual tasks can
+      # override it by setting their own system_instruction
+      # (see simplear below).
+      system_instruction: none
+
+      simplear:
+        # system_instruction: "Custom prompt for this task only"
+        none
+
+      bps_gen:
+        none
+
+      lcs_gen:
+        none
+
+      chegeka:
+        none
+
+      mathlogicqa_gen:
+        none
+
+      parus_gen:
+        none
+
+      rcb_gen:
+        none
+
+      rudetox:
+        none
+
+      ruhatespeech_gen:
+        none
+
+      rummlu_gen:
+        none
+
+      ruworldtree_gen:
+        none
+
+      ruopenbookqa_gen:
+        none
+
+      rumultiar:
+        none
+
+      use:
+        none
+
+      rwsd_gen:
+        none
+
+      mamuramu_gen:
+        none
+
+      multiq:
+        none
+
+      rumodar:
+        none
+
+      ruhhh_gen:
+        none
+
+      ruethics_gen:
+        none
+
+      rucodeeval:
+        none
+
+      ruhumaneval:
+        none
+
+      agro_bench:
+        none
+
+      aqua_bench:
+        none
+
+      med_bench:
+        none
+
+      codecorrectness:
+        none
+
+      codelintereval:
+        none
+
+      rucodereviewer:
+        none
+
+      strucom:
+        none
+
+    dredd:
+      judge:
+        model_name: "minimax-m2.7"
+      datasets:
+        - name: "arena-hard-logs-v3"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "validator-sbs-pollux"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "ru-llm-arena"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "arena-hard-ru"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+
+    bfcl:
+      model: gigachat-FC
+      test_category: all
+
+    tau2:
+      domains:
+        - airline
+        - retail
+        - telecom
+      user_model_name: Qwen3-235B-A22B-Instruct-2507-FP8
+
+    nl2repo:
+      agent: openhands-sdk
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      n-concurrent: 32
+
+    terminal_bench:
+      agent: mini-swe-agent
+      max-tokens: 16384
+      max-input-tokens: 98304
+      n-concurrent: 89
+
+    harbor_rli:
+      runs:
+        - benchmark: harness-bench-lite
+          pass-at-k: 8
+          agent_timeout: 3600
+          benchmark-kwargs:
+            forward-reasoning-history: true
+            recursion-limit: 80
+        - benchmark: harness-bench-medium
+          pass-at-k: 8
+          agent_timeout: 3600
+          benchmark-kwargs:
+            forward-reasoning-history: true
+            recursion-limit: 80
+        - benchmark: terminal-bench-2.1
+          agent: mini-swe-agent
+          max-tokens: 16384
+          n-concurrent: 89
+          pass-at-k: 1
+        - benchmark: cowork-bench
+          agent: strands
+          max-tokens: 32768
+          n-concurrent: 64
+          pass-at-k: 1
+        - benchmark: swe-bench-multilingual
+          agent: mini-swe-agent
+          max-tokens: 16384
+          n-concurrent: 64
+          pass-at-k: 1
+
+    pier_rli:
+      benchmark: deepswe
+      command-timeout: 30
+      agent: mini-swe-agent
+      max-tokens: 16384
+      n-concurrent: 64
+
+    swe_bench:
+      agent: mini-swe-agent
+      max-tokens: 16384
+      max-input-tokens: 98304
+      n-concurrent: 64
+
+    forge:
+      judge: Qwen3-235B-A22B-Instruct-2507-FP8
+
+    # checkpoint_stats: статистика весов HF-чекпоинта, см. README, блок 20.
+    checkpoint_stats: {}

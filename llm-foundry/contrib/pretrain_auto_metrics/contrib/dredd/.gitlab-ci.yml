@@ -1,0 +1,42 @@
+# Одна джоба test:unit, как в PAM: тесты и покрытие в одном шаге (без отдельного test:cov / test:integration).
+include:
+  - project: 'gigallms/ci-cd'
+    ref: main
+    file:
+      - 'base/variables.yml'
+      - 'base/templates.yml'
+      - 'base/rules.yml'
+
+variables:
+  PROJECT_NAME: "dredd"
+
+test:unit:
+  extends: .python_job
+  stage: test
+  script:
+    - python -m pip install -r requirements.txt -e ".[test]"
+    - >
+      python -m pytest tests/ -m "(unit or integration) and not e2e"
+      --strict-markers
+      --cov=src
+      --cov=dredd
+      --cov-branch
+      --cov-report=term-missing:skip-covered
+      --cov-report=xml:coverage.xml
+      --junitxml=pytest-report.xml
+      --cov-fail-under=60
+      --tb=short
+      -v
+  artifacts:
+    when: always
+    reports:
+      junit: pytest-report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.xml
+      - pytest-report.xml
+  coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+%)/'
+  rules:
+    - when: always

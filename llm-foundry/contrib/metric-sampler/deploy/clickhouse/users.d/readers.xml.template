@@ -1,0 +1,73 @@
+<clickhouse>
+    <profiles>
+        <!-- readonly 2 lets Grafana pass settings: max_execution_time from the datasource's queryTimeout
+             and per-panel max_threads. Every Grafana viewer is the same ClickHouse user, so the query
+             cache is shared between them. Priority 1 pauses the summary loops (priority 10) and the
+             latest-histogram loop (priority 5) while a dashboard query runs. -->
+        <metric_sampler_reader>
+            <readonly>2</readonly>
+            <max_threads>8</max_threads>
+            <max_execution_time>60</max_execution_time>
+            <cancel_http_readonly_queries_on_client_close>1</cancel_http_readonly_queries_on_client_close>
+            <priority>1</priority>
+            <use_query_cache>1</use_query_cache>
+            <query_cache_ttl>300</query_cache_ttl>
+            <query_cache_nondeterministic_function_handling>ignore</query_cache_nondeterministic_function_handling>
+            <query_cache_system_table_handling>ignore</query_cache_system_table_handling>
+            <max_memory_usage>60000000000</max_memory_usage>
+            <constraints>
+                <max_execution_time><max>300</max></max_execution_time>
+                <max_memory_usage><max>60000000000</max></max_memory_usage>
+            </constraints>
+        </metric_sampler_reader>
+        <!-- Parallel insert threads run the materialized views in parallel. The thread count is what bounds the
+             write rate (max_local_write_bandwidth does not throttle these MergeTree writes), so it is kept low
+             enough for the data disk to absorb it together with merges. A pass reads every pending object: 8 read
+             threads bound its memory, 1 GiB insert blocks cut the number of parts it creates, and the 80 GB
+             limit covers several large batches in one pass; a pass over the limit would fail again on every retry.
+             A pass over a backlog can run for hours, and one cut by a time limit would start over. -->
+        <metric_sampler_ingest>
+            <max_execution_time>86400</max_execution_time>
+            <max_memory_usage>80000000000</max_memory_usage>
+            <max_threads>8</max_threads>
+            <max_insert_threads>8</max_insert_threads>
+            <parallel_view_processing>1</parallel_view_processing>
+            <min_insert_block_size_rows>16777216</min_insert_block_size_rows>
+            <min_insert_block_size_bytes>1073741824</min_insert_block_size_bytes>
+        </metric_sampler_ingest>
+    </profiles>
+    <users>
+        <grafana_reader>
+            <password_sha256_hex>__GRAFANA_READER_PASSWORD_SHA256__</password_sha256_hex>
+            <profile>metric_sampler_reader</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <quota>default</quota>
+            <access_management>0</access_management>
+            <allow_databases><database>metric_sampler</database><database>ms_exp</database></allow_databases>
+        </grafana_reader>
+        <human_reader>
+            <password_sha256_hex>__HUMAN_READER_PASSWORD_SHA256__</password_sha256_hex>
+            <profile>metric_sampler_reader</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <quota>default</quota>
+            <access_management>0</access_management>
+            <allow_databases><database>metric_sampler</database><database>ms_exp</database></allow_databases>
+        </human_reader>
+        <ingest_writer>
+            <password_sha256_hex>__INGEST_WRITER_PASSWORD_SHA256__</password_sha256_hex>
+            <profile>metric_sampler_ingest</profile>
+            <quota>default</quota>
+            <networks><ip>127.0.0.1</ip><ip>::1</ip><ip>172.16.0.0/12</ip></networks>
+            <grants>
+                <query>GRANT SELECT, INSERT ON metric_sampler.*</query>
+                <query>GRANT NAMED COLLECTION ON obs_ms</query>
+                <query>GRANT READ ON S3</query>
+                <query>GRANT CREATE TEMPORARY TABLE ON *.*</query>
+            </grants>
+        </ingest_writer>
+    </users>
+</clickhouse>

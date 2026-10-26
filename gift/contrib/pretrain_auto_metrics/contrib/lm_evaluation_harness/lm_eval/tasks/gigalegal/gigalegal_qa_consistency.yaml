@@ -1,0 +1,44 @@
+task: gigalegal_qa_consistency
+dataset_path: ai-sage/gigalegal
+dataset_kwargs:
+  data_files:
+    train: QA_consistency.json
+
+validation_split: train
+
+output_type: generate_until
+  
+doc_to_text: "Ты — эксперт по юриспруденции.\nЗадача: определить, ОТВЕЧАЕТ ли данный \"Ответ\" на данный \"Вопрос\".\n\nКритерии:\n- \"Да\": ответ содержит информацию, которая по сути отвечает на вопрос (полностью или частично, по теме).\n- \"Нет\": ответ не отвечает на вопрос (нерелевантен, уходит от вопроса, отвечает на другое, или не содержит нужной информации).\n\nВопрос:\n{{question}}\n\nОтвет:\n{{response}}\n\nОтветь СТРОГО одним словом: Да или Нет.\nНе добавляй никаких пояснений, знаков, пробелов или переводов строки."
+
+doc_to_target: "{{answer}}"
+repeats: 1
+num_fewshot: 0
+generation_kwargs:
+  until:
+    - "</s>"
+    - "<|im_end|>"
+    - "<|eot_id|>"
+  max_gen_toks: 10
+  do_sample: false
+  temperature: 0
+  top_p: 0.95
+
+filter_list:
+  - name: extract_yes_no_k
+    filter:
+      - function: regex
+        regex_pattern: '(?is)\b(Да|Нет)\b'
+      - function: take_first_k
+        k: 1
+
+
+process_results: !function utils.process_results_passk
+metric_list:
+  - metric: pass@1
+    aggregation: mean
+    higher_is_better: true
+
+    
+
+metadata:
+  version: 1.0

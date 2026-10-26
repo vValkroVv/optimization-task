@@ -1,0 +1,45 @@
+# Llama 3.1 8B pretraining on c4. Supply the HF assets at hf_assets_path
+# (`python scripts/download_hf_assets.py`); they are not bundled.
+#
+#   torchrun --nproc_per_node=8 -m torchtitan.train configs/experiments/llama3_8b.yaml
+config_version: 1
+
+imports:
+  - ../presets/models/llama3/8b.yaml
+
+loss:
+  type: chunked_cross_entropy
+
+hf_assets_path: ./assets/hf/Llama-3.1-8B
+
+profiler:
+  enable_profiling: true
+  profile_freq: 100
+
+metrics:
+  enable_tensorboard: true
+
+dataloader:
+  type: hf_text
+  dataset: c4
+
+optimizer:
+  lr: 3.0e-4
+
+training:
+  local_batch_size: 1
+  seq_len: 8192
+  steps: 1000
+
+checkpoint:
+  interval: 500
+
+activation_checkpoint:
+  mode: selective
+
+validator:
+  freq: 500
+  steps: 1200
+
+model:
+  config: {}

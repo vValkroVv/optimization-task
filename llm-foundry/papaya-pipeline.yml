@@ -1,0 +1,63 @@
+# .gitlab/papaya-pipeline.yml
+include:
+  - project: 'gigallms/ci-cd'
+    ref: main
+    file:
+      - 'test_rules.yml'
+
+
+stages:
+  - papaya_build
+  - papaya_deploy
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_SUBMODULE_UPDATE_FLAGS: --jobs 8
+  GIT_DEPTH: "2"
+  GIT_SUBMODULE_DEPTH: "2"
+
+papaya_init:
+  extends: .rules_manual_no_mr
+  stage: papaya_build
+  needs: []
+  tags:
+    - M
+  script:
+    - bash papaya_scripts/init/init.sh
+  artifacts:
+    paths:
+      - "*.tar.gz"
+    expire_in: 1 day
+
+.deploy_tar_to:
+  extends: .rules_manual_no_mr
+  stage: papaya_deploy
+  when: manual
+  variables:
+    REMOTE: ""
+    PATH_TO_DESTINATION: ""
+  tags:
+    - M
+  script:
+    - bash .gitlab/deploy_papaya.sh
+  needs:
+    - job: papaya_init
+      artifacts: true
+
+papaya_to_o1:
+  extends: .deploy_tar_to
+  variables:
+    REMOTE: infidelis@10.1.11.105
+    PATH_TO_DESTINATION: /mnt/nfs/01-home/infidelis/cicd
+
+papaya_to_o4:
+  extends: .deploy_tar_to
+  variables:
+    REMOTE: loggerhead@10.233.18.241
+    PATH_TO_DESTINATION: /mnt/nfs/01-home/loggerhead/cicd
+
+papaya_to_o5:
+  extends: .deploy_tar_to
+  variables:
+    REMOTE: infidelis@10.1.87.25
+    PATH_TO_DESTINATION: /mnt/nfs/01-home/infidelis/cicd/

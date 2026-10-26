@@ -1,0 +1,38 @@
+# Init policy: gpt-oss: every linear (Q/K/V too), the expert weights and biases and the sinks
+# scale their std by depth; the LM head by the model width.
+# A module without its own param_init takes the table of its init_role.
+model:
+  config:
+    init:
+      linear:
+        weight:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        bias: {type: zeros}
+      norm:
+        weight: {type: ones}
+        bias: {type: zeros}
+      embedding:
+        weight: {type: normal, std: 0.02, mean: 0.0}
+      lm_head:
+        weight:
+          type: dim_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        bias: {type: zeros}
+      experts:
+        mlp1_weight_EGD:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        mlp1_bias_EG:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        mlp2_weight_EDF:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        mlp2_bias_ED:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+      sinks:
+        sinks:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}

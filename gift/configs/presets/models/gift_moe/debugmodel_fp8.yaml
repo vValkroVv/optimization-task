@@ -1,0 +1,46 @@
+# Model preset: gift_moe "debugmodel_fp8".
+# wherever the fp8 kernels see a shape.
+# fp8 HybridEP dispatch needs dim % 512 == 0; 2048 keeps both DeepGEMM k-grouped
+# wgrad GEMMs above 116 output blocks per expert group, below which the kernel's
+# TMA-descriptor rewrite path faults or reads another group's operand.
+# TODO: back down once the DeepGEMM fork gets the release fence (upstream #304).
+imports:
+  - ../../init/gift_base.yaml
+
+model:
+  label: debugmodel_fp8
+  config:
+    type: gift_moe
+    dim: 2048
+    vocab_size: 2048
+    norm: &norm {type: rmsnorm}
+    rope: {type: complex, dim: 64, max_seq_len: 4096, theta: 10000.0}
+    blocks:
+      mla_dense:
+        attention: &mla
+          type: mla
+          n_heads: 16
+          kv_norm: {eps: 1.0e-05}
+          q_lora_rank: 0
+          kv_lora_rank: 512
+          qk_nope_head_dim: 128
+          qk_rope_head_dim: 64
+          v_head_dim: 128
+        feed_forward: {hidden_dim: 1024}
+        attention_norm: *norm
+        ffn_norm: *norm
+      mla_moe:
+        attention: *mla
+        moe:
+          experts:
+            hidden_dim: 2048
+            num_experts: 8
+            token_dispatcher: {type: local}
+          router: {top_k: 3, score_func: softmax}
+          shared_experts: {hidden_dim: 4096}
+          router_aux_loss_coef: 0.0001
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: mla_dense}
+    - {block: mla_moe, repeat: 5}

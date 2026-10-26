@@ -1,0 +1,41 @@
+# Model preset: qwen3_vl "2B".
+# The three patch knobs under vision: must match the hf_multimodal dataloader's.
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: 2B
+  config:
+    type: qwen3_vl
+    dim: 2048
+    vocab_size: 151936
+    enable_weight_tying: true
+    norm: &norm {type: rmsnorm, eps: 1.0e-06}
+    rope: {type: cos_sin, dim: 128, max_seq_len: 32768, theta: 5000000.0}
+    vision_encoder:
+      dim: 1024
+      n_heads: 16
+      spatial_merge_size: 2
+      num_position_embeddings: 2304
+      out_hidden_size: 2048
+      deepstack_visual_indices: [5, 11, 17]
+      patch_embed: {patch_size: 16, temporal_patch_size: 2}
+      blocks:
+        vit:
+          mlp: {hidden_dim: 4096}
+      layers:
+      - {block: vit, repeat: 24}
+    mrope_section: [24, 20, 20]
+    blocks:
+      dense:
+        attention:
+          type: gqa
+          n_heads: 16
+          qk_norm: *norm
+          n_kv_heads: 8
+          head_dim: 128
+        feed_forward: {hidden_dim: 6144}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: dense, repeat: 28}

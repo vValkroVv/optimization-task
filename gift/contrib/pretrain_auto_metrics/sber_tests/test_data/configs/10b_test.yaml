@@ -1,0 +1,164 @@
+---
+run_name: test_10b_full_measurement
+exp_name: test_10b_full_measurement
+user: test_user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+
+  router:
+    host: 0.0.0.0
+    disable-circuit-breaker: true
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    tp: 1
+    dp: 8
+
+  model_info:
+    model_class: "sft"
+    size: "lite"
+    username: ${user}
+
+  obm_proxy:
+    chat-template-kwargs:
+      reasoning: false
+    reasoning-token-budget: 32768
+    chat-template: /home/jovyan/models/10b_v4_1_no_delete/chat_template.jinja  # yamllint disable-line rule:line-length
+
+  evaluators:
+    new_obm:
+      obm_config: devices-v2
+
+      all:
+        tasks:
+          - assistant_context_calls
+          - assistant_reask
+          - assistant_smarthome_multicall
+          - text2image_recall
+          - text2image_calculator_fpr
+          - web_search_fpr
+          - web_search_recall
+          - get_time_fpr
+          - get_time_recall
+          - bfcl_v3_irrelevance
+          - bfcl_v3_live_multiple
+          - bfcl_v3_parallel
+          - cyber_metric
+          - drop
+          - human_eval_plus
+          - ifeval
+          - math_500
+          - mmlu_redux
+          - process_bench
+          - cyber_safety
+          - cycles
+          - cycles_bpe
+          - science_crowd_biology
+          - cfa_lvl_1
+          - hse_law
+          - medicine_short
+
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          none
+
+      pretrain:
+        humaneval:
+          num_fewshot: 0
+
+        lcb_code_gen_lite:
+          none
+
+        hellaswag:
+          num_fewshot: 0
+
+        mmlu:
+          num_fewshot: 5
+
+        mbpp:
+          num_fewshot: 3
+
+        gpqa_main_zeroshot:
+          num_fewshot: 0
+
+        minerva_math:
+          num_fewshot: 4
+
+    mera:
+      simplear:
+        none
+
+    dredd:
+      judge:
+        model_name: "gpt-oss-120b"
+      model:
+        api_base: "http://localhost:29999/v1"
+      datasets:
+        - name: "arena-hard-ru"
+          baseline:
+            name: "gpt-4o"
+
+    gigametric:
+      base_dir: /home/jovyan/${user}/gigametric_runs
+      local_model_id: gigachat_10b_local
+
+      validation_config:
+        validation_name: pam_10b_math500
+        strategy: breadth_first
+
+        storage:
+          type: local
+          base_path: ./llm_scoring_data
+
+        scheduler:
+          max_parallel_runs: auto
+          model_capacity_mode: tokens
+          prewarm_environments: false
+          fail_fast: true
+
+        defaults:
+          llm_config:
+            max_retries: 20
+            retry_wait_sec: 5
+            parameters: {}
+          benchmark_config:
+            timeout: 7200
+            parameters:
+              max_concurrent_requests: 128
+
+        benchmarks:
+          math500:
+            name: math500-adapter
+            primary_metric: mean_exact_match
+
+        models:
+          - id: gigachat_10b_local
+            llm_config:
+              model: openai
+              name: gigachat-10b
+              api_url: http://localhost:29999/v1
+              api_key: not-needed
+              parameters: {}
+            benchmarks:
+              - math500
+
+        pricing:
+          default_currency: RUB
+          models:
+            gigachat_10b_local:
+              input_1m_tokens: 0.0
+              output_1m_tokens: 0.0

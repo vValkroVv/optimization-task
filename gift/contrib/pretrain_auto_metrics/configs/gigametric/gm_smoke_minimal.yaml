@@ -1,0 +1,49 @@
+run_name: gm_smoke_minimal
+exp_name: gm_smoke_minimal
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+max_seq_len: 8192
+
+autometrics:
+    globals:
+        delete_converted_hf: true
+        full_metrics_recalculate: false
+    router:
+        host: 0.0.0.0
+    convertation:
+        mappers:
+            - map_gigafsdp_to_hf_safetensor
+        input_tp_size: 1
+    preparation:
+        skip: true
+
+    inference:
+        allow-auto-truncate: true
+        tp: 1
+        dp: 8
+        tool_call_parser: qwen
+
+    obm_proxy:
+        # sampling-params:
+        #     temperature: 0.7
+        chat-template-kwargs:
+            enable_thinking: false
+
+    model_info:
+        model_class: "sft"
+        size: "lite"
+        username: ${user}
+
+    evaluators:
+        gigametric:
+            base_dir: /home/jovyan/${user}/gigametric_runs
+            local_model_id: qwen_4b_local
+            max_concurrent_requests: 64
+
+            benchmarks:
+                math500: {}
+                gpqa: {}
+                bbac: {}
+                ifeval: {}
+                mmlu_pro: {}

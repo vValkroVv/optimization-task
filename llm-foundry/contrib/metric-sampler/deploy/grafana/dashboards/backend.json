@@ -1,0 +1,666 @@
+{
+  "uid": "ms-backend",
+  "title": "metric-sampler / Backend",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Data disk free",
+      "description": "Free space of the ClickHouse data disk.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT disk_free FROM metric_sampler.backend_disks SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Parts on the data disk",
+      "description": "Bytes of active parts of every table on the local disk.",
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT local_bytes FROM metric_sampler.backend_disks SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Parts on the cold volume",
+      "description": "Bytes of active parts moved to the cold volume, which is read through a local cache.",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT cold_bytes FROM metric_sampler.backend_disks SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Merges running",
+      "description": "Merges in progress; the IO guard of the summaries service stops them while the disk falls behind its writes.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT merges FROM metric_sampler.backend_disks SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Since the last ingest",
+      "description": "Seconds since the newest step of any run was ingested.",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT dateDiff('second', max(max_ingested_at), now64(3)) AS seconds FROM metric_sampler.step_index SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Health windows pending",
+      "description": "Windows of ingested batches that the health loop of the summaries service has yet to refresh.",
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT count() AS windows FROM metric_sampler.health_pending_windows SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Data disk throughput",
+      "description": "Bytes written to and read from the ClickHouse data disk per second.",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "timeseries",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(event_time, INTERVAL $__interval_s second) AS time, avgIf(value, metric = 'BlockWriteBytes_vdc') AS write, avgIf(value, metric = 'BlockReadBytes_vdc') AS read FROM metric_sampler.backend_host_metrics WHERE $__timeFilter(event_time) AND metric IN ('BlockWriteBytes_vdc', 'BlockReadBytes_vdc') GROUP BY time ORDER BY time SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "10s"
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Disk busy, IO wait and CPU",
+      "description": "Share of time the data disk was busy, and the host's IO wait, user and system CPU over all cores.",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "timeseries",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(event_time, INTERVAL $__interval_s second) AS time, avgIf(value, metric = 'BlockActiveTime_vdc') AS disk_busy, avgIf(value, metric = 'OSIOWaitTimeNormalized') AS io_wait, avgIf(value, metric = 'OSUserTimeNormalized') AS cpu_user, avgIf(value, metric = 'OSSystemTimeNormalized') AS cpu_system FROM metric_sampler.backend_host_metrics WHERE $__timeFilter(event_time) AND metric IN ('BlockActiveTime_vdc', 'OSIOWaitTimeNormalized', 'OSUserTimeNormalized', 'OSSystemTimeNormalized') GROUP BY time ORDER BY time SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "10s"
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Bytes written to parts",
+      "description": "Compressed bytes per second of the parts that inserts and merges wrote; merges rewrite inserted data.",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "timeseries",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(event_time, INTERVAL greatest($__interval_s, 60) second) AS time, sumIf(size_in_bytes, event_type = 'NewPart') / greatest($__interval_s, 60) AS inserts, sumIf(size_in_bytes, event_type = 'MergeParts') / greatest($__interval_s, 60) AS merges FROM metric_sampler.backend_part_writes WHERE $__timeFilter(event_time) GROUP BY time ORDER BY time SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Memory",
+      "description": "Resident memory of the ClickHouse server and memory available on the host.",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "timeseries",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(event_time, INTERVAL $__interval_s second) AS time, avgIf(value, metric = 'MemoryResident') AS clickhouse_resident, avgIf(value, metric = 'OSMemoryAvailable') AS host_available FROM metric_sampler.backend_host_metrics WHERE $__timeFilter(event_time) AND metric IN ('MemoryResident', 'OSMemoryAvailable') GROUP BY time ORDER BY time SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "10s"
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Runs ingested in the last 3 days",
+      "description": "Newest collected, ingested and health-refreshed step of each run.",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT exp, run, max_step, last_collected_at, max_ingested_at, health_max_step, health_refreshed_at FROM metric_sampler.pipeline_freshness WHERE max_ingested_at >= now() - INTERVAL 3 DAY ORDER BY max_ingested_at DESC SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Summaries behind the complete steps",
+      "description": "Summaries whose progress is behind the run's complete-step frontier (empty when every summary is caught up).",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT p.summary AS summary, c.exp AS exp, c.run AS run, c.complete_through AS complete_steps, max(p.complete_through) AS summarized, c.complete_through - summarized AS behind FROM metric_sampler.complete_steps_latest AS c INNER JOIN metric_sampler.summary_progress AS p ON p.exp = c.exp AND p.run = c.run WHERE c.last_ingested >= now() - INTERVAL 3 DAY GROUP BY summary, exp, run, complete_steps HAVING behind > 0 ORDER BY behind DESC LIMIT 50 SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Size by table and disk",
+      "description": "The 25 largest tables per disk.",
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT database, table, disk, parts, rows, bytes FROM metric_sampler.backend_table_sizes ORDER BY bytes DESC LIMIT 25 SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bytes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Failed backend queries in the last 6 hours",
+      "description": "Errors of the ingest and of the summary, health, cold tier and guard loops.",
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT user, error, times, last FROM metric_sampler.backend_errors ORDER BY last DESC LIMIT 20 SETTINGS use_query_cache = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

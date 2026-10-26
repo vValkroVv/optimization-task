@@ -1,0 +1,103 @@
+speech_mode: true
+
+max_seq_len: 4096
+role_sep_id: 128000
+message_sep_id: 128001
+audio_token_id: 128006
+
+
+tokenizer:
+  kwargs:
+    legacy: true
+    model_max_length: ${max_seq_len}
+    use_fast: false
+  name: /home/jovyan/test_cache/tokenizers/speech_tokenizer
+
+
+# this part can be replaced in case of lora-sp-2.yaml
+sp_size: 1
+
+
+model:
+  name: "gigaspeech_causal_lm"
+  encoder_config:
+    model_type: conformer
+    d_model: 64
+    n_heads: 1
+    n_layers: 1
+    self_attention_model: chunk_rotary
+  projector_config:
+    model_type: "linear_projector"
+    encoder_out_size: 256
+    hidden_size: 128
+  subsampler_config:
+    model_type: "stacking_subsampler"
+    subsampling_factor: 4
+  decoder_config:
+    pretrained_model_name_or_path: ${model_path}
+    model_type: "gigar"
+    num_hidden_layers: 2
+    hidden_size: 128
+    intermediate_size: 64
+    max_position_embeddings: ${max_seq_len}
+    tp_size: ${tp_size}
+    sp_size: ${sp_size}
+    sp_split_type: equal
+    attention_type: ${model.config_overrides.attention_type}
+    vocab_size: 128256
+    ###
+    num_attention_heads: 2
+    num_key_value_heads: 2
+    ###
+    fused_mlp: false
+    fused_mlp_checkpoint_lvl: 0
+    activation_checkpoint_layers_num: null
+    loss_inplace_backward: false
+    attention_hidden_size: null # if null, then attention_hidden_size = hidden_size
+    parallel_embedding_type: VocabParallelEmbedding
+    deterministic_attention: true
+  kwargs:
+    audio_token_id: ${audio_token_id} 
+    message_sep_id: ${message_sep_id}
+    role_sep_id: ${role_sep_id}
+    return_dict: False
+  # in speech there is another configuration proccess, thus, we totaly ignore config_overrides
+  # config_overrides: null
+  config_overrides:
+    hidden_size: 128
+    attention_type: "LlamaPackedAttention"
+
+
+train_loader:
+  name: speech
+  shuffle: false
+  dataset:
+    max_seq_len: ${max_seq_len}
+    shuffle: false
+    shuffle_seed: ${global_seed}
+    streams:
+      default:
+        local: /home/jovyan/test_cache/datasets/speech/converted_chatml_test_dev/train/mds/mds
+        proportion: null
+        split: null
+  drop_last: true
+  feature_extractor_cfg: ${feature_extractor_cfg}
+  num_workers: 1
+
+
+feature_extractor_cfg:
+  feature_extractor_type: "audioaug"
+  dither_val: 1e-5
+  high_freq_filterbank: 8000
+  normalize_gain: true
+  num_filterbank_chans: 64
+  sampling_freq: 16000
+
+
+generation_config:
+  do_sample: false
+  eos_token_id: ${message_sep_id}
+  max_length: 50
+  num_beams: 1
+  pad_token_id: ${message_sep_id}
+  use_cache: false

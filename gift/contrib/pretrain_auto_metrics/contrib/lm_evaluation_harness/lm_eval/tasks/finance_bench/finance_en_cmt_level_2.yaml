@@ -1,0 +1,92 @@
+tag:
+  - finance_en_bench
+
+task: finance_en_cmt_level_2
+
+dataset_path: ai-sage/finance-en-bench
+dataset_kwargs:
+  data_files:
+    test: finance_cmt_level_2_questions.jsonl
+
+test_split: test
+output_type: generate_until
+
+doc_to_text: |
+  Question:
+  {{question}}
+
+  Answer:
+
+doc_to_target: "{{golden_answer}}"
+
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+    ignore_case: true
+    ignore_punctuation: true
+
+generation_kwargs:
+  until:
+    - "</s>"
+    - "<|im_end|>"
+    - "<|eot_id|>"
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 8
+
+repeats: 1
+num_fewshot: 4
+fewshot_config:
+  sampler: first_n
+  samples:
+    - question: |
+        Please answer the following financial question from the CMT Level II exam using the provided context. There is only one correct answer to the question.
+        In your final response, indicate only the answer choice (for example, A).
+        Context:Which is NOT a measure of central tendency:
+        A. Mean
+        B. Median
+        C. Mode
+        D. Variance
+      golden_answer: "D"
+    - question: |
+        Please answer the following financial question from the CMT Level II exam using the provided context. There is only one correct answer to the question.
+        In your final response, indicate only the answer choice (for example, A).
+        Context:The "Rising 3 Methods" candlestick pattern is:
+        I) Bullish
+        II) Bearish
+        III) Long White Body followed by a series of smaller falling candles
+        IV) Long Black Body followed by a series of smaller rising candles
+        A. I & III
+        B. I & IV
+        C. II & III
+        D. II & IV
+      golden_answer: "A"
+    - question: |
+        Please answer the following financial question from the CMT Level II exam using the provided context. There is only one correct answer to the question.
+        In your final response, indicate only the answer choice (for example, A).
+        Context:Which of the following best helps quantify the risk of a trading system?
+        A. Maximum Cumulative Drawdown
+        B. Maximum Favorable Excursions
+        C. Longest Flat Time
+        D. Length of Average Winning Trade
+      golden_answer: "A"
+    - question: |
+        Please answer the following financial question from the CMT Level II exam using the provided context. There is only one correct answer to the question.
+        In your final response, indicate only the answer choice (for example, A).
+        Context:According to Charles Dow, what has been the main downfall of Wall Street investors?
+        A. Independent thinking
+        B. Failure to stay the course
+        C. Pride of opinion
+        D. Failure to abide by classic trading rules
+      golden_answer: "C"
+
+filter_list:
+  - name: extract_choice
+    filter:
+      - function: regex
+        regex_pattern: '(?is)\b([A-Z])\b'
+      - function: take_first
+
+metadata:
+  version: 1.0

@@ -1,0 +1,28 @@
+# Llama 4 debug model with fp8 grouped-GEMM experts over DeepEP. Needs
+# expert_parallel_degree 2, so two GPUs at least.
+#
+#   torchrun --nproc_per_node=2 -m torchtitan.train configs/experiments/llama4_debug_fp8.yaml
+config_version: 1
+
+imports:
+  - llama4_debug.yaml
+
+model:
+  config:
+    blocks:
+      moe:
+        moe:
+          experts:
+            token_dispatcher: {type: deepep}
+            # The fp8 grouped-GEMM path applies router scores after the experts.
+            score_before_experts: false
+
+fp8:
+  sparse_use_grouped_gemm: true
+
+parallelism:
+  expert_parallel_degree: 2
+
+compile:
+  enable: false
+  components: [model, loss]

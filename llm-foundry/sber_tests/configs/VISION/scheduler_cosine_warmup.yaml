@@ -1,0 +1,18 @@
+scheduler:
+  name: cosine_with_warmup
+  t_warmup: 200ba
+  alpha_f: 0.1
+
+optimizer:
+  name: decoupled_adamw
+  lr: 3.0e-3
+  param_groups:
+    - param_str_match: "mm_projector"
+      lr: 1e-4
+    - param_str_match: "mm_vision_tower"
+      lr: 2e-7
+  betas:
+    - 0.9
+    - 0.95
+  eps: 1.0e-08
+  weight_decay: 3.0e-5

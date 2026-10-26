@@ -1,0 +1,1360 @@
+materialized_model:
+  __type__: model:deepseek_v3
+  blocks: &mapping_b76a279e9efb5edb
+    mla_dense:
+      __type__: transformer_block:residual
+      attention: &attention_mla_07f1bbf3d327043a
+        __type__: attention:mla
+        dim: null
+        gate: null
+        hidden_z_loss: null
+        init_role: null
+        inner_attention:
+          __type__: inner_attention:sdpa
+          hidden_z_loss: null
+          init_role: null
+          param_init: null
+          sharding_config: null
+        kv_latent_hidden_z_loss_coef: 0.0
+        kv_lora_rank: 512
+        kv_norm: null
+        mask_type: null
+        mscale: 1.0
+        n_heads: 16
+        param_init: null
+        q_latent_hidden_z_loss_coef: 0.0
+        q_lora_rank: 0
+        q_norm: null
+        qk_nope_head_dim: 128
+        qk_rope_head_dim: 64
+        sharding_config: null
+        use_mla_scaling_factor: false
+        v_head_dim: 128
+        wkv_a: null
+        wkv_b: null
+        wo: null
+        wq: null
+        wq_a: null
+        wq_b: null
+        yarn_factor: null
+      attention_norm: &norm_rmsnorm_420c6f4a5f3651c1
+        __type__: norm:rmsnorm
+        elementwise_affine: true
+        eps: 1.0e-05
+        hidden_z_loss: null
+        init_role: null
+        normalized_shape: null
+        param_init: null
+        sharding_config: null
+      attn_residual_scale: null
+      dim: null
+      feed_forward:
+        __type__: feed_forward:swiglu
+        dense_fused_swiglu_quant: true
+        dim: null
+        hidden_dim: 1024
+        hidden_z_loss: null
+        init_role: null
+        param_init: null
+        sharding_config: null
+        swiglu_limit: 0.0
+        use_shared_quantizer: false
+        w1: null
+        w2: null
+        w3: null
+      ffn_norm: *norm_rmsnorm_420c6f4a5f3651c1
+      ffn_residual_scale: null
+      hidden_z_loss: null
+      init_role: null
+      layer_id: null
+      moe: null
+      param_init: null
+      post_attn_norm: null
+      post_ffn_norm: null
+      sharding_config: null
+    mla_moe:
+      __type__: transformer_block:residual
+      attention: *attention_mla_07f1bbf3d327043a
+      attention_norm: *norm_rmsnorm_420c6f4a5f3651c1
+      attn_residual_scale: null
+      dim: null
+      feed_forward: null
+      ffn_norm: *norm_rmsnorm_420c6f4a5f3651c1
+      ffn_residual_scale: null
+      hidden_z_loss: null
+      init_role: null
+      layer_id: null
+      moe:
+        __type__: moe:token_choice
+        experts:
+          __type__: torchtitan.config.schema.models.common.moe.experts.gmm.GroupedExpertsConfig
+          deep_gemm_num_sms: 116
+          dim: null
+          hidden_dim: 256
+          hidden_z_loss: null
+          init_role: null
+          num_experts: 8
+          param_init: null
+          score_before_experts: false
+          sharding_config: null
+          sparse_fused_swiglu_quant: true
+          swiglu_limit: 0.0
+          token_dispatcher:
+            __type__: token_dispatcher:local
+            token_drop: null
+          use_float8_grouped_gemm: false
+          w1_hidden_z_loss_coef: 0.0
+          w3_hidden_z_loss_coef: 0.0
+        hidden_z_loss: null
+        init_role: null
+        load_balance_coeff: 0.001
+        param_init: null
+        router:
+          __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
+          _debug_force_first_group: false
+          _debug_force_load_balance: false
+          gate: null
+          hidden_z_loss: null
+          init_role: null
+          num_expert_groups: null
+          num_limited_groups: null
+          param_init: null
+          route_norm: false
+          route_scale: 1.0
+          score_func: ScoreFunc.SOFTMAX
+          sharding_config: null
+          top_k: 3
+        router_aux_loss_coef: 0.0
+        router_z_loss_coef: 0.0
+        sharding_config: null
+        shared_experts:
+          __type__: feed_forward:swiglu
+          dense_fused_swiglu_quant: true
+          dim: null
+          hidden_dim: 512
+          hidden_z_loss: null
+          init_role: null
+          param_init: null
+          sharding_config: null
+          swiglu_limit: 0.0
+          use_shared_quantizer: false
+          w1: null
+          w2: null
+          w3: null
+      param_init: null
+      post_attn_norm: null
+      post_ffn_norm: null
+      sharding_config: null
+  converters: []
+  dim: 256
+  hidden_z_loss: null
+  hidden_z_loss_patterns: {}
+  init: &InitPolicy_ed0342fa18fd5816
+    __type__: torchtitan.config.schema.models.common.init_policy.InitPolicy
+    conv: null
+    embedding:
+      weight:
+        __type__: param_init:normal
+        mean: 0.0
+        std: 1.0
+    experts:
+      w13_E2FD:
+        __type__: param_init:fused_w13
+        gate:
+          __type__: param_init:trunc_normal
+          a: -2.0
+          b: 2.0
+          mean: 0.0
+          std: 0.02
+        up:
+          __type__: param_init:depth_scaled
+          base:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.02
+      w2_EDF:
+        __type__: param_init:depth_scaled
+        base:
+          __type__: param_init:trunc_normal
+          a: -2.0
+          b: 2.0
+          mean: 0.0
+          std: 0.02
+    gated_delta: null
+    gated_norm: null
+    linear:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:trunc_normal
+        a: -2.0
+        b: 2.0
+        mean: 0.0
+        std: 0.02
+    linear_out: &mapping_027190cb8b50e9c6
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:depth_scaled
+        base:
+          __type__: param_init:trunc_normal
+          a: -2.0
+          b: 2.0
+          mean: 0.0
+          std: 0.02
+    lm_head:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:dim_scaled
+        base:
+          __type__: param_init:trunc_normal
+          a: -2.0
+          b: 2.0
+          mean: 0.0
+          std: 0.02
+    norm:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:ones
+    o_norm: null
+    router_gate: *mapping_027190cb8b50e9c6
+    sinks: null
+  init_role: null
+  layers:
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:mla
+      dim: 256
+      gate: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      kv_latent_hidden_z_loss_coef: 0.0
+      kv_lora_rank: 512
+      kv_norm: &norm_rmsnorm_1657560a8aa9009b
+        __type__: norm:rmsnorm
+        elementwise_affine: true
+        eps: 1.0e-05
+        hidden_z_loss: null
+        init_role: norm
+        normalized_shape: 512
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:ones
+        sharding_config: null
+      mask_type: MaskType.CAUSAL
+      mscale: 1.0
+      n_heads: 16
+      param_init: null
+      q_latent_hidden_z_loss_coef: 0.0
+      q_lora_rank: 0
+      q_norm: null
+      qk_nope_head_dim: 128
+      qk_rope_head_dim: 64
+      sharding_config: null
+      use_mla_scaling_factor: false
+      v_head_dim: 128
+      wkv_a: &linear_linear_92a3967be42453ec
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear
+        out_features: 576
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.02
+        sharding_config: null
+      wkv_b: &linear_linear_f282c7573c20226c
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 512
+        init_role: linear
+        out_features: 4096
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.02
+        sharding_config: null
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 2048
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_c09f5b54dbbe0bde
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.014142135623730949
+        sharding_config: null
+      wq: &linear_linear_2df4870ed49e07ff
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear
+        out_features: 3072
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.02
+        sharding_config: null
+      wq_a: null
+      wq_b: null
+      yarn_factor: null
+    attention_norm: &norm_rmsnorm_98e7752e8c417631
+      __type__: norm:rmsnorm
+      elementwise_affine: true
+      eps: 1.0e-05
+      hidden_z_loss: null
+      init_role: norm
+      normalized_shape: 256
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:ones
+      sharding_config: null
+    attn_residual_scale: null
+    dim: 256
+    feed_forward:
+      __type__: feed_forward:swiglu
+      dense_fused_swiglu_quant: true
+      dim: 256
+      hidden_dim: 1024
+      hidden_z_loss: null
+      init_role: ''
+      param_init: null
+      sharding_config: null
+      swiglu_limit: 0.0
+      use_shared_quantizer: false
+      w1:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear
+        out_features: 1024
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.02
+        sharding_config: null
+      w2:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 1024
+        init_role: linear_out
+        out_features: 256
+        param_init: *mapping_c09f5b54dbbe0bde
+        sharding_config: null
+      w3:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 256
+        init_role: linear_out
+        out_features: 1024
+        param_init: *mapping_c09f5b54dbbe0bde
+        sharding_config: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 0
+    moe: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:mla
+      dim: 256
+      gate: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      kv_latent_hidden_z_loss_coef: 0.0
+      kv_lora_rank: 512
+      kv_norm: *norm_rmsnorm_1657560a8aa9009b
+      mask_type: MaskType.CAUSAL
+      mscale: 1.0
+      n_heads: 16
+      param_init: null
+      q_latent_hidden_z_loss_coef: 0.0
+      q_lora_rank: 0
+      q_norm: null
+      qk_nope_head_dim: 128
+      qk_rope_head_dim: 64
+      sharding_config: null
+      use_mla_scaling_factor: false
+      v_head_dim: 128
+      wkv_a: *linear_linear_92a3967be42453ec
+      wkv_b: *linear_linear_f282c7573c20226c
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 2048
+        init_role: linear_out
+        out_features: 256
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.01
+        sharding_config: null
+      wq: *linear_linear_2df4870ed49e07ff
+      wq_a: null
+      wq_b: null
+      yarn_factor: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 1
+    moe:
+      __type__: moe:token_choice
+      experts:
+        __type__: torchtitan.config.schema.models.common.moe.experts.gmm.GroupedExpertsConfig
+        deep_gemm_num_sms: 116
+        dim: 256
+        hidden_dim: 256
+        hidden_z_loss: null
+        init_role: experts
+        num_experts: 8
+        param_init:
+          w13_E2FD:
+            __type__: param_init:fused_w13
+            gate:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.02
+            up:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.01
+          w2_EDF:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.01
+        score_before_experts: false
+        sharding_config: null
+        sparse_fused_swiglu_quant: true
+        swiglu_limit: 0.0
+        token_dispatcher:
+          __type__: token_dispatcher:local
+          token_drop: null
+        use_float8_grouped_gemm: false
+        w1_hidden_z_loss_coef: 0.0
+        w3_hidden_z_loss_coef: 0.0
+      hidden_z_loss: null
+      init_role: ''
+      load_balance_coeff: 0.001
+      param_init: null
+      router:
+        __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
+        _debug_force_first_group: false
+        _debug_force_load_balance: false
+        gate:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: router_gate
+          out_features: 8
+          param_init:
+            bias:
+              __type__: param_init:zeros
+            weight:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.01
+          sharding_config: null
+        hidden_z_loss: null
+        init_role: ''
+        num_expert_groups: null
+        num_limited_groups: null
+        param_init: null
+        route_norm: false
+        route_scale: 1.0
+        score_func: ScoreFunc.SOFTMAX
+        sharding_config: null
+        top_k: 3
+      router_aux_loss_coef: 0.0
+      router_z_loss_coef: 0.0
+      sharding_config: null
+      shared_experts:
+        __type__: feed_forward:swiglu
+        dense_fused_swiglu_quant: true
+        dim: 256
+        hidden_dim: 512
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+        swiglu_limit: 0.0
+        use_shared_quantizer: false
+        w1: &linear_linear_a413c0625b260223
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: linear
+          out_features: 512
+          param_init:
+            bias:
+              __type__: param_init:zeros
+            weight:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.02
+          sharding_config: null
+        w2:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 512
+          init_role: linear_out
+          out_features: 256
+          param_init:
+            bias:
+              __type__: param_init:zeros
+            weight:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.01
+          sharding_config: null
+        w3:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: linear_out
+          out_features: 512
+          param_init:
+            bias:
+              __type__: param_init:zeros
+            weight:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.01
+          sharding_config: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:mla
+      dim: 256
+      gate: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      kv_latent_hidden_z_loss_coef: 0.0
+      kv_lora_rank: 512
+      kv_norm: *norm_rmsnorm_1657560a8aa9009b
+      mask_type: MaskType.CAUSAL
+      mscale: 1.0
+      n_heads: 16
+      param_init: null
+      q_latent_hidden_z_loss_coef: 0.0
+      q_lora_rank: 0
+      q_norm: null
+      qk_nope_head_dim: 128
+      qk_rope_head_dim: 64
+      sharding_config: null
+      use_mla_scaling_factor: false
+      v_head_dim: 128
+      wkv_a: *linear_linear_92a3967be42453ec
+      wkv_b: *linear_linear_f282c7573c20226c
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 2048
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_c4a71de647f5f877
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.008164965809277261
+        sharding_config: null
+      wq: *linear_linear_2df4870ed49e07ff
+      wq_a: null
+      wq_b: null
+      yarn_factor: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 2
+    moe:
+      __type__: moe:token_choice
+      experts:
+        __type__: torchtitan.config.schema.models.common.moe.experts.gmm.GroupedExpertsConfig
+        deep_gemm_num_sms: 116
+        dim: 256
+        hidden_dim: 256
+        hidden_z_loss: null
+        init_role: experts
+        num_experts: 8
+        param_init:
+          w13_E2FD:
+            __type__: param_init:fused_w13
+            gate:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.02
+            up:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.008164965809277261
+          w2_EDF:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.008164965809277261
+        score_before_experts: false
+        sharding_config: null
+        sparse_fused_swiglu_quant: true
+        swiglu_limit: 0.0
+        token_dispatcher:
+          __type__: token_dispatcher:local
+          token_drop: null
+        use_float8_grouped_gemm: false
+        w1_hidden_z_loss_coef: 0.0
+        w3_hidden_z_loss_coef: 0.0
+      hidden_z_loss: null
+      init_role: ''
+      load_balance_coeff: 0.001
+      param_init: null
+      router:
+        __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
+        _debug_force_first_group: false
+        _debug_force_load_balance: false
+        gate:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: router_gate
+          out_features: 8
+          param_init: *mapping_c4a71de647f5f877
+          sharding_config: null
+        hidden_z_loss: null
+        init_role: ''
+        num_expert_groups: null
+        num_limited_groups: null
+        param_init: null
+        route_norm: false
+        route_scale: 1.0
+        score_func: ScoreFunc.SOFTMAX
+        sharding_config: null
+        top_k: 3
+      router_aux_loss_coef: 0.0
+      router_z_loss_coef: 0.0
+      sharding_config: null
+      shared_experts:
+        __type__: feed_forward:swiglu
+        dense_fused_swiglu_quant: true
+        dim: 256
+        hidden_dim: 512
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+        swiglu_limit: 0.0
+        use_shared_quantizer: false
+        w1: *linear_linear_a413c0625b260223
+        w2:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 512
+          init_role: linear_out
+          out_features: 256
+          param_init: *mapping_c4a71de647f5f877
+          sharding_config: null
+        w3:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: linear_out
+          out_features: 512
+          param_init: *mapping_c4a71de647f5f877
+          sharding_config: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:mla
+      dim: 256
+      gate: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      kv_latent_hidden_z_loss_coef: 0.0
+      kv_lora_rank: 512
+      kv_norm: *norm_rmsnorm_1657560a8aa9009b
+      mask_type: MaskType.CAUSAL
+      mscale: 1.0
+      n_heads: 16
+      param_init: null
+      q_latent_hidden_z_loss_coef: 0.0
+      q_lora_rank: 0
+      q_norm: null
+      qk_nope_head_dim: 128
+      qk_rope_head_dim: 64
+      sharding_config: null
+      use_mla_scaling_factor: false
+      v_head_dim: 128
+      wkv_a: *linear_linear_92a3967be42453ec
+      wkv_b: *linear_linear_f282c7573c20226c
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 2048
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_c2635762f6b162aa
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.0070710678118654745
+        sharding_config: null
+      wq: *linear_linear_2df4870ed49e07ff
+      wq_a: null
+      wq_b: null
+      yarn_factor: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 3
+    moe:
+      __type__: moe:token_choice
+      experts:
+        __type__: torchtitan.config.schema.models.common.moe.experts.gmm.GroupedExpertsConfig
+        deep_gemm_num_sms: 116
+        dim: 256
+        hidden_dim: 256
+        hidden_z_loss: null
+        init_role: experts
+        num_experts: 8
+        param_init:
+          w13_E2FD:
+            __type__: param_init:fused_w13
+            gate:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.02
+            up:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.0070710678118654745
+          w2_EDF:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.0070710678118654745
+        score_before_experts: false
+        sharding_config: null
+        sparse_fused_swiglu_quant: true
+        swiglu_limit: 0.0
+        token_dispatcher:
+          __type__: token_dispatcher:local
+          token_drop: null
+        use_float8_grouped_gemm: false
+        w1_hidden_z_loss_coef: 0.0
+        w3_hidden_z_loss_coef: 0.0
+      hidden_z_loss: null
+      init_role: ''
+      load_balance_coeff: 0.001
+      param_init: null
+      router:
+        __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
+        _debug_force_first_group: false
+        _debug_force_load_balance: false
+        gate:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: router_gate
+          out_features: 8
+          param_init: *mapping_c2635762f6b162aa
+          sharding_config: null
+        hidden_z_loss: null
+        init_role: ''
+        num_expert_groups: null
+        num_limited_groups: null
+        param_init: null
+        route_norm: false
+        route_scale: 1.0
+        score_func: ScoreFunc.SOFTMAX
+        sharding_config: null
+        top_k: 3
+      router_aux_loss_coef: 0.0
+      router_z_loss_coef: 0.0
+      sharding_config: null
+      shared_experts:
+        __type__: feed_forward:swiglu
+        dense_fused_swiglu_quant: true
+        dim: 256
+        hidden_dim: 512
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+        swiglu_limit: 0.0
+        use_shared_quantizer: false
+        w1: *linear_linear_a413c0625b260223
+        w2:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 512
+          init_role: linear_out
+          out_features: 256
+          param_init: *mapping_c2635762f6b162aa
+          sharding_config: null
+        w3:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: linear_out
+          out_features: 512
+          param_init: *mapping_c2635762f6b162aa
+          sharding_config: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:mla
+      dim: 256
+      gate: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      kv_latent_hidden_z_loss_coef: 0.0
+      kv_lora_rank: 512
+      kv_norm: *norm_rmsnorm_1657560a8aa9009b
+      mask_type: MaskType.CAUSAL
+      mscale: 1.0
+      n_heads: 16
+      param_init: null
+      q_latent_hidden_z_loss_coef: 0.0
+      q_lora_rank: 0
+      q_norm: null
+      qk_nope_head_dim: 128
+      qk_rope_head_dim: 64
+      sharding_config: null
+      use_mla_scaling_factor: false
+      v_head_dim: 128
+      wkv_a: *linear_linear_92a3967be42453ec
+      wkv_b: *linear_linear_f282c7573c20226c
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 2048
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_126a7b9fb3d54b90
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.006324555320336759
+        sharding_config: null
+      wq: *linear_linear_2df4870ed49e07ff
+      wq_a: null
+      wq_b: null
+      yarn_factor: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 4
+    moe:
+      __type__: moe:token_choice
+      experts:
+        __type__: torchtitan.config.schema.models.common.moe.experts.gmm.GroupedExpertsConfig
+        deep_gemm_num_sms: 116
+        dim: 256
+        hidden_dim: 256
+        hidden_z_loss: null
+        init_role: experts
+        num_experts: 8
+        param_init:
+          w13_E2FD:
+            __type__: param_init:fused_w13
+            gate:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.02
+            up:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.006324555320336759
+          w2_EDF:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.006324555320336759
+        score_before_experts: false
+        sharding_config: null
+        sparse_fused_swiglu_quant: true
+        swiglu_limit: 0.0
+        token_dispatcher:
+          __type__: token_dispatcher:local
+          token_drop: null
+        use_float8_grouped_gemm: false
+        w1_hidden_z_loss_coef: 0.0
+        w3_hidden_z_loss_coef: 0.0
+      hidden_z_loss: null
+      init_role: ''
+      load_balance_coeff: 0.001
+      param_init: null
+      router:
+        __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
+        _debug_force_first_group: false
+        _debug_force_load_balance: false
+        gate:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: router_gate
+          out_features: 8
+          param_init: *mapping_126a7b9fb3d54b90
+          sharding_config: null
+        hidden_z_loss: null
+        init_role: ''
+        num_expert_groups: null
+        num_limited_groups: null
+        param_init: null
+        route_norm: false
+        route_scale: 1.0
+        score_func: ScoreFunc.SOFTMAX
+        sharding_config: null
+        top_k: 3
+      router_aux_loss_coef: 0.0
+      router_z_loss_coef: 0.0
+      sharding_config: null
+      shared_experts:
+        __type__: feed_forward:swiglu
+        dense_fused_swiglu_quant: true
+        dim: 256
+        hidden_dim: 512
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+        swiglu_limit: 0.0
+        use_shared_quantizer: false
+        w1: *linear_linear_a413c0625b260223
+        w2:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 512
+          init_role: linear_out
+          out_features: 256
+          param_init: *mapping_126a7b9fb3d54b90
+          sharding_config: null
+        w3:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: linear_out
+          out_features: 512
+          param_init: *mapping_126a7b9fb3d54b90
+          sharding_config: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  - __type__: transformer_block:residual
+    attention:
+      __type__: attention:mla
+      dim: 256
+      gate: null
+      hidden_z_loss: null
+      init_role: ''
+      inner_attention:
+        __type__: inner_attention:sdpa
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+      kv_latent_hidden_z_loss_coef: 0.0
+      kv_lora_rank: 512
+      kv_norm: *norm_rmsnorm_1657560a8aa9009b
+      mask_type: MaskType.CAUSAL
+      mscale: 1.0
+      n_heads: 16
+      param_init: null
+      q_latent_hidden_z_loss_coef: 0.0
+      q_lora_rank: 0
+      q_norm: null
+      qk_nope_head_dim: 128
+      qk_rope_head_dim: 64
+      sharding_config: null
+      use_mla_scaling_factor: false
+      v_head_dim: 128
+      wkv_a: *linear_linear_92a3967be42453ec
+      wkv_b: *linear_linear_f282c7573c20226c
+      wo:
+        __type__: linear:linear
+        bias: false
+        hidden_z_loss: null
+        in_features: 2048
+        init_role: linear_out
+        out_features: 256
+        param_init: &mapping_3602224216d6d7ed
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.005773502691896258
+        sharding_config: null
+      wq: *linear_linear_2df4870ed49e07ff
+      wq_a: null
+      wq_b: null
+      yarn_factor: null
+    attention_norm: *norm_rmsnorm_98e7752e8c417631
+    attn_residual_scale: null
+    dim: 256
+    feed_forward: null
+    ffn_norm: *norm_rmsnorm_98e7752e8c417631
+    ffn_residual_scale: null
+    hidden_z_loss: null
+    init_role: ''
+    layer_id: 5
+    moe:
+      __type__: moe:token_choice
+      experts:
+        __type__: torchtitan.config.schema.models.common.moe.experts.gmm.GroupedExpertsConfig
+        deep_gemm_num_sms: 116
+        dim: 256
+        hidden_dim: 256
+        hidden_z_loss: null
+        init_role: experts
+        num_experts: 8
+        param_init:
+          w13_E2FD:
+            __type__: param_init:fused_w13
+            gate:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.02
+            up:
+              __type__: param_init:trunc_normal
+              a: -2.0
+              b: 2.0
+              mean: 0.0
+              std: 0.005773502691896258
+          w2_EDF:
+            __type__: param_init:trunc_normal
+            a: -2.0
+            b: 2.0
+            mean: 0.0
+            std: 0.005773502691896258
+        score_before_experts: false
+        sharding_config: null
+        sparse_fused_swiglu_quant: true
+        swiglu_limit: 0.0
+        token_dispatcher:
+          __type__: token_dispatcher:local
+          token_drop: null
+        use_float8_grouped_gemm: false
+        w1_hidden_z_loss_coef: 0.0
+        w3_hidden_z_loss_coef: 0.0
+      hidden_z_loss: null
+      init_role: ''
+      load_balance_coeff: 0.001
+      param_init: null
+      router:
+        __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
+        _debug_force_first_group: false
+        _debug_force_load_balance: false
+        gate:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: router_gate
+          out_features: 8
+          param_init: *mapping_3602224216d6d7ed
+          sharding_config: null
+        hidden_z_loss: null
+        init_role: ''
+        num_expert_groups: null
+        num_limited_groups: null
+        param_init: null
+        route_norm: false
+        route_scale: 1.0
+        score_func: ScoreFunc.SOFTMAX
+        sharding_config: null
+        top_k: 3
+      router_aux_loss_coef: 0.0
+      router_z_loss_coef: 0.0
+      sharding_config: null
+      shared_experts:
+        __type__: feed_forward:swiglu
+        dense_fused_swiglu_quant: true
+        dim: 256
+        hidden_dim: 512
+        hidden_z_loss: null
+        init_role: ''
+        param_init: null
+        sharding_config: null
+        swiglu_limit: 0.0
+        use_shared_quantizer: false
+        w1: *linear_linear_a413c0625b260223
+        w2:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 512
+          init_role: linear_out
+          out_features: 256
+          param_init: *mapping_3602224216d6d7ed
+          sharding_config: null
+        w3:
+          __type__: linear:linear
+          bias: false
+          hidden_z_loss: null
+          in_features: 256
+          init_role: linear_out
+          out_features: 512
+          param_init: *mapping_3602224216d6d7ed
+          sharding_config: null
+    param_init: null
+    post_attn_norm: null
+    post_ffn_norm: null
+    sharding_config: null
+  lm_head:
+    __type__: linear:linear
+    bias: false
+    hidden_z_loss: null
+    in_features: 256
+    init_role: lm_head
+    out_features: 2048
+    param_init:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:trunc_normal
+        a: -0.1875
+        b: 0.1875
+        mean: 0.0
+        std: 0.0625
+    sharding_config: null
+  mtp: null
+  norm: *norm_rmsnorm_98e7752e8c417631
+  param_init: null
+  rope:
+    __type__: rope:complex
+    cache_len: null
+    dim: 64
+    hidden_z_loss: null
+    init_role: ''
+    max_seq_len: 4096
+    param_init: null
+    scaling:
+      __type__: rope_scaling:none
+    sharding_config: null
+    theta: 10000.0
+  sharding_config: null
+  tok_embeddings:
+    __type__: torchtitan.config.schema.models.common.embeddings.token_embeddings.EmbeddingConfig
+    embedding_dim: 256
+    hidden_z_loss: null
+    init_role: embedding
+    num_embeddings: 2048
+    param_init:
+      weight:
+        __type__: param_init:normal
+        mean: 0.0
+        std: 1.0
+    sharding_config: null
+  vocab_size: 2048
+model:
+  __type__: torchtitan.config.sections.ModelSection
+  config:
+    __type__: model:deepseek_v3
+    blocks: *mapping_b76a279e9efb5edb
+    converters: []
+    dim: 256
+    hidden_z_loss: null
+    hidden_z_loss_patterns: {}
+    init: *InitPolicy_ed0342fa18fd5816
+    init_role: null
+    layers:
+    - __type__: torchtitan.config.schema.models.common.decoder_blocks.layer_group.LayerGroupConfig
+      block: mla_dense
+      cycle: null
+      repeat: 1
+    - __type__: torchtitan.config.schema.models.common.decoder_blocks.layer_group.LayerGroupConfig
+      block: mla_moe
+      cycle: null
+      repeat: 5
+    lm_head: null
+    mtp: null
+    norm: *norm_rmsnorm_420c6f4a5f3651c1
+    param_init: null
+    rope:
+      __type__: rope:complex
+      cache_len: null
+      dim: 64
+      hidden_z_loss: null
+      init_role: null
+      max_seq_len: 4096
+      param_init: null
+      scaling:
+        __type__: rope_scaling:none
+      sharding_config: null
+      theta: 10000.0
+    sharding_config: null
+    tok_embeddings: null
+    vocab_size: 2048
+  label: debugmodel

@@ -1,0 +1,59 @@
+# Shared 700B training baseline. Architecture and asset paths belong to each run.
+imports:
+  - fp8_full.yaml
+
+# The block names are the gift 700B presets'.
+model:
+  config:
+    blocks:
+      mla_moe:
+        moe:
+          experts:
+            token_dispatcher: {type: deepep}
+      gdn_moe:
+        moe:
+          experts:
+            token_dispatcher: {type: deepep}
+    mtp:
+      layers:
+        - {block: mtp}
+
+loss:
+  type: mtp
+  loss_weights: [0.1]
+
+dataloader:
+  type: hf_text
+  dataset: c4
+
+optimizer:
+  lr: 2.2e-4
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-20
+  weight_decay: 2.2e-5
+
+lr_scheduler:
+  warmup_steps: 2000
+  # With decay_ratio unset, LR decays linearly to zero after warmup.
+
+training:
+  local_batch_size: 3
+  global_batch_size: 15360
+  seq_len: 4096
+  steps: 127000
+  enable_cpu_offload: true
+
+parallelism:
+  expert_parallel_degree: 32
+
+checkpoint:
+  enable: true
+  interval: 2000
+
+activation_checkpoint:
+  mode: full
+
+compile:
+  enable: true
+  components: [loss]

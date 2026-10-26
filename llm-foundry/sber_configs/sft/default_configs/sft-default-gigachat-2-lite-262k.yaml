@@ -1,0 +1,220 @@
+# max_seq_len: 8192       # In editable CFG
+global_seed: 2007
+eos_token_id: 2
+
+varlen_input: false
+use_flux: false
+zero_nan_grads: false
+patch_flash: false
+# enable_async_tp: false  # In editable CFG
+# tp_size: 1              # In editable CFG
+# sp_size: 4              # In editable CFG
+sft_mode: true
+
+
+model_path: /home/jovyan/models/templates/gigar-base_model-9B-128k_digit_tokenizer-no_eos-config_only   # Либо взять из претрейна, либо из hf версии sft\dpo модели
+model:
+  name: gigar_causal_lm
+  init_device: meta
+  pretrained: false
+  pretrained_model_name_or_path: ${model_path}
+  config_overrides:
+    use_cache: False
+    use_liger: true
+    sp_split_type: zigzag
+    num_hidden_layers: 35
+    rope_theta: 1000000.0
+    rope_scaling:
+      factor: 32.0
+      low_freq_factor: 1.0
+      high_freq_factor: 4.0
+      original_max_position_embeddings: 8192
+      rope_type: llama3
+    attention_dropout: 0.0
+    bos_token_id: 1
+    eos_token_id: 2
+    hidden_act: silu
+    hidden_size: 3584
+    initializer_range: 0.02
+    intermediate_size: 18944
+    max_position_embeddings: 131072
+    num_attention_heads: 28
+    num_key_value_heads: 4
+    rms_norm_eps: 1.0e-06
+    tie_word_embeddings: false
+    vocab_size: 128256
+    tp_size: ${tp_size}
+    fused_mlp: true
+    fused_mlp_checkpoint_lvl: 3
+    activation_checkpoint_layers_num: 35
+    loss_inplace_backward: true
+    attention_hidden_size: null
+    attention_bias: false
+    freeze_non_embed: false
+    attention_type: LlamaPackedRingAttention
+    parallel_embedding_type: EmbeddingParallelEmbedding
+
+
+# FULL SHARD
+# global_train_batch_size: 480   # In editable CFG
+# device_train_microbatch_size: 1 # global_train_batch_size = GPU * grad_accum * device_train_microbatch_size
+# device_eval_batch_size: 1
+
+
+# Tokenizer
+tokenizer:
+  # name:  # In editable CFG
+  kwargs:
+    model_max_length: ${max_seq_len}
+
+# Dataloaders
+train_loader:
+  name: text
+  eos_token_id: ${eos_token_id}
+  sft_mode: ${sft_mode}
+  dataset:
+    # In editable CFG
+    shuffle: false
+    max_seq_len: ${max_seq_len}
+    shuffle_seed: ${global_seed}
+  drop_last: true
+  num_workers: 16
+
+# Optimization   # In editable CFG
+# scheduler:
+  # name: cosine_with_warmup
+  # t_warmup: 100ba
+  # alpha_f: 0
+
+optimizer:
+  name: decoupled_adamw
+  # lr: 5.0e-06
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1.0e-08
+  # weight_decay: 0.0  # In editable CFG
+
+# Algorithms
+algorithms:
+  gradient_clipping:
+    clipping_type: norm
+    clipping_threshold: 1.0
+
+
+# BENCHMARKS
+icl_tasks:
+- dataset_uri: /home/jovyan/vmamedov/mmlu/all
+  label: mmlu
+  gauntlet_tags:
+  - en
+  icl_task_type: mmlu
+  max_seq_len: 4096
+  num_fewshot:
+  - 0
+  - 5
+  num_workers: 1
+  persistent_workers: false
+  pin_memory: true
+  prefetch_factor: 2
+    
+    
+use_profiler: false
+profiler:
+  trace_handlers:
+    - name: json
+      params:
+      # composer.profiler.JSONTraceHandler kwargs
+        folder: '/home/jovyan/shares/SR004.nfs2/gigachat_checkpoints/sft/${exp_name}/tensorboard_sft/${exp_name}/composer_profiler'
+        merged_trace_filename: null
+        merged_trace_remote_file_name: null
+        overwrite: true
+        num_traces_to_keep: -1
+
+  cyclic_schedule:
+    # composer.profiler.cyclic_schedule kwargs
+    #  Number of batches to skip profiling at epoch start
+    skip_first: 2
+    #  For each profiling cycle, number of batches to skip at the beginning of the cycle.
+    wait: 2
+    #  For each profiling cycle, number of batches to be in the warmup state after skipping
+    #   ``wait`` batches
+    warmup: 2
+    #  For each profiling cycle, number of batches to record after warming up.
+    active: 3
+    #  Number of profiling cycles to perform per epoch
+    repeat: 1
+
+  profiler_overrides:
+    # composer.profiler.Profiler kwargs
+    # BASE
+    torch_prof_folder: '/home/jovyan/shares/SR004.nfs2/gigachat_checkpoints/sft/${exp_name}/tensorboard_sft/${exp_name}/torch_profiler'
+    torch_prof_overwrite: true
+    torch_prof_num_traces_to_keep: -1
+    sys_prof_stats_thread_interval_seconds: 0.5
+    # METRICS
+    # sys
+    sys_prof_cpu: false
+    sys_prof_memory: false
+    sys_prof_disk: false
+    sys_prof_net: false
+    # torch
+    torch_prof_record_shapes: false
+    torch_prof_profile_memory: false
+    torch_prof_with_stack: false
+    torch_prof_memory_filename: null
+
+
+# max_duration: 5ep       # In editable CFG
+# eval_interval: 418ba    # In editable CFG
+# eval_first: true        # In editable CFG
+eval_subset_num_batches: -1
+
+# System
+seed: ${global_seed}
+precision: amp_bf16 #amp_fp16
+dist_timeout: 7200
+
+# FSDP
+gigafsdp_config:
+  load_monolith_rank0_only: false
+  state_dict_type: local
+  sync_module_states: false
+  # hybrid_group_size: 8
+  # save_gigafsdp_sharded_folder_path: 
+  activation_checkpointing: true
+  activation_checkpointing_reentrant: false
+  mixed_precision:
+    param_dtype: bf16
+    buffer_dtype: fp32
+    reduce_dtype: fp32
+  # --- optional gigafsdp params ---
+  # hpz_first_layers_num: 40
+  # hpz_group_size: 4
+  # hybrid_group_size: 24
+
+# Logging
+progress_bar: true
+log_to_console: true
+console_log_interval: 1ba
+
+callbacks:
+  speed_monitor:
+    window_size: 10
+  lr_monitor: {}
+  memory_monitor: {}
+  stage_time_profiler: {}
+  runtime_estimator: {}
+  optimizer_monitor:
+    batch_log_interval: 100
+  scheduled_gc:
+    batch_interval: 100
+  training_metrics_monitor:
+    batch_log_interval: 500
+  stage_time_profiler: {}
+
+auto_log_hparams: true
+autoresume: true
+
+# Checkpoint to local filesystem or remote object store
+load_weights_only: true

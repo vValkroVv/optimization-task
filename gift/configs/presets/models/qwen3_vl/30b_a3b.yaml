@@ -1,0 +1,45 @@
+# Model preset: qwen3_vl "qwen3_vl_moe/30B-A3B".
+# The three patch knobs under vision: must match the hf_multimodal dataloader's.
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: qwen3_vl_moe/30B-A3B
+  config:
+    type: qwen3_vl
+    dim: 2048
+    vocab_size: 151936
+    norm: &norm {type: rmsnorm, eps: 1.0e-06}
+    rope: {type: cos_sin, dim: 128, max_seq_len: 32768, theta: 5000000.0}
+    vision_encoder:
+      dim: 1152
+      n_heads: 16
+      spatial_merge_size: 2
+      num_position_embeddings: 2304
+      out_hidden_size: 2048
+      deepstack_visual_indices: [8, 16, 24]
+      patch_embed: {patch_size: 16, temporal_patch_size: 2}
+      blocks:
+        vit:
+          mlp: {hidden_dim: 4304}
+      layers:
+      - {block: vit, repeat: 27}
+    mrope_section: [24, 20, 20]
+    blocks:
+      moe:
+        attention:
+          type: gqa
+          n_heads: 32
+          qk_norm: *norm
+          n_kv_heads: 4
+          head_dim: 128
+        moe:
+          experts:
+            hidden_dim: 768
+            num_experts: 128
+            token_dispatcher: {type: local}
+          router: {top_k: 8, score_func: softmax, route_norm: true}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: moe, repeat: 48}

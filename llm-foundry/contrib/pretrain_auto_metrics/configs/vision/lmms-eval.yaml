@@ -1,0 +1,75 @@
+---
+run_name: lmms-eval-run
+exp_name: lmms-eval-run
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+    policy: cache_aware
+    cache-threshold: 0.50
+    balance-abs-threshold: 4
+    balance-rel-threshold: 1.10
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf
+    input_tp_size: 1
+    skip_ema_mapper: false
+    prepare_ema_weight: false
+    skip_optimizer: true
+    use_ema: false
+
+  preparation:
+    skip: true
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    # REQUIRED for lmms_eval. Keep all three ChatML settings explicit.
+    # Prefer the exact tokenizer and template from the HF checkpoint.
+    template-version: v4.1
+    tokenizer-path: /path/to/hf_model
+    chat-template: /path/to/hf_model/chat_template.jinja
+    # If the checkpoint template is missing, use a matching external v4.1
+    # template from sft-data-tokenizer or a compatible shared_res bundle.
+
+  inference:
+    allow-auto-truncate: true
+    tp: 1
+    dp: 8
+    disable-fast-image-processor: true
+    attention-backend: triton
+    processor_internal_path: processors/GigaVisionProcessor
+    # enable-deterministic-inference: true - just for checks
+
+  model_info:
+    model_class: "vision"  # IMPORTANT TO SET
+    size: "lite"  # lite / pro / max / ultra
+    username: ${user}
+
+  evaluators:
+    lmms_eval:
+      chatml_version: ${autometrics.obm_proxy.template-version}
+      runs:
+        chartqa_smoke:
+          benchmarks:
+            tasks:
+              - chartqa_giga
+            limit: 10  # remove limit
+        all:
+          benchmarks:
+            categories:
+              - all
+    new_obm:
+      obm_config: devices
+      all:
+        groups: [open]

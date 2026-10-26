@@ -1,0 +1,14 @@
+# Llama3 debug model with the varlen attention kernel.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/llama3_debug_varlen_attn.yaml
+config_version: 1
+
+imports:
+  - llama3_debug.yaml
+
+model:
+  config:
+    blocks:
+      dense:
+        attention:
+          inner_attention: {type: varlen}

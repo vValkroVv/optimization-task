@@ -1,0 +1,46 @@
+task: gigalegal_class_low
+
+dataset_path: ai-sage/gigalegal
+dataset_kwargs:
+  data_files:
+    train: class_violations_low_mcq.json
+
+validation_split: train
+
+output_type: generate_until
+
+doc_to_text: "Ты — эксперт по юриспруденции и логическому анализу.\nТебе даны:\n1) статья;\n2) текст статьи;\n3) ситуация.\nПроанализируй данные и выбери, нарушает ли описанная ситуация статью.\n\nСтатья:\n{{article}}\n\nТекст статьи:\n{{clause}}\n\nСитуация:\n{{situation}}\n\nВарианты ответа:\nA) {{options[0]}}\nB) {{options[1]}}\nC) {{options[2]}}\n\nОтветь ТОЛЬКО буквой: A, B или C.\nНе пиши ничего кроме буквы.\n\n{{answer_key}}"
+doc_to_target: "{{answer_key}}"
+
+num_fewshot: 0
+repeats: 1
+
+generation_kwargs:
+  until:
+    - "</s>"
+    - "<|im_end|>"
+    - "<|eot_id|>"
+
+  max_gen_toks: 10
+  do_sample: false
+  temperature: 0
+  top_p: 0.95
+
+filter_list:
+  - name: extract_abc_k
+    filter:
+      - function: regex
+        regex_pattern: '(?is)\b([ABC])\b'
+      - function: take_first_k
+        k: 1
+process_results: !function utils.process_results_passk_mcq
+
+metric_list:
+  - metric: pass@1
+    aggregation: mean
+    higher_is_better: true
+
+
+
+metadata:
+  version: 1.0

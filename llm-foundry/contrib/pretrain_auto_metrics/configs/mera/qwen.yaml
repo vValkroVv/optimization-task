@@ -1,0 +1,144 @@
+---
+run_name: run_name
+exp_name: exp_name
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    allow-auto-truncate: true
+    tp: 1
+    dp: 8
+    reasoning-parser: qwen3
+    tool-call-parser: qwen
+
+  model_info:
+    model_class: "sft"
+    size: "ultra"
+    username: ${user}
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    chat-template-kwargs:
+      enable_thinking: true
+    reasoning-token-budget: 32768
+
+  evaluators:
+    mera:
+      # System prompt applied to all MERA tasks. Keep "none" to use the default
+      # prompt, or replace it with a custom string. Individual tasks can
+      # override it by setting their own system_instruction
+      # (see simplear below).
+      system_instruction: none
+
+      rutie_gen:
+        none
+
+      simplear:
+        # system_instruction: "Custom prompt for this task only"
+        none
+
+      bps_gen:
+        none
+
+      lcs_gen:
+        none
+
+      chegeka:
+        none
+
+      mathlogicqa_gen:
+        none
+
+      parus_gen:
+        none
+
+      rcb_gen:
+        none
+
+      rudetox:
+        none
+
+      ruhatespeech_gen:
+        none
+
+      rummlu_gen:
+        none
+
+      ruworldtree_gen:
+        none
+
+      ruopenbookqa_gen:
+        none
+
+      rumultiar:
+        none
+
+      use:
+        none
+
+      rwsd_gen:
+        none
+
+      mamuramu_gen:
+        none
+
+      multiq:
+        none
+
+      rumodar:
+        none
+
+      ruhhh_gen:
+        none
+
+      ruethics_gen:
+        none
+
+      rucodeeval:
+        none
+
+      ruhumaneval:
+        none
+
+      # MERA Industrial
+      agro_bench:
+        none
+
+      aqua_bench:
+        none
+
+      med_bench:
+        none
+
+      # MERA Code (без Docker)
+      codecorrectness:
+        none
+
+      codelintereval:
+        none
+
+      rucodereviewer:
+        none
+
+      strucom:
+        none

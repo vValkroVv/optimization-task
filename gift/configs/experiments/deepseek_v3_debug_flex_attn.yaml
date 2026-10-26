@@ -1,0 +1,16 @@
+# DeepSeek-V3 debug model with FlexAttention.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/deepseek_v3_debug_flex_attn.yaml
+config_version: 1
+
+imports:
+  - deepseek_v3_debug.yaml
+
+model:
+  config:
+    blocks:
+      mla_dense:
+        attention: &attention
+          inner_attention: {type: flex}
+      mla_moe:
+        attention: *attention

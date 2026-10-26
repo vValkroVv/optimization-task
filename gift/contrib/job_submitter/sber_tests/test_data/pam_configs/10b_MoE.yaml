@@ -1,0 +1,289 @@
+---
+run_name: run_name
+exp_name: exp_name
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: true
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    tp: 1
+    dp: 8
+
+  model_info:
+    model_class: "sft"
+    size: "lite"
+    username: ${user}
+
+  obm_proxy:
+    chat-template-kwargs:
+      reasoning: true
+    reasoning-token-budget: 32768
+    chat-template: <path to jinja template> #NEED FOR INSTRUCT METRICS!
+
+  evaluators:
+    obm:
+      obm_config: devices
+
+      all:
+        groups:
+          - assistant
+          - b2c
+          - code
+          - functions
+          - long
+          - math
+          - open
+          - reward
+          - sber
+          - ssu
+        # tasks:                             # filter by specific task names (optional)
+        #   - mmlu
+        #   - gsm8k
+        # restart: false                     # clear OBM cache before running
+        # context: <path to context yaml>    # per-dataset context overrides (takes priority over flags below)
+        # disable_few_shots: false           # disable few-shot examples for all tasks
+        # disable_suggested_params: false    # disable suggested generation params for all tasks
+
+
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          none
+
+      pretrain:
+        # ----- no fewshot -----
+        slava:
+          none
+
+        ruscontext:
+          none
+
+        spellcheck_punctuation_ru:
+          none
+
+        repa:
+          none
+
+        libra_tasks:
+          none
+
+        lcb_code_gen_lite:
+          none
+
+        ruler:
+          metadata: '{"max_seq_lengths":[4096, 8192, 16384, 32768, 65536, 131072]}'
+
+        # ----- fewshot = 0 -----
+        winogrande:
+          num_fewshot: 0
+
+        truthfulqa:
+          num_fewshot: 0
+
+        gpqa_main_zeroshot:
+          num_fewshot: 0
+
+        longbench2:
+          none
+
+        agieval:
+          num_fewshot: 0
+
+        piqa:
+          num_fewshot: 0
+
+        humaneval:
+          num_fewshot: 0
+
+        humaneval_plus:
+          num_fewshot: 0
+
+        hellaswag:
+          num_fewshot: 0
+
+        # ----- fewshot = 3 -----
+        bbh:
+          num_fewshot: 3
+
+        mbpp:
+          num_fewshot: 3
+
+        mbpp_plus:
+          num_fewshot: 3
+
+        # ----- fewshot = 4 -----
+        gsm8k:
+          num_fewshot: 4
+
+        minerva_math:
+          num_fewshot: 4
+
+        hendrycks_math:
+          num_fewshot: 4
+
+        # ----- fewshot = 5 -----
+        triviaqa:
+          num_fewshot: 5
+
+        longbench:
+          none
+
+        mmlu_pro:
+          num_fewshot: 5
+
+        mmlu:
+          num_fewshot: 5
+
+        mmlu_redux_generative:
+          num_fewshot: 5
+
+        mmlu_ru:
+          num_fewshot: 5
+
+        babymmlu2:
+          num_fewshot: 5
+
+        pollux:
+          num_fewshot: 5
+
+        supergpqa:
+          num_fewshot: 5
+
+        # ----- fewshot = 8 -----
+        mgsm_direct_en:
+          num_fewshot: 8
+
+        mgsm_direct_ru:
+          num_fewshot: 8
+
+        mgsm_direct_zh:
+          num_fewshot: 8
+
+        mgsm_en_cot_en:
+          num_fewshot: 8
+
+        mgsm_en_cot_ru:
+          num_fewshot: 8
+
+        mgsm_en_cot_zh:
+          num_fewshot: 8
+
+        # ----- fewshot = 25 -----
+        arc_challenge:
+          num_fewshot: 25
+
+    mera:
+      simplear:
+        none
+
+      bps_gen:
+        none
+
+      lcs_gen:
+        none
+
+      chegeka:
+        none
+
+      mathlogicqa_gen:
+        none
+
+      parus_gen:
+        none
+
+      rcb_gen:
+        none
+
+      rudetox:
+        none
+
+      ruhatespeech_gen:
+        none
+
+      rummlu_gen:
+        none
+
+      ruworldtree_gen:
+        none
+
+      ruopenbookqa_gen:
+        none
+
+      rumultiar:
+        none
+
+      use:
+        none
+
+      rwsd_gen:
+        none
+
+      mamuramu_gen:
+        none
+
+      multiq:
+        none
+
+      rumodar:
+        none
+
+      ruhhh_gen:
+        none
+
+      ruethics_gen:
+        none
+
+      rutie_gen:
+        none
+
+      rucodeeval:
+        none
+
+      ruhumaneval:
+        none
+
+      # MERA Industrial
+      agro_bench:
+        none
+
+      aqua_bench:
+        none
+
+      med_bench:
+        none
+
+      # MERA Code (без Docker)
+      codecorrectness:
+        none
+
+      codelintereval:
+        none
+
+      rucodereviewer:
+        none
+
+      strucom:
+        none
+
+    dredd:
+      judge:
+        model_name: "gpt-oss-120b"
+      model:
+        api_base: "http://localhost:29999/v1"

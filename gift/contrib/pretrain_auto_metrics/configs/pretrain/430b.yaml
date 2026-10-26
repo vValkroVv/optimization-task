@@ -1,0 +1,193 @@
+---
+run_name: run_name
+exp_name: exp_name
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+
+  inference:
+    allow-auto-truncate: true
+    tp: 16
+    ep: 16
+    dp: 4
+    enable-dp-attention: true
+
+  model_info:
+    model_class: "sft"
+    size: "ultra"
+    username: ${user}
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    chat-template-kwargs:
+      reasoning: true
+    reasoning-token-budget: 32768
+    # Need for instruct metrics.
+    chat-template: <path to jinja template>
+
+  # Pretrain suite. Tasks with a _32/_64 suffix are pass@k variants: they
+  # sample repeats generations per example (repeats defaults to 32 in the
+  # task yaml) and report pass@k / mean@k. All other tasks are greedy as before.
+  evaluators:
+    lm_eval:
+      pretrain:
+        # Knowledge / reasoning
+        mmlu_pro_32:
+          num_fewshot: 5
+
+        mmlu:
+          num_fewshot: 5
+
+        mmlu_cloze:
+          num_fewshot: 5
+
+        mmlu_redux_generative:
+          num_fewshot: 5
+
+        bbh_cot_fewshot_32:
+          num_fewshot: 3
+
+        supergpqa:
+          num_fewshot: 5
+
+        supergpqa_cot:
+          num_fewshot: 5
+
+        supergpqa_cot_official:
+          num_fewshot: 0
+
+        gpqa_diamond_zeroshot:
+          num_fewshot: 0
+
+        gpqa_diamond_n_shot:
+          num_fewshot: 5
+
+        gpqa_diamond_cot_official:
+          num_fewshot: 0
+
+        gpqa_main_generative_n_shot_32:
+          num_fewshot: 5
+
+        gpqa_diamond_generative_n_shot_32:
+          num_fewshot: 5
+
+        triviaqa_32:
+          num_fewshot: 5
+
+        agieval:
+          num_fewshot: 0
+
+        agieval_deepseek_card:
+          num_fewshot: 0
+
+        nq_open_32:
+          num_fewshot: 5
+
+        hellaswag:
+          num_fewshot: 10
+
+        winogrande:
+          num_fewshot: 5
+
+        arc_easy:
+          num_fewshot: 25
+
+        arc_challenge:
+          num_fewshot: 25
+
+        drop_32:
+          num_fewshot: 5
+
+        # Math
+        gsm8k_32:
+          num_fewshot: 8
+
+        minerva_math_32:
+          num_fewshot: 4
+
+        minerva_math500_32:
+          num_fewshot: 4
+
+        minerva_math_ru_32:
+          num_fewshot: 4
+
+        # Code
+        humaneval_64:
+          num_fewshot: 0
+
+        mbpp_32:
+          num_fewshot: 3
+
+        humaneval_plus_64:
+          num_fewshot: 0
+
+        mbpp_plus_32:
+          num_fewshot: 3
+
+        evalplus_official:
+          num_fewshot: 0
+
+        lcb_code_gen_lite_32:
+          num_fewshot: 0
+
+        cruxeval_32:
+          num_fewshot: 0
+
+        # Multilingual
+        mmmlu_zh_cn:
+          num_fewshot: 5
+
+        mgsm_en_cot_en_32:
+          num_fewshot: 8
+
+        mgsm_en_cot_ru_32:
+          num_fewshot: 8
+
+        mgsm_en_cot_zh_32:
+          num_fewshot: 8
+
+        # Ru
+        bouquet:
+          num_fewshot: 5
+
+        babymmlu2:
+          num_fewshot: 5
+
+        spellcheck_punctuation_ru_32:
+          num_fewshot: 5
+
+        slava_32:
+          num_fewshot: 5
+
+        russian_gec:
+          num_fewshot: 0
+
+        rublimp:
+          num_fewshot: 0
+
+        ruscontext:
+          num_fewshot: 5
+
+        # Domain
+        doom_32:
+          num_fewshot: 3

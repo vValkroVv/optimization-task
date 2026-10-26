@@ -1,0 +1,21 @@
+tag: rucola_tasks
+task: rucola_clf
+dataset_path: ai-sage/rucola
+dataset_name: default
+test_split: dev
+fewshot_split: dev
+num_fewshot: 5
+output_type: multiple_choice
+
+doc_to_text: "Твоя задача - выбрать категорию нарушений, к которой относится данное предложение: морфология, синтаксис, семантика, галлюцинации или другое. Если их нет, то нужно выбрать No violations.\nВарианты ответа: No violations, Morphology, Syntax, Semantics, Hallucination, Other\nПримеры:\nMorphology:\n- Несуществующие слова: \"Это семидюймовый хетурпин.\"\n- Ошибочное словообразование: \"Она выглядит красивше.\"\nSyntax:\n- Нарушение согласования: \"Они считали его талантливыми.\"\n- Неправильный порядок слов: \"План Маше Саши продать квартиру.\"\nSemantics:\n- Несоответствие семантических свойств предиката: \"Ты когда-нибудь находился в Москве?\"\nHallucination:\n- Неполный перевод или копирование исходного текста: \"Я рад, что you heard о Маргарет Тэтчер.\"\n- Повторяющееся содержание: \"Это моя семья моя семья.\"\nПредложение: {{sentence}}\nОтвет:"
+
+doc_to_choice: ["No violations", "Morphology", "Syntax", "Semantics", "Hallucination", "Other"]
+doc_to_target: !function utils.doc_to_target
+
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+
+metadata:
+  version: 1.0

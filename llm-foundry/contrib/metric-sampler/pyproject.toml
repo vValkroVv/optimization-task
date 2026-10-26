@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metric-sampler"
+version = "0.1.0"
+description = "Per-rank training metrics: captured on the GPU, windowed by the node, collected to S3, served from ClickHouse."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+island = ["chdb>=3.7", "pyarrow"]
+capture = ["numpy", "pyarrow", "torch"]
+dev = ["pytest", "pytest-cov", "numpy", "pyarrow", "ruff", "mypy"]
+
+[project.scripts]
+metric-sampler-collect = "metric_sampler.island.cli:main"
+metric-sampler-recover-node = "metric_sampler.node.process:recover_main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RUF", "C901", "PLR0912", "PLR0915", "PLR2004"]
+# zip() pairs sequences of equal length by construction; strict=True would add a check to every hot loop.
+ignore = ["B905"]
+
+[tool.ruff.lint.per-file-ignores]
+# A Triton kernel branches on a constexpr flag with an if/else block; its source is the kernel's cache key.
+# The source is frozen: Triton caches on it and the C++ launches pass its arguments positionally, so the
+# constexpr names, the literal tile sizes and the length of a kernel body follow Triton convention.
+"metric_sampler/capture/kernels/*_kernel.py" = ["E501", "SIM108", "C901", "PLR0912", "PLR0915", "PLR2004"]
+# The stand checks and benchmarks time closures inside the loop that defines them.
+"stand/*" = ["B023"]
+# A test compares the full literal values it expects.
+"sber_tests/**" = ["PLR2004"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.flake8-comprehensions]
+# Keyword arguments name the settings a test or a plan is built from.
+allow-dict-calls-with-keyword-arguments = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["metric_sampler"]
+
+[tool.mypy]
+files = ["metric_sampler"]
+# numpy's stubs need 3.11 syntax; ruff's target-version keeps the package itself at 3.10.
+python_version = "3.12"
+platform = "linux"
+strict = true
+# The C++ extension, Triton, chdb and pyarrow are untyped, so their results are Any.
+warn_return_any = false
+untyped_calls_exclude = ["torch"]
+
+[[tool.mypy.overrides]]
+module = ["chdb.*", "pyarrow.*", "triton.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Triton takes untyped pointer arguments and an untyped triton.jit decorator.
+module = [
+    "metric_sampler.capture.kernels.activation_kernel",
+    "metric_sampler.capture.kernels.attention_kernel",
+    "metric_sampler.capture.kernels.quantiles_kernel",
+    "metric_sampler.capture.kernels.token_loss_kernel",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+disallow_untyped_calls = false
+
+[tool.setuptools.packages.find]
+include = ["metric_sampler*"]
+
+[tool.coverage.run]
+branch = true
+source = ["metric_sampler"]
+# Triton kernels: need a CUDA device and triton itself, neither available to unit tests; their
+# correctness is checked on a GPU node by stand/check_activation_kernel.py and
+# stand/check_token_loss_kernel.py and stand/check_quantiles.py and stand/check_attention_kernel.py instead.
+omit = ["metric_sampler/capture/kernels/activation_kernel.py", "metric_sampler/capture/kernels/token_loss_kernel.py", "metric_sampler/capture/kernels/quantiles_kernel.py", "metric_sampler/capture/kernels/attention_kernel.py"]
+
+[tool.coverage.report]
+fail_under = 100

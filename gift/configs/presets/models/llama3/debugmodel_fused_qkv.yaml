@@ -1,0 +1,28 @@
+# Model preset: llama3 "debugmodel_fused_qkv".
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: debugmodel_fused_qkv
+  config:
+    type: llama3
+    dim: 256
+    vocab_size: 2048
+    norm: &norm {type: rmsnorm}
+    rope:
+      type: complex
+      dim: 16
+      max_seq_len: 131072
+      theta: 500000.0
+      scaling: {type: llama}
+    blocks:
+      dense:
+        attention:
+          type: gqa
+          n_heads: 16
+          qkv_linear: {type: fused}
+        feed_forward: {type: llama, multiple_of: 256}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: dense, repeat: 6}

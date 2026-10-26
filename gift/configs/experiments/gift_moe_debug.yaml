@@ -1,0 +1,26 @@
+# Base GiftMoE debug model with 2 MTP heads.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/gift_moe_debug.yaml
+config_version: 1
+
+imports:
+  - ../presets/models/gift_moe/debugmodel.yaml
+  - ../presets/train/debug.yaml
+
+model:
+  config:
+    mtp:
+      layers:
+      - {block: mla_moe, repeat: 2}
+
+loss:
+  type: mtp
+  loss_weights: [0.3, 0.3]
+
+training:
+  local_batch_size: 4
+  steps: 30
+
+checkpoint:
+  interval: 50
+  last_save_model_only: false

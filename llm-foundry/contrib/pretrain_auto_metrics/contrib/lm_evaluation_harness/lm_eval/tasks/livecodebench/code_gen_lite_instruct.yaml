@@ -1,0 +1,50 @@
+---
+task: lcb_code_gen_lite_instruct
+dataset_path: livecodebench/code_generation_lite
+unsafe_code: true
+test_split: test
+dataset_kwargs:
+  version_tag: release_v6
+doc_to_text: |
+  You are an expert Python programmer. You will be given a question (problem specification) and will generate a correct Python program that matches the specification and passes all tests.
+
+  ### Question:
+  {{question_content}}
+
+  {% if starter_code %}
+  ### Format: You will use the following starter code to write the solution to the problem and enclose your code within delimiters.
+  ```python
+  {{starter_code}}
+  ```
+  {% else %}
+  ### Format: Read the inputs from stdin solve the problem and write the answer to stdout (do not directly test on the sample inputs). Enclose your code within delimiters as follows. Ensure that when the python program runs, it reads the inputs, runs the algorithm and writes output to STDOUT.
+  ```python
+  # YOUR CODE HERE
+  ```
+  {% endif %}
+
+  ### Answer: (use the provided format with backticks)\n\n
+doc_to_target: !function utils.build_reference
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+  - metric: !function utils.pass_at_1_private_tests
+    aggregation: mean
+    higher_is_better: true
+num_fewshot: 0
+filter_list:
+  - name: "extract_code"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.strip_backticks
+generation_kwargs:
+  do_sample: false
+  max_gen_toks: 2048
+  temperature: 0.2
+  top_p: 0.95
+  until: []
+metadata:
+  version: 1.0
+  log_exclude_doc_keys:
+    - private_test_cases

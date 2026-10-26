@@ -1,0 +1,16 @@
+# gift_moe_debug_hybridep_fp8, compiled. Keeps the selective AC of the debug
+# preset: it puts the fp8 quantization ops through the SAC save list and pairs
+# with per-block compilation.
+#
+#   DG_CACHE_FORCE_SKIP=1 torchrun --nproc_per_node=2 -m torchtitan.train configs/experiments/gift_moe_debug_hybridep_fp8_compile.yaml
+config_version: 1
+
+imports:
+  - gift_moe_debug_hybridep_fp8.yaml
+
+compile:
+  enable: true
+  components: [model, loss]
+
+model:
+  config: {}

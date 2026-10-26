@@ -1,0 +1,655 @@
+materialized_model:
+  __type__: model:flux
+  autoencoder: &AutoEncoderConfig_c0042479999e43ba
+    __type__: torchtitan.config.schema.models.flux.model.autoencoder.AutoEncoderConfig
+    ch: 128
+    ch_mult:
+    - 1
+    - 2
+    - 4
+    - 4
+    hidden_z_loss: null
+    in_channels: 3
+    init_role: null
+    num_res_blocks: 2
+    out_ch: 3
+    param_init: null
+    resolution: 256
+    scale_factor: 0.3611
+    sharding_config: null
+    shift_factor: 0.1159
+    z_channels: 16
+  blocks: &mapping_2b742e9178a37540
+    double:
+      __type__: flux_block:double_stream
+      hidden_size: null
+      hidden_z_loss: null
+      img_attn: null
+      img_mlp_in: null
+      img_mlp_out: null
+      img_mod: null
+      init_role: null
+      mlp_ratio: 4.0
+      num_heads: null
+      param_init: null
+      qkv_bias: true
+      sharding_config: null
+      txt_attn: null
+      txt_mlp_in: null
+      txt_mlp_out: null
+      txt_mod: null
+    single:
+      __type__: flux_block:single_stream
+      hidden_size: null
+      hidden_z_loss: null
+      init_role: null
+      linear1: null
+      linear2: null
+      mlp_ratio: 4.0
+      modulation: null
+      norm: null
+      num_heads: null
+      param_init: null
+      qk_scale: null
+      sharding_config: null
+  clip_encoder: &FluxEmbedderConfig_5652772d71ab746e
+    __type__: torchtitan.config.schema.models.flux.model.hf_embedder.FluxEmbedderConfig
+    hf_kwargs: {}
+    hidden_z_loss: null
+    init_role: null
+    param_init: null
+    random_init: false
+    sharding_config: null
+    version: openai/clip-vit-large-patch14
+  context_in_dim: 4096
+  double_blocks:
+  - &flux_block_double_stream_24fd2580c5884dab
+    __type__: flux_block:double_stream
+    hidden_size: 1536
+    hidden_z_loss: null
+    img_attn: &SelfAttentionConfig_846a0926b3a872a5
+      __type__: torchtitan.config.schema.models.flux.model.layers.SelfAttentionConfig
+      hidden_z_loss: null
+      init_role: null
+      norm: &QKNormConfig_1dea65aa6e25e939
+        __type__: torchtitan.config.schema.models.flux.model.layers.QKNormConfig
+        hidden_z_loss: null
+        init_role: null
+        key_norm: &norm_rmsnorm_caef8bd880897206
+          __type__: norm:rmsnorm
+          elementwise_affine: true
+          eps: 1.0e-05
+          hidden_z_loss: null
+          init_role: null
+          normalized_shape: 128
+          param_init:
+            weight:
+              __type__: param_init:ones
+          sharding_config: null
+        param_init: null
+        query_norm: *norm_rmsnorm_caef8bd880897206
+        sharding_config: null
+      num_heads: 12
+      param_init: null
+      proj:
+        __type__: linear:linear
+        bias: true
+        hidden_z_loss: null
+        in_features: 1536
+        init_role: null
+        out_features: 1536
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:xavier_uniform
+        sharding_config: null
+      qkv:
+        __type__: linear:linear
+        bias: true
+        hidden_z_loss: null
+        in_features: 1536
+        init_role: null
+        out_features: 4608
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:xavier_uniform
+        sharding_config: null
+      qkv_bias: true
+      sharding_config: null
+    img_mlp_in: &linear_linear_b4eed21689eeee27
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 1536
+      init_role: null
+      out_features: 6144
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:xavier_uniform
+      sharding_config: null
+    img_mlp_out: &linear_linear_806a4ab57f247f97
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 6144
+      init_role: null
+      out_features: 1536
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:xavier_uniform
+      sharding_config: null
+    img_mod: &ModulationConfig_e92732d668c0a40b
+      __type__: torchtitan.config.schema.models.flux.model.layers.ModulationConfig
+      double: true
+      hidden_z_loss: null
+      init_role: null
+      lin:
+        __type__: linear:linear
+        bias: true
+        hidden_z_loss: null
+        in_features: 1536
+        init_role: null
+        out_features: 9216
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:zeros
+        sharding_config: null
+      param_init: null
+      sharding_config: null
+    init_role: null
+    mlp_ratio: 4.0
+    num_heads: 12
+    param_init: null
+    qkv_bias: true
+    sharding_config: null
+    txt_attn: *SelfAttentionConfig_846a0926b3a872a5
+    txt_mlp_in: *linear_linear_b4eed21689eeee27
+    txt_mlp_out: *linear_linear_806a4ab57f247f97
+    txt_mod: *ModulationConfig_e92732d668c0a40b
+  - *flux_block_double_stream_24fd2580c5884dab
+  final_layer_config:
+    __type__: torchtitan.config.schema.models.flux.model.layers.LastLayerConfig
+    adaln_linear:
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 1536
+      init_role: null
+      out_features: 3072
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:zeros
+      sharding_config: null
+    hidden_size: 1536
+    hidden_z_loss: null
+    init_role: null
+    linear:
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 1536
+      init_role: null
+      out_features: 64
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:zeros
+      sharding_config: null
+    out_channels: 64
+    param_init: null
+    patch_size: 1
+    sharding_config: null
+  hidden_size: 1536
+  hidden_z_loss: null
+  img_in:
+    __type__: linear:linear
+    bias: true
+    hidden_z_loss: null
+    in_features: 64
+    init_role: null
+    out_features: 1536
+    param_init:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:xavier_uniform
+    sharding_config: null
+  in_channels: 64
+  init_role: null
+  num_heads: 12
+  out_channels: 64
+  param_init: null
+  pe_config:
+    __type__: torchtitan.config.schema.models.flux.model.layers.EmbedNDConfig
+    axes_dim:
+    - 16
+    - 56
+    - 56
+    dim: 128
+    hidden_z_loss: null
+    init_role: null
+    param_init: null
+    sharding_config: null
+    theta: 10000
+  sharding_config: null
+  single_blocks:
+  - &flux_block_single_stream_cd0d077d5b2db9a3
+    __type__: flux_block:single_stream
+    hidden_size: 1536
+    hidden_z_loss: null
+    init_role: null
+    linear1:
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 1536
+      init_role: null
+      out_features: 10752
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:xavier_uniform
+      sharding_config: null
+    linear2:
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 7680
+      init_role: null
+      out_features: 1536
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:xavier_uniform
+      sharding_config: null
+    mlp_ratio: 4.0
+    modulation:
+      __type__: torchtitan.config.schema.models.flux.model.layers.ModulationConfig
+      double: false
+      hidden_z_loss: null
+      init_role: null
+      lin:
+        __type__: linear:linear
+        bias: true
+        hidden_z_loss: null
+        in_features: 1536
+        init_role: null
+        out_features: 4608
+        param_init:
+          bias:
+            __type__: param_init:zeros
+          weight:
+            __type__: param_init:zeros
+        sharding_config: null
+      param_init: null
+      sharding_config: null
+    norm: *QKNormConfig_1dea65aa6e25e939
+    num_heads: 12
+    param_init: null
+    qk_scale: null
+    sharding_config: null
+  - *flux_block_single_stream_cd0d077d5b2db9a3
+  t5_encoder: &FluxEmbedderConfig_36fbb9bc1116cb8c
+    __type__: torchtitan.config.schema.models.flux.model.hf_embedder.FluxEmbedderConfig
+    hf_kwargs: {}
+    hidden_z_loss: null
+    init_role: null
+    param_init: null
+    random_init: false
+    sharding_config: null
+    version: google/t5-v1_1-xxl
+  time_in_config:
+    __type__: torchtitan.config.schema.models.flux.model.layers.MLPEmbedderConfig
+    hidden_dim: 1536
+    hidden_z_loss: null
+    in_dim: 256
+    in_layer:
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 256
+      init_role: null
+      out_features: 1536
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:normal
+          mean: 0.0
+          std: 0.02
+      sharding_config: null
+    init_role: null
+    out_layer: &linear_linear_7b1924d4369e8960
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 1536
+      init_role: null
+      out_features: 1536
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:normal
+          mean: 0.0
+          std: 0.02
+      sharding_config: null
+    param_init: null
+    sharding_config: null
+  txt_in:
+    __type__: linear:linear
+    bias: true
+    hidden_z_loss: null
+    in_features: 4096
+    init_role: null
+    out_features: 1536
+    param_init:
+      bias:
+        __type__: param_init:zeros
+      weight:
+        __type__: param_init:xavier_uniform
+    sharding_config: null
+  vec_in_dim: 768
+  vector_in_config:
+    __type__: torchtitan.config.schema.models.flux.model.layers.MLPEmbedderConfig
+    hidden_dim: 1536
+    hidden_z_loss: null
+    in_dim: 768
+    in_layer:
+      __type__: linear:linear
+      bias: true
+      hidden_z_loss: null
+      in_features: 768
+      init_role: null
+      out_features: 1536
+      param_init:
+        bias:
+          __type__: param_init:zeros
+        weight:
+          __type__: param_init:normal
+          mean: 0.0
+          std: 0.02
+      sharding_config: null
+    init_role: null
+    out_layer: *linear_linear_7b1924d4369e8960
+    param_init: null
+    sharding_config: null
+model:
+  __type__: torchtitan.config.sections.ModelSection
+  config:
+    __type__: model:flux
+    autoencoder: *AutoEncoderConfig_c0042479999e43ba
+    blocks: *mapping_2b742e9178a37540
+    clip_encoder: *FluxEmbedderConfig_5652772d71ab746e
+    context_in_dim: 4096
+    double_blocks:
+    - __type__: torchtitan.config.schema.models.common.decoder_blocks.layer_group.LayerGroupConfig
+      block: double
+      cycle: null
+      repeat: 2
+    final_layer_config: null
+    hidden_size: 1536
+    hidden_z_loss: null
+    img_in: null
+    in_channels: 64
+    init_role: null
+    num_heads: 12
+    out_channels: 64
+    param_init: null
+    pe_config:
+      __type__: torchtitan.config.schema.models.flux.model.layers.EmbedNDConfig
+      axes_dim:
+      - 16
+      - 56
+      - 56
+      dim: null
+      hidden_z_loss: null
+      init_role: null
+      param_init: null
+      sharding_config: null
+      theta: 10000
+    sharding_config: null
+    single_blocks:
+    - __type__: torchtitan.config.schema.models.common.decoder_blocks.layer_group.LayerGroupConfig
+      block: single
+      cycle: null
+      repeat: 2
+    t5_encoder: *FluxEmbedderConfig_36fbb9bc1116cb8c
+    time_in_config: null
+    txt_in: null
+    vec_in_dim: 768
+    vector_in_config: null
+  label: flux-debug
+trainer:
+  __type__: torchtitan.config.schema.models.flux.trainer.FluxTrainerConfig
+  activation_checkpoint:
+    __type__: torchtitan.config.configs.ActivationCheckpointConfig
+    debug: false
+    determinism_check: default
+    early_stop: false
+    memory_budget: 0.5
+    mode: full
+    per_op_sac_force_recompute_mm_shapes_by_fqns:
+    - moe.router.gate
+    preserve_rng_state: true
+    visualize_memory_budget_pareto: false
+  callbacks: {}
+  checkpoint:
+    __type__: checkpoint:default
+    async_mode: disabled
+    create_seed_checkpoint: false
+    ema_folder: ema_checkpoint
+    enable: false
+    enable_first_step_checkpoint: false
+    exclude_from_loading: []
+    export_dtype: float32
+    folder: checkpoint
+    hf_remote_code_dir: ''
+    initial_load_in_hf: false
+    initial_load_in_hf_quantized: false
+    initial_load_model_only: true
+    initial_load_path: null
+    interval: 10
+    keep_latest_k: 10
+    last_save_ema_model_also: false
+    last_save_in_hf: false
+    last_save_model_only: false
+    load_only: false
+    load_step: -1
+    save_in_hf: false
+  comm:
+    __type__: torchtitan.config.configs.CommConfig
+    init_timeout_seconds: 3600
+    mode: default
+    save_traces_file_prefix: rank_
+    save_traces_folder: comm_traces
+    trace_buf_size: 20000
+    train_timeout_seconds: 1800
+  compile:
+    __type__: torchtitan.config.configs.CompileConfig
+    backend: inductor
+    components:
+    - model
+    - loss
+    enable: false
+  dataloader:
+    __type__: dataloader:flux
+    dataset: cc12m-test
+    dataset_path: null
+    generate_timesteps: false
+    img_size: 256
+    infinite: true
+    num_workers: 0
+    persistent_workers: false
+    pin_memory: false
+    prefetch_factor: null
+    prompt_dropout_prob: 0.447
+  debug:
+    __type__: torchtitan.config.configs.DebugConfig
+    batch_invariant: false
+    detect_anomaly: false
+    deterministic: false
+    deterministic_warn_only: false
+    enable_structured_logging: true
+    moe_force_first_group: false
+    moe_force_load_balance: false
+    print_config: false
+    seed: null
+  dump_folder: ./outputs
+  encoder:
+    __type__: torchtitan.config.schema.models.flux.configs.FluxEncoderConfig
+    autoencoder_path: assets/hf/FLUX.1-dev/ae.safetensors
+    clip_encoder: ''
+    random_init: false
+    t5_encoder: ''
+  fp8:
+    __type__: torchtitan.config.configs.FP8Config
+    deep_gemm_warmup_on_start: true
+    dense_fused_swiglu_quant: true
+    dense_include_linear_layers: ''
+    dense_use_shared_quantizer: false
+    sparse_deep_gemm_num_sms: 116
+    sparse_fused_swiglu_quant: true
+    sparse_use_grouped_gemm: false
+  hf_assets_path: tests/assets/tokenizer
+  inference:
+    __type__: torchtitan.config.schema.models.flux.configs.Inference
+    img_size: 256
+    local_batch_size: 2
+    prompts_path: ./torchtitan/models/flux/inference/prompts.txt
+    sampling:
+      __type__: torchtitan.config.schema.models.flux.configs.SamplingConfig
+      classifier_free_guidance_scale: 5.0
+      denoising_steps: 50
+      enable_classifier_free_guidance: false
+    save_img_folder: inference_results
+  loss:
+    __type__: loss:mse
+  lr_scheduler:
+    __type__: torchtitan.config.schema.components.lr_scheduler.LRSchedulersContainerConfig
+    decay_ratio: 0.0
+    decay_type: linear
+    min_lr_factor: 0.0
+    total_steps: null
+    warmup_steps: 1
+  metrics:
+    __type__: torchtitan.config.schema.components.metrics.MetricsProcessorConfig
+    disable_color_printing: false
+    enable_tensorboard: false
+    enable_wandb: false
+    log_freq: 1
+    save_for_all_ranks: false
+    save_tb_folder: tb
+    tb_folder_per_launch: false
+    tb_rotate_mib: 64
+  model_spec: null
+  optimizer:
+    __type__: optimizer:default
+    beta1: 0.9
+    beta2: 0.95
+    eps: 1.0e-08
+    implementation: fused
+    lr: 0.0008
+    name: AdamW
+    param_groups: []
+    weight_decay: 0.1
+  parallelism:
+    __type__: torchtitan.config.configs.ParallelismConfig
+    context_parallel_degree: 1
+    context_parallel_load_balancer: headtail
+    data_parallel_replicate_degree: 1
+    data_parallel_shard_degree: -1
+    disable_loss_parallel: false
+    enable_async_tensor_parallel: false
+    enable_fsdp_symm_mem: false
+    enable_sequence_parallel: true
+    expert_parallel_degree: 1
+    fsdp_backend: fsdp2
+    fsdp_reshard_after_forward: default
+    full_dtensor: false
+    gfsdp_match_fsdp2_init: false
+    module_fqns_per_model_part: null
+    pipeline_parallel_balancing: layer_count
+    pipeline_parallel_degree: 1
+    pipeline_parallel_first_stage_less_layers: 1
+    pipeline_parallel_grad_reduce: 'off'
+    pipeline_parallel_last_stage_less_layers: 1
+    pipeline_parallel_layers_per_stage: null
+    pipeline_parallel_microbatch_size: 1
+    pipeline_parallel_module_costs_ms: {}
+    pipeline_parallel_num_stages_per_rank: null
+    pipeline_parallel_pool_recv_buffers: false
+    pipeline_parallel_schedule: 1F1B
+    pipeline_parallel_schedule_csv: ''
+    tensor_parallel_degree: 1
+  profiler:
+    __type__: torchtitan.config.schema.tools.profiler.ProfilerConfig
+    enable_memory_snapshot: false
+    enable_profiling: false
+    profile_freq: 10
+    profiler_active: 1
+    profiler_repeat: null
+    profiler_skip_first: null
+    profiler_skip_first_wait: null
+    profiler_warmup: 3
+    save_memory_snapshot_folder: profiling/memory_snapshot
+    save_traces_folder: profiling/traces
+    trace_post_processor: null
+  tokenizer:
+    __type__: tokenizer:flux
+    clip_tokenizer_path: openai/clip-vit-large-patch14
+    max_t5_encoding_len: 256
+    t5_tokenizer_path: google/t5-v1_1-xxl
+    test_mode: false
+  training:
+    __type__: torchtitan.config.configs.TrainingConfig
+    dtype: float32
+    enable_cpu_offload: false
+    gc_debug: false
+    gc_freq: 50
+    global_batch_size: -1
+    local_batch_size: 4
+    max_norm: 2.0
+    mixed_precision_param: bfloat16
+    mixed_precision_reduce: float32
+    seq_len: 2048
+    steps: 10
+  validator:
+    __type__: validator:flux
+    all_timesteps: false
+    dataloader:
+      __type__: dataloader:flux
+      dataset: coco-validation
+      dataset_path: null
+      generate_timesteps: true
+      img_size: 256
+      infinite: true
+      num_workers: 0
+      persistent_workers: false
+      pin_memory: false
+      prefetch_factor: null
+      prompt_dropout_prob: 0.0
+    enable: false
+    freq: 5
+    sampling:
+      __type__: torchtitan.config.schema.models.flux.configs.SamplingConfig
+      classifier_free_guidance_scale: 5.0
+      denoising_steps: 4
+      enable_classifier_free_guidance: true
+    save_img_count: 1
+    save_img_folder: img
+    steps: 48

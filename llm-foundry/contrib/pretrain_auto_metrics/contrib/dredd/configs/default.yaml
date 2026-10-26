@@ -1,0 +1,94 @@
+defaults:
+  - _self_
+
+merged_config_path: "configs/merged_configs/merged_config.yaml"
+
+experiment:
+  overwrite_generations: false # If true, re-generates answers even if they exist
+  overwrite_judgments: false
+
+datasets:
+  - name: "arena-hard-logs-v3"
+    baseline:
+      name: "gpt-4o"
+    # judge:
+    #   model_name: "gpt-4.1"
+  - name: "validator-sbs-pollux"
+    baseline:
+      name: "gpt-4o"
+    # judge:
+    #   model_name: "gpt-4.1"
+  - name: "ru-llm-arena"
+    baseline:
+      name: "gpt-3.5-turbo-0125"
+
+  - name: "arena-hard-ru"
+    baseline:
+      name: "gpt-4-0613"
+    # judge:
+      # model_name: "gpt-4-1106-preview"
+
+  - name: "sbs-gc3-ultra-vs-alice-ai"
+    baseline:
+      name: "Alice_Ai_LLM_2025_10"
+
+judge:
+  model_name: "minimax-m2.7"
+  input_format: "prompt_template"
+  parallel_api_calls: 128
+  api_type: "openai"
+  api_base: "http://localhost:30000/v1"
+  api_key: "EMPTY"
+  temperature: 0.0
+  max_tokens: 65536
+  num_retries: 20
+  request_timeout: 300
+  verbose_errors: false  # if true, print traceback for each failed judgment
+  fail_on_error: false   # if true, raise error when at least one judgment task fails
+  fail_on_missing_verdict: true   # if true, treat missing [[...]] verdict as a failed judgment
+  missing_verdict_retries: 1       # strict retries when verdict label is missing (1 is enough at temperature=0)
+  pam_mode: false    # if true, on a missing verdict fire parallel strict retries and take the first parseable one
+  regex_pattern: '\[\[([AB<>=]+)\]\]'
+  system_prompt: "prompts/judge_minimax_m2_7_sbs.txt"
+  prompt_template: "prompts/judge_prompt_template.txt"
+
+# Alternative non-generative judge; use a fresh judgment directory or
+# experiment.overwrite_judgments: true (generation caches are independent).
+# judge:
+#   model_name: "gemma4-meanvar"
+#   input_format: "structured_sbs_json"
+#   api_type: "openai"
+#   api_base: "http://judge-router:30000/v1"
+#   api_key: "EMPTY"
+#   parallel_api_calls: 16
+#   request_timeout: 500
+#   num_retries: 3  # Total HTTP attempts.
+#   missing_verdict_retries: 0
+#   pam_mode: false
+#   fail_on_error: true
+#   verbose_errors: true
+#   system_prompt: ""  # The served bundle defines the actual prompt.
+#   prompt_template: "{question}"
+
+model:
+  name: "deepseek/deepseek-chat-v3-0324"
+  parallel_api_calls: 128
+  num_retries: 3     # generation API retries
+  request_timeout: 300
+  path: "test_model_folder"
+  artifacts_dir: "artifacts"  # subdirectory inside model.path for arenas; set to "" to write directly
+  api_type: "openai" # openai (default) | trt | ift
+  api_base: "http://localhost:30000/v1"
+  api_key: "EMPTY"
+  temperature: 0.0
+  max_tokens: 4096
+  system_prompt: ""  # text or path to .txt file
+
+baseline:
+  name: "gpt-4-0314"
+  parallel_api_calls: 4
+  num_retries: 3     # generation API retries (used when baseline is generated via API)
+  # path: "model_data/gpt-4-0314"
+  temperature: 0.0
+  max_tokens: 4096
+  system_prompt: ""  # text or path to .txt file

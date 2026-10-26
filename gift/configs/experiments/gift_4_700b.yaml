@@ -1,0 +1,22 @@
+# GIFT 4 700B production preset: the shared 700B baseline with a soft-capped LM
+# head and the projection z-loss attachment points. Supply a real 128256-vocab tokenizer at
+# hf_assets_path and a real corpus; the placeholders are not bundled.
+#
+#   torchrun --nnodes=<N> --nproc_per_node=8 -m torchtitan.train configs/experiments/gift_4_700b.yaml
+#
+# Launched like gift_3_5_700b.yaml (at least 32 GPUs, submit_train_job.py).
+#
+# Both z-loss channels are off: router z-loss defaults to 0.0 and the
+# projection coefficients are literal 0.0, which attach no hook.
+config_version: 1
+
+imports:
+  - ../presets/models/gift_moe/gift_4/700b.yaml
+  - ../presets/train/gift_700b.yaml
+  - ../presets/regularization/gift_4_projection_z_loss.yaml
+
+hf_assets_path: ./assets/hf/gift_3_5-700b-base
+
+model:
+  label: gift_4/700b
+  config: {}

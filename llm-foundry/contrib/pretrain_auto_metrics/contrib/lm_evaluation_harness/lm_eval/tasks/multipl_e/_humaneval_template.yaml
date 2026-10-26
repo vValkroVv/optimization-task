@@ -1,0 +1,34 @@
+# Common template for MultiPL-E HumanEval tasks (one yaml per language inherits this).
+#
+# Stop tokens are language-specific and live in each per-language yaml's
+# generation_kwargs.until — they map directly to sglang sampling_params.stop
+# (server-side early termination, same pattern as humaneval/gsm8k/mbpp).
+#
+# After generation, extract_code prepends the prompt so the resulting program
+# is complete and runnable. No truncation is needed because sglang already
+# stopped at the right token.
+
+dataset_path: nuprl/MultiPL-E
+output_type: generate_until
+test_split: test
+unsafe_code: true
+
+doc_to_text: "{{prompt}}"
+
+doc_to_target: !function utils.build_reference
+
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+
+filter_list:
+  - name: "extract_code"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.extract_code
+
+num_fewshot: 0
+
+metadata:
+  version: 0.3

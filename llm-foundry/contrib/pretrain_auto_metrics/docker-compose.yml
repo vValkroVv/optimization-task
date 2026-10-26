@@ -1,0 +1,34 @@
+services:
+  pam:
+    image: ${PAM_IMAGE:-cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/pretrain-auto-metrics_opensource:latest}
+    pull_policy: always
+    network_mode: host
+    working_dir: /workspace/repo/node_runner
+    volumes:
+      - .:/workspace/repo
+    command:
+      - python3
+      - node_runner.py
+      - --checkpoint
+      - ../docker_runs/test_openai/artifacts
+      - --config
+      - ../configs/openai.yaml
+      - --mode
+      - autometrics
+
+  pam-ift:
+    image: ${PAM_IMAGE:-cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/pretrain-auto-metrics_opensource:latest}
+    pull_policy: always
+    network_mode: host
+    working_dir: /workspace/repo/node_runner
+    volumes:
+      - .:/workspace/repo
+    command:
+      - python3
+      - node_runner.py
+      - --checkpoint
+      - ../docker_runs/test_ift/artifacts
+      - --config
+      - ../configs/ift.yaml
+      - --mode
+      - autometrics

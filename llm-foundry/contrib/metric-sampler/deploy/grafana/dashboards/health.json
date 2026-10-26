@@ -1,0 +1,230 @@
+{
+  "uid": "ms-health",
+  "title": "metric-sampler / Data health",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "exp",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT exp FROM metric_sampler.batches GROUP BY exp ORDER BY exp = (SELECT exp FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT run FROM metric_sampler.batches WHERE exp = '${exp}' GROUP BY run ORDER BY run = (SELECT run FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' AND exp = '${exp}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "capture_interval",
+        "label": "capture_interval",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT greatest(max(capture_interval), 1) FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}'"
+      },
+      {
+        "name": "step_from",
+        "label": "step_from",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 0, toUInt64(${__from}))"
+      },
+      {
+        "name": "step_to",
+        "label": "step_to",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 4294967295, toUInt64(${__to}))"
+      },
+      {
+        "name": "remember",
+        "label": "Remembered selection",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '' AS remembered SETTINGS log_comment = 'ms-selection ${__user.login} ${exp} ${run}', use_query_cache = 0"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Pipeline freshness per run",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT exp, run, max_step, max_ingested_at, last_collected_at, health_max_step, health_refreshed_at, dateDiff('second', max_ingested_at, now64(3)) AS seconds_since_ingest FROM metric_sampler.pipeline_freshness ORDER BY max_ingested_at DESC SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Node windows: dropped, torn and late slots, identical violations",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT * EXCEPT raw FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}' ORDER BY node, first_step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "trend",
+      "title": "Completeness: finalized nodes and contributors",
+      "description": "Complete snapshots of received raw observations, refreshed one 10-step window at a time after family ingestion. Earlier steps remain visible while new windows and backfills are processed. Pipeline freshness shows the latest summarized step. Missing values are not zeros; NULL gap markers separate missing steps.",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, nodes_present, nodes_expected, contributors_total / greatest(expected_contributors_total, 1) AS contributor_ratio, identical_violations FROM metric_sampler.health_serving_per_step WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, nodes_present, nodes_expected, contributor_ratio, identical_violations FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS nodes_present, CAST(NULL AS Nullable(Float64)) AS nodes_expected, CAST(NULL AS Nullable(Float64)) AS contributor_ratio, CAST(NULL AS Nullable(Float64)) AS identical_violations FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Required raw observations missing — latest recorded step",
+      "description": "Counts expected capture slots that were not observed on each rank. Legacy runs without sampler/missing_slots are unknown, not zero. A healthy transport ratio alone does not establish that model hooks ran.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "WITH observed AS (SELECT s.step AS step, s.node AS node, s.rank AS rank, s.values[1] AS missing_slots FROM metric_sampler.scalars AS s FINAL INNER JOIN (SELECT exp, run, step, attempt FROM metric_sampler.latest_attempt_step WHERE exp = '${exp}' AND run = '${run}') AS latest ON s.exp = latest.exp AND s.run = latest.run AND s.step = latest.step AND s.attempt = latest.attempt INNER JOIN metric_sampler.metric_names AS mn ON mn.exp = s.exp AND mn.run = s.run AND mn.attempt = s.attempt AND mn.metric_id = s.metric_id WHERE s.exp = '${exp}' AND s.run = '${run}' AND mn.name = 'sampler/missing_slots' AND s.metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'sampler/missing_slots')), summary AS (SELECT max(step) AS latest_step, sum(missing_slots) AS missing_slots_total, max(missing_slots) AS missing_slots_max_rank, uniqExact(tuple(node, rank)) AS reporting_ranks FROM observed WHERE step = (SELECT max(step) FROM observed) HAVING count() > 0) SELECT summary.latest_step AS step, summary.missing_slots_total, summary.missing_slots_max_rank, summary.reporting_ranks, if(isNull(summary.latest_step), 'Unknown: capture coverage was not recorded', if(summary.missing_slots_total > 0, 'Missing required observations', 'All required observations reported on reporting ranks')) AS status FROM summary RIGHT JOIN (SELECT 1) AS present ON 1 SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ]
+}

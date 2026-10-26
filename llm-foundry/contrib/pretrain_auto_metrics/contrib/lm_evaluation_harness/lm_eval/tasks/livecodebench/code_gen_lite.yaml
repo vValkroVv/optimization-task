@@ -1,0 +1,36 @@
+---
+task: lcb_code_gen_lite
+dataset_path: livecodebench/code_generation_lite
+unsafe_code: true
+test_split: test
+dataset_kwargs:
+  version_tag: release_v6
+doc_to_text: !function utils.get_base_model_question_template_answer
+doc_to_target: !function utils.build_reference
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+  - metric: !function utils.pass_at_1_private_tests
+    aggregation: mean
+    higher_is_better: true
+num_fewshot: 0
+filter_list:
+  - name: "extract_code"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.strip_backticks
+generation_kwargs:
+  do_sample: false
+  max_gen_toks: 2048
+  temperature: 0.2
+  top_p: 0.95
+  until:
+    - "```"
+    - "### Question"
+    - "### Answer"
+    - "### Starter Code"
+metadata:
+  version: 1.0
+  log_exclude_doc_keys:
+    - private_test_cases

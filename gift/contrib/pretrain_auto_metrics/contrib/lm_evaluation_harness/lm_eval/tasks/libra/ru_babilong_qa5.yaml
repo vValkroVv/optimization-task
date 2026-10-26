@@ -1,0 +1,50 @@
+tag: libra_tasks
+task: ru_babilong_qa5
+task_alias: ruBABILongQA5
+dataset_name: ru_babilong_qa5
+dataset_kwargs:
+  dataset_name: ru_babilong_qa5
+include: _template_yaml
+doc_to_text: 'Я даю тебе контекст с фактами о местоположении и действиях разных людей.
+  Тебе нужно ответить на вопрос, основываясь только на фактической информации.
+
+  {{context}}
+
+  Ответь на вопрос как можно более кратко.
+
+  Вопрос: {{input}}
+
+  Ответ:'
+generation_kwargs:
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 16
+  
+filter_list:
+- name: "scoring"
+  filter:
+    - function: libra_scorer
+      score_type: em
+
+metric_list:
+  - metric: 4k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 8k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 16k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 32k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 64k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 128k_em
+    aggregation: mean
+    higher_is_better: true
+
+metadata:
+  version: 2.0

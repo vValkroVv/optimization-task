@@ -1,0 +1,88 @@
+seed: 4096
+global_train_batch_size: 192
+max_duration: 100ba
+eval_interval: 0
+scheduler:
+  t_warmup: 2000ba
+optimizer:
+  lr: 0.001
+  weight_decay: 0.0001
+console_log_interval: 1ba
+save_interval: 0ba
+stable_save_interval: null
+
+# Replace the callback map instead of recursively merging it.
+callbacks: null
+autometrics: null
+overrides:
+  callbacks:
+    stage_time_profiler: {}
+    lr_monitor: {}
+    memory_monitor: {}
+    runtime_estimator: {}
+    speed_monitor:
+      window_size: 10
+    optimizer_monitor:
+      batch_log_interval: 40
+    optimizer_health_monitor:
+      batch_log_interval: 40
+    scheduled_gc:
+      batch_interval: 40
+    training_metrics_monitor:
+      batch_log_interval: 40
+    expert_balancing_monitor:
+      batch_log_interval: 40
+      weight_norm_log_interval: 40
+      activate_h_balance_metrics: false
+      activate_per_expert_metrics: false
+      activate_activation_norms: true
+      activate_expert_weight_norms: true
+    token_dispatcher_monitor:
+      batch_log_interval: 40
+      activate_per_expert_metrics: false
+      activate_per_layer_metrics: true
+      activate_ep_rank_metrics: false
+      activate_eval_metrics: false
+    update_weight_ratio_monitor:
+      batch_log_interval: 40
+      log_level: fqn
+    router_margin_monitor:
+      batch_log_interval: 40
+      near_m: 4
+      ema_decay: 0.9
+    topk_accuracy_monitor:
+      batch_log_interval: 40
+      k_values:
+      - 1
+      - 5
+      - 20
+    weight_monitor:
+      interval: 40ba
+      only_log_wandb: false
+      tp_size: ${tp_size}
+      stat_list:
+      - amax
+      - amean
+      - l2norm
+    activation_monitor:
+      interval: 40ba
+      only_log_wandb: false
+      keep_only_module_types:
+      - proj
+      - conv
+      - lm_head
+      - embed_tokens
+      - gate
+      ignore_module_types:
+      - _tp_linear_submodule
+      log_module_output: false
+      log_gradients: true
+      log_grad_input: false
+      stat_list:
+      - amax
+      - amean
+      - l2norm
+    ema_weights:
+      alpha: 0.01
+      update_period: 5
+      start_batch: 20

@@ -1,0 +1,28 @@
+# sp 2 with a video token reduction that leaves the sequence misaligned: 7 frames
+# x (256 - 63) = 1351 dropped tokens is odd, so the collator-aligned length is no
+# longer a multiple of 2 * sp and the model must re-align it before the LM shards
+# the sequence. base_train.yaml's 8 x (256 - 64) keeps every length a multiple of 8.
+sp_size: 2
+
+video_processor:
+  num_frames: 7
+
+train_loader:
+  dataset:
+    processors:
+      - ${vision_processor}
+      - ${video_processor}
+
+model:
+  adapters:
+    - name: VisionPixelShuffleAdapter
+      init_device: ${init_device}
+      llm_hidden_size: ${model.language_model.hidden_size}
+      ve_hidden_size: 1024
+      downsample_ratio: 0.5
+      use_video_tokens_reduction: true
+      video_tokens_reduction_params:
+        num_frames: ${video_processor.num_frames}
+        avg_tokens_per_frame: 63
+        frame_aspect_ratio: ${video_processor.vision_processor_params.image_aspect_ratio}
+        video_image_token_id: ${video_image_token_id}

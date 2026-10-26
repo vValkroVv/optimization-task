@@ -1,0 +1,60 @@
+# Model preset: llama4 "debugmodel".
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: debugmodel
+  config:
+    type: llama4
+    dim: 256
+    vocab_size: 2048
+    norm: &norm {type: rmsnorm}
+    rope:
+      type: complex
+      dim: 16
+      max_seq_len: 1048576
+      theta: 500000.0
+      scaling: {type: llama, scaling_factor: 16.0, high_freq_factor: 1.0}
+    blocks:
+      nope_dense:
+        type: llama4_chunked
+        attention:
+          type: gqa
+          n_heads: 16
+          inner_attention: {type: flex}
+          use_rope: false
+        feed_forward: &feed_forward {type: llama, multiple_of: 256}
+        attention_norm: *norm
+        ffn_norm: *norm
+        fixed_attn_block_size: 256
+      moe:
+        type: llama4_chunked
+        attention: &gqa
+          type: gqa
+          n_heads: 16
+          inner_attention: {type: flex}
+        moe:
+          experts:
+            hidden_dim: 512
+            num_experts: 8
+            token_dispatcher: {type: local}
+            score_before_experts: true
+          router: {}
+          shared_experts: {hidden_dim: 512}
+        attention_norm: *norm
+        ffn_norm: *norm
+        fixed_attn_block_size: 256
+      dense:
+        type: llama4_chunked
+        attention: *gqa
+        feed_forward: *feed_forward
+        attention_norm: *norm
+        ffn_norm: *norm
+        fixed_attn_block_size: 256
+    layers:
+    - {block: nope_dense}
+    - {block: moe}
+    - {block: dense}
+    - {block: moe}
+    - {block: nope_dense}
+    - {block: moe}

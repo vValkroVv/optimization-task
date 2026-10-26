@@ -1,0 +1,31 @@
+# Llama 4 debug model on the bundled c4_test corpus.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/llama4_debug.yaml
+#
+# Expert parallelism is left at the default degree of 1; the CI's EP case
+# raises it with `--parallelism.expert_parallel_degree N`.
+config_version: 1
+
+imports:
+  - ../presets/models/llama4/debugmodel.yaml
+  - ../presets/train/debug.yaml
+
+loss:
+  type: chunked_cross_entropy
+
+optimizer:
+  lr: 4.0e-3
+  eps: 1.0e-15
+
+lr_scheduler:
+  min_lr_factor: 0.1
+
+parallelism:
+  expert_parallel_degree: 1
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false
+
+model:
+  config: {}

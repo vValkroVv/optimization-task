@@ -1,0 +1,19 @@
+# Dense GQA (+ linear attention) gigafsdp checkpoint -> HF safetensors; then run
+# scripts/merge_safetensors_ranks.py --base-dir <output_checkpoint_path>
+input_checkpoint_path: ...
+output_checkpoint_path: ...
+tokenizer_path: ...
+
+mappers:
+  - map_gigafsdp_dense_gqa_to_hf_safetensor
+
+input_tp_size: 1
+output_tp_size: 1
+
+skip_optimizer: true
+print_final_model_structure: false
+torch_dtype: bfloat16
+chunk_layers: 2
+use_ema: true
+skip_ema_mapper: false
+prepare_ema_weight: false

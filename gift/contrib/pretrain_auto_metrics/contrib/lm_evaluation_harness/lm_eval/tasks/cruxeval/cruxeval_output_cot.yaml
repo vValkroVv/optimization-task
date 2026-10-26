@@ -1,0 +1,24 @@
+task: cruxeval_output_cot
+dataset_path: cruxeval-org/cruxeval
+test_split: test
+unsafe_code: true
+doc_to_text: !function utils.format_prompt_cot_output
+doc_to_target: !function utils.build_reference
+filter_list:
+  - name: "extract"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.extract_answer
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+    mode: output
+generation_kwargs:
+  do_sample: false
+  max_gen_toks: 1024
+  until:
+    - "[/ANSWER]"
+num_fewshot: 0
+metadata:
+  version: 2.0

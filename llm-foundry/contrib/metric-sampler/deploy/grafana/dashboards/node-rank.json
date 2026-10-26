@@ -1,0 +1,745 @@
+{
+  "uid": "ms-node-rank",
+  "title": "metric-sampler / Nodes and cards",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "exp",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT exp FROM metric_sampler.batches GROUP BY exp ORDER BY exp = (SELECT exp FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT run FROM metric_sampler.batches WHERE exp = '${exp}' GROUP BY run ORDER BY run = (SELECT run FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' AND exp = '${exp}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "capture_interval",
+        "label": "capture_interval",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT greatest(max(capture_interval), 1) FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}'"
+      },
+      {
+        "name": "summ",
+        "label": "Summaries",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() = 4 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('grad_per_rank', 'timing_per_rank', 'loss_position', 'sample_loss_quantiles') GROUP BY summary)), '_fast', '_live') AS summ"
+      },
+      {
+        "name": "point",
+        "label": "Point",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT DISTINCT extract(name, '^act/([^/]+)/moments$') AS point FROM metric_sampler.metrics WHERE exp = '${exp}' AND run = '${run}' AND match(name, '^act/[^/]+/moments$') ORDER BY point",
+        "refresh": 1
+      },
+      {
+        "name": "layer",
+        "label": "Layer",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT DISTINCT layer FROM metric_sampler.router_vectors WHERE exp = '${exp}' AND run = '${run}' AND layer <= 255 AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'act/${point}/moments') AND step >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') - 200 ORDER BY layer",
+        "refresh": 1
+      },
+      {
+        "name": "rank",
+        "label": "Rank",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT '-2' AS __value, 'All (aggregate)' AS __text UNION ALL SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT rank AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "refresh": 1,
+        "current": {
+          "text": "All (aggregate)",
+          "value": "-2"
+        }
+      },
+      {
+        "name": "table_rank",
+        "label": "Table rank (when Rank is All)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT rank AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "refresh": 1
+      },
+      {
+        "name": "microbatch",
+        "label": "Activation microbatch",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT '-2' AS __value, 'All (aggregate)' AS __text UNION ALL SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT microbatch AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "refresh": 1,
+        "current": {
+          "text": "All (aggregate)",
+          "value": "-2"
+        }
+      },
+      {
+        "name": "amax_src",
+        "label": "amax_src",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT multiIf(ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_amax') GROUP BY summary)), 'summary_point', ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_amax_mb') GROUP BY summary)), 'mbsum_point', 'point') AS amax_src",
+        "definition": "SELECT multiIf(ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_amax') GROUP BY summary)), 'summary_point', ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_amax_mb') GROUP BY summary)), 'mbsum_point', 'point') AS amax_src"
+      },
+      {
+        "name": "top_src",
+        "label": "top_src",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT multiIf(ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_amax') GROUP BY summary)), 'summary', ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_amax_mb') GROUP BY summary)), 'mbsum', 'selected_live') AS top_src",
+        "definition": "SELECT multiIf(ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_amax') GROUP BY summary)), 'summary', ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_amax_mb') GROUP BY summary)), 'mbsum', 'selected_live') AS top_src"
+      },
+      {
+        "name": "cards",
+        "label": "cards",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if('${summ}' = '_fast' AND (SELECT count() FROM metric_sampler.summary_top_cards WHERE exp = '${exp}' AND run = '${run}' AND microbatch = -2 AND kind = 'timing') > 0, '_cards', '${summ}') AS cards"
+      },
+      {
+        "name": "top_cards",
+        "label": "top_cards",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() FROM metric_sampler.summary_top_cards WHERE exp = '${exp}' AND run = '${run}' AND microbatch = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) AND kind = 'activation') > 0, 'cards', '${top_src}') AS top_cards"
+      },
+      {
+        "name": "step",
+        "label": "Raw step",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT DISTINCT step FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}' ORDER BY step > (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}')), step DESC",
+        "refresh": 1
+      },
+      {
+        "name": "step_from",
+        "label": "step_from",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 0, toUInt64(${__from}))"
+      },
+      {
+        "name": "step_to",
+        "label": "step_to",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 4294967295, toUInt64(${__to}))"
+      },
+      {
+        "name": "remember",
+        "label": "Remembered selection",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '' AS remembered SETTINGS log_comment = 'ms-selection ${__user.login} ${exp} ${run}', use_query_cache = 0"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "trend",
+      "title": "Gradient norm outliers per step (robust z-score, max, p99 and median |z| over cards; the cards are in the top-20 table)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, max(abs(robust_z)) AS max_abs_z, quantileExact(0.99)(abs(robust_z)) AS p99_abs_z, quantileExact(0.5)(abs(robust_z)) AS median_abs_z FROM (SELECT step, concat(node, '/r', toString(rank)) AS card, robust_z FROM metric_sampler.grad_per_rank${summ}(exp_filter = '${exp}', run_filter = '${run}') WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3))) GROUP BY step ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, max_abs_z, p99_abs_z, median_abs_z FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS max_abs_z, CAST(NULL AS Nullable(Float64)) AS p99_abs_z, CAST(NULL AS Nullable(Float64)) AS median_abs_z FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Rank selection is applied after computing the comparison across all ranks. Activation microbatch applies only to activation panels; gradient and timing values describe the whole step. Legacy microbatch=-1 cannot be separated.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "trend",
+      "title": "Activation amax outliers per step, layer ${layer}, point ${point} (robust z-score, max, p99 and median |z| over cards; the cards are in the top-20 table)",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, max(abs(robust_z)) AS max_abs_z, quantileExact(0.99)(abs(robust_z)) AS p99_abs_z, quantileExact(0.5)(abs(robust_z)) AS median_abs_z FROM (SELECT step, concat(node, '/r', toString(rank)) AS card, robust_z FROM metric_sampler.activation_per_rank_${amax_src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), layer_filter = toInt32OrZero(${layer:sqlstring}), point_filter = '${point}') WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) AND layer = toInt32OrNull(${layer:sqlstring}) AND point = '${point}') GROUP BY step ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, max_abs_z, p99_abs_z, median_abs_z FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS max_abs_z, CAST(NULL AS Nullable(Float64)) AS p99_abs_z, CAST(NULL AS Nullable(Float64)) AS median_abs_z FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Rank selection is applied after computing the comparison across all ranks. Activation microbatch applies only to activation panels; gradient and timing values describe the whole step. Legacy microbatch=-1 cannot be separated.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "trend",
+      "title": "GPU forward time spread across cards per step (max / median and min / median; in synchronous training a straggler shows as the others waiting, i.e. a wide spread)",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, max(value) / median(value) AS max_over_median, min(value) / median(value) AS min_over_median FROM metric_sampler.timing_per_rank${summ}(exp_filter = '${exp}', run_filter = '${run}') WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) AND metric = 'time/forward_gpu_s' AND step > 3 GROUP BY step ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, max_over_median, min_over_median FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS max_over_median, CAST(NULL AS Nullable(Float64)) AS min_over_median FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Rank selection is applied after computing the comparison across all ranks. Activation microbatch applies only to activation panels; gradient and timing values describe the whole step. Legacy microbatch=-1 cannot be separated.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Top 20 cards by max |robust z-score| over the run (grad, activation amax, GPU timing)",
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH grad AS (SELECT concat(node, '/r', toString(rank)) AS card, 'grad' AS kind, max(abs(robust_z)) AS max_abs_z FROM metric_sampler.grad_per_rank${cards}(exp_filter = '${exp}', run_filter = '${run}') WHERE exp = '${exp}' AND run = '${run}' AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) GROUP BY card), activation AS (SELECT concat(node, '/r', toString(rank)) AS card, 'activation' AS kind, max(abs(robust_z)) AS max_abs_z FROM metric_sampler.activation_per_rank_${top_cards}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) GROUP BY card), timing AS (SELECT concat(node, '/r', toString(rank)) AS card, 'timing' AS kind, max(abs(robust_z)) AS max_abs_z FROM metric_sampler.timing_per_rank${cards}(exp_filter = '${exp}', run_filter = '${run}') WHERE exp = '${exp}' AND run = '${run}' AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) GROUP BY card) SELECT card, kind, max_abs_z FROM (SELECT * FROM grad UNION ALL SELECT * FROM activation UNION ALL SELECT * FROM timing) ORDER BY max_abs_z DESC LIMIT 20 SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": " Rank selection is applied after computing the comparison across all ranks. Activation microbatch applies only to activation panels; gradient and timing values describe the whole step. Legacy microbatch=-1 cannot be separated.",
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Exact quantiles per rank and microbatch (Rank All: rank ${table_rank})",
+      "description": "Inverse empirical CDF of each finite population, without interpolation. No averaging across ranks or microbatches. Population counts preserve NaN, infinities and masks; incomplete pairs remain visible. Entropy retains Float64.",
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 11
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, metric, quantiles[1] AS minimum, quantiles[2] AS p01, quantiles[3] AS p05, quantiles[4] AS p25, quantiles[5] AS p50, quantiles[6] AS p75, quantiles[7] AS p95, quantiles[8] AS p99, quantiles[9] AS maximum, population_counts[1] AS finite, population_counts[2] AS nan, population_counts[3] AS posinf, population_counts[4] AS neginf, population_counts[5] AS masked, quantiles_present, counts_present, complete_pair FROM metric_sampler.exact_quantiles_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, layer, metric SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Ordinary monitor inputs per rank (Rank All: rank ${table_rank})",
+      "description": "Values are captured before inter-rank reduction. Parameter and activation names come from the immutable attempt catalog. Activation mean_row_l2 is row-weighted within the local population, never averaged here. Observation_count and row_count describe activation presence. Optimizer statistics are decoded losslessly from Float64 words. Rank -1 is one row for a whole node: every rank of that node reported the same words (monitor/router_bias_local, monitor/activation_local_observations, and monitor/materialized_weight_local of the ranks that observed the parameter); it is shown for any selected rank of the node.",
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 24,
+        "h": 11
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, metric, source_name, catalog_kind, catalog_index, stat, value, metadata_present, width_valid FROM metric_sampler.monitor_local_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) ARRAY JOIN stat_names AS stat, stats AS value WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, metric, source_name, stat SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Expert assignments per rank and microbatch (Rank All: rank ${table_rank})",
+      "description": "Every expert remains visible, including zero assignments. Populations distinguish router assignments and pre/post-capacity counts, with and without invalid input tokens. Each row retains rank, microbatch, layer and expert identity.",
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 24,
+        "h": 11
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, population, expert, tokens, total_assignments, experts, relative_load FROM metric_sampler.expert_load_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, layer, population, expert SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Raw scalar observations per rank (Rank All: rank ${table_rank})",
+      "description": "Original per-rank observations with full step, microbatch, layer and metric identity. Selecting all ranks or microbatches retains separate rows.",
+      "gridPos": {
+        "x": 0,
+        "y": 69,
+        "w": 24,
+        "h": 11
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, metric, metric_id, source_metric_id, values FROM metric_sampler.scalar_observations_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, layer, metric SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Training counters per rank (exact UInt64) (Rank All: rank ${table_rank})",
+      "description": "UInt64 counters are displayed as decimal text to preserve all bits in the browser. Each counter has an explicit presence flag; absent counters are not observed zero.",
+      "gridPos": {
+        "x": 0,
+        "y": 80,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, toString(counts[1]) AS skip_updates, toString(counts[2]) AS total_updates, toString(counts[3]) AS zeroed_module_grads, toString(counts[4]) AS processed_module_grads, present[1] AS skip_updates_present, present[2] AS total_updates_present, present[3] AS zeroed_module_grads_present, present[4] AS processed_module_grads_present, width_valid FROM metric_sampler.training_counts_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, layer SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "GPU memory per rank (exact UInt64) (Rank All: rank ${table_rank})",
+      "description": "Allocator current/peak counters and device free/total memory retain explicit presence. Values are decimal text to avoid browser rounding; allocator peaks and device framebuffer values are distinct.",
+      "gridPos": {
+        "x": 0,
+        "y": 89,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, counter, toString(value) AS exact_value, available, width_valid FROM metric_sampler.memory_local_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) ARRAY JOIN counter_names AS counter, counters AS value, present AS available WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, counter SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Training population and timing per rank (Rank All: rank ${table_rank})",
+      "description": "Sample/token counts are exact UInt64 decimal strings. Batch seconds and device FLOPs retain Float64, with explicit presence flags. These local observations are not combined across ranks.",
+      "gridPos": {
+        "x": 0,
+        "y": 99,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, toString(samples) AS samples, toString(tokens) AS tokens, batch_seconds, device_flops, present[1] AS samples_present, present[2] AS tokens_present, present[3] AS batch_seconds_present, present[4] AS device_flops_present, width_valid FROM metric_sampler.training_local_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, layer SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Expert activation norm per owning rank (Rank All: rank ${table_rank})",
+      "description": "Squared sums cover all intermediate features. Counts are dispatched token rows; sqrt(sum_squares/token_rows) is per-token L2 RMS. Unowned experts are structural zeros, marked owned=false; empty owned experts have undefined RMS. Missing pairs or ownership metadata remain visible.",
+      "gridPos": {
+        "x": 0,
+        "y": 109,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, expert, owned, sum_squares, token_rows, per_token_l2_rms, complete_pair, metadata_present FROM metric_sampler.expert_activation_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, layer, expert SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Router scores and bias per rank and expert (Rank All: rank ${table_rank})",
+      "description": "Each global expert index retains its original rank/layer/microbatch observation. Scores are the full-token-population mean in Float32; bias is a separate snapshot. No averaging of ranks or microbatches. Rank -1 is one row for a whole node: every rank of that node reported the same words (monitor/router_bias_local, monitor/activation_local_observations, and monitor/materialized_weight_local of the ranks that observed the parameter); it is shown for any selected rank of the node.",
+      "gridPos": {
+        "x": 0,
+        "y": 119,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT attempt, step, node, rank, microbatch, layer, metric, expert, value FROM metric_sampler.expert_vectors_per_rank_step_live(exp_filter = '${exp}', run_filter = '${run}', rank_filter = if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2, toInt32OrZero(${table_rank:sqlstring}), ifNull(toInt32OrNull(${rank:sqlstring}), -3)), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${step:sqlstring})) WHERE step = toUInt32OrZero(${step:sqlstring}) ORDER BY attempt, rank, microbatch, layer, metric, expert SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rows for this run, step and rank: the metric was not recorded in this run (rank-local monitor metrics exist only for runs with the rank-local monitors) or this step has no data"
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ]
+}

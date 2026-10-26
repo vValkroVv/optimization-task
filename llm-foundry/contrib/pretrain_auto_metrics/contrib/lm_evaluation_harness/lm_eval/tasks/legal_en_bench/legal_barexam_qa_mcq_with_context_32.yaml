@@ -1,0 +1,27 @@
+include: legal_barexam_qa_mcq_with_context.yaml
+task: legal_barexam_qa_mcq_with_context_32
+repeats: 32
+filter_list:
+  - name: "scored"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.score_all_responses
+metric_list:
+  - metric: !function utils.pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+  - metric: !function utils.mean_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+generation_kwargs:
+  until:
+    - "</s>"
+    - "<|im_end|>"
+    - "<|eot_id|>"
+    - "\n\n"
+  max_gen_toks: 8
+  do_sample: true
+  temperature: 0.6
+  top_p: 0.95

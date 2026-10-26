@@ -1,0 +1,18 @@
+# Qwen3 debug model on the bundled c4_test corpus.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/qwen3_debug.yaml
+config_version: 1
+
+imports:
+  - ../presets/models/qwen3/debugmodel.yaml
+  - ../presets/train/debug.yaml
+
+loss:
+  type: chunked_cross_entropy
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false
+
+model:
+  config: {}

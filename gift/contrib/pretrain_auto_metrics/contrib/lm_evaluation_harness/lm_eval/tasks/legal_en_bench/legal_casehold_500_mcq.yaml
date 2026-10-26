@@ -1,0 +1,127 @@
+tag:
+- legal_en
+task: legal_casehold_500_mcq
+dataset_path: ai-sage/legal-en-bench
+dataset_kwargs:
+  data_files:
+    test: legal_casehold_500_mcq_max4096tok.json
+test_split: test
+output_type: generate_until
+doc_to_text: '{{question}}
+
+
+  Choose exactly one option.
+
+  In the final answer, output only the letter of the correct option (A-E), with no explanation.
+
+  Answer:
+
+  '
+doc_to_target: '{{golden_answer}}'
+metric_list:
+- metric: exact_match
+  aggregation: mean
+  higher_is_better: true
+  ignore_case: true
+  ignore_punctuation: true
+generation_kwargs:
+  until:
+  - </s>
+  - <|im_end|>
+  - <|eot_id|>
+  - '
+
+
+    '
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 8
+repeats: 1
+num_fewshot: 4
+filter_list:
+- name: extract_choice
+  filter:
+  - function: regex
+    regex_pattern: (?is)\b([A-E])\b
+  - function: take_first
+metadata:
+  version: 1.0
+fewshot_config:
+  sampler: first_n
+  samples:
+  - question: 'Read the legal context and choose the best holding to replace <HOLDING>.
+
+      Context: that it did not impact the outcome of the defendant’s case. See Chapman v. California, 386 U.S. 18, 24, 87 S.Ct. 824, 17 L.Ed.2d 705 (1967); United States v. Edwards, 224 F.3d 1216, 1223 (10th Cir.2000) (quoting Chapman, 386 U.S. at 24, 87 S.Ct. 824). Here, Mr. Salazar''s statements to Agents Pettry and Jones regarding the ten pounds of methamphetamine he sold in the preceding two years was merely cumulative to and in addition to the more than 140 grams of methamphetamine found in the automobile at the motel on the day of his arrest. There was more than enough evidence to convict Mr. Salazar on the drug trafficking charges brought against him even without his statements to Agents Pettry and Jones. 2 . See also Michigan v. Mosley, 423 U.S. 96, 104-05, 96 S.Ct. 321, 46 L.Ed.2d 313 (1975) (<HOLDING>). 3 . At trial, the government elicited
+
+      Question: Which option best completes <HOLDING>?
+
+
+      Options:
+
+      A) holding that a suspects invocation of the right to remain silent must be unequivocal to require that police questioning cease
+
+      B) holding defendants rights not scrupulously honored when police officers ignored his attempt to remain silent and continued questioning
+
+      C) holding police violated edwards when they continued questioning a defendant after his initial invocation of the right to counsel even though he responded to the subsequent questioning
+
+      D) holding that police may continue questioning a suspect until he unambiguously invokes his right to remain silent
+
+      E) holding that the admissibility of statements obtained after the person in custody has decided to remain silent depends under miranda on whether his right to cut off questioning was scrupulously honored  and upholding officers attempts to resume questioning after defendant invoked right to remain silent because defendant was readvised of his rights sufficient time elapsed between the original invocation and the requestioning and the questioning involved a different crime'
+    golden_answer: E
+  - question: 'Read the legal context and choose the best holding to replace <HOLDING>.
+
+      Context: principles that allow for the formation of contracts without the signatures of the parties bound by them. See, eg., I.M.A., Inc. v. Rocky Mountain Airways, Inc., 713 P.2d 882, 888 (Colo.1987) (stating that the parties'' agreement on essential terms of a contract as required to establish a contract can be inferred from their conduct or oral statements); Smith v. Multi-Financial See. Corp., 171 P.3d 1267, 1272 (Colo.App.2008) (stating that nonsignatories may nonetheless be bound by agreements to arbitrate based on common law contract principles). This reading also abandons the long-standing common law rule that a settlement agreement can be governed by and found enforceable under common law contract principles. See H.W. Houston Constr. Co. v. Dist. Court, 632 P.2d 568, 565 (Colo.1981) (<HOLDING>); Goltl v. Cummings, 152 Colo. 57, 380 P.2d 556
+
+      Question: Which option best completes <HOLDING>?
+
+
+      Options:
+
+      A) holding that the trial courts denial of appellants motion to enforce settlement agreement constituted an important issue
+
+      B) holding that trial court is without authority to modify a settlement agreement but may enforce and interpret it
+
+      C) holding that a district court may order restitution despite a settlement agreement
+
+      D) holding that a settlement agreement is not a court order and therefore a violation of the settlement agreement would not subject a party to contempt
+
+      E) holding that a court may only enforce a settlement agreement if it constitutes an enforceable contract'
+    golden_answer: E
+  - question: 'Read the legal context and choose the best holding to replace <HOLDING>.
+
+      Context: reference the Maersk Sealand Bill of Lading, which is available on Maersk’s website. Upon issuance of an initial receipt or booking document incorporating a bill of lading, the terms of the latter become part of the parties’ contract. See Berkshire Knitting Mills v. Moore-McCormack Lines, Inc., 265 F.Supp. 846, 848 (S.D.N.Y.1965); St. Paul & Marine Ins. Co. v. Hanjin Shipping Co., Ltd., 2001 WL 196754, at *2 (S.D.N.Y. Feb.21, 2001). Even were this not so, the Maersk Bill of Lading issued as to the Guatemala Containers would govern any dispute as to those containers and the New Orleans Container as well, because it is Maersk’s standard form bill of lading and would have issued in the normal course of business. See Garnay, Inc. v. M/V LINDO MAERSK, 816 F.Supp. 888, 893-94 (S.D.N.Y.1993) (<HOLDING>); see also Luckenbach S.S. Co. v. Am. Mills
+
+      Question: Which option best completes <HOLDING>?
+
+
+      Options:
+
+      A) holding that bill of lading not charterparty governed contract dispute between carrier and shipper
+
+      B) holding that forum selection clause in a bill of lading issued to an nvocc binds the cargo owner because the nvocc acted as the cargo owners agent in accepting the bill of lading
+
+      C) holding that bill of lading issued as to two containers was binding as to third container which was stolen and as to which no bill of lading issued provided that the bill of lading in evidence was the standard form bill of lading that carrier always used
+
+      D) holding that terms of bill of lading apply to shipper where it brings suit thereunder
+
+      E) holding that the meritorious defense requirement in a bill of review proceeding violates due process where the bill of review plaintiff has no notice of the proceeding in which the default judgment was rendered'
+    golden_answer: C
+  - question: 'Read the legal context and choose the best holding to replace <HOLDING>.
+
+      Context: Christi 1995, writ denied); see also Gen. Servs. Comm’n v. Little-Tex Insulation Co., 39 S.W.3d 591, 598 (Tex.2001) (sovereign immunity does not shield State from action for compensation under takings clause). Rather, “[t]he Constitution itself is ... a waiver of governmental immunity for the taking, damaging or destruction of property for public use.” Steele v. City of Houston, 603 S.W.2d 786, 791 (Tex.1980). “A physical taking may occur when the government physically appropriates or invades private property, or unreasonably interferes with the landowner’s right to use and enjoy it.” Tarrant Reg’l Water Dist. v. Gragg, 151 S.W.3d 546, 554 (Tex.2004). If the government uses private property without first paying for it, an owner may recover damages for inverse condemnation. Id. (<HOLDING>); see also Texas Parks & Wildlife Dept. v.
+
+      Question: Which option best completes <HOLDING>?
+
+
+      Options:
+
+      A) holding evidence legally insufficient
+
+      B) holding evidence legally sufficient
+
+      C) holding that evidence was legally sufficient to support finding that government reservoir caused recurrent destructive flooding directly impacting ranch land
+
+      D) holding evidence legally sufficient under sections d and e
+
+      E) holding that evidence of representations outside the contract was legally sufficient evidence to support a section 1746b12 claim'
+    golden_answer: C

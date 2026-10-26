@@ -1,0 +1,50 @@
+# Model preset: gift_moe "3B".
+# single-node profiling and monitoring target between debugmodel and 16B. Keeps
+# its original shape (v_head_dim 128, YaRN rope with mscale 0.70) so its series
+# stay comparable with earlier 3B monitoring runs.
+imports:
+  - ../../init/gift_base.yaml
+
+model:
+  label: 3B
+  config:
+    type: gift_moe
+    dim: 1536
+    vocab_size: 102400
+    norm: &norm {type: rmsnorm}
+    rope:
+      type: complex
+      dim: 64
+      max_seq_len: 16384
+      scaling: {type: yarn, rope_factor: 40.0, original_seq_len: 4096}
+      theta: 10000.0
+    blocks:
+      mla_dense:
+        attention: &mla
+          type: mla
+          n_heads: 16
+          kv_norm: {eps: 1.0e-05}
+          mscale: 0.7
+          q_lora_rank: 0
+          kv_lora_rank: 512
+          qk_nope_head_dim: 128
+          qk_rope_head_dim: 64
+          v_head_dim: 128
+        feed_forward: {hidden_dim: 6144}
+        attention_norm: *norm
+        ffn_norm: *norm
+      mla_moe:
+        attention: *mla
+        moe:
+          experts:
+            hidden_dim: 1024
+            num_experts: 32
+            token_dispatcher: {type: local}
+          router: {top_k: 4, score_func: softmax}
+          shared_experts: {hidden_dim: 2048}
+          router_aux_loss_coef: 0.0001
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: mla_dense}
+    - {block: mla_moe, repeat: 17}

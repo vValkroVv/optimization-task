@@ -1,0 +1,147 @@
+sft_mode: true
+vision_mode: true
+image_token_id: 42042
+max_seq_len: 2048
+num_speech_embeddings: 4108
+n_q: 7
+
+data_root: /home/jovyan/test_cache
+tokenizer:
+  name: ${data_root}/tokenizers/tts_tokenizer/encode_tokenizer
+
+model_type: giga_tts
+model:
+    name: gigatts_causal_lm
+    speech_embeddings:
+      freeze: False # Always unfreezed
+      n_codebooks: ${n_q}
+      codebook_params:
+        num_embeddings: ${num_speech_embeddings}
+        embedding_dim: ${model.llm.params.hidden_size}
+        padding_idx: ${speech_config_dataset.pad_token_id}
+    llm_projector:
+      type: "concat_projector_llm"
+      freeze: True
+      params:
+        text_embedding_size: ${model.llm.params.hidden_size}
+        speech_embedding_size: ${model.llm.params.hidden_size}
+        out_embedding_size: ${model.llm.params.hidden_size}
+        bias: True
+        use_speech: True
+    llm:
+      freeze: False
+      type: gigar
+      params:
+        num_hidden_layers: 4
+        hidden_size: 128
+        intermediate_size: 128
+        num_attention_heads: 2
+        max_position_embeddings: ${max_seq_len}
+        vocab_size: 128256
+        tp_size: ${tp_size}
+        loss_inplace_backward: true
+        attention_hidden_size: null
+        # layers
+        attention_type: LlamaPackedAttention
+        parallel_embedding_type: EmbeddingParallelEmbedding
+        # use checkpointing
+        activation_checkpoint_layers_num: 4
+        fused_mlp: False
+        fused_mlp_checkpoint_lvl: 0
+    audio_llm_projector:
+      type: "concat_projector_audio_llm"
+      freeze: False
+      params:
+        llm_embedding_size: ${model.llm.params.hidden_size}
+        speech_embedding_size: ${model.llm.params.hidden_size}
+        out_embedding_size: ${model.audio_adapter.params.model_params.hidden_size}
+        hidden_layer_id: 2
+        bias: False
+        stop_grad: False
+    audio_adapter:
+      type: gigar
+      freeze: False
+      params:
+        model_params:
+          attention_bias: false
+          hidden_act: silu
+          hidden_size: 128
+          intermediate_size: 128
+          num_attention_heads: 2
+          init_device: cpu
+          initializer_range: 0.02
+          max_position_embeddings: ${max_seq_len}
+          num_hidden_layers: 2
+          rms_norm_eps: 1e-05
+          rope_scaling: null
+          rope_theta: 300000
+          tp_size: ${tp_size}
+          vocab_size: 0
+          attention_type: LlamaPackedAttention
+        custom_params:
+          in_channels: ${model.audio_adapter.params.model_params.hidden_size}
+          stop_grad: false
+          head_size:
+            - ${n_q}
+            - ${num_speech_embeddings}
+    loss_weights:
+      text: 1.
+      speech: 1.
+
+
+speech_config_dataset:
+  dtm: true
+  bos_token_id: 4096
+  eos_token_id: 4097
+  pad_token_id: 4098
+  q_ids: [[0], [1, 4], [2, 3, 5, 6]]
+  n_q: ${n_q}
+  audio_delay: 2
+
+text_config_dataset:
+  bos_token_id: 128006
+  eos_token_id: 128007
+  pad_token_id: 0
+
+train_loader:
+  name: tts
+  sft_mode: ${sft_mode}
+  collate_attention_mask: False
+  dataset:
+    max_seq_len: ${max_seq_len}
+    speech_modality: ${speech_config_dataset}
+    text_modality: ${text_config_dataset}
+    streams:
+      default:
+        local: ${data_root}/datasets/tts/train
+        split: converted_chatmlv2_9b
+        proportion: 1
+    code_dataset:
+      - ${data_root}/datasets/tts/codes
+    tasks:
+      - tts
+
+eval_loader:
+  name: tts
+  sft_mode: ${sft_mode}
+  collate_attention_mask: False
+  dataset:
+    max_seq_len: ${max_seq_len}
+    speech_modality: ${speech_config_dataset}
+    text_modality: ${text_config_dataset}
+    streams:
+      default:
+        local: ${data_root}/datasets/tts/eval
+        split: converted_chatmlv2_9b
+        proportion: 1
+    code_dataset:
+      - ${data_root}/datasets/tts/codes
+    tasks:
+      - tts
+    shuffle: false
+    shuffle_seed: ${global_seed}
+  drop_last: true
+  num_workers: 1
+
+
+eval_interval: 100ba

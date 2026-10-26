@@ -1,0 +1,38 @@
+# BENCHMARKS
+eval_gauntlet:
+  weighting: EQUAL
+  averages:
+    all_average:
+    - test1
+    - test2
+
+icl_tasks:
+  - label: fakemmlu
+    dataset_uri: /home/jovyan/metrics/short_version/fakemmlu_small
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: fakemmlu
+    max_seq_len: 1024
+    # batch_size: 128
+    gauntlet_tags: ['test1']
+  - label: gsm8k-8shot
+    dataset_uri: /home/jovyan/metrics/short_version/gsm8k_small_test.jsonl # ADD YOUR OWN DATASET URI
+    num_fewshot: [0]
+    icl_task_type: question_answering
+    cot_delimiter: "The answer is "
+    continuation_delimiter: "\n\nA:"
+    question_prelimiter: ""
+    do_normalization: false
+    max_seq_len: 2048
+    early_stopping_criteria:
+    - "\n\n"
+    - "Question:"
+    # batch_size: 4
+    gauntlet_tags: ['test2']
+  - label: hellaswag
+    dataset_uri: /home/jovyan/metrics/short_version/hellaswag_small.jsonl # ADD YOUR OWN DATASET URI
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    max_seq_len: 1024
+    # batch_size: 8
+    gauntlet_tags: ['test2']

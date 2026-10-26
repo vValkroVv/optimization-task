@@ -1,0 +1,20 @@
+task: supergpqa
+
+dataset_path: m-a-p/SuperGPQA
+dataset_name: null
+test_split: train
+fewshot_split: train
+num_fewshot: 5
+output_type: multiple_choice
+
+doc_to_text: "The following is a question about {{field}}. Question:\n{{question}}\nAnswer:"
+doc_to_choice: "{{options}}"
+doc_to_target: !function utils.doc_to_target
+
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+
+metadata:
+  version: 1.0

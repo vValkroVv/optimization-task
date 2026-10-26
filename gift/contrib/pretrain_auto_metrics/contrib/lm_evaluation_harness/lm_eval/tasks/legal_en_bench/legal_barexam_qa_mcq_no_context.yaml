@@ -1,0 +1,59 @@
+tag:
+- legal_en
+task: legal_barexam_qa_mcq_no_context
+dataset_path: ai-sage/legal-en-bench
+dataset_kwargs:
+  data_files:
+    test: legal_barexam_qa_mcq_no_context_test.json
+test_split: test
+output_type: generate_until
+doc_to_text: '{{question}}
+
+
+  Choose exactly one option.
+
+  In the final answer, output only the letter of the correct option (A-D), with no explanation.
+
+  Answer:
+
+  '
+doc_to_target: '{{golden_answer}}'
+metric_list:
+- metric: exact_match
+  aggregation: mean
+  higher_is_better: true
+  ignore_case: true
+  ignore_punctuation: true
+generation_kwargs:
+  until:
+  - </s>
+  - <|im_end|>
+  - <|eot_id|>
+  - '
+
+
+    '
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 8
+repeats: 1
+num_fewshot: 4
+filter_list:
+- name: extract_choice
+  filter:
+  - function: regex
+    regex_pattern: (?is)\b([A-D])\b
+  - function: take_first
+metadata:
+  version: 1.0
+fewshot_config:
+  sampler: first_n
+  samples:
+  - question: "Read the bar exam prompt and choose the single best answer.\nContext: \nQuestion: Pace sues Def Company for injuries suffered when Pace's car collided with Def Company's truck. Def's general manager prepared a report of the accident at the request of the company's attorney in preparation for the trial, and delivered the report to the attorney. Pace demands that the report be produced. Will production of the report be required?\n\nOptions:\nA) Yes, because business reports are not generally privileged.\nB) No, because it is a privileged communication from client to the attorney.\nC) No, because such reports contain hearsay.\nD) No, because such reports are self-serving."
+    golden_answer: B
+  - question: "Read the bar exam prompt and choose the single best answer.\nContext: \nQuestion: The following facts concern a tract of land in a state which follows general United States law. Each instrument is in proper form, recorded, marital property rights were waived when necessary, and each person named was adult and competent at the time of the named transaction. 1. In 1940 Oleg, the owner, conveyed his interest in fee simple \"to my brothers Bob and Bill, their heirs and assigns as joint tenants with right of survivorship.\" 2. In 1950 Bob died, devising his interest to his only child, \"Charles, for life, and then to Charles's son, Sam, for life, and then to Sam's children, their heirs and assigns.\" 3. In 1970 Bill died, devising his interest \"to my friend, Frank, his heirs and assigns.\" 4. In 1972 Frank conveyed by quitclaim deed \"to Paul, his heirs and assigns whatever right, title and interest I own.\" Paul has never married. Paul has contracted to convey marketable record title in the land to Patrick. Can Paul do so?\n\nOptions:\nA) Yes, without joinder of any other person in the conveyance.\nB) Yes, if Charles, Sam, and Sam's only child (Gene, aged 25) will join in the conveyance.\nC) No, regardless of who joins in the conveyance, because Sam may have additional children whose interests cannot be defeated.\nD) No, regardless of who joins in the conveyance, because a title acquired by quitclaim deed is impliedly unmerchantable."
+    golden_answer: A
+  - question: "Read the bar exam prompt and choose the single best answer.\nContext: \nQuestion: Park brought an action against Dan for injuries received in an automobile accident, alleging negligence in that Dan was speeding and inattentive. Park calls White to testify that Dan had a reputation in the community of being a reckless driver and was known as \"dare-devil Dan.\" White's testimony is\n\nOptions:\nA) admissible as habit evidence\nB) admissible because it tends to prove that Dan was negligent at the time of this collision\nC) inadmissible because Dan has not offered testimony of his own good character\nD) inadmissible to show negligence"
+    golden_answer: D
+  - question: "Read the bar exam prompt and choose the single best answer.\nContext: \nQuestion: In a suit attacking the validity of a deed executed fifteen years ago, Plaintiff alleges mental incompetency of Joe, the grantor, and offers in evidence a properly authenticated affidavit of Harry, Joe's brother. The affidavit, which was executed shortly after the deed, stated that Harry had observed Joe closely over a period of weeks, that Joe had engaged in instances of unusual behavior (which were described), and that Joe's appearance had changed from one of neatness and alertness to one of disorder and absentmindedness. The judge should rule Harry's affidavit\n\nOptions:\nA) inadmissible as opinion\nB) inadmissible as hearsay, not within any exception\nC) admissible as an official document\nD) admissible as an ancient document"
+    golden_answer: B

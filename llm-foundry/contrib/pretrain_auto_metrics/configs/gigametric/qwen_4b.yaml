@@ -1,0 +1,73 @@
+run_name: gigametric_qwen_4b
+exp_name: gigametric_qwen_4b
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+max_seq_len: 8192
+
+autometrics:
+    globals:
+        delete_converted_hf: false
+        full_metrics_recalculate: false
+
+    router:
+        host: 0.0.0.0
+
+    convertation:
+        mappers:
+            - map_gigafsdp_to_hf_safetensor
+        input_tp_size: 1
+
+    preparation:
+        skip: true
+
+    inference:
+        allow-auto-truncate: true
+        tp: 1
+        dp: 8
+        reasoning_parser: qwen3
+        # tool_call_parser обязателен для bbac — без него SGLang
+        # отдаёт Qwen XML (<tool_call>...</tool_call>), adapter не парсит
+        # и все fn-call категории дают 0%.
+        tool_call_parser: qwen
+
+    obm_proxy:
+        # sampling-params:
+        #     temperature: 0.7
+        chat-template-kwargs:
+            # Qwen3-4B-Instruct-2507 otherwise may put the whole short answer
+            # into reasoning_content and return content=null.
+            enable_thinking: false
+
+    model_info:
+        model_class: "sft"
+        size: "lite"
+        username: ${user}
+
+    evaluators:
+        gigametric:
+            base_dir: /home/jovyan/${user}/gigametric_runs
+            local_model_id: qwen_4b_local
+
+            max_concurrent_requests: 1
+            benchmarks:
+                aime_26:
+                    num_items: 2
+                bbac:
+                    num_items: 2
+                bbeh:
+                    num_items: 2
+                gpqa:
+                    num_items: 2
+                ifeval:
+                    num_items: 2
+                math500:
+                    num_items: 2
+                mmlu_pro:
+                    num_items: 2
+                naturalplan:
+                    num_items: 2
+                reflectionbench:
+                    num_items: 2
+                supergpqa:
+                    num_items: 2

@@ -1,0 +1,20 @@
+tag: rucola_tasks
+task: rucola_binary
+dataset_path: ai-sage/rucola
+dataset_name: default
+test_split: dev
+fewshot_split: dev
+num_fewshot: 5
+output_type: multiple_choice
+
+doc_to_text: "Твоя задача - определить, является ли предложение уместным или содержит какие-либо нарушения (так обычно не говорят и не пишут).\nНапиши \"Да\", если предложение содержит одно или несколько нарушений и \"Нет\", если данное предложение является приемлемым.\nПримеры нарушений:\nНесогласованность в категории числа: \"Подробности дела неизвестно.\"\nСемантические противоречия: \"В этом году женщины вышли замуж во второй раз 26 июня 1989 года.\"\nБессмысленные повторы: \"Это моя семья моя семья.\"\n\nПредложение: {{sentence}}\nОтвет:" 
+doc_to_choice: ['Да','Нет']
+doc_to_target: acceptable
+
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+
+metadata:
+  version: 1.0

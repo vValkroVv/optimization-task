@@ -1,0 +1,23 @@
+include: minerva_math_precalc.yaml
+task: minerva_math_precalc_32
+repeats: 32
+process_results: null
+filter_list:
+  - name: "scored"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.score_all_responses
+metric_list:
+  - metric: !function utils.pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+  - metric: !function utils.mean_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+generation_kwargs:
+  until: ["Problem:"]
+  do_sample: true
+  temperature: 0.6
+  top_p: 0.95

@@ -1,0 +1,48 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_code_debug
+task_alias: Code.Debug
+output_type: multiple_choice
+doc_to_choice: !function utils.doc_to_choice
+process_results: !function utils.process_multiple_choice_results
+target_delimiter: " "
+dataset_kwargs:
+  data_name: code_debug
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: code_debug
+      context: "def load_total(items):\n    return sum(items)\n\ndef normalize_name(name):\n    return name.strip().lower()\n\ndef safe_divide(a, b):\n    return a / divisor\n\ndef pick_first(values):\n    return values[0] if values else None"
+      input: "Which function contains the deliberate error?"
+      options:
+        - "load_total"
+        - "normalize_name"
+        - "safe_divide"
+        - "pick_first"
+      answer:
+        - "safe_divide"
+        - "C"
+    - infinitebench_task: code_debug
+      context: "def format_city(city):\n    return city.title()\n\ndef count_rows(rows):\n    return len(rows)\n\ndef build_path(root, name):\n    return root + '/' + filename\n\ndef clamp(value, low, high):\n    return max(low, min(value, high))"
+      input: "Which function contains the deliberate error?"
+      options:
+        - "format_city"
+        - "count_rows"
+        - "build_path"
+        - "clamp"
+      answer:
+        - "build_path"
+        - "C"
+    - infinitebench_task: code_debug
+      context: "def parse_port(text):\n    return int(text)\n\ndef select_last(values):\n    return values[-1]\n\ndef make_label(prefix, index):\n    return f'{prefix}-{index}'\n\ndef average(nums):\n    return total / len(nums)"
+      input: "Which function contains the deliberate error?"
+      options:
+        - "parse_port"
+        - "select_last"
+        - "make_label"
+        - "average"
+      answer:
+        - "average"
+        - "D"

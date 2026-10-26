@@ -1,0 +1,61 @@
+---
+include:
+  - project: gigallms/ci-cd
+    ref: main
+    file:
+      - base/variables.yml
+      - base/templates.yml
+      - base/rules.yml
+
+variables:
+  RELEASE_BRANCH: main
+  PIP_BREAK_SYSTEM_PACKAGES: 1
+
+stages: [build, release]
+
+# Stable release: test gate -> stable semver tag (vX.Y.Z) + GitLab Release.
+# PyPI publish is the separate trigger:pypi_publish step on the resulting tag.
+trigger:release:
+  rules:
+    - !reference [.rules:on_trigger:always, rules]
+    - !reference [.rules:push_by_release_users, rules]
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
+      when: manual
+  stage: build
+  needs: []
+  trigger:
+    include:
+      - project: gigallms/ci-cd
+        ref: main
+        file: pipelines/release-child-python.yml
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    RELEASE_VERSION: $CI_COMMIT_TAG
+    SOURCE_PROJECT: $CI_PROJECT_PATH
+    PARENT_PROJECT_NAME: $CI_PROJECT_NAME
+    PARENT_PROJECT_PATH: $CI_PROJECT_PATH
+    PARENT_JOB_ID: $CI_JOB_ID
+    # Tests live in tests/ (not tests/unit/) and there are no private deps.
+    RELEASE_PYTEST_ARGS: "tests/ --tb=short -q"
+    RELEASE_OPTIONAL_PIP_INSTALL: ''
+
+trigger:pypi_publish:
+  stage: release
+  trigger:
+    include:
+      - project: gigallms/ci-cd
+        ref: main
+        file: pipelines/publish-child-python-pypi.yml
+    strategy: depend
+  variables:
+    PYPI_PROJECT_DIR: .
+  rules:
+    # On a release tag -> stable version from pyproject.toml at the tag.
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+      when: manual
+    # On main / web without a tag -> dev build only.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
+      when: manual
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - when: never

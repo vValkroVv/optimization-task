@@ -1,0 +1,91 @@
+# ---- All project specifications ---- #
+[project]
+name = "torchtitan"
+description = "A PyTorch native platform for training generative AI models"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+    { name = "PyTorch Team", email = "packages@pytorch.org" },
+]
+keywords = ["pytorch", "training", "llm"]
+# Versions are pinned to the build image; see gift_docker/pyproject.toml.
+dependencies = [
+    # Stateful Dataloader
+    "torchdata==0.11.0",
+
+    # Hugging Face integrations
+    "datasets==4.7.0",
+    "tokenizers==0.22.2",
+    "safetensors==0.7.0",
+
+    # Miscellaneous
+    "fsspec==2026.2.0",  # capped by datasets 4.7.0
+    "tensorboard==2.20.0",
+    "wandb==0.27.0",
+    "einops==0.8.2",
+    "pillow==12.2.0",
+    "pyyaml==6.0.3",
+    "tree-sitter==0.26.0",
+    "tree-sitter-language-pack==1.14.0",
+]
+dynamic = ["version"]
+
+[project.scripts]
+config-check = "torchtitan.config.pre_submit:main"
+
+[project.urls]
+GitHub = "https://github.com/pytorch/torchtitan"
+Documentation = "https://github.com/pytorch/torchtitan/tree/main/docs"
+Issues = "https://github.com/pytorch/torchtitan/issues"
+
+[project.optional-dependencies]
+cute = [
+    "nvidia-cutlass-dsl[cu13]==4.4.1",
+    "apache-tvm-ffi==0.1.11",
+]
+kiwi = [
+    "pandas==3.0.1",
+    "pyarrow==22.0.0",
+    "boto3==1.43.17",  # aligned with extra "streaming"
+]
+dev = [
+    "pre-commit==4.6.0",
+    "ruff==0.14.10",
+    "pytest==7.3.2",
+    "pytest-cov==7.1.0",
+    "expecttest==0.3.0", # test_tokenizer
+    "pyrefly==0.45.1",
+]
+
+[tool.setuptools.dynamic]
+version = {file = "assets/version.txt"}
+
+[tool.codespell]
+skip = ["*.json", "contrib"]
+ignore-words-list = ["assertin", "convertation", "datas" ,"indx", "inpt", "nd", "socio-economic", "trainng"]
+
+[tool.ruff]
+target-version = "py312"
+exclude = ["build", "contrib"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+# ---- Explicit project build information ---- #
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = [""]
+include = ["torchtitan*"]
+
+[tool.pytest.ini_options]
+addopts = ["--showlocals"]  # show local variables in tracebacks
+testpaths = ["tests"]
+
+[tool.pyrefly]
+project-excludes = ["contrib", "torchtitan/experiments", "**/tests/**"]
+replace-imports-with-any = ["torchft", "torchvision.*", "deep_ep.*", "deep_gemm.*", "cudacherry.*", "jinja2.*", "cutlass", "cutlass.*", "cuda.bindings.*", "tvm_ffi", "vllm.*"] # optional dependencies
+search-path = ["../pytorch"]  # local built pytorch

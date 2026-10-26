@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_number_string
+task_alias: Retrieve.Number
+dataset_kwargs:
+  data_name: number_string
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: number_string
+      context: "The shipment log contains many ordinary counts and dates. One line says the important sequence of digits is 827104, then the log resumes listing crate weights."
+      input: "What is the sequence of digits?"
+      answer:
+        - "827104"
+    - infinitebench_task: number_string
+      context: "In the meeting transcript, speakers discuss budgets, travel, and schedules. The hidden sequence of digits is 640291, mentioned once between two unrelated agenda items."
+      input: "What is the sequence of digits?"
+      answer:
+        - "640291"
+    - infinitebench_task: number_string
+      context: "The archive note is mostly filler text about folders and labels. It says to remember the digit sequence 193758 for later verification."
+      input: "What is the sequence of digits?"
+      answer:
+        - "193758"
+generation_kwargs:
+  max_gen_toks: 12
+  temperature: 0.0
+  do_sample: false
+  until: []

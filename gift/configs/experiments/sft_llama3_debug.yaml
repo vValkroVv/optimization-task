@@ -1,0 +1,31 @@
+# Llama3 debug model, single-turn SFT on the bundled chat fixture.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/sft_llama3_debug.yaml
+config_version: 1
+
+imports:
+  - ../presets/models/llama3/debugmodel.yaml
+  - ../presets/train/debug.yaml
+
+model:
+  config:
+    blocks:
+      dense:
+        attention:
+          inner_attention: {type: flex}
+
+loss:
+  type: chunked_cross_entropy
+
+dataloader:
+  type: hf_chat
+  dataset: null            # clears the hf_text-only key inherited from the debug preset
+  dataset_path: json
+  load_dataset_kwargs:
+    data_files: tests/assets/sft_test/data.json
+    split: train
+  sample_processor: {type: question_answer}   # fields "question" / "answer"
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false

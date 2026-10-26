@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dredd"
+version = "0.5.0"
+description = "Side-by-Side LLM Evaluation Tool"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml",
+    "requests",
+    "tqdm",
+    "omegaconf",
+    "colorlog",
+    "tenacity",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "pytest-mock>=3.14.0",
+    "responses>=0.25.0",
+]
+
+[project.scripts]
+dredd = "dredd:main"
+
+[tool.setuptools]
+py-modules = ["dredd", "export_ci"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "src.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "unit: fast deterministic tests for isolated units",
+    "integration: tests spanning multiple modules with mocked externals",
+    "e2e: end-to-end tests that may require external services",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src", "dredd"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

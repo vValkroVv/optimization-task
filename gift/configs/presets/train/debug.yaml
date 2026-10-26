@@ -1,0 +1,24 @@
+# Debug-run mixin: tiny bundled corpus, aggressive logging, 10 steps.
+metrics:
+  log_freq: 1
+
+dataloader:
+  type: hf_text
+  dataset: c4_test
+
+optimizer:
+  lr: 8.0e-4
+
+lr_scheduler:
+  warmup_steps: 2
+  decay_ratio: 0.8
+  decay_type: linear
+  min_lr_factor: 0.0
+
+training:
+  local_batch_size: 8
+  seq_len: 2048
+  steps: 10
+
+activation_checkpoint:
+  mode: selective

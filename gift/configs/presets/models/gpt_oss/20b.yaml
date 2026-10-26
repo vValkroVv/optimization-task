@@ -1,0 +1,41 @@
+# Model preset: gpt_oss "20b".
+imports:
+  - ../../init/gpt_oss.yaml
+
+model:
+  label: 20b
+  config:
+    type: gpt_oss
+    dim: 2880
+    vocab_size: 201088
+    norm: &norm {type: rmsnorm}
+    rope:
+      type: cos_sin
+      dim: 64
+      max_seq_len: 131072
+      theta: 150000.0
+      scaling: {type: yarn, rope_factor: 32.0, original_seq_len: 4096, beta_fast: 32.0, beta_slow: 1.0}
+    blocks:
+      sliding_gpt_oss_sink_moe:
+        type: gpt_oss_sliding
+        attention: &attention {type: gpt_oss_sink, mask_type: causal, n_heads: 64, n_kv_heads: 8, head_dim: 64,
+          sliding_window_size: 128}
+        moe: &moe
+          type: gpt_oss_biased
+          experts:
+            hidden_dim: 2880
+            num_experts: 32
+            token_dispatcher: {type: local}
+          router: {top_k: 4}
+        attention_norm: *norm
+        ffn_norm: *norm
+        use_sliding_attention: true
+      gpt_oss_sink_moe:
+        type: gpt_oss_sliding
+        attention: *attention
+        moe: *moe
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - cycle: [sliding_gpt_oss_sink_moe, gpt_oss_sink_moe]
+      repeat: 12

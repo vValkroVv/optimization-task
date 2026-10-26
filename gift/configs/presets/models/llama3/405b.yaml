@@ -1,0 +1,25 @@
+# Model preset: llama3 "405B".
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: 405B
+  config:
+    type: llama3
+    dim: 16384
+    vocab_size: 128256
+    norm: &norm {type: rmsnorm}
+    rope:
+      type: complex
+      dim: 128
+      max_seq_len: 131072
+      theta: 500000.0
+      scaling: {type: llama}
+    blocks:
+      dense:
+        attention: {type: gqa, n_heads: 128, n_kv_heads: 8}
+        feed_forward: {type: llama, multiple_of: 4096, ffn_dim_multiplier: 1.2}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: dense, repeat: 126}

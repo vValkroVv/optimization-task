@@ -1,0 +1,71 @@
+# syntax=docker/dockerfile:1
+FROM python:3.12-slim
+
+ARG UV_VERSION=0.7.13
+ARG MINI_SWE_VERSION=2.3.0
+ARG SWE_AGENT_COMMIT=0f3acafacabc0def8cc76b4e48acb4b6cf302cb9
+ARG OPENHANDS_VERSION=1.36.0
+
+ENV UV_PYTHON_INSTALL_DIR=/root/.local/share/uv/python
+ENV UV_TOOL_BIN_DIR=/root/.local/bin
+ENV UV_TOOL_DIR=/root/.local/share/uv/tools
+ENV PATH="/root/.local/bin:$PATH"
+
+RUN python3 -m pip install --no-cache-dir "uv==$UV_VERSION"
+
+RUN set -eux; \
+    uv python install 3.12; \
+    mkdir -p /root/.local/bin /opt; \
+    printf '%s\n' 'export PATH="$HOME/.local/bin:$PATH"' \
+      > /root/.local/bin/env; \
+    uv tool install --python 3.12 "mini-swe-agent==$MINI_SWE_VERSION"; \
+    uv venv --clear --python 3.12 /opt/openhands-sdk-venv; \
+    uv pip install --python /opt/openhands-sdk-venv/bin/python \
+      "openhands-sdk==$OPENHANDS_VERSION" \
+      "openhands-tools==$OPENHANDS_VERSION" \
+      fastapi; \
+    python3 -c "import urllib.request; urllib.request.urlretrieve( \
+      'https://codeload.github.com/SWE-agent/SWE-agent/tar.gz/$SWE_AGENT_COMMIT', \
+      '/tmp/sweagent.tar.gz')"; \
+    mkdir -p /tmp/sweagent-source; \
+    python3 -m tarfile -e /tmp/sweagent.tar.gz /tmp/sweagent-source; \
+    mv /tmp/sweagent-source/SWE-agent-* /opt/sweagent-repo; \
+    uv venv --clear --seed --python 3.12 /opt/sweagent-venv; \
+    uv pip install --python /opt/sweagent-venv/bin/python \
+      /opt/sweagent-repo; \
+    site_packages="$(/opt/sweagent-venv/bin/python -c \
+      'import site; print(site.getsitepackages()[0])')"; \
+    cp -r /opt/sweagent-repo/config "$site_packages/config"; \
+    cp -r /opt/sweagent-repo/tools "$site_packages/tools"; \
+    mkdir -p /opt/sweagent-configs "$site_packages/trajectories"; \
+    cp /opt/sweagent-repo/config/default.yaml \
+      /opt/sweagent-configs/default.yaml; \
+    if [ -f /opt/sweagent-repo/config/default_backticks.yaml ]; then \
+      cp /opt/sweagent-repo/config/default_backticks.yaml \
+        /opt/sweagent-configs/default_backticks.yaml; \
+    fi; \
+    rm -rf /root/.cache/uv /tmp/sweagent-source /tmp/sweagent.tar.gz
+
+RUN <<'EOF'
+set -eux
+cat > /usr/local/bin/sweagent <<'WRAPPER'
+#!/bin/bash
+source /opt/sweagent-venv/bin/activate
+exec python -m sweagent.run.run "$@"
+WRAPPER
+chmod +x /usr/local/bin/sweagent
+
+cat > /etc/profile.d/testbed-conda.sh <<'PROFILE'
+if [ -z "$CONDA_DEFAULT_ENV" ] && [ -d "/opt/miniconda3/envs/testbed" ]; then
+    if [ -f "/opt/miniconda3/etc/profile.d/conda.sh" ]; then
+        . "/opt/miniconda3/etc/profile.d/conda.sh"
+        conda activate testbed 2>/dev/null || true
+    fi
+fi
+PROFILE
+
+. /root/.local/bin/env
+mini-swe-agent --help >/dev/null
+/opt/openhands-sdk-venv/bin/python -c 'import fastapi, openhands.sdk'
+/opt/sweagent-venv/bin/pip show sweagent
+EOF

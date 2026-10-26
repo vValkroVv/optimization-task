@@ -1,0 +1,178 @@
+output_type: generate_until
+training_split: train
+test_split: train
+doc_to_text: "Please reason step by step, and put your final answer within \\boxed{}.\n\n{{problem}}\n\n"
+doc_to_target: "{{answer}}"
+filter_list:
+  - name: "scored"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.score_all_responses
+metric_list:
+  - metric: !function utils.pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+  - metric: !function utils.mean_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+generation_kwargs:
+  until:
+    - "Question:"
+    - "</s>"
+    - "<|im_end|>"
+    - "<|eot_id|>"
+    - "Please reason step by step, and put your final answer within"
+  do_sample: true
+  temperature: 0.6
+  top_p: 0.95
+  max_gen_toks: 1000000
+  
+repeats: 32
+metadata:
+  version: 0.0
+
+fewshot_config:
+  sampler: first_n
+  samples:
+  - problem: |
+      A positive integer $n$ is \emph{imbalanced} if strictly more than 99 percent of the positive divisors of $n$ are strictly less than 1 percent of $n$. Given that $M$ is an imbalanced multiple of $2000$, compute the minimum possible number of positive divisors of $M$.
+    answer: |
+      The condition “strictly more than \(99\%\) of the divisors are \(<1\%\) of \(n\)” means
+
+      \[
+      \#\{d\mid n:d\ge \tfrac{n}{100}\}<\tfrac{\tau(n)}{100}.
+      \]
+
+      For any divisor \(d\) we have the paired divisor \(n/d\).
+      Hence the number of divisors \(\ge n/100\) equals the number of divisors \(\le 100\); call this number \(A(n)\).
+      Thus \(n\) is imbalanced iff
+
+      \[
+      A(n)<\frac{\tau(n)}{100}\qquad\Longleftrightarrow\qquad \tau(n)>100A(n).
+      \]
+
+      Since \(M\) is a multiple of \(2000=2^{4}\cdot5^{3}\), every divisor of \(2000\) is a divisor of \(M\).
+      The divisors of \(2000\) not exceeding \(100\) are
+
+      \[
+      1,2,4,5,8,10,16,20,25,40,50,80,100,
+      \]
+
+      so \(A(M)\ge 13\). Consequently
+
+      \[
+      \tau(M)\ge 100\cdot 13+1=1301.
+      \]
+
+      Because \(2^{4}\mid M\), \(\tau(M)\) is a multiple of \(4+1=5\).
+      The smallest multiple of \(5\) exceeding \(1300\) is \(1305\).
+
+      It remains to show that \(\tau(M)=1305\) can actually be attained.
+      Write
+
+      \[
+      M=2^{4}\cdot5^{8}\cdot p^{28},
+      \]
+
+      where \(p>100\) is a prime (e.g. \(p=101\)).
+      Then
+
+      \[
+      \tau(M)=(4+1)(8+1)(28+1)=5\cdot9\cdot29=1305,
+      \]
+
+      and the only divisors of \(M\) not exceeding \(100\) are the \(13\) divisors of \(2^{4}\cdot5^{3}\) listed above; thus \(A(M)=13\).
+      Since \(13<1305/100=13.05\), \(M\) is imbalanced.
+
+      Hence the minimum possible number of positive divisors of an imbalanced multiple of \(2000\) is
+
+      \[
+      \boxed{1305}.
+      \]
+  - problem: |
+      Kelvin the frog is at the point $(0,0,0)$ and wishes to reach the point $(3,3,3)$. In a single move, he can either increase any single coordinate by 1, or he can decrease his $z$-coordinate by 1. Given that he cannot visit any point twice, and that at all times his coordinates must all stay between $0$ and $3$ (inclusive), compute the number of distinct paths Kelvin can take to reach $(3,3,3)$.
+    answer: |
+      The $x$– and $y$–coordinates never decrease, so the projection of any valid path onto the $xy$-plane is a monotone lattice path from $(0,0)$ to $(3,3)$ using steps $(1,0)$ and $(0,1)$.
+      There are
+
+      \[
+      \binom{6}{3}=20
+      \]
+
+      such $xy$-projections.
+
+      For a fixed $xy$-projection the path visits the seven points
+
+      \[
+      (0,0)=v_0,\;v_1,\;v_2,\;v_3,\;v_4,\;v_5,\;v_6=(3,3)
+      \]
+
+      in that order.
+      While staying at a given $v_i$ the frog may move in the $z$-direction, but he cannot revisit a point, so the $z$-walk at each $v_i$ must be monotonic (either non‑increasing or non‑decreasing).
+      Thus, if the entry $z$-coordinate at $v_i$ is $e_i$, the exit $z$-coordinate $a_i$ may be any integer in $\{0,1,2,3\}$; the walk from $e_i$ to $a_i$ is then uniquely determined.
+
+      The start has $e_0=0$ and the final point must end at $z=3$, i.e. $a_6=3$.
+      For $i=0,1,\dots,5$ the exit $a_i$ can be chosen arbitrarily in $\{0,1,2,3\}$, giving $4^6$ possibilities.
+
+      Hence for each $xy$-projection there are $4^6=4096$ admissible $z$-assignments, and the total number of distinct paths is
+
+      \[
+      20\cdot 4^6 = 20\cdot 4096 = 81920 .
+      \]
+
+      \[
+      \boxed{81920}
+      \]
+  - problem: |
+      The orbits of Pluto and Charon are given by the ellipses
+      \[
+      x^2 + xy + y^2 = 20 \quad \text{and} \quad 2x^2 - xy + y^2 = 25,
+      \]
+      respectively. These orbits intersect at four points that form a parallelogram. Compute the largest of the slopes of the four sides of this parallelogram.
+    answer: |
+      The two ellipses are centrally symmetric, so their four intersection points are symmetric about the origin and form a parallelogram centered at the origin.
+      A side of this parallelogram is a common chord of the two ellipses.
+
+      Consider a line \(y=mx+c\) intersecting the ellipses. Substituting into
+
+      \[
+      x^2+xy+y^2=20,\qquad 2x^2-xy+y^2=25
+      \]
+
+      gives two quadratics in \(x\):
+
+      \[
+      \begin{aligned}
+      &(1+m+m^2)x^2+c(1+2m)x+(c^2-20)=0,\\
+      &(2-m+m^2)x^2+c(-1+2m)x+(c^2-25)=0.
+      \end{aligned}
+      \]
+
+      For the line to contain two intersection points of the ellipses, these quadratics must have the same pair of roots; hence their coefficients are proportional.
+      Comparing the \(x^2\) and \(x\) coefficients (the constant term can be adjusted by choosing \(c\)) yields
+
+      \[
+      \frac{2-m+m^2}{1+m+m^2}=\frac{2m-1}{2m+1}.
+      \]
+
+      Cross‑multiplying and simplifying:
+
+      \[
+      (2-m+m^2)(2m+1)=(2m-1)(1+m+m^2)
+      \;\Longrightarrow\;
+      2m^2-2m-3=0.
+      \]
+
+      Thus the slopes of the four sides satisfy
+
+      \[
+      2m^2-2m-3=0\quad\Longrightarrow\quad m=\frac{1\pm\sqrt{7}}{2}.
+      \]
+
+      The two distinct slopes are \(\displaystyle \frac{1+\sqrt7}{2}\) and \(\displaystyle \frac{1-\sqrt7}{2}\); the larger is
+
+      \[
+      \boxed{\frac{1+\sqrt7}{2}}.
+      \]

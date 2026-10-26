@@ -1,0 +1,25 @@
+# Debug-scale fp8 over HybridEP, the combination the 3B fp8 experiments run for
+# real. The debugmodel_fp8 preset: fp8 HybridEP dispatch needs dim % 512 == 0,
+# and pad_multiple 128 is what DeepGEMM's grouped GEMM needs. fp8 dispatch has no
+# config of its own -- GroupedExperts turns it on with the fp8 grouped GEMM.
+# comm_stream and fuse_permute are spelled out: they are what the integration
+# rows exercise.
+#
+#   DG_CACHE_FORCE_SKIP=1 torchrun --nproc_per_node=2 -m torchtitan.train configs/experiments/gift_moe_debug_hybridep_fp8.yaml
+config_version: 1
+
+imports:
+  - gift_moe_debug.yaml
+  - ../presets/models/gift_moe/debugmodel_fp8.yaml
+  - ../presets/train/fp8_full.yaml
+
+model:
+  config:
+    blocks:
+      mla_moe:
+        moe:
+          experts:
+            token_dispatcher: {type: hybridep, pad_multiple: 128, comm_stream: true, fuse_permute: true}
+
+parallelism:
+  expert_parallel_degree: 2

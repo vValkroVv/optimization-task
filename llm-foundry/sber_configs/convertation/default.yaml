@@ -1,0 +1,35 @@
+---
+## CHANGE PATHS
+input_checkpoint_path: .../ep0-ba80000-rank0.pt
+output_checkpoint_path: .../hf-ep0-ba80000-rank0
+
+## choose the mappers for your task
+## !!! The order of the mappers is important 
+mappers:
+  # # gigafsdp model to hf (gigar / gigaseek)
+  # - map_gigafsdp_to_hf
+  # # fsdp model to hf (gigar / gigaseek)
+  - map_fsdp_to_hf
+  # # fsdp change tp_size (gigar / gigaseek)
+  # - map_tp_to_tp
+  # # gigafsdp change tp_size (gigar / gigaseek)
+  # - map_gigafsdp_to_fsdp
+  # - map_tp_to_tp
+  # # remove optimizer from fsdp ckpt
+  # - remove_fsdp_optimizer
+  # # remove optimizer from gigafsdp ckpt
+  # - remove_gigafsdp_optimizer
+  # # merge_and_upload LoRa like in PEFT
+  # - map_merge_lora
+  # # merge LoRa in base model and save to hf
+  # - map_fsdp_lora_to_hf
+
+## choose your tp options
+input_tp_size: 1
+output_tp_size: 1
+
+## additional params
+skip_optimizer: false # Significantly reduces the size of the final checkpoint
+print_final_model_structure: true
+tokenizer_path: /home/jovyan/models/llama2-7b-fp16-TheBloke-extended_tok-cc_10k
+# torch_dtype: bfloat16

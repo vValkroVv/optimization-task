@@ -1,0 +1,26 @@
+include: humaneval.yaml
+task: evalplus_humaneval
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+filter_list:
+  - name: "extract_code"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.build_predictions
+generation_kwargs:
+  until:
+    - "\ndef "
+    - "\nclass "
+    - "\nimport "
+    - "\nfrom "
+    - "\nassert "
+    - "\nif __name__"
+    - "\ndef main("
+    - "\nprint("
+    - "\n```"
+  max_gen_toks: 768
+  do_sample: false
+metadata:
+  version: 1.0

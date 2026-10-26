@@ -1,0 +1,309 @@
+global_seed: 4096
+shuffle_seed: ${global_seed}
+
+max_seq_len: 4096
+
+train_loader:
+  name: text
+  drop_last: true
+  num_workers: 4
+  prefetch_factor: 1
+  persistent_workers: false
+  pin_memory: true
+
+  dataset:
+    shuffle: true
+    max_seq_len: ${max_seq_len}
+    shuffle_seed: ${shuffle_seed}
+    # fixed canonical nodes count (60 x 640 target nodes): sample order stays independent of node count
+    num_canonical_nodes: 38400
+    # multiplier for the node-count-derived default; set either this or num_canonical_nodes, not both
+    ncn_multiplier: null
+    enable_syntax_aware_fim: true
+    epoch_size: 3428M  # 14T tokens epoch
+    predownload: 100000
+
+    fim_rates:
+      vanilla_fim: 0.1
+      inline_fim: 0.0
+      multiline_fim: 0.0
+      syntax_aware_fim: 0.0
+
+    streams:
+      # --- GigaSet 5.3 data ---
+      # Multilingual
+      ar:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: ar_ar_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      de:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: de_de_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      es:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: es_es_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      fr:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: fr_fr_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      ja:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: ja_ja_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      kk:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: kk_kk_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      pt:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: pt_pt_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      uz:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: uz_uz_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      zh:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web/multilingual
+        proportion: 0.110
+        split: zh_zh_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      multilingual_averkiev:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web
+        proportion: 1.0
+        split: multilingual_averkiev
+
+      # Ru Base
+      ru_dclm:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/web
+        proportion: 11.0
+        split: ru_filtered_rucc_2kk_edu_markup_fixed_score_0.5_hermes_reddit_rucc_e5_base_prefix_score_6.9737e-06
+
+      # En Base
+      cofiltered_cc:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 5.6
+        split: dclm_exact_resharded_by_34560_cofiltered_excerps_filtered_threshold_10_finalized_CC_plus_dclm_without_negatives_0_5
+      nemotron_cc_crawl_hq: #12
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 20.0
+        split: nemotron_cc_2_crawl_hq
+      dclm_llm_notes: #13
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 5.9
+        split: dclm-llm-notes
+      dclm_rev_prompt:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 3.9
+        split: dclm-rev-prompt
+      filtered_cCQA:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 5.7
+        split: dclm_exact_resharded_by_34560_filtered_excerps_question_finalized_concat-CQA
+      nemotron_cc_dqa_qwen3:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 9.1
+        split: nemotron_cc_2_dqa_qwen3_30b_a3b
+      nemotron_cc_dqa_mistral: #17
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 9.0
+        split: nemotron_cc_2_dqa_mistral_nemo_12b
+      nemotron_cc_synth_qwen:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 2.6
+        split: nemotron_cc_2_crawl_hq_synthetic_qwen
+      llm_parsed_custom_factology:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_web
+        proportion: 0.07
+        split: llm_parsed_custom_factology
+
+      # HQ sources
+      libgen_scihub_sharded:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 2.5
+        split: libgen_scihub_sharded
+      libgen:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 1.0
+        split: libgen_sharded
+      libgen_fiction:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 1.0
+        split: libgen_fiction_sharded
+      libgen_nougat_mathpix:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 4.2
+        split: libgen_nougat_mathpix_sharded
+      pubmed:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.5
+        split: pubmed_sharded
+      cyberleninka:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.05
+        split: cyberleninka_sharded
+      flibusta:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.9
+        split: flibusta_v4_jan_2025
+      legal_data:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.4
+        split: legal_data_fixed_resharded
+      annual_reports:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.043
+        split: annual_reports
+      cybersecurity:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.09
+        split: cybersecurity
+      rndml_books_economics_and_finance:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.004
+        split: rndml_books_economics_and_finance
+      wikipedia:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.5
+        split: wikipedia_sharded
+      wikiquote:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/hq_sources
+        proportion: 0.001
+        split: wikiquote
+
+      # Synth math
+      math_1:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.5
+        split: math_1
+      math_2:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.5
+        split: math_2
+      math_3:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.180
+        split: math_3
+      math_4:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.360
+        split: math_4
+      math_5:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.830
+        split: math_5
+      differentiation:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.030
+        split: differentiation
+      equations:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.033
+        split: equations
+      inequalities:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.020
+        split: inequalities
+      integrals:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.060
+        split: integrals
+      limits:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.040
+        split: limits
+      linear_algebra:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_math
+        proportion: 0.060
+        split: linear_algebra
+
+      # Math
+      numina_cot:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/math
+        proportion: 0.055
+        split: numina_cot
+      numina_tir:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/math
+        proportion: 0.007
+        split: numina_tir
+      finemath-3plus:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/math
+        proportion: 0.5
+        split: finemath-3plus
+      finemath-4plus:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/math
+        proportion: 0.3
+        split: finemath-4plus
+      infiwebmath-3plus:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/math
+        proportion: 0.5
+        split: infiwebmath-3plus
+      infiwebmath-4plus:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/math
+        proportion: 0.3
+        split: infiwebmath-4plus
+
+      # Code
+      starcoder_code_over_16:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/code
+        proportion: 7.75
+        split: starcoder_by_sum_over_16
+        fim_rates:
+          vanilla_fim: 0.0
+          inline_fim: 0.375
+          multiline_fim: 0.0
+          syntax_aware_fim: 0.375
+
+      # Synth code
+      high_annotated_code_python:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_code
+        proportion: 0.625
+        split: llm_filtered_python_with_annotations_high_annotation
+        fim_rates:
+          vanilla_fim: 0.0
+          inline_fim: 0.375
+          multiline_fim: 0.0
+          syntax_aware_fim: 0.375
+      medium_annotated_code_python:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_code
+        proportion: 1.250
+        split: llm_filtered_python_with_annotations_medium_annotation
+        fim_rates:
+          vanilla_fim: 0.0
+          inline_fim: 0.375
+          multiline_fim: 0.0
+          syntax_aware_fim: 0.375
+      synthetic_python_filtered_no_leaks:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_code
+        proportion: 0.5
+        split: synthetic_python_filtered_no_leaks
+        fim_rates:
+          vanilla_fim: 0.0
+          inline_fim: 0.375
+          multiline_fim: 0.0
+          syntax_aware_fim: 0.375
+      IR_code:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_code
+        proportion: 2.0
+        split: IR_code
+        fim_rates:
+          vanilla_fim: 0.0
+          inline_fim: 0.375
+          multiline_fim: 0.0
+          syntax_aware_fim: 0.375
+      FIM_3:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1/synthetic_code
+        proportion: 0.5
+        split: FIM_3+
+        # no fim because dataset is already FIM
+        fim_rates:
+          vanilla_fim: 0.0
+          inline_fim: 0.0
+          multiline_fim: 0.0
+          syntax_aware_fim: 0.0
+
+      # Bank data
+      ssu_all:
+        local: /home/jovyan/shares/SR008.fs2/datasets/GigaSets/tokenized/5.3.1/5.3.1-4096len-128k_digit_tokenizer/5.3.1
+        proportion: 0.06
+        split: ssu

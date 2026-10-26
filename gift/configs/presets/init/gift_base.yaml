@@ -1,0 +1,19 @@
+# Init policy: GIFT base (gift_moe): plain RMSNorm, router gates initialized like any linear.
+# A module without its own param_init takes the table of its init_role.
+model:
+  config:
+    init:
+      linear:
+        weight: {type: normal, std: 0.006, mean: 0.0}
+        bias: {type: zeros}
+      norm:
+        weight: {type: ones}
+        bias: {type: zeros}
+      embedding:
+        weight: {type: normal, std: 0.006, mean: 0.0}
+      router_gate:
+        weight: {type: normal, std: 0.006, mean: 0.0}
+        bias: {type: zeros}
+      experts:
+        w13_E2FD: {type: normal, std: 0.006, mean: 0.0}
+        w2_EDF: {type: normal, std: 0.006, mean: 0.0}

@@ -1,0 +1,26 @@
+include: nq_open.yaml
+task: nq_open_32
+repeats: 32
+doc_to_target: "{{answer[0]}}"
+filter_list:
+  - name: "scored"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.score_all_responses
+metric_list:
+  - metric: !function utils.pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+  - metric: !function utils.mean_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+generation_kwargs:
+  do_sample: true
+  temperature: 0.6
+  top_p: 0.95
+  until:
+    - "\n"
+    - "."
+    - ","

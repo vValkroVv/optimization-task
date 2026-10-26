@@ -1,0 +1,40 @@
+# Init policy: The upstream torchtitan init (llama3, llama4, qwen3, deepseek_v3): output
+# projections, router gates and up/down expert weights scale std by depth, the
+# LM head by model width.
+# A module without its own param_init takes the table of its init_role.
+model:
+  config:
+    init:
+      linear:
+        weight: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        bias: {type: zeros}
+      norm:
+        weight: {type: ones}
+        bias: {type: zeros}
+      embedding:
+        weight: {type: normal, std: 1.0, mean: 0.0}
+      linear_out:
+        weight:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        bias: {type: zeros}
+      lm_head:
+        weight:
+          type: dim_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        bias: {type: zeros}
+      router_gate:
+        weight:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        bias: {type: zeros}
+      experts:
+        w13_E2FD:
+          type: fused_w13
+          gate: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+          up:
+            type: depth_scaled
+            base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}
+        w2_EDF:
+          type: depth_scaled
+          base: {type: trunc_normal, std: 0.02, mean: 0.0, a: -2.0, b: 2.0}

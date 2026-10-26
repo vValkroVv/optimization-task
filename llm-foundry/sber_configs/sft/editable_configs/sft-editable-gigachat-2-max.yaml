@@ -1,0 +1,204 @@
+# Editable fields
+
+# exp_name: Архитектура-размер-контекст-версия_sft-версия_chatml-gbs-dtype-tp_size-любой_комментарий
+exp_name: GigaR-90b-131k-v28_2-v2-320gbs-bf16-tp2-default_name
+
+max_seq_len: 131072       # ВАЖНО! Если у вас модель с rope_scaling нельзя менять этот параметр. Берите такой же, как в чекпоинте load_path
+enable_async_tp: true     # оч сильно экономит память. Включать при tp_size>1
+tp_size: 2                # зависит от чекпоинта в load_path 
+sp_size:                  # можно выставить любой, но лучше чтобы tp*sp было в рамках одной ноды (8 карт)
+  - sp_size: 4
+    max_seq_len: ${max_seq_len}
+# todo: dynamic sp sections
+lr: 5.0e-7
+
+# PT Checkpoint
+load_path: /path/to/model_checkpoint    # путь до стартового чекпоинта fsdp
+
+# BATCH SIZE
+global_train_batch_size: 320      # должно делится на tp*sp
+device_train_microbatch_size: 1   # global_train_batch_size = GPU / (tp*sp) * grad_accum * microbatch_size
+device_eval_batch_size: 1
+
+# TOKENIZER
+tokenizer:
+  name: /home/jovyan/models/gigar/gigachat4-pro-38b/gigachat4-pro-38b-8k_context-s3-ba126000/artifacts/tokenizer    # можно либо взять из sft-dataloader либо с претрейна
+  
+# DATALOADER
+train_loader:
+  dataset:
+    # нельзя менять если у вас sft-dataloader с батчингом
+    # ====================================================
+    shuffle: false
+    partition_algo: 'orig'
+    num_canonical_nodes: 1
+    # ====================================================
+    streams:
+      v27_2:
+        local: /home/jovyan/isstolbov/preprocessed_data/v28_2_131k_fixed_batch320/         # путь до данных из sft-dataloader
+        split: mds
+data_proportion: 1.0                  # Scale size of complete dataset by itself, by default = 1.0
+
+# NUMBER OF EPOCH 
+max_duration: 1000ba                  # Сколько будет длится эпоха. ba - батчи \ ep - шаги. ep на этапе мерджа конфигов превретятся в ba. Рекомендуем использовать ba
+save_interval: 500ba                  # Как часто сейвить модель
+eval_interval: ${save_interval}       # Как часто считать mmlu и метрики SAM. Должно быть кратно save_interval
+eval_first: true                      # Считать ли mmlu на первом шаге. Рекомендуем считать, так понятно не сломан ли стартовый чекпоинт
+
+# OPTIMIZATION                     
+# Косинусный оптимайзер   
+scheduler:                    
+  name: cosine_with_warmup    
+  t_warmup: 100ba                   # Сколько батчей прогревать модель     
+  alpha_f: 0.1                      # Во сколько раз уменьшить лр в конце обучения. Можно поставить например 0 \ 0.1 \ 0.01
+
+# Константный с дропами
+# scheduler:
+#   milestones:                         # В каких точках дропать лр. Можно использовать ep, они превратятся в ba
+#   - 1070ba
+#   - 2140ba
+#   - 3210ba
+#   - 4280ba
+#   - 5350ba
+#   milestones_gamma:                   # Во сколько раз дропать лр относительно начального
+#   - 0.1
+#   - 0.01
+#   - 0.001
+#   - 0.0002
+#   - 4.0e-05
+#   name: constant_multi_step_with_gamma_with_warmup
+#   t_warmup: 100ba                     # Сколько батчей прогревать модель
+
+optimizer:
+  lr: ${lr}
+  weight_decay: 0.0                   # Очень важно, если хотите установить wd=0.1 то вам надо умножить lr на 0.1 и установить полученное значение.
+                                      # Те если lr 5e-7, то с wd=1 надо ставить weight_decay: 5e-8
+
+# FSDP
+gigafsdp_config:                      # Не трогайте эти поля, если не понимаете что делаете :) 
+  hybrid_group_size: 160
+  # --- optional gigafsdp params ---
+  # hpz_first_layers_num: 40
+  # hpz_group_size: 4
+  # hybrid_group_size: 24
+
+# SAVE PATH
+save_folder: /home/jovyan/shares/SR004.nfs2/gigachat_checkpoints/sft/${exp_name}            # это дефолтный путь для wm-train
+
+# LOGGERS
+loggers:
+  tensorboard: 
+    log_dir: '/home/jovyan/shares/SR004.nfs2/gigachat_checkpoints/sft/${exp_name}/tensorboard_sft'  # это дефолтный путь для wm-train
+    rank_zero_only: true
+  wandb:                          # ВАЖНО! Чтобы подключить wnb нужно настроить sber_configs/.wandb.env
+    name: ${exp_name}
+    project: max                     # имя проекта
+    group: null
+    entity: alignment             # название team для команбы алаймента
+    tags: null
+    log_artifacts: false
+    rank_zero_only: true
+    save_folder: ${save_folder}
+    init_kwargs:
+      notes: 
+        global_train_batch_size: ${global_train_batch_size}
+        max_seq_len: ${max_seq_len}
+        lr: ${lr}
+        max_duration: ${max_duration}
+        load_path: ${load_path}
+
+# AUTO METRICS
+callbacks:
+  job_dispatcher_callback_web:  # using for web job_dispatcher
+    model_class: sft
+    size: max
+    username: dabrazhnik
+    s3_dest: gigaeye-s3:gigaeye-pretrain-checkpoints/gigachat_checkpoints/jd_data
+    rclone_path: /workspace/job-dispatcher-utils/s3-interaction/rclone
+    rclone_config: /workspace/job-dispatcher-utils/s3-interaction/rclone.conf
+    # convertation:
+    #   n_gpus: 8
+    #   # image: можно переопределить image если видите падения джоб
+    #   input_tp_size: ${tp_size}
+    # save_hf_in_ckpt_dir: true
+    # tokenizer_path: ${tokenizer.name}
+    # eval_interval: ${eval_interval}
+    # jobs:
+    #   - sam:
+    #       custom_sam_path: null # Переопределить на свой путь до sam, если требуется. Например "/workspace/username/service-for-automatic-measurement"
+    #       pass_obm: false
+    #       pass_obb: true
+    #       pass_judge: false
+    #       obb_datasets: []
+    #       obm_datasets: []
+    #       obm_groups: []
+    #       reasoning: false
+    #       chatmlv3: false
+    #   - lm_eval:
+    #       model_type: vllm
+    #       model_args: dtype=bfloat16,trust_remote_code=True,max_num_seqs=4,max_model_len=8192,tensor_parallel_size=4,gpu_memory_utilization=0.5
+    #       num_fewshot: 3
+    #       batch_size: auto
+    #       tasks: bbh
+    #       n_gpus: 4
+    #   - longbench:
+    #       model_dtype: fp16
+    #       max_length: 8192
+    #       model_name: gigachat-gigar-vllm
+    #       n_gpus: 4
+    #   - passkey:
+    #       model_dtype: bf16
+    #       n_gpus: 4
+    #   - bigcode:
+    #       n_gpus: 1
+    #       precision: "fp16"
+    #       n_samples: 1
+    #       batch_size: 1
+    # # Custom Pipeline Example (см. ../docs/README_custom_pipeline_jdcw.md для подробной документации)
+    # custom_pipeline:
+    #   proceed_on_failure: false
+    #   stages:
+    #     # Stage 1: Convertation
+    #     - jobs:
+    #       - script: >-
+    #           python /home/jovyan/ramakarov/llm-foundry/contrib/gigachat-utils/convertation/map-fsdp-to-fsdp.py
+    #           --input-checkpoint-path {CHECKPOINT_PATH}
+    #           --mappers map_gigafsdp_to_hf
+    #           --input-tp-size 1
+    #           --tokenizer-path /home/jovyan/models/gigar/gigachat4-lite-9b/32k_context_rope_theta_2800000/gigachat4-lite-9b-32k_context-rope_theta_2800000-ba10000/artifacts/tokenizer
+    #           --output-checkpoint-path {CHECKPOINT_DIR}/hf_chkpt
+    #         base_image: cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/llm-foundry-train:2025_02_03_commit277c3722
+    #         job_desc: "Job_dispatcher_convertation {CHECKPOINT_PATH}"
+    #         llmf_path: "/home/jovyan/ramakarov/llm-foundry"
+    #
+    #     # Stage 2: SAM Evaluation
+    #     - jobs:
+    #       - script: >-
+    #           python /workspace/ramakarov/service-for-automatic-measurement/submit_measurement.py
+    #           --user_name ramakarov
+    #           --model_class sft
+    #           --size max
+    #           --pass_judge
+    #           --pass_obb
+    #           --chatmlv3
+    #           --wandb_entity {WANDB_ENTITY}
+    #           --wandb_project {WANDB_PROJECT}
+    #           --wandb_run_id {WANDB_RUN_ID}
+    #           --model_path {CHECKPOINT_DIR}
+    #           --artifacts_alongside
+    #         job_desc: sam
+    #         proceed_on_failure: true
+    #
+    #     # Stage 3: S3 Sync
+    #     - proceed_on_failure: false
+    #       jobs:
+    #         - script: >-
+    #             python /workspace/dabrazhnik/job-dispatcher-metrics/gigachat-utils/job-dispatcher-utils/auto_s3.py
+    #             "{CHECKPOINT_DIR}"
+    #             --target_root_dir gigachat_checkpoints/nfs2
+    #             --bucket s3://gigaeye-pretrain-checkpoints
+    #             --sleep_interval 180
+    #             --signal_dir /home/jovyan/alert-signals/s3-upload
+    #           job_desc: "S3 sync for {CHECKPOINT_PATH}"
+
+

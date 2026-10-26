@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#SBATCH --job-name="{{ job_desc }}"
+#SBATCH --nodes={{ n_workers }}
+#SBATCH --ntasks-per-node={{ processes_per_worker }}
+#SBATCH --partition={{ partition }}
+#SBATCH --output={{ slurm_logdir }}/slurm-%j.out
+#SBATCH --error={{ slurm_logdir }}/slurm-%j.err
+{% if cpus_per_task %}
+#SBATCH --cpus-per-task={{ cpus_per_task }}
+{% endif %}
+{% if memory %}
+#SBATCH --mem={{ memory }}
+{% endif %}
+{% if time_limit %}#SBATCH --time={{ time_limit }}
+{% endif %}{% if requeue %}#SBATCH --requeue
+{% endif %}{% if comment %}#SBATCH --comment={{ comment }}
+{% endif %}{% if nodelist %}
+#SBATCH --nodelist={{ nodelist }}
+{% endif %}
+{% if exclude_nodes %}
+#SBATCH --exclude={{ exclude_nodes }}
+{% endif %}
+
+set -euo pipefail
+umask 0002
+{% if env_variables %}{% for key, value in env_variables.items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}{% endif %}
+
+{{ script }}

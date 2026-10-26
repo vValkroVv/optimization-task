@@ -1,0 +1,74 @@
+---
+run_name: test_430b_quant_dp_attention
+exp_name: test_430b_quant_dp_attention
+user: test_user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    tp: 16
+    ep: 16
+    # dp-attention and DeepEP both need NVreg_RegistryDwords="PeerMappingOverride=1"
+    # on every node; without it a multi-node start hangs instead of failing.
+    # Not set on every cluster yet: on o5 drop dp, enable-dp-attention and
+    # moe-a2a-backend and fall back to plain tp/ep.
+    dp: 16
+    enable-dp-attention: true
+    cuda-graph-max-bs: 64
+    moe-a2a-backend: deepep
+
+  quantization:
+    skip: false
+    device_map: auto
+    quantization_config:
+      weight_block_size: [128, 128]
+      modules_to_not_convert: [
+        "lm_head",
+        "embed_tokens",
+        "shared_head.head",
+        "mlp.gate.weight",
+        "eh_proj",
+        "self_attn.A_log",
+        "self_attn.conv1d",
+        "self_attn.dt_bias",
+        "self_attn.in_proj_ba",
+        "self_attn.norm.weight",
+        "gate_up_projection",
+        "gate_down_projection",
+        "shared_expert_sigmoid",
+      ]
+
+  model_info:
+    model_class: "sft"
+    size: "ultra"
+    username: ${user}
+
+  obm_proxy:
+    chat-template-kwargs:
+      reasoning: true
+    reasoning-token-budget: 32768
+    chat-template: /workspace-SR008.nfs2/models/430b_reasoning_test_no_delete/chat_template.jinja  # yamllint disable-line rule:line-length
+
+  evaluators:
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          log_samples: true
+          limit: 100

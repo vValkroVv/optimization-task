@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_math_calc
+task_alias: Math.Calc
+dataset_kwargs:
+  data_name: math_calc
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: math_calc
+      context: "4 + 6 - 3 + 2"
+      input: "What are the intermediate values?"
+      answer:
+        - "[4, 10, 7, 9]"
+    - infinitebench_task: math_calc
+      context: "15 - 5 + 8 - 4"
+      input: "What are the intermediate values?"
+      answer:
+        - "[15, 10, 18, 14]"
+    - infinitebench_task: math_calc
+      context: "3 + 9 + 2 - 6"
+      input: "What are the intermediate values?"
+      answer:
+        - "[3, 12, 14, 8]"
+generation_kwargs:
+  max_gen_toks: 30000
+  temperature: 0.0
+  do_sample: false
+  until: []

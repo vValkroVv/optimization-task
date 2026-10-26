@@ -1,0 +1,42 @@
+task: bigcodebench
+dataset_path: bigcode/bigcodebench
+test_split: v0.1.4
+output_type: generate_until
+unsafe_code: true
+
+doc_to_text: "{{complete_prompt}}"
+doc_to_target: !function utils.build_reference
+
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+
+generation_kwargs:
+  do_sample: false
+  max_gen_toks: 1280
+  until:
+    - "\nif __name__"
+    - "\ndef main("
+    - "\nprint("
+    - "\ndef "
+    - "\nclass "
+    - "\nimport "
+    - "\nfrom "
+    - "\nassert "
+    - "\n```"
+    - "<|end_of_file|>"
+    - "<|begin_of_file_name|>"
+    - "<｜end▁of▁file｜>"
+    - "<｜begin▁of▁file▁name｜>"
+
+filter_list:
+  - name: "extract_code"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.extract_code
+
+num_fewshot: 0
+
+metadata:
+  version: 0.1

@@ -1,0 +1,40 @@
+#############
+### Model ###
+#############
+model:
+  config_overrides:
+    # --- Normalization ---
+    norm_type: ZeroCenteredGatedNorm                                 # null → ZeroCenteredGatedNorm
+    layernorm_type: pre_post                                         # null → pre_post
+    rms_norm_eps: 1e-06                                              # 1e-20 → 1e-06
+
+    # --- FFN ---
+    renorm_router_weights: true                                      # null → true
+    use_shared_expert_sigmoid: false                                 # null → false
+    router_seq_aux: true                                             # null → true
+    router_legacy_weight_init: false                                 # null → false
+    moe_router_routed_scaling_factor: 2.5                            # 1 → 2.5
+
+    # --- Full Attention ---
+    gated_attention: true                                            # null → true
+    use_mla_scaling_factor: true                                     # null → true
+
+    # --- Linear Attention ---
+    linear_attention_type: Qwen3NextGatedDeltaNet                    # null → Qwen3NextGatedDeltaNet
+    full_attention_layers: ...                                       # null → список
+    linear_key_head_dim: 128                                         # null → 128
+    linear_value_head_dim: 128                                       # null → 128
+    linear_conv_kernel_dim: 4                                        # null → 4
+    linear_num_key_heads: ...                                        # null → 16
+    linear_num_value_heads: ...                                      # null → 32
+    linear_gating_type: gated_rmsnorm_sigmoid_zero_centered          # null → указанное значение
+    linear_attn_o_norm_eps: 1e-06                                    # null → 1e-06
+    linear_sigmoid_gate_scale: 2.0                                   # null → 2.0
+    linear_conv_init_std: 0.1                                        # null → 0.1
+
+    # --- MTP ---
+    mtp_loss_weight: 0.1                                             # 0.3 → 0.1
+    mtp_block_type: dense                                            # null → dense
+#############
+### Model ###
+#############

@@ -1,0 +1,72 @@
+# Add pathes to input and output directories
+input_checkpoint_path: ...
+output_checkpoint_path: ...
+
+## choose the mappers for your task
+## !!! The order of the mappers is important
+mappers:
+  # # gigafsdp model to hf safetensor (ONLY gigaseek now!)
+  #  - map_gigafsdp_to_hf_safetensor
+
+  # # gigafsdp model to fsdp safetensor (need check!)
+  #  - map_gigafsdp_to_fsdp_safetensor
+
+  # # gigafsdp model to hf (gigar / gigaseek)
+  # - map_gigafsdp_to_hf
+
+  # # fsdp model to hf (gigar / gigaseek)
+  - map_fsdp_to_hf
+
+  # # fsdp change tp_size (gigar / gigaseek)
+  # - map_tp_to_tp
+
+  # # gigafsdp change tp_size (gigar / gigaseek)
+  # - map_gigafsdp_to_fsdp
+  # - map_tp_to_tp
+
+  # # convert MoE expert weights (fsdp ckpt): g_gemm kernel -> sonic kernel
+  # - map_ggemm_to_sonic
+
+  # # convert MoE expert weights (fsdp ckpt): sonic kernel -> g_gemm kernel
+  # - map_sonic_to_ggemm
+
+  # # convert MoE expert weights (safetensors): g_gemm kernel -> sonic kernel
+  # - map_safetensor_ggemm_to_sonic
+
+  # # convert MoE expert weights (safetensors): sonic kernel -> g_gemm kernel
+  # - map_safetensor_sonic_to_ggemm
+
+  # # remove optimizer from fsdp ckpt
+  # - remove_fsdp_optimizer
+
+  # # remove optimizer from gigafsdp ckpt
+  # - remove_gigafsdp_optimizer
+
+  # # merge_and_upload LoRa like in PEFT
+  # - map_merge_lora
+
+  # # merge LoRa in base model and save to hf
+  # - map_fsdp_lora_to_hf
+
+# Model type of the output model. Works only for Dense models for now.
+# Can be `llama`, `qwen2` and `qwen3`. If `null`, derrives model type from checkpoint config.
+model_type: null
+
+## choose your tp options
+input_tp_size: 1
+output_tp_size: 1
+
+## for safetensors mappers
+# use EMA weights if your model/checkpoint was trained with EMA
+# make sure your checkpoint actually includes correct EMA parameters before enabling this (algo section)
+# use_ema: false
+# process this many layers per chunk to control peak memory / speed
+# chunk_layers: 2
+
+## additional params
+skip_optimizer: false
+print_final_model_structure: true
+tokenizer_path: ...
+torch_dtype: float32
+skip_ema_mapper: false
+prepare_ema_weight: false

@@ -1,0 +1,17 @@
+# Base GiftMoE debug model with the shared monitoring callback set.
+# The integration smoke for the callbacks package: hooks, capture, reduction,
+# emitter and logger on a real train step, which no unit test covers.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/gift_moe_debug_monitored.yaml
+config_version: 1
+
+imports:
+  - gift_moe_debug.yaml
+  - ../presets/callbacks/monitored.yaml
+
+metrics:
+  log_freq: 1
+  enable_tensorboard: true
+
+model:
+  config: {}

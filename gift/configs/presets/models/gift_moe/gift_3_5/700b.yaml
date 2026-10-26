@@ -1,0 +1,73 @@
+# Model preset: gift_moe "gift_3_5/700b".
+# (period 4, 16 full-attention layers), GDN elsewhere.
+imports:
+  - ../../../init/gift_hybrid.yaml
+
+model:
+  label: gift_3_5/700b
+  config:
+    type: gift_3_5
+    dim: 7168
+    vocab_size: 128256
+    norm: &norm {type: gated_rmsnorm, eps: 1.0e-06, zero_centered: true}
+    rope: {type: complex, dim: 64, max_seq_len: 4096, theta: 100000.0}
+    blocks:
+      gdn_dense:
+        attention: &gdn
+          type: gdn
+          num_k_heads: 32
+          num_v_heads: 64
+          head_k_dim: 128
+          head_v_dim: 128
+          conv_size: 4
+          o_norm: {activation: sigmoid, eps: 1.0e-06, zero_centered: true}
+          o_norm_output_multiplier: 2.0
+        feed_forward: &feed_forward {hidden_dim: 18432}
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm
+        post_ffn_norm: *norm
+      mla_moe:
+        attention: &mla
+          type: mla
+          n_heads: 64
+          gate: {}
+          kv_norm: *norm
+          q_norm: *norm
+          q_lora_rank: 1536
+          use_mla_scaling_factor: true
+          kv_lora_rank: 512
+          qk_nope_head_dim: 128
+          qk_rope_head_dim: 64
+          v_head_dim: 128
+        moe: &moe
+          experts:
+            hidden_dim: 2048
+            num_experts: 256
+            token_dispatcher: {type: local}
+          router: {top_k: 8, route_norm: true, route_scale: 2.5, score_func: sigmoid}
+          shared_experts: {hidden_dim: 2048}
+          router_aux_loss_coef: 0.0001
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm
+        post_ffn_norm: *norm
+      gdn_moe:
+        attention: *gdn
+        moe: *moe
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm
+        post_ffn_norm: *norm
+      mtp:
+        attention: *mla
+        feed_forward: *feed_forward
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm
+        post_ffn_norm: *norm
+    layers:
+    - {block: gdn_dense, repeat: 3}
+    - {block: mla_moe}
+    - cycle: [gdn_moe, gdn_moe, gdn_moe, mla_moe]
+      repeat: 15

@@ -1,0 +1,20 @@
+task: coat
+
+dataset_path: RussianNLP/coat
+dataset_name: binary
+test_split: validation
+fewshot_split: train
+num_fewshot: 5
+output_type: multiple_choice
+
+doc_to_text: 'Написан ли текст ИИ? Ответь "Нет", если текст написан человеком и "Да", если искуственным интеллектом.\n{{text}}\nОтвет:'
+doc_to_choice: ['Нет','Да']
+doc_to_target: label
+
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+
+metadata:
+  version: 1.0

@@ -1,0 +1,97 @@
+tag:
+  - finance_en_bench
+
+task: finance_en_cfa_level_1
+
+dataset_path: ai-sage/finance-en-bench
+dataset_kwargs:
+  data_files:
+    test: finance_cfa_level_1_questions.jsonl
+
+test_split: test
+output_type: generate_until
+
+doc_to_text: |
+  Question:
+  {{question}}
+
+  Answer:
+
+doc_to_target: "{{golden_answer}}"
+
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+    ignore_case: true
+    ignore_punctuation: true
+
+generation_kwargs:
+  until:
+    - "</s>"
+    - "<|im_end|>"
+    - "<|eot_id|>"
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 8
+
+repeats: 1
+num_fewshot: 4
+fewshot_config:
+  sampler: first_n
+  samples:
+    - question: |
+        Please answer the following financial question from the CFA Level I exam using the provided context. There is only one correct answer to the question.
+        In your final response, indicate only the answer choice (for example, A).
+        Context:Standard IV of the Standards of Professional Conduct deals with Relationships with and Responsibilities to ________.
+        A. None of these answers
+        B. Clients and Prospects
+        C. AIMR
+        D. Supervisors
+        E. the Employer
+      golden_answer: "B"
+    - question: |
+        Please answer the following financial question from the CFA Level I exam using the provided context. There is only one correct answer to the question.
+        In your final response, indicate only the answer choice (for example, A).
+        Context:Bronson provides investment advice to the board of trustees of a private university endowment fund. The trustees have provided Bronson with the fund's financial information, including planned expenditures. Bronson receives a phone call on Friday afternoon from Murdock, a prominent alumnus, requesting that Bronson fax him comprehensive financial information about the fund. According to Murdock, he has a potential contributor but needs the information that day to close the deal and cannot contact any of the trustees. Based on AIMR Standards, Bronson should:
+        A. send Murdock the information because it is not material nonpublic information.
+        B. not send Murdock the information to preserve confidentiality.
+        C. send Murdock the information, provided Bronson promptly notifies the trustees.
+        D. send Murdock the information because disclosure would benefit the client.
+      golden_answer: "B"
+    - question: |
+        Please answer the following financial question from the CFA Level I exam using the provided context. There is only one correct answer to the question.
+        In your final response, indicate only the answer choice (for example, A).
+        Context:Standard III (E) is known as ________.
+        A. Prohibition against Use of Material Nonpublic Information
+        B. Preservation of Confidentiality
+        C. Fair Dealing
+        D. Professional Misconduct
+        E. Interactions with Clients and Prospects
+        F. Investment Process
+        G. Duty to Employer
+        H. None of these answers
+      golden_answer: "H"
+    - question: |
+        Please answer the following financial question from the CFA Level I exam using the provided context. There is only one correct answer to the question.
+        In your final response, indicate only the answer choice (for example, A).
+        Context:Standard IV (B.6) deals with ________.
+        A. Preservation of Confidentiality
+        B. Prohibition against Use of Material Nonpublic Information
+        C. None of these answers
+        D. Disclosure of Referral Fees
+        E. Priority of Transactions
+        F. Disclosure of Conflicts to Clients and Prospects
+        G. Prohibition against Misrepresentation
+        H. Performance Presentation
+      golden_answer: "G"
+
+filter_list:
+  - name: extract_choice
+    filter:
+      - function: regex
+        regex_pattern: '(?is)\b([A-Z])\b'
+      - function: take_first
+
+metadata:
+  version: 1.0

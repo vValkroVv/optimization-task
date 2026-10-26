@@ -1,0 +1,1232 @@
+{
+  "uid": "ms-experts",
+  "title": "metric-sampler / Experts",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "",
+  "description": "The heatmap uses the training step as seconds since 1970-01-01 UTC because the heatmap panel needs a time axis; read 00:05:00 as step 300.",
+  "time": {
+    "from": "1970-01-01T00:00:00.000Z",
+    "to": "1970-01-01T00:20:00.000Z"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "exp",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT exp FROM metric_sampler.batches GROUP BY exp ORDER BY exp = (SELECT exp FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT run FROM metric_sampler.batches WHERE exp = '${exp}' GROUP BY run ORDER BY run = (SELECT run FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' AND exp = '${exp}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "capture_interval",
+        "label": "capture_interval",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT greatest(max(capture_interval), 1) FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}'"
+      },
+      {
+        "name": "layer",
+        "label": "Layer",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT DISTINCT layer FROM metric_sampler.expert_counts WHERE exp = '${exp}' AND run = '${run}' AND layer <= 255 AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name IN ('router/tokens_per_expert', 'router/local_tokens_before_bias_update')) AND step >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') - 200 ORDER BY layer",
+        "refresh": 1
+      },
+      {
+        "name": "all_layers",
+        "label": "Layers (every-layer section)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT DISTINCT layer FROM metric_sampler.expert_counts WHERE exp = '${exp}' AND run = '${run}' AND layer <= 255 AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name IN ('router/tokens_per_expert', 'router/local_tokens_before_bias_update')) AND step >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') - 200 ORDER BY layer",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "rank",
+        "label": "Rank",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT '-2' AS __value, 'All (aggregate)' AS __text UNION ALL SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT rank AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "refresh": 1,
+        "current": {
+          "text": "All (aggregate)",
+          "value": "-2"
+        }
+      },
+      {
+        "name": "microbatch",
+        "label": "Microbatch",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT '-2' AS __value, 'All (aggregate)' AS __text UNION ALL SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT microbatch AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "refresh": 1,
+        "current": {
+          "text": "All (aggregate)",
+          "value": "-2"
+        }
+      },
+      {
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "name": "stream_id",
+        "label": "Data stream",
+        "query": "SELECT toString(stream_id) AS __value, name AS __text FROM metric_sampler.stream_names WHERE exp = '${exp}' AND run = '${run}' ORDER BY stream_id",
+        "current": {
+          "text": "0",
+          "value": "0"
+        }
+      },
+      {
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "name": "expert_id",
+        "label": "Expert",
+        "query": "SELECT toString(expert) AS __value, concat('Expert ', toString(expert - 1)) AS __text FROM metric_sampler.router_stream_load_range(exp_filter = '${exp}', run_filter = '${run}', step_from = if((SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') > 200, (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') - 200, toUInt32(0)), step_to = (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}'), rank_filter = -2, microbatch_filter = -2) WHERE layer = toInt32OrNull(${layer:sqlstring}) GROUP BY expert ORDER BY expert",
+        "current": {
+          "text": "Expert 0",
+          "value": "1"
+        }
+      },
+      {
+        "name": "src",
+        "label": "Source",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT multiIf(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2, if((SELECT count() = 2 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('layer_load', 'expert_totals') GROUP BY summary)), 'all', 'mb'), ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('router_rank') GROUP BY summary)), 'rank', ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND (SELECT count() = 2 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('layer_load_mb', 'expert_totals_mb') GROUP BY summary)), 'mbsum', 'mb') AS src"
+      },
+      {
+        "name": "llsrc",
+        "label": "llsrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('layer_load_rank') GROUP BY summary)), 'ranksum', '${src}') AS llsrc"
+      },
+      {
+        "name": "rbsrc",
+        "label": "rbsrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT multiIf(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('router_balance') GROUP BY summary)), 'all', ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('router_balance_rank') GROUP BY summary)), 'ranksum', ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('router_balance_mb') GROUP BY summary)), 'mbsum', ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('router_balance_rank_mb') GROUP BY summary)), 'rankmbsum', 'live') AS rbsrc"
+      },
+      {
+        "name": "copy",
+        "label": "Copy",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT multiIf(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2, if((SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('capacity') GROUP BY summary)), 'all', 'live'), ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('capacity_rank') GROUP BY summary)), 'ranksum', ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('capacity_mb') GROUP BY summary)), 'mbsum', ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('capacity_rank_mb') GROUP BY summary)), 'rankmbsum', 'live') AS copy"
+      },
+      {
+        "name": "step_from",
+        "label": "step_from",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 0, toUInt64(${__from}))"
+      },
+      {
+        "name": "step_to",
+        "label": "step_to",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 4294967295, toUInt64(${__to}))"
+      },
+      {
+        "name": "load_view",
+        "label": "Load colour",
+        "type": "custom",
+        "query": "tokens / step mean : ratio, log2(tokens / step mean) : log2, % from the step mean : pct, z-score within the step : z",
+        "current": {
+          "text": "tokens / step mean",
+          "value": "ratio"
+        }
+      },
+      {
+        "name": "load_clip",
+        "label": "Load colour clip (0 = auto range)",
+        "type": "custom",
+        "query": "auto : 0, 1.25 : 1.25, 1.5 : 1.5, 2 : 2, 3 : 3, 5 : 5",
+        "current": {
+          "text": "auto",
+          "value": "0"
+        }
+      },
+      {
+        "name": "remember",
+        "label": "Remembered selection",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '' AS remembered SETTINGS log_comment = 'ms-selection ${__user.login} ${exp} ${run}', use_query_cache = 0"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "trend",
+      "title": "Max expert load per layer (max tokens / mean tokens, selected rank/microbatch sums)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.max_load AS max_load FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, max_load FROM metric_sampler.layer_load_${llsrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY layer, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, layer_name, max_load, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, layer_name, point.2 AS max_load, first_step, last_step FROM (SELECT layer_name, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, max_load), min(max_load)), (argMax(step, max_load), max(max_load))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY layer_name, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, layer_name, max_load FROM marked UNION ALL SELECT last_step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS max_load FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw dispatcher/router observations; rank=${rank}, microbatch=${microbatch}. All sums observations; -1 denotes a legacy aggregate. Selected microbatches are unavailable in legacy runs. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 2,
+      "type": "trend",
+      "title": "Dead experts per layer (zero tokens in the step)",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.dead_experts AS dead_experts FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, dead_experts FROM metric_sampler.layer_load_${llsrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY layer, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, layer_name, dead_experts, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, layer_name, point.2 AS dead_experts, first_step, last_step FROM (SELECT layer_name, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, dead_experts), min(dead_experts)), (argMax(step, dead_experts), max(dead_experts))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY layer_name, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, layer_name, dead_experts FROM marked UNION ALL SELECT last_step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS dead_experts FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw dispatcher/router observations; rank=${rank}, microbatch=${microbatch}. All sums observations; -1 denotes a legacy aggregate. Selected microbatches are unavailable in legacy runs. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 3,
+      "type": "heatmap",
+      "title": "Expert load over steps, layer ${layer} (x: step; y: expert; colour: tokens / mean tokens of the step)",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 14
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH cells AS (SELECT step, expert, multiIf('${load_view}' = 'log2', log2(greatest(r, 0.000001)), '${load_view}' = 'pct', (r - 1) * 100, '${load_view}' = 'z', z, r) AS v, if('${load_view}' = 'z', abs(ifNull(z, 0)), abs(log2(greatest(r, 0.000001)))) AS dev, multiIf('${load_view}' = 'log2', -log2(${load_clip}), '${load_view}' = 'pct', (1 / ${load_clip} - 1) * 100, '${load_view}' = 'z', -${load_clip}, 1 / ${load_clip}) AS lo, multiIf('${load_view}' = 'log2', log2(${load_clip}), '${load_view}' = 'pct', (${load_clip} - 1) * 100, '${load_view}' = 'z', ${load_clip}, ${load_clip}) AS hi FROM (SELECT step, concat('e', leftPad(toString(expert_index - 1), 3, '0')) AS expert, total_tokens / avg(total_tokens) OVER (PARTITION BY step) AS r, (total_tokens - avg(total_tokens) OVER (PARTITION BY step)) / nullIf(stddevPop(total_tokens) OVER (PARTITION BY step), 0) AS z FROM metric_sampler.expert_totals_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${layer:sqlstring}) AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0))), (SELECT (count(), min(step)) FROM cells) AS meta, toUInt32(ceil(meta.1 / 900000)) AS width SELECT step, expert, if(${load_clip} = 0, v, least(hi, greatest(lo, v))) AS load FROM (SELECT step, expert, v, lo, hi FROM cells WHERE meta.1 <= 900000 UNION ALL SELECT meta.2 + intDiv(step - meta.2, width) * width AS bucket, expert, argMax(v, dev) AS v, any(lo) AS lo, any(hi) AS hi FROM cells WHERE meta.1 > 900000 GROUP BY bucket, expert) ORDER BY step, expert SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "expert",
+            "valueField": "load",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\expert",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Raw dispatcher/router observations; rank=${rank}, microbatch=${microbatch}. All sums observations; -1 denotes a legacy aggregate. Selected microbatches are unavailable in legacy runs. Colour: pick the quantity with 'Load colour' and bound it with 'Load colour clip'; drag over steps to zoom (all charts follow), pick a wall-clock time range such as 'Last 7 days' to see every step again. Past 900k cells the steps are grouped into the fewest equal buckets that fit, each showing its most extreme cell, like the bucketed map."
+    },
+    {
+      "id": 4,
+      "type": "trend",
+      "title": "Capacity drops — selected layer ${layer}",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.dropped_share AS dropped_share FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, dropped_share FROM metric_sampler.capacity_selected_${copy}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND dropped_share IS NOT NULL ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, dropped_share FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS dropped_share FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "unit": "percentunit",
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "No capacity data: this run did not record dispatcher/assignments_before_capacity and dispatcher/assignments_after_capacity, so drops cannot be computed"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "step"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "displayName",
+                "value": "step"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "description": "1 - valid assignments after capacity / valid assignments before capacity, using the same input mask for each rank and microbatch. Legacy counters were recorded before capacity and cannot reconstruct this metric: legacy runs show no value. An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw dispatcher/router observations; rank=${rank}, microbatch=${microbatch}. All sums observations; -1 denotes a legacy aggregate. Selected microbatches are unavailable in legacy runs. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 5,
+      "type": "trend",
+      "title": "Masked input assignments before capacity — selected layer ${layer}",
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.padding_share AS padding_share FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, padding_share FROM metric_sampler.capacity_selected_${copy}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY layer, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, layer_name, padding_share FROM marked UNION ALL SELECT step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS padding_share FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "unit": "percentunit",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "step"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "displayName",
+                "value": "step"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "description": "1 - valid assignments before capacity / all assignments before capacity. New runs exclude both padding and prefix-masked tokens; legacy counters exclude padding only. This is neither capacity padding nor dropped-token share.  observations; rank=${rank}, microbatch=${microbatch}. All sums observations; -1 denotes a legacy aggregate. Selected microbatches are unavailable in legacy runs. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 8,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "MaxVio (batch, router tokens incl. padding): mean and maximum over layers",
+      "description": "MaxVio of a layer = (max expert tokens - mean expert tokens) / mean expert tokens of the step, from the router token counts summed over the selected ranks and microbatches (the old monitors' experts_max_vio_batch_* with max(mean, 1) in the denominator; equal while an expert gets at least one token on average). Lines: the mean over layers (_avg) and the worst layer (_layermax).",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, avg(max_load - 1) AS maxvio_layer_mean, max(max_load - 1) AS maxvio_layer_max FROM metric_sampler.layer_load_${llsrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) GROUP BY step ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, maxvio_layer_mean, maxvio_layer_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS maxvio_layer_mean, CAST(NULL AS Nullable(Float64)) AS maxvio_layer_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Router top-k score per token, layer ${layer}: normalized, raw and biased",
+      "description": "Sums of the selected experts' scores per valid token (normalized sums to 1 when the router renormalizes top-k), from monitor/router_balance_local over the selected ranks and microbatches.",
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, top_k_normalized, top_k_raw, top_k_biased FROM metric_sampler.router_balance_${rbsrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${layer:sqlstring}) AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, top_k_normalized, top_k_raw, top_k_biased FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS top_k_normalized, CAST(NULL AS Nullable(Float64)) AS top_k_raw, CAST(NULL AS Nullable(Float64)) AS top_k_biased FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Router z-loss, sequence aux loss and alpha per forward call, layer ${layer}",
+      "description": "Accumulated per forward call by the router (monitor/router_balance_local), averaged over the selected ranks, microbatches and calls.",
+      "gridPos": {
+        "x": 12,
+        "y": 41,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, z_loss, seq_aux_loss, alpha FROM metric_sampler.router_balance_${rbsrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${layer:sqlstring}) AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, z_loss, seq_aux_loss, alpha FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS z_loss, CAST(NULL AS Nullable(Float64)) AS seq_aux_loss, CAST(NULL AS Nullable(Float64)) AS alpha FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Router biased-score entropy per token, every layer (as the ordinary monitor computes it)",
+      "description": "Sum over tokens of the ordinary monitor's biased-score entropy divided by all tokens (monitor/router_balance_local). The monitor applies it to the biased, unnormalized scores, so values are not bounded by log(experts) and can be negative. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible.",
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.layer_name, ''), 'No data') AS layer_name, measured.entropy AS entropy FROM (WITH observed AS (SELECT step, concat('layer ', toString(layer)) AS layer_name, entropy FROM metric_sampler.router_balance_${rbsrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY layer, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, layer_name, entropy, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, layer_name, point.2 AS entropy, first_step, last_step FROM (SELECT layer_name, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, entropy), min(entropy)), (argMax(step, entropy), max(entropy))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY layer_name, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY layer_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, layer_name, entropy FROM marked UNION ALL SELECT last_step + 1 AS step, layer_name, CAST(NULL AS Nullable(Float64)) AS entropy FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.layer_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Expert load, every layer one under another",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 7,
+          "type": "heatmap",
+          "title": "Expert load, layer ${all_layers} (x: step; y: expert; at most 600 step buckets, each the most extreme cell)",
+          "gridPos": {
+            "x": 0,
+            "y": 60,
+            "w": 24,
+            "h": 8
+          },
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "options": {
+            "calculate": false,
+            "cellGap": 0,
+            "color": {
+              "mode": "scheme",
+              "scheme": "Turbo",
+              "steps": 64,
+              "exponent": 0.5,
+              "fill": "dark-orange",
+              "reverse": false
+            },
+            "rowsFrame": {
+              "layout": "auto"
+            },
+            "yAxis": {
+              "axisPlacement": "left",
+              "reverse": false
+            },
+            "tooltip": {
+              "mode": "single",
+              "yHistogram": false
+            },
+            "legend": {
+              "show": true
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "metric-sampler-ch"
+              },
+              "editorType": "sql",
+              "queryType": "table",
+              "format": 1,
+              "rawSql": "SELECT step, expert, if(${load_clip} = 0, v, least(hi, greatest(lo, v))) AS load FROM (SELECT bucket AS step, expert, argMax(v, dev) AS v, any(lo) AS lo, any(hi) AS hi FROM (SELECT s0 + intDiv(step - s0, width) * width AS bucket, expert, multiIf('${load_view}' = 'log2', log2(greatest(r, 0.000001)), '${load_view}' = 'pct', (r - 1) * 100, '${load_view}' = 'z', z, r) AS v, if('${load_view}' = 'z', abs(ifNull(z, 0)), abs(log2(greatest(r, 0.000001)))) AS dev, multiIf('${load_view}' = 'log2', -log2(${load_clip}), '${load_view}' = 'pct', (1 / ${load_clip} - 1) * 100, '${load_view}' = 'z', -${load_clip}, 1 / ${load_clip}) AS lo, multiIf('${load_view}' = 'log2', log2(${load_clip}), '${load_view}' = 'pct', (${load_clip} - 1) * 100, '${load_view}' = 'z', ${load_clip}, ${load_clip}) AS hi FROM (SELECT step, expert, r, z, min(step) OVER () AS s0, greatest(1, intDiv(max(step) OVER () - min(step) OVER (), 600) + 1) AS width FROM (SELECT step, concat('e', leftPad(toString(expert_index - 1), 3, '0')) AS expert, total_tokens / avg(total_tokens) OVER (PARTITION BY step) AS r, (total_tokens - avg(total_tokens) OVER (PARTITION BY step)) / nullIf(stddevPop(total_tokens) OVER (PARTITION BY step), 0) AS z FROM metric_sampler.expert_totals_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${all_layers:sqlstring}) AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)))) GROUP BY bucket, expert) ORDER BY step, expert SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "groupingToMatrix",
+              "options": {
+                "rowField": "step",
+                "columnField": "expert",
+                "valueField": "load",
+                "emptyValue": "null"
+              }
+            },
+            {
+              "id": "convertFieldType",
+              "options": {
+                "fields": {},
+                "conversions": [
+                  {
+                    "targetField": "step\\expert",
+                    "destinationType": "number"
+                  }
+                ]
+              }
+            }
+          ],
+          "description": "Every layer one under another to scan for anomalies. Long ranges are cut into at most 600 step buckets and each cell keeps the value furthest from the step mean (largest |log2 ratio|, or |z| for the z view), so single-step spikes stay visible; drag over steps to zoom in to full resolution. Raw dispatcher/router observations; rank=${rank}, microbatch=${microbatch}. All sums observations; -1 denotes a legacy aggregate. Selected microbatches are unavailable in legacy runs. Colour: pick the quantity with 'Load colour' and bound it with 'Load colour clip'; drag over steps to zoom (all charts follow), pick a wall-clock time range such as 'Last 7 days' to see every step again.",
+          "repeat": "all_layers",
+          "repeatDirection": "v"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Router expert share within stream ${stream_id}",
+      "description": "tokens / all expert assignments from this stream, per step, layer, rank and microbatch. Empty measurements are absent; selected rank=${rank}, microbatch=${microbatch}.",
+      "gridPos": {
+        "x": 0,
+        "y": 69,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.series, ''), 'No data') AS series, measured.value AS value FROM (WITH base AS (SELECT exp, run, step, layer, expert, stream_id, stream_name, sum(tokens) AS tokens FROM metric_sampler.router_stream_load_range(exp_filter = '${exp}', run_filter = '${run}', step_from = ifNull(toUInt32OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt32OrNull(${step_to:sqlstring}), 0), rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${layer:sqlstring}) AND stream_id = ifNull(toInt32OrNull(${stream_id:sqlstring}), -3) GROUP BY exp, run, step, layer, expert, stream_id, stream_name), totals AS (SELECT *, sum(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_tokens, sum(tokens) OVER (PARTITION BY exp, run, step, layer, expert) AS expert_tokens, sum(tokens) OVER (PARTITION BY exp, run, step, layer) AS layer_tokens, avg(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_mean_tokens, max(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_max_tokens FROM base), observed AS (SELECT step, concat('Expert ', toString(expert - 1)) AS series, tokens / nullIf(stream_tokens, 0) AS value FROM totals ORDER BY series, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY series ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, series, value FROM marked UNION ALL SELECT step + 1 AS step, series, CAST(NULL AS Nullable(Float64)) AS value FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "series"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Router stream mix within ${expert_id:text}",
+      "description": "tokens from this stream / all stream assignments to this expert, per step, layer, rank and microbatch. Empty measurements are absent; selected rank=${rank}, microbatch=${microbatch}.",
+      "gridPos": {
+        "x": 12,
+        "y": 69,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.series, ''), 'No data') AS series, measured.value AS value FROM (WITH base AS (SELECT exp, run, step, layer, expert, stream_id, stream_name, sum(tokens) AS tokens FROM metric_sampler.router_stream_load_range(exp_filter = '${exp}', run_filter = '${run}', step_from = ifNull(toUInt32OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt32OrNull(${step_to:sqlstring}), 0), rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${layer:sqlstring}) AND expert = ifNull(toInt32OrNull(${expert_id:sqlstring}), -3) GROUP BY exp, run, step, layer, expert, stream_id, stream_name), totals AS (SELECT *, sum(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_tokens, sum(tokens) OVER (PARTITION BY exp, run, step, layer, expert) AS expert_tokens, sum(tokens) OVER (PARTITION BY exp, run, step, layer) AS layer_tokens, avg(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_mean_tokens, max(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_max_tokens FROM base), observed AS (SELECT step, concat(toString(stream_id), ': ', stream_name) AS series, tokens / nullIf(expert_tokens, 0) AS value FROM totals ORDER BY series, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY series ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, series, value FROM marked UNION ALL SELECT step + 1 AS step, series, CAST(NULL AS Nullable(Float64)) AS value FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "series"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Router MaxVio by stream",
+      "description": "(largest expert count - mean expert count) / mean expert count, computed across all experts within each stream at each step, layer, rank and microbatch. Undefined when a stream has no assignments. Empty measurements are absent; selected rank=${rank}, microbatch=${microbatch}.",
+      "gridPos": {
+        "x": 0,
+        "y": 78,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.series, ''), 'No data') AS series, measured.value AS value FROM (WITH base AS (SELECT exp, run, step, layer, expert, stream_id, stream_name, sum(tokens) AS tokens FROM metric_sampler.router_stream_load_range(exp_filter = '${exp}', run_filter = '${run}', step_from = ifNull(toUInt32OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt32OrNull(${step_to:sqlstring}), 0), rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${layer:sqlstring}) GROUP BY exp, run, step, layer, expert, stream_id, stream_name), totals AS (SELECT *, sum(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_tokens, sum(tokens) OVER (PARTITION BY exp, run, step, layer, expert) AS expert_tokens, sum(tokens) OVER (PARTITION BY exp, run, step, layer) AS layer_tokens, avg(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_mean_tokens, max(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_max_tokens FROM base), observed AS (SELECT DISTINCT step, concat(toString(stream_id), ': ', stream_name) AS series, (stream_max_tokens - stream_mean_tokens) / nullIf(stream_mean_tokens, 0) AS value FROM totals ORDER BY series, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY series ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, series, value FROM marked UNION ALL SELECT step + 1 AS step, series, CAST(NULL AS Nullable(Float64)) AS value FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "series"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Router assignments by stream",
+      "description": "Actual top-k assignments from each stream summed over experts, per step, layer, rank and microbatch. This is stream volume, not capacity-padded dispatch volume. Empty measurements are absent; selected rank=${rank}, microbatch=${microbatch}.",
+      "gridPos": {
+        "x": 12,
+        "y": 78,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.series, ''), 'No data') AS series, measured.value AS value FROM (WITH base AS (SELECT exp, run, step, layer, expert, stream_id, stream_name, sum(tokens) AS tokens FROM metric_sampler.router_stream_load_range(exp_filter = '${exp}', run_filter = '${run}', step_from = ifNull(toUInt32OrNull(${step_from:sqlstring}), 4294967295), step_to = ifNull(toUInt32OrNull(${step_to:sqlstring}), 0), rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND layer = toInt32OrNull(${layer:sqlstring}) GROUP BY exp, run, step, layer, expert, stream_id, stream_name), totals AS (SELECT *, sum(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_tokens, sum(tokens) OVER (PARTITION BY exp, run, step, layer, expert) AS expert_tokens, sum(tokens) OVER (PARTITION BY exp, run, step, layer) AS layer_tokens, avg(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_mean_tokens, max(tokens) OVER (PARTITION BY exp, run, step, layer, stream_id) AS stream_max_tokens FROM base), observed AS (SELECT DISTINCT step, concat(toString(stream_id), ': ', stream_name) AS series, stream_tokens AS value FROM totals ORDER BY series, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY series ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, series, value FROM marked UNION ALL SELECT step + 1 AS step, series, CAST(NULL AS Nullable(Float64)) AS value FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "series"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+---
+run_name: <run_name>
+exp_name: <exp_name>
+user: <user>
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 65536
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    allow-auto-truncate: true
+    tp: 1
+    dp: 8
+
+  model_info:
+    model_class: "sft"
+    size: "lite"
+    username: ${user}
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    chat-template-kwargs:
+      reasoning: true
+      use_devsystem: false
+      use_suggester: false
+    reasoning-token-budget: 32768
+    chat-template: <path to jinja template>
+
+  evaluators:
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          log_samples: true
+
+    terminal_bench:
+      agent: mini-swe-agent
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 89
+
+    harbor_rli:
+      runs:
+        - benchmark: terminal-bench-2.1
+          agent: mini-swe-agent
+          pass-at-k: 1
+          max-tokens: 16384
+          agent-timeout: 25200
+          n-concurrent: 89
+        - benchmark: swe-bench-multilingual
+          agent: mini-swe-agent
+          pass-at-k: 1
+          max-tokens: 16384
+          agent-timeout: 25200
+          n-concurrent: 64
+
+    pier_rli:
+      benchmark: deepswe
+      pass-at-k: 1
+      command-timeout: 30
+      agent: mini-swe-agent
+      max-tokens: 16384
+      agent-timeout: 36000
+      n-concurrent: 64
+
+    swe_bench:
+      agent: mini-swe-agent
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 64
+
+    nl2repo:
+      agent: openhands-sdk
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 32

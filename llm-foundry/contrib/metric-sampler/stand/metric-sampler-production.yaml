@@ -1,0 +1,61 @@
+# Merge these sections into the model's training config; this is not a model config.
+# Start with BF16, ZeRO-1, TP=1, SP=1, drop_last=true and a fixed integer microbatch size.
+# Every rank and microbatch is recorded on every step: activation statistics and exact quantiles,
+# routing and expert load, and the values the monitors below see before their cross-rank
+# reductions. Those monitors must be listed before metric_sampler, which closes each step.
+callbacks:
+  speed_monitor:
+    window_size: 10
+  lr_monitor: {}
+  memory_monitor: {}
+  stage_time_profiler: {}
+  training_metrics_monitor:
+    batch_log_interval: 480
+  optimizer_monitor:
+    batch_log_interval: 480
+  optimizer_health_monitor:
+    batch_log_interval: 480
+  update_weight_ratio_monitor:
+    batch_log_interval: 480
+    log_level: fqn
+  router_margin_monitor:
+    batch_log_interval: 120
+    near_m: 4
+    ema_decay: 0.9
+  topk_accuracy_monitor:
+    k_values: [1, 5, 20]
+    batch_log_interval: 120
+  weight_monitor:
+    interval: 960ba
+    only_log_wandb: false
+    tp_size: ${tp_size}
+    stat_list: [amax, l2norm]
+  # Existing reduced logger statistics; their rank-local values are recorded every step.
+  activation_monitor:
+    interval: 480ba
+    only_log_wandb: false
+    keep_only_module_types: [proj, conv, lm_head, embed_tokens, gate]
+    ignore_module_types: [_tp_linear_submodule]
+    log_module_output: false
+    log_gradients: true
+    log_grad_input: false
+    stat_list: [amax, l2norm]
+  metric_sampler:
+    output_dir: <shared_storage>/<user>/metric-sampler/node/${exp_name}/${run_name}
+    window_steps: 10
+    # Heavy expert-loss histograms, expert-by-stream matrices and sample diagnostics only.
+    distribution_interval: 100
+    rank_local_monitors: true
+    exact_quantiles: true
+
+timers:
+  interval: 50
+  timers_threshold: 2
+
+loggers:
+  tensorboard:
+    log_dir: <shared_storage>/${user}/metric-sampler/tensorboard/${exp_name}/${run_name}
+    rank_zero_only: true
+  metric_sampler:
+    output_dir: <shared_storage>/<user>/metric-sampler/node/${exp_name}/${run_name}
+    window_steps: 10

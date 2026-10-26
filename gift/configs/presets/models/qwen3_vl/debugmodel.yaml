@@ -1,0 +1,40 @@
+# Model preset: qwen3_vl "debugmodel".
+# The three patch knobs under vision: must match the hf_multimodal dataloader's.
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: debugmodel
+  config:
+    type: qwen3_vl
+    dim: 256
+    vocab_size: 151936
+    norm: &norm {type: rmsnorm, eps: 1.0e-06}
+    rope: {type: cos_sin, dim: 64, max_seq_len: 4096, theta: 1000000.0}
+    vision_encoder:
+      dim: 256
+      n_heads: 4
+      spatial_merge_size: 2
+      num_position_embeddings: 1024
+      out_hidden_size: 256
+      deepstack_visual_indices: [1, 2, 3]
+      patch_embed: {patch_size: 16, temporal_patch_size: 2}
+      blocks:
+        vit:
+          mlp: {hidden_dim: 512}
+      layers:
+      - {block: vit, repeat: 4}
+    mrope_section: [8, 8, 8]
+    blocks:
+      dense:
+        attention:
+          type: gqa
+          n_heads: 4
+          qk_norm: *norm
+          n_kv_heads: 2
+          head_dim: 64
+        feed_forward: {hidden_dim: 512}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: dense, repeat: 4}

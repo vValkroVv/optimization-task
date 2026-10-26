@@ -1,0 +1,21 @@
+# gift_moe_3b_hybridep_fp8_compile at EP4 x TP2, sparse fp8 only. Dense fp8 and
+# tensor parallelism are mutually exclusive (apply_float8 rejects the pair), so
+# the dense linears leave fp8 and the grouped experts, the part TP has to
+# coexist with, stay.
+#
+#   torchrun --nproc_per_node=8 -m torchtitan.train configs/experiments/gift_moe_3b_hybridep_fp8_compile_tp.yaml
+config_version: 1
+
+imports:
+  - gift_moe_3b_hybridep_fp8_compile.yaml
+
+fp8:
+  dense_include_linear_layers: null
+  dense_use_shared_quantizer: null
+
+parallelism:
+  expert_parallel_degree: 4
+  tensor_parallel_degree: 2
+
+model:
+  config: {}

@@ -1,0 +1,388 @@
+{
+  "uid": "ms-run-overview",
+  "title": "metric-sampler / Run overview",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "exp",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT exp FROM metric_sampler.batches GROUP BY exp ORDER BY exp = (SELECT exp FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT run FROM metric_sampler.batches WHERE exp = '${exp}' GROUP BY run ORDER BY run = (SELECT run FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' AND exp = '${exp}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "capture_interval",
+        "label": "capture_interval",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT greatest(max(capture_interval), 1) FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}'"
+      },
+      {
+        "name": "summ",
+        "label": "Summaries",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() = 4 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('grad_per_rank', 'timing_per_rank', 'loss_position', 'sample_loss_quantiles') GROUP BY summary)), '_fast', '_live') AS summ"
+      },
+      {
+        "name": "lcsrc",
+        "label": "lcsrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('loss_components') GROUP BY summary)), 'sum', 'live') AS lcsrc"
+      },
+      {
+        "name": "lssrc",
+        "label": "lssrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('loss_step') GROUP BY summary)), 'sum', 'live') AS lssrc"
+      },
+      {
+        "name": "stsrc",
+        "label": "stsrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('step_time') GROUP BY summary)), 'sum', 'live') AS stsrc"
+      },
+      {
+        "name": "step",
+        "label": "Step (0 = latest)",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "value": "0"
+        }
+      },
+      {
+        "name": "detail_rank",
+        "label": "Rank (step details)",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "value": "0"
+        }
+      },
+      {
+        "name": "step_from",
+        "label": "step_from",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 0, toUInt64(${__from}))"
+      },
+      {
+        "name": "step_to",
+        "label": "step_to",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 4294967295, toUInt64(${__to}))"
+      },
+      {
+        "name": "remember",
+        "label": "Remembered selection",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '' AS remembered SETTINGS log_comment = 'ms-selection ${__user.login} ${exp} ${run}', use_query_cache = 0"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "trend",
+      "title": "Loss per step (mean, min and max over ranks and microbatches)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, loss_mean, loss_min, loss_max FROM metric_sampler.loss_per_step_${lssrc}(exp_filter = '${exp}', run_filter = '${run}') ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, loss_mean, loss_min, loss_max FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS loss_mean, CAST(NULL AS Nullable(Float64)) AS loss_min, CAST(NULL AS Nullable(Float64)) AS loss_max FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "trend",
+      "title": "Gradient norm: global (clipping) and per-rank local before reduction",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, any(clip_total_norm) AS clip_total_norm, max(total_norm) AS pre_reduce_norm_max, median(total_norm) AS pre_reduce_norm_median FROM metric_sampler.grad_per_rank${summ}(exp_filter = '${exp}', run_filter = '${run}') WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) GROUP BY step ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, clip_total_norm, pre_reduce_norm_max, pre_reduce_norm_median FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS clip_total_norm, CAST(NULL AS Nullable(Float64)) AS pre_reduce_norm_max, CAST(NULL AS Nullable(Float64)) AS pre_reduce_norm_median FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "trend",
+      "title": "Step time, seconds: sampler window (step_s) and the full loop with every callback (loop_s), max and median over ranks",
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, step_time_max, step_time_median, loop_time_max, loop_time_median FROM metric_sampler.step_time_${stsrc}(exp_filter = '${exp}', run_filter = '${run}') ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, step_time_max, step_time_median, loop_time_max, loop_time_median FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS step_time_max, CAST(NULL AS Nullable(Float64)) AS step_time_median, CAST(NULL AS Nullable(Float64)) AS loop_time_max, CAST(NULL AS Nullable(Float64)) AS loop_time_median FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "scaleDistribution": {
+              "type": "log",
+              "log": 2
+            },
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 4,
+      "type": "trend",
+      "title": "Loss components per step (mean over ranks and microbatches)",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "metric"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.metric, ''), 'No data') AS metric, measured.value AS value FROM (WITH observed AS (SELECT step, metric, value FROM metric_sampler.loss_components_${lcsrc}(exp_filter = '${exp}', run_filter = '${run}') ORDER BY metric, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY metric ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, metric, value FROM marked UNION ALL SELECT step + 1 AS step, metric, CAST(NULL AS Nullable(Float64)) AS value FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.metric}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Разбор шага ${step}: ранг ${detail_rank} и общие значения",
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT mn.name AS metric_name, s.node, s.rank, s.microbatch, s.layer, s.attempt, s.values FROM metric_sampler.scalars AS s FINAL INNER JOIN metric_sampler.latest_attempt_step AS las ON s.exp = las.exp AND s.run = las.run AND s.step = las.step AND s.attempt = las.attempt INNER JOIN metric_sampler.metric_names AS mn ON mn.exp = s.exp AND mn.run = s.run AND mn.attempt = s.attempt AND mn.metric_id = s.metric_id WHERE s.exp = '${exp}' AND s.run = '${run}' AND (s.rank = -1 OR s.rank = toInt16OrNull(${detail_rank:sqlstring})) AND s.step = if(toUInt32OrZero(${step:sqlstring}) = 0, least((SELECT max(step) FROM metric_sampler.latest_attempt_step WHERE exp = '${exp}' AND run = '${run}'), (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}'))), toUInt32OrZero(${step:sqlstring})) ORDER BY metric_name, s.node, s.rank, s.microbatch, s.layer SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "Step 0 selects the latest received training step. Rank (step details) selects one card; rank -1 shared or legacy aggregate rows are also shown. All microbatches and layers of the selected card are included. Change the rank to inspect another card; this filter does not change the graphs or stored data."
+    }
+  ],
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ]
+}

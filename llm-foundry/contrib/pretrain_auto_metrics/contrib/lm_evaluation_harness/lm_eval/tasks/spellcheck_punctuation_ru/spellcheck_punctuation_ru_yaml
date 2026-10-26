@@ -1,0 +1,65 @@
+
+tag: spellcheck_punctuation_ru_tasks
+dataset_path: ai-sage/sage
+test_split: test
+num_fewshot: 5
+output_type: generate_until
+generation_kwargs:
+  temperature: 0.0
+  do_sample: false
+  max_gen_toks: 500
+  until:
+    - "\n\n"
+
+doc_to_text: "Перепиши текст без орфографических, грамматических, пунктуационных ошибок и опечаток, сохраняя исходный стиль текста, не раскрывая аббревиатур, не изменяя корректный текст. Напиши только правильный ответ без дополнительных объяснений.\nТекст: {{source}}\nОтвет:"
+doc_to_target: "{{correction.strip()}}"
+process_results: !function utils.process_results
+
+filter_list:
+  - name: "scoring"
+    filter:
+      - function: sage_scorer
+
+metric_list:
+  - metric: SPELL_Precision
+    aggregation: mean
+    higher_is_better: true
+  - metric: SPELL_Recall
+    aggregation: mean
+    higher_is_better: true
+  - metric: SPELL_F1
+    aggregation: mean
+    higher_is_better: true
+  - metric: CASE_Precision
+    aggregation: mean
+    higher_is_better: true
+  - metric: CASE_Recall
+    aggregation: mean
+    higher_is_better: true
+  - metric: CASE_F1
+    aggregation: mean
+    higher_is_better: true
+  - metric: PUNCT_Precision
+    aggregation: mean
+    higher_is_better: true
+  - metric: PUNCT_Recall
+    aggregation: mean
+    higher_is_better: true
+  - metric: PUNCT_F1
+    aggregation: mean
+    higher_is_better: true
+  - metric: YO_Precision
+    aggregation: mean
+    higher_is_better: true
+  - metric: YO_Recall
+    aggregation: mean
+    higher_is_better: true
+  - metric: YO_F1
+    aggregation: mean
+    higher_is_better: true
+  - metric: F1
+    aggregation: mean
+    higher_is_better: true
+
+metadata:
+  version: 2.0

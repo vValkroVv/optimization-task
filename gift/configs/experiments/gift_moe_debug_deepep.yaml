@@ -1,0 +1,19 @@
+# Base GiftMoE debug model routing tokens through DeepEP. Needs the
+# deep_ep package and expert_parallel_degree 2, so two GPUs at least.
+#
+#   torchrun --nproc_per_node=2 -m torchtitan.train configs/experiments/gift_moe_debug_deepep.yaml
+config_version: 1
+
+imports:
+  - gift_moe_debug.yaml
+
+model:
+  config:
+    blocks:
+      mla_moe:
+        moe:
+          experts:
+            token_dispatcher: {type: deepep}
+
+parallelism:
+  expert_parallel_degree: 2

@@ -1,0 +1,160 @@
+#!/bin/bash
+{% if job_desc %}
+#SBATCH --job-name="{{job_desc}}"
+{% endif %}
+#SBATCH --nodes={{n_workers}}
+#SBATCH --ntasks-per-node={{ processes_per_worker }}
+{% if gpu_type %}
+#SBATCH --gres=gpu:{{ gpu_type }}:{{ gpu_num }}
+{% else %}
+#SBATCH --gres=gpu:{{ gpu_num }}
+#SBATCH --gpus-per-node={{ gpu_num }}
+{% endif %}
+#SBATCH --exclusive
+#SBATCH --partition={{ partition }}
+#SBATCH --output={{slurm_logdir}}/%j/logs.log
+#SBATCH --error={{slurm_logdir}}/%j/logs.err
+{% if max_restarts %}
+#SBATCH --requeue
+{% endif %}
+{% if comment %}#SBATCH --comment={{ comment }}
+{% endif %}{% if nodelist %}
+## <!-- Code to execute if value is specified -->
+#SBATCH --nodelist={{nodelist}}
+{% endif %}
+{% if exclude_nodes %}
+#SBATCH --exclude={{exclude_nodes}}
+{% endif %}
+{% if nice %}
+#SBATCH --nice={{ nice }}
+{% endif %}
+{% if cpus_per_task %}
+#SBATCH --cpus-per-task={{ cpus_per_task }}
+{% endif %}
+{% if qos %}
+#SBATCH --qos={{ qos }}
+{% endif %}
+{% if account %}
+#SBATCH --account={{ account }}
+{% endif %}
+
+set -evx
+
+MOUNTS="{{nfs_path}}"
+CONTAINER_IMAGE="{{ base_image }}"
+
+LOGDIR_BASE="{{ job_logdir }}"
+RUN_LOGDIR="$LOGDIR_BASE/$SLURM_JOB_ID/retry_${SLURM_RESTART_COUNT:-0}"
+
+slurm_startup_script=$(cat << EOF
+export NNODES=\$SLURM_NNODES
+export JS_GPUS_PER_NODE=\$SLURM_GPUS_ON_NODE
+
+umask 0002;
+ulimit -n 131072;
+echo "hi from \$(hostname)"
+
+{# all envs will be overrided #}
+{% if env_variables %}{% for key, value in env_variables.items() %}
+export {{key}}="{{value}}"
+{% endfor %}{% endif %}
+
+LOGDIR="$LOGDIR_BASE/\$SLURM_JOB_ID/retry_\${SLURM_RESTART_COUNT:-0}"
+
+mkdir -p \$LOGDIR
+
+export NODE_RANK=\$SLURM_PROCID
+CLEANUP_HOST=\$(hostname)
+CLEANUP_LOG="\$LOGDIR/cleanup_\${SLURM_PROCID}_\${CLEANUP_HOST}.log"
+
+echo \$(env) > \$LOGDIR/\$SLURM_PROCID.env
+
+echo \$(nvidia-smi) > \$LOGDIR/\$SLURM_PROCID.nvidia_smi
+
+{% include "process_cleanup.sh.j2" %}
+
+# Run training in its own process group (set -m) and wait on it, so the trap
+# fires promptly on signal instead of being deferred until the job returns.
+set -m
+(
+    {{ script }}
+) > "\$LOGDIR/log_\${SLURM_PROCID}.txt" 2>&1 &
+TRAIN_PID=\$!
+set +m
+CLEANUP_TRAIN_START=
+if read_cleanup_stat "/proc/\$TRAIN_PID"; then
+    CLEANUP_TRAIN_START=\$CLEANUP_STAT_START
+fi
+
+wait \$TRAIN_PID
+exit_code=\$?
+
+if [ "\$exit_code" -ne 0 ] && [ -z "\${SHUTDOWN_SIGNAL:-}" ]; then
+    record_application_failure "\$exit_code"
+fi
+
+# Use the same bounded cleanup for normal completion and application failures.
+cleanup
+
+# A nominally successful training process must not hide an incomplete cleanup.
+if [ "\${CLEANUP_FAILED:-0}" -ne 0 ] && [ "\$exit_code" -eq 0 ]; then
+    exit_code=1
+    if [ -z "\${SHUTDOWN_SIGNAL:-}" ]; then
+        record_application_failure "\$exit_code"
+    fi
+fi
+
+exit \$exit_code
+EOF
+)
+
+set +e
+
+{% if not turn_off_first_srun %}
+# download images to nodes
+srun --container-image="$CONTAINER_IMAGE" \
+     --no-container-mount-home \
+     --container-name="$(basename $CONTAINER_IMAGE)" \
+     --container-mounts="$MOUNTS:$MOUNTS{% if default_mounts %},{{ default_mounts }}{% endif %}{% if extra_mounts %},{{ extra_mounts }}{% endif %}" \
+     --container-workdir="$MOUNTS" \
+     true
+{% endif %}
+# run scripts
+srun --container-image="$CONTAINER_IMAGE" \
+     --container-name="$(basename $CONTAINER_IMAGE)" \
+     --no-container-mount-home \
+     --container-mounts="$MOUNTS:$MOUNTS{% if default_mounts %},{{ default_mounts }}{% endif %}{% if extra_mounts %},{{ extra_mounts }}{% endif %}" \
+     --container-workdir="$MOUNTS" \
+     --kill-on-bad-exit=1 \
+     bash -c "$slurm_startup_script"
+
+exitcode=$?
+set -e
+echo "job exited with code $exitcode"
+
+{% if max_restarts %}
+if [ $exitcode -ne 0 ]; then
+    application_failed=0
+    for failure_marker in "$RUN_LOGDIR"/application_failure_*; do
+        [ -e "$failure_marker" ] || continue
+        application_failed=1
+        break
+    done
+
+    should_requeue=1
+    if [ "$application_failed" -eq 1 ]; then
+        echo "Application failure recorded in $failure_marker" >&2
+    elif [ "$exitcode" -eq 130 ] || [ "$exitcode" -eq 143 ]; then
+        should_requeue=0
+        echo "Program terminated by INT/TERM; skipping automatic requeue" >&2
+    fi
+
+    if [ "$should_requeue" -eq 1 ] && [ "{{max_restarts}}" -gt "${SLURM_RESTART_COUNT:-0}" ]; then
+        echo "Program execution failed" >&2
+        scontrol requeue "$SLURM_JOB_ID"
+    fi
+    exit $exitcode
+fi
+{% endif %}
+
+exit $exitcode

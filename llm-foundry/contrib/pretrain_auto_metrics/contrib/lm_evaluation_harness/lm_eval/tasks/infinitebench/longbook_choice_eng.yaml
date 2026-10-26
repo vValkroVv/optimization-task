@@ -1,0 +1,48 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_longbook_choice_eng
+task_alias: En.MC
+output_type: multiple_choice
+doc_to_choice: !function utils.doc_to_choice
+process_results: !function utils.process_multiple_choice_results
+target_delimiter: " "
+dataset_kwargs:
+  data_name: longbook_choice_eng
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: longbook_choice_eng
+      context: "In the novel, Mira searches the abandoned observatory for the map her mentor hid before leaving the city. She first checks the desk, then the cabinets, but finally finds the map folded inside the brass telescope case."
+      input: "Where does Mira find the hidden map?"
+      options:
+        - "Inside the desk drawer"
+        - "Inside the brass telescope case"
+        - "Behind the cabinet"
+        - "Under the observatory stairs"
+      answer:
+        - "Inside the brass telescope case"
+        - "B"
+    - infinitebench_task: longbook_choice_eng
+      context: "The captain refuses to sail until the damaged compass is replaced. Although the crew suggests waiting for a new shipment, apprentice Theo repairs the compass by replacing its cracked glass with a lens from the spare lantern."
+      input: "What does Theo use to repair the compass?"
+      options:
+        - "A coin from the captain"
+        - "A piece of sailcloth"
+        - "A lens from the spare lantern"
+        - "A mirror from his cabin"
+      answer:
+        - "A lens from the spare lantern"
+        - "C"
+    - infinitebench_task: longbook_choice_eng
+      context: "The bakery's secret recipe is never written in the ledger. At the end of the story, Clara learns that her grandmother memorized it as a song and taught it to every apprentice during the morning kneading."
+      input: "How was the bakery's secret recipe preserved?"
+      options:
+        - "It was carved into the oven door"
+        - "It was hidden in the ledger"
+        - "It was kept in a locked box"
+        - "It was memorized as a song"
+      answer:
+        - "It was memorized as a song"
+        - "D"

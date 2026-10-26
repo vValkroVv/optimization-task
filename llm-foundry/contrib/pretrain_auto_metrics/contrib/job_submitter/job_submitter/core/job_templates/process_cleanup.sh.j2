@@ -1,0 +1,516 @@
+{% raw %}
+declare -A CLEANUP_TASK_START=() CLEANUP_TASK_OWNER=() CLEANUP_OWNER_START=() CLEANUP_SENT=()
+declare -A CLEANUP_SCAN_SEEN=()
+declare -a CLEANUP_SCAN_PDIRS=() CLEANUP_SCAN_TDIRS=() CLEANUP_D_TIDS=()
+CLEANUP_SCAN_INDEX=0
+CLEANUP_DISCOVERY_COMPLETE=0
+CLEANUP_SCOPE_UNKNOWN=0
+CLEANUP_SCOPE_SAMPLES=0
+CLEANUP_GROUP_ANCHOR=
+CLEANUP_GROUP_SENT=
+
+cleanup_log() {
+    [ "\${CLEANUP_LOG_FAILED:-0}" -eq 0 ] || return 0
+    if [ -z "\${CLEANUP_LOG_FD:-}" ]; then
+        if ! { exec {CLEANUP_LOG_FD}>> "\$CLEANUP_LOG"; } 2>/dev/null; then
+            CLEANUP_LOG_FAILED=1
+        fi
+    fi
+    if [ "\${CLEANUP_LOG_FAILED:-0}" -eq 0 ]; then
+        printf 'time=%(%FT%T%z)T elapsed_s=%s %s\n' -1 \
+            "\$(( SECONDS - \${_cleanup_started_at:-SECONDS} ))" "\$*" >&\$CLEANUP_LOG_FD || CLEANUP_LOG_FAILED=1
+    fi
+    if [ "\${CLEANUP_LOG_FAILED:-0}" -ne 0 ]; then
+        echo "[cleanup] host=\$CLEANUP_HOST rank=\$SLURM_PROCID cannot write \$CLEANUP_LOG" >&2
+    fi
+}
+
+init_cleanup_scope() {
+    local _hierarchy _controllers _path _mode=environment
+    CLEANUP_CGROUP=
+    cleanup_log "phase=scope job=\$SLURM_JOB_ID step=\${SLURM_STEP_ID:-unknown} host=\$CLEANUP_HOST rank=\$SLURM_PROCID wrapper_pid=\$\$"
+    if [ -r /proc/\$\$/cgroup ]; then
+        while IFS=: read -r _hierarchy _controllers _path; do
+            cleanup_log "phase=scope cgroup=\$_hierarchy:\$_controllers:\$_path"
+            case "\$_path" in
+                */step_*)
+                    # Preserve the wrapper subtree; never widen it to siblings.
+                    [ -n "\$CLEANUP_CGROUP" ] || CLEANUP_CGROUP="\$_hierarchy:\$_controllers:\$_path"
+                    ;;
+            esac
+        done < /proc/\$\$/cgroup
+    fi
+    [ -z "\$CLEANUP_CGROUP" ] || _mode=cgroup
+    cleanup_log "phase=scope mode=\$_mode"
+}
+
+# /proc/PID/stat fields after the final ') ': state=3, pgrp=5, starttime=22.
+read_cleanup_stat() {
+    local _stat='' _rest
+    local -a _fields=()
+    { IFS= read -r -d '' _stat < "\$1/stat"; } 2>/dev/null || [ -n "\$_stat" ] || return 1
+    _rest=\${_stat##*) }
+    read -r -a _fields <<< "\$_rest"
+    [ "\${#_fields[@]}" -ge 20 ] || return 1
+    CLEANUP_STAT_START=\${_fields[19]}
+    case "\$CLEANUP_STAT_START" in ''|*[!0-9]*) return 1 ;; esac
+    CLEANUP_STAT_STATE=\${_fields[0]}
+    CLEANUP_STAT_PGID=\${_fields[2]}
+    CLEANUP_STAT_NAME=\${_stat#*(}
+    CLEANUP_STAT_NAME=\${CLEANUP_STAT_NAME%)*}
+}
+
+process_in_cleanup_scope() {
+    local _pdir=\$1 _line _fd _job=0 _rank=0 _step=0 _entries=0
+    CLEANUP_SCOPE_ERROR=
+    if [ -n "\$CLEANUP_CGROUP" ]; then
+        if ! { exec {_fd}< "\$_pdir/cgroup"; } 2>/dev/null; then
+            CLEANUP_SCOPE_ERROR=cgroup-unreadable
+            return 2
+        fi
+        while IFS= read -r _line <&\$_fd; do
+            case "\$_line" in
+                "\$CLEANUP_CGROUP"|"\$CLEANUP_CGROUP"/*) exec {_fd}<&-; return 0 ;;
+            esac
+        done
+    else
+        if [ -z "\${SLURM_JOB_ID:-}" ] || [ -z "\${SLURM_PROCID:-}" ]; then
+            CLEANUP_SCOPE_ERROR=scope-unavailable
+            return 2
+        fi
+        if ! { exec {_fd}< "\$_pdir/environ"; } 2>/dev/null; then
+            CLEANUP_SCOPE_ERROR=environ-unreadable
+            return 2
+        fi
+        while IFS= read -r -d '' _line <&\$_fd; do
+            _entries=\$(( _entries + 1 ))
+            case "\$_line" in
+                "SLURM_JOB_ID=\${SLURM_JOB_ID:-}") _job=1 ;;
+                "SLURM_PROCID=\${SLURM_PROCID:-}") _rank=1 ;;
+                "SLURM_STEP_ID=\${SLURM_STEP_ID:-}") _step=1 ;;
+            esac
+            if [ "\$_job:\$_rank" = 1:1 ] &&
+                { [ -z "\${SLURM_STEP_ID:-}" ] || [ "\$_step" -eq 1 ]; }; then
+                exec {_fd}<&-
+                return 0
+            fi
+            if [ "\$SECONDS" -ge "\$CLEANUP_SCAN_DEADLINE" ]; then
+                exec {_fd}<&-
+                CLEANUP_SCOPE_ERROR=environment-timeout
+                return 2
+            fi
+        done
+        # Empty environment cannot establish job membership after exit_mm().
+        [ "\$_entries" -gt 0 ] || CLEANUP_SCOPE_ERROR=environment-empty-or-unreadable
+    fi
+    exec {_fd}<&-
+    [ -z "\$CLEANUP_SCOPE_ERROR" ] || return 2
+    return 1
+}
+
+# Only a currently verified member permits signalling the training group.
+# The anchor is populated by discovery/probing, not a separate timed scan.
+training_group_alive() {
+    local _tid _start
+    for _tid in "\${TRAIN_PID:-}" "\$CLEANUP_GROUP_ANCHOR"; do
+        [ -n "\$_tid" ] || continue
+        _start=\${CLEANUP_TASK_START[\$_tid]:-}
+        [ -n "\$_start" ] || continue
+        read_cleanup_stat "/proc/\$_tid" || continue
+        [ "\$CLEANUP_STAT_START" = "\$_start" ] &&
+            [ "\$CLEANUP_STAT_PGID" = "\${TRAIN_PID:-}" ] || continue
+        case "\$CLEANUP_STAT_STATE" in Z|X|x) continue ;; esac
+        return 0
+    done
+    return 1
+}
+
+build_cleanup_candidates() {
+    local _budget=\$1 _started=\$SECONDS _priority='' _rc=0 _priority_count=0
+    cleanup_log "phase=discovery-ps started=1 budget_s=\$_budget"
+    # Diagnostic shells must not run container startup hooks (e.g. nvidia-smi).
+    _priority=\$(BASH_ENV='' LC_ALL=C timeout --signal=KILL "\${_budget}s" bash -o pipefail -c '
+        ps -e -o pid=,ppid=,pgid=,sid= | awk -v root="\$1" "\$2"
+    ' cleanup-ps "\${TRAIN_PID:-0}" '
+        BEGIN {
+            if (root > 1) {
+                queue[++tail] = root
+                seen[root] = 1
+            }
+        }
+        NF != 4 || \$1 !~ /^[0-9]+\$/ || \$2 !~ /^[0-9]+\$/ ||
+            \$3 !~ /^[0-9]+\$/ || \$4 !~ /^[0-9]+\$/ { invalid = 1; next }
+        {
+            rows++
+            children[\$2] = children[\$2] " " \$1
+            if (root > 1 && \$3 == root && !seen[\$1]) {
+                queue[++tail] = \$1
+                seen[\$1] = 1
+            }
+        }
+        END {
+            if (invalid || !rows) exit 2
+            for (head = 1; head <= tail; head++) {
+                pid = queue[head]
+                print "/proc/" pid
+                n = split(children[pid], child, " ")
+                for (i = 1; i <= n; i++) {
+                    if (child[i] != "" && !seen[child[i]]) {
+                        queue[++tail] = child[i]
+                        seen[child[i]] = 1
+                    }
+                }
+            }
+        }
+    ') || _rc=\$?
+    CLEANUP_SCAN_PDIRS=()
+    if [ "\$_rc" -eq 0 ] && [ -n "\$_priority" ]; then
+        mapfile -t CLEANUP_SCAN_PDIRS <<< "\$_priority"
+        _priority_count=\${#CLEANUP_SCAN_PDIRS[@]}
+    elif [ -n "\${TRAIN_PID:-}" ]; then
+        CLEANUP_SCAN_PDIRS=("/proc/\$TRAIN_PID")
+    fi
+    CLEANUP_SCAN_PDIRS+=(/proc/[0-9]*)
+    cleanup_log "phase=discovery-ps finished=1 duration_s=\$(( SECONDS - _started )) pipeline_exit_code=\$_rc priority_candidates=\$_priority_count candidates_total=\${#CLEANUP_SCAN_PDIRS[@]} fallback=proc"
+}
+
+discover_cleanup_targets() {
+    local _deadline=\$1 _pdir _pid _tid _start _status _remaining _i
+    CLEANUP_SCAN_DEADLINE=\$_deadline
+    if [ "\$CLEANUP_SCAN_INDEX" -ge "\${#CLEANUP_SCAN_PDIRS[@]}" ] &&
+        [ "\${#CLEANUP_SCAN_TDIRS[@]}" -eq 0 ]; then
+        _remaining=\$(( _deadline - SECONDS ))
+        [ "\$_remaining" -gt 0 ] || return 0
+        [ "\$_remaining" -le 2 ] || _remaining=2
+        build_cleanup_candidates "\$_remaining"
+        CLEANUP_SCAN_INDEX=0
+        CLEANUP_SCAN_SEEN=()
+        CLEANUP_SCOPE_UNKNOWN=0
+    fi
+    CLEANUP_DISCOVERY_COMPLETE=0
+    while [ "\$SECONDS" -lt "\$_deadline" ]; do
+        if [ "\${#CLEANUP_SCAN_TDIRS[@]}" -gt 0 ]; then
+            _i=\$(( \${#CLEANUP_SCAN_TDIRS[@]} - 1 ))
+            _pdir=\${CLEANUP_SCAN_TDIRS[\$_i]}
+            unset 'CLEANUP_SCAN_TDIRS[\$_i]'
+            if ! read_cleanup_stat "/proc/\$CLEANUP_SCAN_OWNER" ||
+                [ "\$CLEANUP_STAT_START" != "\$CLEANUP_SCAN_OWNER_START" ]; then
+                CLEANUP_SCAN_TDIRS=()
+                CLEANUP_SCOPE_UNKNOWN=\$(( CLEANUP_SCOPE_UNKNOWN + 1 ))
+                continue
+            fi
+            _tid=\${_pdir##*/}
+            read_cleanup_stat "\$_pdir" || continue
+            CLEANUP_TASK_START[\$_tid]=\$CLEANUP_STAT_START
+            CLEANUP_TASK_OWNER[\$_tid]=\$CLEANUP_SCAN_OWNER
+            continue
+        fi
+        [ "\$CLEANUP_SCAN_INDEX" -lt "\${#CLEANUP_SCAN_PDIRS[@]}" ] || break
+        _pdir=\${CLEANUP_SCAN_PDIRS[\$CLEANUP_SCAN_INDEX]}
+        CLEANUP_SCAN_INDEX=\$(( CLEANUP_SCAN_INDEX + 1 ))
+        _pid=\${_pdir#/proc/}
+        case "\$_pid" in 1|"\$\$") continue ;; esac
+        [ -z "\${CLEANUP_SCAN_SEEN[\$_pid]:-}" ] || continue
+        CLEANUP_SCAN_SEEN[\$_pid]=1
+        if ! read_cleanup_stat "\$_pdir"; then
+            [ ! -d "\$_pdir" ] || CLEANUP_SCOPE_UNKNOWN=\$(( CLEANUP_SCOPE_UNKNOWN + 1 ))
+            continue
+        fi
+        _start=\$CLEANUP_STAT_START
+        if [ "\${CLEANUP_OWNER_START[\$_pid]:-}" != "\$_start" ]; then
+            if ! { [ "\$CLEANUP_STAT_PGID" = "\${TRAIN_PID:-}" ] && training_group_alive; }; then
+                process_in_cleanup_scope "\$_pdir"
+                _status=\$?
+                if [ "\$_status" -eq 2 ]; then
+                    CLEANUP_SCOPE_UNKNOWN=\$(( CLEANUP_SCOPE_UNKNOWN + 1 ))
+                    if [ "\$CLEANUP_SCOPE_SAMPLES" -lt 8 ]; then
+                        cleanup_log "phase=discovery-skipped pid=\$_pid reason=\$CLEANUP_SCOPE_ERROR membership=unknown"
+                        CLEANUP_SCOPE_SAMPLES=\$(( CLEANUP_SCOPE_SAMPLES + 1 ))
+                    fi
+                fi
+                [ "\$_status" -eq 0 ] || continue
+            fi
+            read_cleanup_stat "\$_pdir" || continue
+            [ "\$CLEANUP_STAT_START" = "\$_start" ] || continue
+            cleanup_log "phase=target-discovered pid=\$_pid start_ticks=\$_start pgid=\$CLEANUP_STAT_PGID name=\$CLEANUP_STAT_NAME"
+        fi
+        CLEANUP_OWNER_START[\$_pid]=\$_start
+        CLEANUP_TASK_START[\$_pid]=\$_start
+        CLEANUP_TASK_OWNER[\$_pid]=\$_pid
+        [ "\$CLEANUP_STAT_PGID" != "\${TRAIN_PID:-}" ] || CLEANUP_GROUP_ANCHOR=\$_pid
+        CLEANUP_SCAN_TDIRS=("\$_pdir"/task/[0-9]*)
+        CLEANUP_SCAN_OWNER=\$_pid
+        CLEANUP_SCAN_OWNER_START=\$_start
+    done
+    if [ "\$CLEANUP_SCAN_INDEX" -ge "\${#CLEANUP_SCAN_PDIRS[@]}" ] &&
+        [ "\${#CLEANUP_SCAN_TDIRS[@]}" -eq 0 ]; then
+        CLEANUP_DISCOVERY_COMPLETE=1
+    fi
+    cleanup_log "phase=discovery scanned=\$CLEANUP_SCAN_INDEX candidates=\${#CLEANUP_SCAN_PDIRS[@]} pending_threads=\${#CLEANUP_SCAN_TDIRS[@]} complete=\$CLEANUP_DISCOVERY_COMPLETE scope_unknown=\$CLEANUP_SCOPE_UNKNOWN"
+}
+
+# A probe has no carried counters or cursor. Gone identities are removed;
+# if the stage runs out of time, the result is explicitly incomplete.
+probe_cleanup_targets() {
+    local _deadline=\$1 _verbose=\${2:-0} _tid _owner
+    CLEANUP_ALIVE=0
+    CLEANUP_UNREADABLE=0
+    CLEANUP_PROBE_COMPLETE=1
+    CLEANUP_GROUP_ANCHOR=
+    CLEANUP_D_TIDS=()
+    for _tid in "\${!CLEANUP_TASK_START[@]}"; do
+        if [ "\$SECONDS" -ge "\$_deadline" ]; then
+            CLEANUP_PROBE_COMPLETE=0
+            break
+        fi
+        _owner=\${CLEANUP_TASK_OWNER[\$_tid]}
+        if ! read_cleanup_stat "/proc/\$_tid"; then
+            if [ -d "/proc/\$_tid" ]; then
+                CLEANUP_UNREADABLE=\$(( CLEANUP_UNREADABLE + 1 ))
+                [ "\$_verbose" -eq 0 ] || cleanup_log "phase=remaining pid=\$_owner tid=\$_tid stat=unreadable"
+                continue
+            fi
+        elif [ "\$CLEANUP_STAT_START" = "\${CLEANUP_TASK_START[\$_tid]}" ]; then
+            case "\$CLEANUP_STAT_STATE" in
+                Z|X|x) ;;
+                *)
+                    CLEANUP_ALIVE=\$(( CLEANUP_ALIVE + 1 ))
+                    [ "\$CLEANUP_STAT_PGID" != "\${TRAIN_PID:-}" ] || CLEANUP_GROUP_ANCHOR=\$_tid
+                    [ "\$CLEANUP_STAT_STATE" != D ] || CLEANUP_D_TIDS+=("\$_tid")
+                    [ "\$_verbose" -eq 0 ] || cleanup_log "phase=remaining pid=\$_owner tid=\$_tid start_ticks=\$CLEANUP_STAT_START state=\$CLEANUP_STAT_STATE name=\$CLEANUP_STAT_NAME"
+                    continue
+                    ;;
+            esac
+        fi
+        unset 'CLEANUP_TASK_START[\$_tid]' 'CLEANUP_TASK_OWNER[\$_tid]'
+    done
+}
+
+signal_cleanup_targets() {
+    local _signal=\$1 _deadline=\$2 _tid _owner _start _result _reason
+    for _tid in "\${!CLEANUP_TASK_START[@]}"; do
+        [ "\$SECONDS" -lt "\$_deadline" ] || break
+        _owner=\${CLEANUP_TASK_OWNER[\$_tid]}
+        # The training-group leader already received this level via the group
+        # signal. A second, individual one restarts the teardown of a supervisor
+        # that handles TERM itself: torchrun re-enters its shutdown from the
+        # beginning, and the Ray launcher aborts `ray stop` partway.
+        if [ "\$_owner" = "\${TRAIN_PID:-}" ] && [ "\$CLEANUP_GROUP_SENT" = "\$_signal" ]; then
+            continue
+        fi
+        _start=\${CLEANUP_OWNER_START[\$_owner]:-}
+        [ "\${CLEANUP_SENT[\$_owner]:-}" != "\$_start:\$_signal" ] || continue
+        # A zombie leader may still own live threads in another process group.
+        # Verify both identities before signalling the process, never a bare TID.
+        _reason=
+        if [ -z "\$_start" ]; then
+            _reason=owner-identity-unknown
+        elif ! read_cleanup_stat "/proc/\$_tid"; then
+            _reason=task-stat-unavailable
+        elif [ "\$CLEANUP_STAT_START" != "\${CLEANUP_TASK_START[\$_tid]}" ]; then
+            _reason=task-identity-changed
+        elif ! read_cleanup_stat "/proc/\$_owner"; then
+            _reason=owner-stat-unavailable
+        elif [ "\$CLEANUP_STAT_START" != "\$_start" ]; then
+            _reason=owner-identity-changed
+        fi
+        if [ -n "\$_reason" ]; then
+            cleanup_log "phase=target-signal pid=\$_owner tid=\$_tid signal=\$_signal result=skipped reason=\$_reason"
+            continue
+        fi
+        _result=failed
+        if kill -s "\$_signal" "\$_owner" 2>/dev/null; then
+            CLEANUP_SENT[\$_owner]="\$_start:\$_signal"
+            _result=sent
+        fi
+        cleanup_log "phase=target-signal pid=\$_owner tid=\$_tid start_ticks=\$_start signal=\$_signal result=\$_result"
+    done
+}
+
+# Only inspect D-state tasks from the latest probe. Avoid another full scan.
+log_d_state() {
+    local _phase=\$1 _deadline=\$2 _tid _line _lines _wchan _env _stack _rc _budget
+    local _count=0 _checked=0
+    for _tid in "\${CLEANUP_D_TIDS[@]}"; do
+        [ "\$SECONDS" -lt "\$_deadline" ] && [ "\$_count" -lt 256 ] || break
+        _checked=\$(( _checked + 1 ))
+        read_cleanup_stat "/proc/\$_tid" || continue
+        [ "\$CLEANUP_STAT_START" = "\${CLEANUP_TASK_START[\$_tid]:-}" ] &&
+            [ "\$CLEANUP_STAT_STATE" = D ] || continue
+        _wchan=
+        { IFS= read -r _wchan < "/proc/\$_tid/wchan"; } 2>/dev/null || true
+        _env=unavailable-or-empty
+        { IFS= read -r -N 1 _line < "/proc/\$_tid/environ"; } 2>/dev/null && _env=present
+        cleanup_log "phase=\$_phase pid=\${CLEANUP_TASK_OWNER[\$_tid]} tid=\$_tid start_ticks=\$CLEANUP_STAT_START state=D environ=\$_env wchan=\${_wchan:-unavailable}"
+        _count=\$(( _count + 1 ))
+        _budget=\$(( _deadline - SECONDS ))
+        if [ "\$_budget" -le 0 ]; then
+            cleanup_log "phase=\$_phase tid=\$_tid stack=deadline-expired"
+            break
+        fi
+        _rc=0
+        # Read only the selected thread; preserve open/read errors and bound
+        # the read itself, not just the time between stack lines.
+        _stack=\$(BASH_ENV='' LC_ALL=C timeout --signal=KILL "\${_budget}s" \
+            head -n 16 "/proc/\$_tid/stack" 2>&1) || _rc=\$?
+        if [ "\$_rc" -ne 0 ]; then
+            _line=error
+            case "\$_rc" in 124|137) _line=timeout ;; esac
+            cleanup_log "phase=\$_phase tid=\$_tid stack=\$_line exit_code=\$_rc detail=\${_stack//\$'\n'/; }"
+        elif [ -z "\$_stack" ]; then
+            cleanup_log "phase=\$_phase tid=\$_tid stack=empty"
+        else
+            _lines=0
+            while IFS= read -r _line; do
+                cleanup_log "phase=\$_phase stack[\$_tid] \$_line"
+                _lines=\$(( _lines + 1 ))
+            done <<< "\$_stack"
+            cleanup_log "phase=\$_phase tid=\$_tid stack_lines=\$_lines limit_reached=\$(( _lines == 16 ))"
+        fi
+    done
+    cleanup_log "phase=\$_phase d_candidates=\${#CLEANUP_D_TIDS[@]} d_logged=\$_count truncated=\$(( _checked < \${#CLEANUP_D_TIDS[@]} )) probe_complete=\$CLEANUP_PROBE_COMPLETE"
+}
+
+log_all_processes() {
+    local _started=\$SECONDS _rc=0 _complete=0
+    cleanup_log "phase=final_all scope=visible-proc wrapper_pid=\$\$ format=ps-eL budget_s=10"
+    if [ -z "\${CLEANUP_LOG_FD:-}" ] || [ "\${CLEANUP_LOG_FAILED:-0}" -ne 0 ]; then
+        echo '[cleanup] final_all skipped: log unavailable' >&2
+        return 0
+    fi
+    # procps enumerates processes AND threads without per-task shell loops,
+    # environment reads, username lookups, or opening the NFS log for each row.
+    # timeout creates a separate process group; it cannot signal training here.
+    BASH_ENV='' LC_ALL=C timeout --signal=KILL 10s \
+        ps -eL -ww -o pid,ppid,lwp,pgid,sid,uid,stat,wchan:32,comm \
+        >&\$CLEANUP_LOG_FD 2>&1 || _rc=\$?
+    [ "\$_rc" -ne 0 ] || _complete=1
+    cleanup_log "phase=final_all snapshot_finished=1 duration_s=\$(( SECONDS - _started )) ps_exit_code=\$_rc scan_complete=\$_complete truncated=\$(( 1 - _complete ))"
+}
+
+# Every operation receives the remaining stage deadline, including discovery.
+run_cleanup_phase() {
+    local _phase=\$1 _signal=\$2 _deadline=\$3 _slice _group=unverified _post_kill=0
+    # One group signal per level, matching the per-identity rule in
+    # signal_cleanup_targets. A repeat is never useful: anything that already
+    # entered the kernel's exit path discards it, and an in-group supervisor that
+    # handles TERM (torchrun) restarts its whole teardown from the beginning.
+    if [ "\$CLEANUP_GROUP_SENT" = "\$_signal" ]; then
+        _group=already-sent
+    elif training_group_alive; then
+        _group=failed
+        if kill -s "\$_signal" -- -"\$TRAIN_PID" 2>/dev/null; then
+            CLEANUP_GROUP_SENT=\$_signal
+            _group=sent
+        fi
+    fi
+    cleanup_log "phase=\$_phase signal=\$_signal training_group=\$_group deadline_elapsed_s=\$(( _deadline - _cleanup_started_at ))"
+    while [ "\$SECONDS" -lt "\$_deadline" ]; do
+        if [ "\$_phase" != supervisor ]; then signal_cleanup_targets "\$_signal" "\$_deadline"; fi
+        probe_cleanup_targets "\$_deadline"
+        if [ "\$_phase" = kill ] && [ "\$_post_kill" -eq 0 ]; then
+            _slice=\$(( SECONDS + 2 )); [ "\$_slice" -le "\$_deadline" ] || _slice=\$_deadline
+            log_d_state post_kill "\$_slice"
+            _post_kill=1
+        fi
+        if [ "\${#CLEANUP_TASK_START[@]}" -eq 0 ] && [ "\$CLEANUP_DISCOVERY_COMPLETE" -eq 1 ]; then
+            return 0
+        fi
+        if [ "\$_phase" = supervisor ] && [ "\$CLEANUP_PROBE_COMPLETE" -eq 1 ] &&
+            [ "\$CLEANUP_UNREADABLE" -eq 0 ] && [ -z "\$CLEANUP_GROUP_ANCHOR" ]; then
+            return 1
+        fi
+        _slice=\$(( SECONDS + 2 )); [ "\$_slice" -le "\$_deadline" ] || _slice=\$_deadline
+        discover_cleanup_targets "\$_slice"
+        [ "\$SECONDS" -ge "\$_deadline" ] || sleep 1
+    done
+    return 1
+}
+
+cleanup() {
+    [ "\${CLEANUP_STARTED:-0}" -eq 0 ] || return 0
+    CLEANUP_STARTED=1
+    _cleanup_started_at=\$SECONDS
+    cleanup_log "phase=start trigger=\${SHUTDOWN_SIGNAL:-application-exit} training_pid=\${TRAIN_PID:-unknown}"
+    # The TERM stage absorbs the wait: once signalled, a process tears down its GPU
+    # and RDMA context inside the kernel for tens of seconds, and that work is
+    # uninterruptible. The stage exits as soon as the known targets are gone, so a
+    # generous grace costs nothing when they exit quickly.
+    #
+    # The sum is capped by Slurm's KillWait, not by UnkillableStepTimeout: at
+    # KillWait the step -- this wrapper included -- is SIGKILLed, so anything
+    # budgeted past it never runs and the log just stops. These three stages total
+    # 60s to land on the common KillWait=60. The final probe and dump are budgeted
+    # on top of that and are best-effort: they normally cost under a second, but a
+    # run that spends every stage in full will lose them.
+    local _supervisor=\${PROCESS_SUPERVISOR_GRACE_S:-10} _term=\${PROCESS_SHUTDOWN_GRACE_S:-45}
+    local _kill=\${PROCESS_SHUTDOWN_KILL_WAIT_S:-5} _deadline _phase=term-exit
+    [ -n "\${SHUTDOWN_SIGNAL:-}" ] || _supervisor=0
+    # A zero grace still permits a bounded signal attempt.
+    [ "\$_term" -gt 0 ] || _term=1
+    [ "\$_kill" -gt 0 ] || _kill=1
+    if [ -n "\${CLEANUP_TRAIN_START:-}" ]; then
+        CLEANUP_OWNER_START[\$TRAIN_PID]=\$CLEANUP_TRAIN_START
+        CLEANUP_TASK_START[\$TRAIN_PID]=\$CLEANUP_TRAIN_START
+        CLEANUP_TASK_OWNER[\$TRAIN_PID]=\$TRAIN_PID
+    fi
+    discover_cleanup_targets "\$(( SECONDS + 4 ))"
+    if [ "\$_supervisor" -gt 0 ]; then
+        run_cleanup_phase supervisor TERM "\$(( _cleanup_started_at + _supervisor ))" || true
+    fi
+    if ! run_cleanup_phase term TERM "\$(( SECONDS + _term ))"; then
+        if [ "\${PROCESS_CLEANUP_PRE_KILL_SNAPSHOT:-0}" = 1 ]; then
+            log_d_state pre_kill "\$(( SECONDS + 2 ))"
+        fi
+        run_cleanup_phase kill KILL "\$(( SECONDS + _kill ))" || true
+        _phase=kill-exit
+    fi
+    # These diagnostic budgets are separate from the signal/wait stages.
+    _deadline=\$(( SECONDS + 2 ))
+    probe_cleanup_targets "\$_deadline" 1
+    if [ "\$CLEANUP_ALIVE" -gt 0 ]; then
+        _phase=kill-timeout
+        CLEANUP_FAILED=1
+    elif [ "\$CLEANUP_PROBE_COMPLETE" -eq 0 ] || [ "\$CLEANUP_UNREADABLE" -gt 0 ] ||
+        [ "\$CLEANUP_DISCOVERY_COMPLETE" -eq 0 ] || [ "\$CLEANUP_SCOPE_UNKNOWN" -gt 0 ]; then
+        _phase=cleanup-unverified
+        # Unverified known targets are failures; incomplete host discovery
+        # alone must not turn successful training into an application error.
+        if [ "\$CLEANUP_PROBE_COMPLETE" -eq 0 ] || [ "\$CLEANUP_UNREADABLE" -gt 0 ]; then CLEANUP_FAILED=1; fi
+    fi
+    cleanup_log "phase=\$_phase alive_tasks=\$CLEANUP_ALIVE unreadable_tasks=\$CLEANUP_UNREADABLE probe_complete=\$CLEANUP_PROBE_COMPLETE discovery_complete=\$CLEANUP_DISCOVERY_COMPLETE scope_unknown=\$CLEANUP_SCOPE_UNKNOWN"
+    echo "[cleanup] host=\$CLEANUP_HOST rank=\$SLURM_PROCID phase=\$_phase alive=\$CLEANUP_ALIVE unknown=\$CLEANUP_UNREADABLE log=\$CLEANUP_LOG" >&2
+    log_d_state final_d "\$_deadline"
+    log_all_processes
+    if [ -n "\${CLEANUP_LOG_FD:-}" ]; then exec {CLEANUP_LOG_FD}>&-; unset CLEANUP_LOG_FD; fi
+}
+
+handle_shutdown_signal() {
+    cleanup_log "phase=signal-received signal=\$1 cleanup_started=\${CLEANUP_STARTED:-0}"
+    SHUTDOWN_SIGNAL=\$1
+    cleanup
+}
+
+record_application_failure() {
+    _failure_code=\$1
+    _failure_marker="\$LOGDIR/application_failure_\${SLURM_PROCID}"
+    if printf 'rank=%s\thost=%s\texit_code=%s\ttime=%s\n' \
+        "\${SLURM_PROCID}" "\${CLEANUP_HOST}" "\$_failure_code" "\$(date '+%FT%T%z')" \
+        > "\$_failure_marker"; then
+        echo "[cleanup] application failure recorded in \$_failure_marker" >&2
+    else
+        echo "[cleanup] failed to write application failure marker \$_failure_marker" >&2
+    fi
+}
+
+trap 'handle_shutdown_signal TERM' TERM
+trap 'handle_shutdown_signal INT' INT
+
+# Record the actual container view while the wrapper is still healthy.
+init_cleanup_scope
+# Do not pass the startup diagnostic descriptor to the training process.
+if [ -n "\${CLEANUP_LOG_FD:-}" ]; then
+    exec {CLEANUP_LOG_FD}>&-
+    unset CLEANUP_LOG_FD
+fi
+{% endraw %}

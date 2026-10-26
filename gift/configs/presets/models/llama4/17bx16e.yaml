@@ -1,0 +1,49 @@
+# Model preset: llama4 "17bx16e".
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: 17bx16e
+  config:
+    type: llama4
+    dim: 5120
+    vocab_size: 202048
+    norm: &norm {type: rmsnorm}
+    rope:
+      type: complex
+      dim: 128
+      max_seq_len: 10485760
+      theta: 500000.0
+      scaling: {type: llama, scaling_factor: 16.0, high_freq_factor: 1.0}
+    blocks:
+      nope_moe:
+        type: llama4_chunked
+        attention:
+          type: gqa
+          n_heads: 40
+          inner_attention: {type: flex}
+          n_kv_heads: 8
+          use_rope: false
+        moe: &moe
+          experts:
+            hidden_dim: 8192
+            num_experts: 16
+            token_dispatcher: {type: local}
+            score_before_experts: true
+          router: {}
+          shared_experts: {hidden_dim: 8192}
+        attention_norm: *norm
+        ffn_norm: *norm
+      moe:
+        type: llama4_chunked
+        attention:
+          type: gqa
+          n_heads: 40
+          inner_attention: {type: flex}
+          n_kv_heads: 8
+        moe: *moe
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - cycle: [nope_moe, moe, moe, moe]
+      repeat: 12

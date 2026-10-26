@@ -1,0 +1,24 @@
+# Streaming (MDS) loader over the bundled tokenized copy of c4_test (see
+# tests/assets/c4_test_mds/pack_test_dataset.py for how the shards were made).
+#
+# Same corpus as the HF debug presets, so losses stay comparable; no shuffle
+# and one canonical node keep sample order fixed across world sizes. FIM is
+# zeroed explicitly (the defaults are zero today), which keeps the debug
+# tokenizer needed only for its eos id.
+dataloader:
+  type: streaming_text
+  dataset:
+    streams:
+      - name: c4_test
+        local: tests/assets/c4_test_mds
+        split: train
+    fim_rates:
+      vanilla_fim: 0.0
+      inline_fim: 0.0
+      multiline_fim: 0.0
+      syntax_aware_fim: 0.0
+    shuffle: false
+    num_canonical_nodes: 1
+  drop_last: true
+  num_workers: 2
+  infinite: true

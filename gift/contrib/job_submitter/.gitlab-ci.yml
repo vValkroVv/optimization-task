@@ -1,0 +1,55 @@
+---
+include:
+  - project: gigallms/ci-cd
+    ref: main
+    file:
+      - base/variables.yml
+      - base/templates.yml
+      - base/rules.yml
+      - components/linters.yml
+      - components/test_templates.yml
+
+test:unit:
+  extends:
+    - .python_job
+    - .test:pytest_reports
+  stage: test
+  variables:
+    UV_INDEX_GITLAB_USERNAME: gitlab-ci-token
+    UV_INDEX_GITLAB_PASSWORD: ${CI_JOB_TOKEN}
+  needs: []
+  script:
+    - uv sync --locked
+    - uv run pytest -m unit
+      --strict-markers
+      --cov=job_submitter
+      --cov-report=term-missing:skip-covered
+      --cov-report=xml:coverage.xml
+      --junitxml=pytest-report.xml
+      --cov-fail-under=100
+      --cov-branch
+      sber_tests
+  coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+%)/'
+  rules:
+    - !reference [.rules:mr_any, rules]
+    - !reference [.rules:push_to_main, rules]
+    - when: manual
+
+trigger:pypi_publish:
+  stage: release
+  trigger:
+    include:
+      - project: gigallms/ci-cd
+        ref: main
+        file: pipelines/publish-child-python-pypi.yml
+    strategy: depend
+  variables:
+    PYPI_PROJECT_DIR: .
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+      when: manual
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
+      when: manual
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - when: never

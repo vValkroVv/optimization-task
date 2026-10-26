@@ -1,0 +1,186 @@
+user: rivlasov
+
+
+log_dir: /home/jovyan/rivlasov/llm_foundry/logs
+exp_name: final_test
+
+
+max_seq_len: 4096
+num_speech_embeddings: 4108
+n_q: 7
+
+max_duration: 100000ba
+eval_interval: 2500ba
+eval_subset_num_batches: 100
+
+save_num_checkpoints_to_keep: -1 # if specified '-1' then every stable checkpoint will be saved 
+save_interval: 500ba # quick checkpoints
+stable_save_interval: 2500ba # stable checkpoints
+
+pad_token_id: 0
+
+####
+#### Models
+####
+
+load_path: /home/jovyan/rivlasov/llm_foundry/logs/checkpoints/gigatts-stage0-sft-ckpt/latest_monolith.pt
+tokenizer:
+  name: ${data_root}/emlagutin/data/giga_tts_datasets/tts_norm_train/converted_chatmlv2_9b/configs/encode_tokenizer
+
+model:
+    speech_embeddings:
+      freeze: False # Always unfreezed
+      n_codebooks: ${n_q}
+      codebook_params:
+        num_embeddings: ${num_speech_embeddings}
+        embedding_dim: ${model.llm.params.hidden_size}
+        padding_idx: ${speech_config_dataset.pad_token_id}
+
+    llm_projector:
+      type: concat_projector_llm
+      freeze: False
+      params:
+        text_embedding_size: ${model.llm.params.hidden_size}
+        speech_embedding_size: ${model.llm.params.hidden_size}
+        out_embedding_size: ${model.llm.params.hidden_size}
+        bias: False
+        use_speech: True # False in init/pretrain phase. True in downstream task.
+
+    llm:
+      freeze: True
+
+    lora:
+      args:
+        lora_alpha: 96
+        peft_type: LORA
+        r: 96
+        target_modules: '^.*(qkv_proj|o_proj|gate_proj|up_proj|down_proj).*$'
+        use_dora: false
+        use_rslora: false
+        lora_dropout: 0.05
+
+    audio_llm_projector:
+      type: concat_projector_audio_llm
+      freeze: False
+      params:
+        llm_embedding_size: ${model.llm.params.hidden_size}
+        speech_embedding_size: ${model.llm.params.hidden_size}
+        out_embedding_size: 768
+        hidden_layer_id: 25
+        bias: False
+        stop_grad: False
+
+    audio_adapter:
+      type: gigar
+      freeze: False
+      params:
+        model_params:
+          attention_bias: false
+          hidden_act: silu
+          hidden_size: 768
+          init_device: cpu
+          initializer_range: 0.02
+          intermediate_size: 4096
+          max_position_embeddings: 32768
+          num_attention_heads: 12
+          num_key_value_heads: ${model.audio_adapter.params.model_params.num_attention_heads}
+          num_hidden_layers: 24
+          rms_norm_eps: 1e-05
+          rope_scaling: null
+          rope_theta: 300000
+          tp_size: ${tp_size}
+          vocab_size: 0
+
+          # layers
+          attention_type: LlamaPackedAttention
+
+          # optimization
+          activation_checkpoint_layers_num: ${model.audio_adapter.params.model_params.num_hidden_layers}
+          fused_mlp: False
+          fused_mlp_checkpoint_lvl: 0
+
+        custom_params:
+          in_channels: 768
+          stop_grad: false
+          head_size:
+            - ${n_q}
+            - ${num_speech_embeddings}
+
+    loss_weights:
+      text: 0.1
+      speech: 1.
+
+
+####
+#### Batch size
+####
+
+global_train_batch_size: 32
+device_train_microbatch_size: 4
+device_eval_batch_size: 4
+
+
+####
+#### Data
+####
+
+speech_config_dataset:
+  dtm: true
+  bos_token_id: 4096
+  eos_token_id: 4097
+  pad_token_id: 4098
+  q_ids: [[0], [1, 4], [2, 3, 5, 6]]
+  n_q: ${n_q}
+  audio_delay: 2
+  # dropouts
+
+text_config_dataset:
+  bos_token_id: 128006
+  eos_token_id: 128007
+  pad_token_id: ${pad_token_id}
+  # dropouts
+
+codec_name: codes_gigaam_rvq2111_4k_12Hz
+codec_path: /home/jovyan/shares/SR008.fs2/emlagutin/gigaam-codec/runs/${codec_name}/best/gigasnac/weights.pth
+data_root: /home/jovyan/shares/SR008.fs2
+split: converted_chatmlv2_9b
+
+train_loader:
+  name: tts
+  dataset:
+    max_seq_len: ${max_seq_len}
+    speech_modality: ${speech_config_dataset}
+    text_modality: ${text_config_dataset}
+    streams:
+      pseudo_logs_prod:
+        local: /workspace-SR008.fs2/rivlasov/data/gigaspeech/main/pseudo_logs_prod/
+        split: converted_chatmlv2_9b
+        proportion: 1
+    code_dataset:
+      - ${data_root}/rivlasov/data/pseudo/dialogs/pseudo_prod_dialogs_logs/${codec_name}
+    tasks:
+      - qa_t2ts
+
+eval_loader:
+  name: tts
+  dataset:
+    max_seq_len: ${max_seq_len}
+    speech_modality: ${speech_config_dataset}
+    text_modality: ${text_config_dataset}
+    streams:
+      tts_dataset:
+        local: /home/jovyan/shares/SR008.fs2/rivlasov/data/gigaspeech/pretrain/tts_datasets/valid
+        split: converted_chatmlv2_9b
+        proportion: 1
+    code_dataset:
+      - ${data_root}/emlagutin/data/giga_tts_datasets/${codec_name}
+    tasks:
+      - tts
+
+
+####
+#### Training
+####
+optimizer:
+  name: decoupled_adamw
+  lr: 1e-4

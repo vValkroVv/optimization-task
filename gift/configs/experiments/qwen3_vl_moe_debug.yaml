@@ -1,0 +1,41 @@
+# Qwen3-VL-MoE debug model on the bundled cc12m_test corpus. Bakes in an 8-GPU
+# layout (FSDP 4 x TP 2, EP 4).
+#
+#   torchrun --nproc_per_node=8 -m torchtitan.train configs/experiments/qwen3_vl_moe_debug.yaml
+#
+# Imports the MoE preset directly rather than the dense experiment: the two
+# presets place different blocks.
+config_version: 1
+
+imports:
+  - ../presets/models/qwen3_vl/debugmodel_moe.yaml
+  - ../presets/train/debug.yaml
+  - ../presets/datasets/cc12m_test_qwen3_vl.yaml
+
+loss:
+  type: chunked_cross_entropy
+
+optimizer:
+  lr: 3.0e-3
+
+lr_scheduler:
+  # The debug preset shapes a decay schedule; this config keeps the scheduler
+  # defaults and only warms up.
+  decay_ratio: null
+
+training:
+  local_batch_size: 1
+  seq_len: 512
+
+parallelism:
+  data_parallel_shard_degree: 4
+  tensor_parallel_degree: 2
+  expert_parallel_degree: 4
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false
+
+model:
+  label: qwen3_vl_moe/debugmodel_moe
+  config: {}

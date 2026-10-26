@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_kv_retrieval
+task_alias: Retrieve.KV
+dataset_kwargs:
+  data_name: kv_retrieval
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: kv_retrieval
+      context: '{"orange_box": "river_12", "green_ticket": "lamp_42", "silver_gate": "map_08"}'
+      input: "What is the value for key green_ticket?"
+      answer:
+        - "lamp_42"
+    - infinitebench_task: kv_retrieval
+      context: '{"north_pin": "cedar_19", "blue_folder": "stone_73", "quiet_room": "paper_05"}'
+      input: "What is the value for key north_pin?"
+      answer:
+        - "cedar_19"
+    - infinitebench_task: kv_retrieval
+      context: '{"daily_code": "window_61", "red_marker": "cloud_34", "final_note": "train_27"}'
+      input: "What is the value for key final_note?"
+      answer:
+        - "train_27"
+generation_kwargs:
+  max_gen_toks: 50
+  temperature: 0.0
+  do_sample: false
+  until: []

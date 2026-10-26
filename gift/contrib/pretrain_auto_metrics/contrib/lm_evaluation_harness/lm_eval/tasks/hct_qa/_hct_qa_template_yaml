@@ -1,0 +1,24 @@
+
+tag: hct_qa_tasks
+dataset_path: qcri-ai/HCTQA
+test_split: test
+num_fewshot: 0
+output_type: generate_until
+generation_kwargs:
+  temperature: 0.0
+  do_sample: false
+  max_gen_toks: 512
+  until:
+    - "\n"
+    - "\n\n"
+doc_to_target: "{{answer}}"
+process_results: !function utils.process_results
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+  - metric: set_f1
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  version: 1.0

@@ -1,0 +1,21 @@
+group: scrolls_inner_32k
+task:
+  - task: scrolls_contractnli
+    metadata: {max_seq_lengths: [4096, 8192], num_samples: 150, seed: 42}
+  - task: scrolls_narrativeqa
+    metadata: {max_seq_lengths: [16384, 32768], num_samples: 150, seed: 42, substring_match: true}
+  - task: scrolls_qasper
+    metadata: {max_seq_lengths: [4096, 8192], num_samples: 150, seed: 42}
+  - task: scrolls_quality
+    metadata: {max_seq_lengths: [4096, 8192, 16384], num_samples: 150, seed: 42}
+aggregate_metric_list:
+  - metric: "4096"
+    weight_by_size: false
+  - metric: "8192"
+    weight_by_size: false
+  - metric: "16384"
+    weight_by_size: false
+  - metric: "32768"
+    weight_by_size: false
+metadata:
+  version: 1.0

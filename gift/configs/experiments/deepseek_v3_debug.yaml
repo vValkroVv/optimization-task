@@ -1,0 +1,21 @@
+# DeepSeek-V3 debug model on the bundled c4_test corpus.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/deepseek_v3_debug.yaml
+#
+# Expert parallelism is left at the default degree of 1; the CI cases raise it
+# with `--parallelism.expert_parallel_degree N`.
+config_version: 1
+
+imports:
+  - ../presets/models/deepseek_v3/debugmodel.yaml
+  - ../presets/train/debug.yaml
+
+loss:
+  type: chunked_cross_entropy
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false
+
+model:
+  config: {}

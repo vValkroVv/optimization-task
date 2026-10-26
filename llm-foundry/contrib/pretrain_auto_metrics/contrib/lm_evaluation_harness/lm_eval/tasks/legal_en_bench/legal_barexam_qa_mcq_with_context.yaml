@@ -1,0 +1,119 @@
+tag:
+- legal_en
+task: legal_barexam_qa_mcq_with_context
+dataset_path: ai-sage/legal-en-bench
+dataset_kwargs:
+  data_files:
+    test: legal_barexam_qa_mcq_with_context_test.json
+test_split: test
+output_type: generate_until
+doc_to_text: '{{question}}
+
+
+  Choose exactly one option.
+
+  In the final answer, output only the letter of the correct option (A-D), with no explanation.
+
+  Answer:
+
+  '
+doc_to_target: '{{golden_answer}}'
+metric_list:
+- metric: exact_match
+  aggregation: mean
+  higher_is_better: true
+  ignore_case: true
+  ignore_punctuation: true
+generation_kwargs:
+  until:
+  - </s>
+  - <|im_end|>
+  - <|eot_id|>
+  - '
+
+
+    '
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 8
+repeats: 1
+num_fewshot: 4
+filter_list:
+- name: extract_choice
+  filter:
+  - function: regex
+    regex_pattern: (?is)\b([A-D])\b
+  - function: take_first
+metadata:
+  version: 1.0
+fewshot_config:
+  sampler: first_n
+  samples:
+  - question: 'Read the bar exam prompt and choose the single best answer.
+
+      Context: A water pipe burst in the basement of Supermart, a grocery store, flooding the basement and damaging cases of canned goods on the floor. The Plumbing contractor''s workmen, in repairing the leak, knocked over several stacks of canned goods in cases, denting the cans. After settling its claims against the landlord for the water leak and against the plumbing contractor for the damage done by his workmen, Supermart put the goods on special sale. Four weeks later Dotty was shopping in Supermart. Several tables in the market were covered with assorted canned foods, all of which were dirty and dented. A sign on each of the tables read: "Damaged Cans-Half Price." Dotty was having Guest for dinner that evening and purchased two dented cans of tuna, packed by Canco, from one of the tables displaying the damaged cans. Before Guest arrived, Dotty prepared a tuna casserole which she and Guest ate. Both became ill and the medical testimony established that the illness was caused by the tuna''s being unfit for consumption. The tuna consumed by Dotty and Guest came from the case that was at the top of one of the stacks knocked over by the workmen. The tuna in undamaged cans from the same Canco shipment was fit for consumption.
+
+      Question: If Guest asserts a claim against Dotty, Dotty most likely will
+
+
+      Options:
+
+      A) be held strictly liable in tort for serving spoiled tuna
+
+      B) be held liable only if she were negligent
+
+      C) not be held liable unless her conduct was in reckless disregard of the safety of Guest
+
+      D) not be held liable because Guest was a social visitor'
+    golden_answer: B
+  - question: 'Read the bar exam prompt and choose the single best answer.
+
+      Context: A water pipe burst in the basement of Supermart, a grocery store, flooding the basement and damaging cases of canned goods on the floor. The Plumbing contractor''s workmen, in repairing the leak, knocked over several stacks of canned goods in cases, denting the cans. After settling its claims against the landlord for the water leak and against the plumbing contractor for the damage done by his workmen, Supermart put the goods on special sale. Four weeks later Dotty was shopping in Supermart. Several tables in the market were covered with assorted canned foods, all of which were dirty and dented. A sign on each of the tables read: "Damaged Cans-Half Price." Dotty was having Guest for dinner that evening and purchased two dented cans of tuna, packed by Canco, from one of the tables displaying the damaged cans. Before Guest arrived, Dotty prepared a tuna casserole which she and Guest ate. Both became ill and the medical testimony established that the illness was caused by the tuna''s being unfit for consumption. The tuna consumed by Dotty and Guest came from the case that was at the top of one of the stacks knocked over by the workmen. The tuna in undamaged cans from the same Canco shipment was fit for consumption.
+
+      Question: If Guest asserts a claim against Supermart, the most likely result is that Guest will
+
+
+      Options:
+
+      A) recover on the theory of res ipsa loquitur
+
+      B) recover on the theory of strict liability in tort
+
+      C) not recover, because Supermart gave proper warning
+
+      D) not recover, because Guest was not the purchaser of the cans'
+    golden_answer: B
+  - question: 'Read the bar exam prompt and choose the single best answer.
+
+      Context: Addle, who has been in the painting and contracting business for ten years and has a fine reputation, contracts to paint Boone''s barn. Boone''s barn is a standard red barn with loft. The contract has no provision regarding assignment.
+
+      Question: If Addle assigns the contract to Coot, who has comparable experience and reputation, which of the following statements is correct?
+
+
+      Options:
+
+      A) Addle is in breach of contract.
+
+      B) Boone may refuse to accept performance by Coot.
+
+      C) Boone is required to accept performance by Coot.
+
+      D) There is a novation.'
+    golden_answer: C
+  - question: 'Read the bar exam prompt and choose the single best answer.
+
+      Context: Addle, who has been in the painting and contracting business for ten years and has a fine reputation, contracts to paint Boone''s barn. Boone''s barn is a standard red barn with loft. The contract has no provision regarding assignment.
+
+      Question: If Addle assigns the contract to Coot and thereafter Coot does not meet the contract specifications in painting Boone''s barn. Boone
+
+
+      Options:
+
+      A) has a cause of action against Addle for damages
+
+      B) has a cause of action only against Coot for damages
+
+      C) has a cause of action against Addle for damages only after he has first exhausted his remedies against Coot
+
+      D) does not have a cause of action against Addle for damages because he waived his rights against Addle by permitting Coot to perform the work'
+    golden_answer: A

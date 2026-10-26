@@ -1,0 +1,40 @@
+# Model preset: deepseek_v3 "671B".
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: 671B
+  config:
+    type: deepseek_v3
+    dim: 7168
+    vocab_size: 129280
+    norm: &norm {type: rmsnorm}
+    rope: {type: complex, dim: 64, max_seq_len: 4096, theta: 10000.0}
+    blocks:
+      mla_dense:
+        attention: &mla
+          type: mla
+          n_heads: 128
+          q_lora_rank: 1536
+          kv_lora_rank: 512
+          qk_nope_head_dim: 128
+          qk_rope_head_dim: 64
+          v_head_dim: 128
+        feed_forward: {hidden_dim: 18432}
+        attention_norm: *norm
+        ffn_norm: *norm
+      mla_moe:
+        attention: *mla
+        moe:
+          experts:
+            hidden_dim: 2048
+            num_experts: 256
+            token_dispatcher: {type: local}
+          router: {num_expert_groups: 8, num_limited_groups: 4, top_k: 8, route_norm: true, route_scale: 2.5,
+            score_func: sigmoid}
+          shared_experts: {hidden_dim: 2048}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: mla_dense, repeat: 3}
+    - {block: mla_moe, repeat: 58}

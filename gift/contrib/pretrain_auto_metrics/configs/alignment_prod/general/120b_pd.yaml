@@ -1,0 +1,115 @@
+---
+run_name: <run_name>
+exp_name: <exp_name>
+user: <user>
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 65536
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    shared_params:
+      allow-auto-truncate: true
+      tp: 8
+      ep: 8
+      # dp-attention and DeepEP both need NVreg_RegistryDwords="PeerMappingOverride=1"
+      # on every node; without it a multi-node start hangs instead of failing.
+      # Not set on every cluster yet: on o5 drop dp, enable-dp-attention and
+      # moe-a2a-backend and fall back to plain tp/ep.
+      dp: 8
+      enable-dp-attention: true
+      cuda-graph-max-bs: 64
+      moe-runner-backend: deep_gemm
+      moe-a2a-backend: deepep
+      deepep-dispatcher-output-dtype: bf16
+    prefill_fraction: 0.3
+    prefill:
+      mem-fraction-static: 0.7
+    decode: {}
+
+  model_info:
+    model_class: "sft"
+    size: "ultra"
+    username: ${user}
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    chat-template-kwargs:
+      reasoning: true
+      use_devsystem: false
+      use_suggester: false
+    reasoning-token-budget: 32768
+    chat-template: <path to jinja template>
+
+  evaluators:
+    safety_unified:
+      judges:
+        Qwen3-235B-A22B-Instruct-2507-FP8: all
+        Qwen3.5-397B-A17B-FP8: all
+      selection_manifest: big_pipeline.json
+      domain_rules_file: domain_rules.json
+
+    aa_lcr:
+      judge:
+        model_name: "Qwen3-235B-A22B-Instruct-2507-FP8"
+    new_obm:
+      obm_config: devices-v2
+      all:
+        tasks:
+          - struct_eval_text
+          - natural_plan
+          - nih_complex
+          - graphwalks
+
+    new_obm_judged:
+      obm_config: devices
+      all:
+        tasks:
+          - pollux
+      judges:
+        pollux-judge-32b:
+          - pollux
+
+    lm_eval:
+      instruct:
+        jsonschema_bench:
+          log_samples: true
+
+        ifbench:
+          log_samples: true
+
+    dredd:
+      judge:
+        model_name: "minimax-m2.7"
+      datasets:
+        - name: "arena-hard-logs-v3"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "validator-sbs-pollux"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "ru-llm-arena"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "arena-hard-ru"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "sbs-gc3-ultra-vs-alice-ai"
+          baseline:
+            name: "Alice_Ai_LLM_2025_10"

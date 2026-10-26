@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_passkey
+task_alias: Retrieve.PassKey
+dataset_kwargs:
+  data_name: passkey
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: passkey
+      context: "The park report lists benches, lamps, and flower beds. A note from the coordinator says the pass key is 3147 before continuing with the maintenance schedule and visitor counts."
+      input: "What is the pass key?"
+      answer:
+        - "3147"
+    - infinitebench_task: passkey
+      context: "Most of this memo describes archived invoices and room assignments. Hidden in the middle is the sentence: remember that the pass key is 8620 for the evening shift."
+      input: "What is the pass key?"
+      answer:
+        - "8620"
+    - infinitebench_task: passkey
+      context: "The training document repeats safety rules and equipment names. It briefly states that the pass key is 5093, then returns to the ordinary checklist."
+      input: "What is the pass key?"
+      answer:
+        - "5093"
+generation_kwargs:
+  max_gen_toks: 6
+  temperature: 0.0
+  do_sample: false
+  until: []

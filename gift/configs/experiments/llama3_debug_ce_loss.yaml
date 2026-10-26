@@ -1,0 +1,14 @@
+# Llama3 debug model with the standard (non-chunked) CrossEntropyLoss. The CI pairs it
+# with TP + loss parallel, where the chunked loss is not exercised.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/llama3_debug_ce_loss.yaml
+config_version: 1
+
+imports:
+  - llama3_debug.yaml
+
+loss:
+  type: cross_entropy
+
+model:
+  config: {}

@@ -1,0 +1,31 @@
+include: _infinitebench_common_yaml
+tag:
+  - infinitebench_tasks
+task: infinitebench_math_find
+task_alias: Math.Find
+dataset_kwargs:
+  data_name: math_find
+num_fewshot: 3
+fewshot_config:
+  sampler: first_n
+  samples:
+    - infinitebench_task: math_find
+      context: "14, 58, 23, 91, 47, 66"
+      input: "The largest number of the list?"
+      answer:
+        - "91"
+    - infinitebench_task: math_find
+      context: "8, 35, 12, 44, 27, 19"
+      input: "The third number of the list?"
+      answer:
+        - "12"
+    - infinitebench_task: math_find
+      context: "72, 16, 54, 38, 90, 21"
+      input: "The smallest number of the list?"
+      answer:
+        - "16"
+generation_kwargs:
+  max_gen_toks: 3
+  temperature: 0.0
+  do_sample: false
+  until: []

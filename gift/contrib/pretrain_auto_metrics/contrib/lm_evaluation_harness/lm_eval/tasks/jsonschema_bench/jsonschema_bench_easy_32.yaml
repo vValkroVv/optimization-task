@@ -1,0 +1,23 @@
+---
+include: jsonschema_bench_easy.yaml
+task: jsonschema_bench_easy_32
+repeats: 32
+metric_list:
+  - metric: !function metrics.json_validity_pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 32]
+  - metric: !function metrics.schema_compliance_pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 32]
+filter_list:
+  - name: "all_responses"
+    filter:
+      - function: "take_first_k"
+        k: 32
+generation_kwargs:
+  max_gen_toks: 16384
+  do_sample: true
+  temperature: 0.2
+  top_p: 0.95

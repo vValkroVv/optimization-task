@@ -1,0 +1,94 @@
+include:
+  - project: 'gigallms/ci-cd'
+    ref: main
+    file:
+      - 'pipelines/check_submodules.yml'
+
+stages:
+  - validate
+  - test
+
+check:submodules:
+  variables:
+    GIT_SUBMODULE_DEPTH: "0"
+
+# Shared config for the test-submitter jobs. Each job clones the repo on an
+# sr008 runner and hands off to submit_tests.py, which submits the actual test
+# run to the cluster and waits for the result.
+.test_job:
+  stage: test
+  tags:
+    - sr008
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+    PROJECT_NAME: sglang-pretrain
+  before_script:
+    - python3.11 -m venv "$PROJECT_NAME"
+    - source "$PROJECT_NAME/bin/activate"
+    # submit_tests.py imports the VENDORED job_submitter (it prepends
+    # contrib/job_submitter to sys.path), so install that exact tree rather than the
+    # published wheel: the deps then come from the pinned pyproject and cannot drift
+    # from the code being imported, and no CI_JOB_TOKEN or index availability is needed.
+    # sqlite-s3-query==0.1.12 is published only to the private gitlab index (PyPI stops
+    # at 0.0.82), so its vendored copy — exactly 0.1.12 — goes in first and satisfies the
+    # pin locally. Paths stay relative to the repo root: a cd here would survive a failed
+    # install and leave the script step running in the wrong directory.
+    - pip install ./contrib/job_submitter/contrib/sqlite_s3_query
+    - pip install ./contrib/job_submitter
+    - pip install pytest-cov omegaconf
+
+run:unit:all:
+  extends: .test_job
+  script:
+    - python submit_tests.py --type unit ${MARKER:+--marker "$MARKER"}
+  rules:
+    # Obligatory gate: runs automatically and must pass on merge requests
+    # targeting main. Combined with "Pipelines must succeed" on the protected
+    # main branch, a failing run blocks the merge.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+      changes:
+        - .gitlab-ci.yml
+        - submit_tests.py
+        - python/**/*
+        - test/pytest.ini
+        - test/unit/**/*
+      when: on_success
+      allow_failure: false
+    # Obligatory on pushes to main itself (e.g. direct commits / post-merge).
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      when: on_success
+      allow_failure: false
+    # Always offered as a manual job when the pipeline is started from the
+    # GitLab web UI (CI/CD > Pipelines > Run pipeline).
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+      allow_failure: false
+    - when: never
+
+run:integration:all:
+  extends: .test_job
+  script:
+    - python submit_tests.py --type integration ${MARKER:+--marker "$MARKER"}
+  rules:
+    # Obligatory gate: runs automatically and must pass on merge requests
+    # targeting main. Combined with "Pipelines must succeed" on the protected
+    # main branch, a failing run blocks the merge.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+      changes:
+        - .gitlab-ci.yml
+        - submit_tests.py
+        - python/**/*
+        - test/pytest.ini
+        - test/integration/**/*
+      when: on_success
+      allow_failure: false
+    # Obligatory on pushes to main itself (e.g. direct commits / post-merge).
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      when: on_success
+      allow_failure: false
+    # Always offered as a manual job when the pipeline is started from the
+    # GitLab web UI (CI/CD > Pipelines > Run pipeline).
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+      allow_failure: false
+    - when: never

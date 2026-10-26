@@ -1,0 +1,107 @@
+---
+run_name: <run_name>
+exp_name: <exp_name>
+user: <user>
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 65536
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    allow-auto-truncate: true
+    tp: 16
+    ep: 16
+    dp: 4
+    enable-dp-attention: true
+
+  model_info:
+    model_class: "sft"
+    size: "lite"
+    username: ${user}
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    chat-template-kwargs:
+      reasoning: true
+      use_devsystem: false
+      use_suggester: false
+    reasoning-token-budget: 32768
+    chat-template: <path to jinja template>
+
+  evaluators:
+    gigametric:
+      benchmarks:
+        esg:
+        hr:
+        drpa_gc:
+        tenderscanner:
+        insait:
+        papayaedition:
+        fin_consultant:
+        papaya_kib_table:
+        bank_legal_document_analysis:
+        bank_multilabel_numbers:
+        bank_legal_hypothetical_norm:
+        bank_multilabel:
+        bank_multichoice:
+        rubq:
+        b2c_fin_literacy_combined:
+        bbac:
+
+    gigametric_judged:
+      benchmarks:
+        bank_agents:
+        kazna:
+        mmb_summ:
+        mmb_rec:
+        Legal_L1_QuickAnswer:
+        ragqa:
+        finance_qa:
+        finam_finbench:
+      judges:
+        Qwen3-235B-A22B-Instruct-2507-FP8:
+          - bank_agents
+          - kazna
+          - mmb_summ
+          - mmb_rec
+          - Legal_L1_QuickAnswer
+          - ragqa
+          - finance_qa
+          - finam_finbench
+
+    new_obm:
+      obm_config: devices-v2
+      all:
+        tasks:
+          - gpqa_diamond_official
+          - aime_2025
+          - aime_2026
+          - hmmt
+
+    new_obm_judged:
+      obm_config: devices
+      all:
+        tasks:
+          - hle_text
+          - imo_answer_bench
+      judges:
+        Qwen3-235B-A22B-Instruct-2507-FP8:
+          - hle_text
+          - imo_answer_bench

@@ -1,0 +1,121 @@
+user: gvinblleid
+
+exp_name: <EXP_NAME>
+run_name: <RUN_NAME>
+
+tensorboard_path: /home/jovyan/shares/SR004.nfs2/${user}/tensorboard/${exp_name}
+
+model_path: /home/jovyan/models/templates/gigar-base_model-9B-128k_digit_tokenizer-no_eos-config_only
+
+tokenizer:
+  name: /home/jovyan/smirnov_da/merging/models/base_models/GigaR-9b-128k-v28_2-v2-320gbs-bf16-batched-const-fixed-new-data-3-marta/ep5-ba6413/artifacts/tokenizer
+
+save_folder: /home/jovyan/shares/SR004.nfs2/gigachat_checkpoints/pref/<SAVE_FOLDER>
+
+load_path: /home/jovyan/shares/SR004.nfs2/jserdyuk/models/GigaR-9b-128k-v28_2-v2-320gbs-bf16-batched-const-fixed-new-data-3-marta_step6413/model.pt
+teacher_load_path: /home/jovyan/shares/SR004.nfs2/jserdyuk/models/GigaR-9b-128k-v28_2-v2-320gbs-bf16-batched-const-fixed-new-data-3-marta_step6413/model.pt
+
+# DPO/Model params (editable)
+model:
+  dpo:
+    beta_chosen: 0.05
+    beta_rejected: 0.05
+    gamma: 0.0
+    weighted_gamma: 1.0
+    n_tokens: -1
+    margin_coef: 0.0
+    spectokens: [42001, 42002]
+    masked_tokens: []
+    chosen_nll_coef: 0.25
+    shiza_nll_coef: 0.95
+    spectokens_nll_coef: 0
+    loss_coef: 1.1
+    loss_func: dpo
+    chosen_nll_norm: ref
+    func_shiza: true
+    mask_common_prefix: false
+    log_metrics: true
+
+global_train_batch_size: 160
+device_train_microbatch_size: 1
+device_eval_batch_size: 1
+
+max_duration: 2370ba
+eval_interval: 550ba
+
+# Batch sizes
+train_loader:
+  dataset:
+    epoch_size: 379810
+    streams:
+      dpo_main:
+        local: /home/jovyan/jserdyuk/data/2.2_pref/28_2/
+  num_workers: 128
+
+# Optimization
+lr: 1.0e-07
+optimizer:
+  lr: ${lr}
+  weight_decay: 0
+
+scheduler:
+  name: constant_multi_step_with_gamma_with_warmup
+  t_warmup: 50ba
+  milestones: [3061ba, 4920ba]
+  milestones_gamma: [0.2, 0.04] 
+
+# Logging
+loggers:
+  tensorboard:
+    log_dir: ${tensorboard_path}
+    rank_zero_only: true
+  wandb:                          # ВАЖНО! Чтобы подключить wnb нужно настроить sber_configs/.wandb.env
+    name: ${exp_name}
+    project: DPO_TEST                     # имя проекта
+    group: null
+    entity: alignment             # название team для команбы алаймента
+    tags: null
+    log_artifacts: false
+    rank_zero_only: true
+    save_folder: ${save_folder}
+    init_kwargs:
+      notes: notes
+
+callbacks:
+  speed_monitor:
+    window_size: 10
+  lr_monitor: {}
+  memory_monitor: {}
+  runtime_estimator: {}
+  optimizer_monitor:
+    batch_log_interval: 10
+  scheduled_gc:
+    batch_interval: 20
+  training_metrics_monitor:
+    batch_log_interval: 250
+  job_dispatcher_callback_web:
+    region: SR004
+    username: <USERNAME>
+    convertation:
+      n_gpus: 8
+    save_hf_in_ckpt_dir: true
+    tokenizer_path: ${tokenizer.name}
+    eval_interval: ${eval_interval}
+    jobs:
+      - sam:
+          pass_obm: false
+          pass_obb: true
+          pass_judge: false
+          obb_datasets: []
+          obm_datasets: []
+          obm_groups: []
+
+auto_log_hparams: true
+autoresume: true # При перезапуске обучения модель продолжит обучаться
+
+save_interval: 550ba
+stable_save_interval: 550ba
+
+load_weights_only: true
+load_strict_model_weights: true 
+

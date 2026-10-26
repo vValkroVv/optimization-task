@@ -1,0 +1,23 @@
+eval_interval: 100ba
+
+
+icl_tasks:
+  - label: mmmu
+    dataset_uri: /home/jovyan/test_cache/datasets/vision/mmmu_small
+    dataset_json_filename: mmmu_testqa_4_choices_intrain_100_omni.jsonl
+    dataset_files_dirname: images
+    icl_task_type: mmmu
+    num_fewshot: [0]
+    max_seq_len: ${max_seq_len}
+    sft_args:
+      chatml_version: v3
+      processors:
+        # We can't just do - <<: *vision_processor since vision_processor
+        # can't be resolved
+        - name: GigaOmniVisionProcessor
+          image_aspect_ratio: qwen
+          num_image_tokens_per_crop: 1
+          image_token_id: ${image_token_id}
+          image_processor: /home/jovyan/test_cache/models/vision/Qwen3-VL-8B-Instruct-VE
+      collators:
+        - name: QwenImageCollator

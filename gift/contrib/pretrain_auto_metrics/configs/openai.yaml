@@ -1,0 +1,299 @@
+---
+run_name: run_name
+exp_name: exp_name
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    engine_type: external_api
+    formatting: openai
+    base_url: https://api.openai.com/v1
+    model: gpt-4o-mini
+    api_key: ...
+    max_concurrency: 10
+
+  secondary_inference:
+    openrouter:
+      api_key: ...
+    # chatwm_openrouter:
+    #   api_key: ...
+    # unknown_provider:
+    #   base_url: https://api.unknown-provider.example/v1
+    #   formatting: openai  # or ift
+    #   api_key: ...        # or user_pass: USER:PASS (ift formatting only)
+    #   max_concurrency: 10
+    #   timeout: 7200
+    #   request_customization:
+    #     temperature: 0.0
+
+  model_info:
+    model_class: "sft"
+    size: "ultra"
+    username: ${user}
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    chat-template-kwargs:
+      reasoning: true
+    reasoning-token-budget: 32768
+    # Need for instruct metrics.
+    chat-template: <path to jinja template>
+
+  evaluators:
+    tau3:
+      num-trials: 3
+      domains:
+        - airline
+        - retail
+        - telecom
+        - banking_knowledge
+      user_model_name: "openrouter:qwen/qwen3-235b-a22b-2507"
+
+    # GigaMetric (opt-in). Полный пример: configs/gigametric/gigachat_700b.yaml.
+    new_obm:
+      obm_config: openai
+
+      all:
+        groups:
+          - assistant
+          - b2c
+          - code
+          - functions
+          - long
+          - math
+          - open
+          - reward
+          - sber
+          - ssu
+          # Optional task-name filter.
+          # tasks:
+          #   - mmlu
+          #   - gsm8k
+          # Task names to exclude from the run.
+          # ignore_tasks:
+          #   - mmlu
+          # Clear OBM cache before running.
+          # restart: false
+          # Per-dataset context overrides.
+          # context: <path to context yaml>
+          # Disable few-shot examples for all tasks.
+          # disable_few_shots: false
+          # Disable suggested generation params for all tasks.
+          # disable_suggested_params: false
+
+
+    new_obm_judged:
+      obm_config: openai
+      all:
+        tasks:
+          - pollux
+      judges:
+        "openrouter:qwen/qwen3-235b-a22b-2507":
+          - pollux
+
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          none
+
+    mera:
+      # System prompt applied to all MERA tasks. Keep "none" to use the default
+      # prompt, or replace it with a custom string. Individual tasks can
+      # override it by setting their own system_instruction
+      # (see simplear below).
+      system_instruction: none
+
+      simplear:
+        # system_instruction: "Custom prompt for this task only"
+        none
+
+      bps_gen:
+        none
+
+      lcs_gen:
+        none
+
+      chegeka:
+        none
+
+      mathlogicqa_gen:
+        none
+
+      parus_gen:
+        none
+
+      rcb_gen:
+        none
+
+      rudetox:
+        none
+
+      ruhatespeech_gen:
+        none
+
+      rummlu_gen:
+        none
+
+      ruworldtree_gen:
+        none
+
+      ruopenbookqa_gen:
+        none
+
+      rumultiar:
+        none
+
+      use:
+        none
+
+      rwsd_gen:
+        none
+
+      mamuramu_gen:
+        none
+
+      multiq:
+        none
+
+      rumodar:
+        none
+
+      ruhhh_gen:
+        none
+
+      ruethics_gen:
+        none
+
+      rucodeeval:
+        none
+
+      ruhumaneval:
+        none
+
+      # MERA Industrial
+      agro_bench:
+        none
+
+      aqua_bench:
+        none
+
+      med_bench:
+        none
+
+      # MERA Code (без Docker)
+      codecorrectness:
+        none
+
+      codelintereval:
+        none
+
+      rucodereviewer:
+        none
+
+      strucom:
+        none
+
+    dredd:
+      judge:
+        model_name: "openrouter:minimax/minimax-m2"
+
+    bfcl:
+      model: gigachat-FC
+      test_category: all
+
+    tau2:
+      domains:
+        - airline
+        - retail
+        - telecom
+      user_model_name: "openrouter:qwen/qwen3-235b-a22b-2507"
+
+    skillsbench:
+      agent: openhands-cli
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      n-concurrent: 32
+
+    nl2repo:
+      agent: openhands-sdk
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      n-concurrent: 32
+
+    terminal_bench:
+      agent: mini-swe-agent
+      max-tokens: 16384
+      max-input-tokens: 98304
+      n-concurrent: 89
+
+    harbor_rli:
+      runs:
+        - benchmark: harness-bench-lite
+          pass-at-k: 8
+          agent_timeout: 3600
+          benchmark-kwargs:
+            forward-reasoning-history: true
+            recursion-limit: 80
+        - benchmark: harness-bench-medium
+          pass-at-k: 8
+          agent_timeout: 3600
+          benchmark-kwargs:
+            forward-reasoning-history: true
+            recursion-limit: 80
+        - benchmark: terminal-bench-2.1
+          agent: mini-swe-agent
+          max-tokens: 16384
+          n-concurrent: 89
+          pass-at-k: 1
+        - benchmark: cowork-bench
+          agent: strands
+          max-tokens: 32768
+          n-concurrent: 64
+          pass-at-k: 1
+        - benchmark: swe-bench-multilingual
+          agent: mini-swe-agent
+          max-tokens: 16384
+          n-concurrent: 64
+          pass-at-k: 1
+
+    safety_unified:
+      judges:
+        Qwen3-235B-A22B-Instruct-2507-FP8: all
+        Qwen3.5-397B-A17B-FP8: all
+      selection_manifest: big_pipeline.json
+      domain_rules_file: domain_rules.json
+
+    pier_rli:
+      benchmark: deepswe
+      command-timeout: 30
+      agent: mini-swe-agent
+      max-tokens: 16384
+      n-concurrent: 64
+
+    swe_bench:
+      agent: mini-swe-agent
+      max-tokens: 16384
+      max-input-tokens: 98304
+      n-concurrent: 64

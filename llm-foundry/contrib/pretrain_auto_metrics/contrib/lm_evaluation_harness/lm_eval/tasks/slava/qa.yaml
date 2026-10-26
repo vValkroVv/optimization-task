@@ -1,0 +1,20 @@
+
+task: slava_qa
+include: _slava_template_yaml
+dataset_name: qa
+
+process_results: !function utils.process_gen
+
+metric_list:
+    - metric: exact_match
+      aggregation: mean
+      higher_is_better: true
+    - metric: levenshtein_ratio
+      aggregation: mean
+      higher_is_better: true
+    - metric: f1
+      aggregation: mean
+      higher_is_better: true
+    - metric: mean_score
+      aggregation: mean
+      higher_is_better: true

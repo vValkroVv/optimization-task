@@ -1,0 +1,142 @@
+---
+run_name: <run_name>
+exp_name: <exp_name>
+user: <user>
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 65536
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    shared_params:
+      allow-auto-truncate: true
+      enable-dp-attention: true
+      enable-dp-attention-local-control-broadcast: true
+      kv-cache-dtype: fp8_e4m3
+      disable-prefill-cuda-graph: true
+    prefill_fraction: 0.75
+    prefill:
+      tp: 8
+      ep: 8
+      dp: 8
+      pp: 4
+      chunked-prefill-size: 65536
+    decode:
+      tp: 32
+      ep: 32
+      dp: 32
+      chunked-prefill-size: 8192
+      auto-mtp: true
+      disaggregation-decode-extra-slots: 4
+      enable-gdn-spec-replay-commit: true
+
+  quantization:
+    skip: false
+    device_map: auto
+    quantization_config:
+      weight_block_size: [128, 128]
+      modules_to_not_convert: [
+        "lm_head",
+        "embed_tokens",
+        "shared_head.head",
+        "mlp.gate.weight",
+        "eh_proj",
+        "self_attn.A_log",
+        "self_attn.conv1d",
+        "self_attn.dt_bias",
+        "self_attn.in_proj_ba",
+        "self_attn.norm.weight",
+        "self_attn.gate_proj",
+        "gate_up_projection",
+        "gate_down_projection",
+        "shared_expert_sigmoid",
+        "indexer.wk",
+        "indexer.weights_proj",
+        "mlp.gate_proj",
+        "mlp.up_proj",
+        "mlp.down_proj",
+        "mlp.shared_experts",
+      ]
+
+  model_info:
+    model_class: "sft"
+    size: "ultra"
+    username: ${user}
+
+  obm_proxy:
+    chat-template-kwargs:
+      reasoning: true
+      use_devsystem: false
+      use_suggester: false
+    reasoning-token-budget: 32768
+    chat-template: <path to jinja template>
+
+  evaluators:
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          log_samples: true
+
+    terminal_bench:
+      agent: mini-swe-agent
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 89
+
+    harbor_rli:
+      runs:
+        - benchmark: terminal-bench-2.1
+          agent: mini-swe-agent
+          pass-at-k: 1
+          max-tokens: 16384
+          agent-timeout: 25200
+          n-concurrent: 89
+        - benchmark: swe-bench-multilingual
+          agent: mini-swe-agent
+          pass-at-k: 1
+          max-tokens: 16384
+          agent-timeout: 25200
+          n-concurrent: 64
+
+    pier_rli:
+      benchmark: deepswe
+      pass-at-k: 1
+      command-timeout: 30
+      agent: mini-swe-agent
+      max-tokens: 16384
+      agent-timeout: 36000
+      n-concurrent: 64
+
+    swe_bench:
+      agent: mini-swe-agent
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 64
+
+    nl2repo:
+      agent: openhands-sdk
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 32

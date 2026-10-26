@@ -1,0 +1,28 @@
+# Small monitoring set; detailed tensor/MoE diagnostics live in monitored.yaml.
+callbacks:
+  system:
+    type: system_monitor
+    memory_log_interval: 10
+    host_log_interval: 0
+  monitoring:
+    type: monitoring
+    log_interval: 10
+    sources:
+      trainer: {type: trainer, log_throughput: true}
+      data: {type: data}
+      modelling:
+        type: modelling
+        metrics:
+          - name: abs_max
+            pipeline: [{op: abs_max}]
+            reduce: {stages: [{group: dp, op: max}, {group: cp, op: max}]}
+          - name: finite_ratio
+            pipeline: [{op: finite_ratio}]
+            reduce: {stages: [{group: dp, op: mean}, {group: cp, op: mean}]}
+      optimizer:
+        type: optimizer
+        metrics:
+          - {name: abs_max, pipeline: [{op: abs_max}]}
+          - {name: finite_ratio, pipeline: [{op: finite_ratio}]}
+  # Read the timer registry after the other observers.
+  timers: {type: timers_monitor, interval: 10}

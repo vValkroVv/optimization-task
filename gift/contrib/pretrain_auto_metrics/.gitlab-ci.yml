@@ -1,0 +1,752 @@
+---
+include:
+  - project: 'gigallms/ci-cd'
+    ref: main
+    file:
+      - 'components/build.yml'
+      - 'new_gen/release.yml'
+      - 'new_gen/papaya.yml'
+      - 'components/linters.yml'
+      - 'pipelines/check_submodules.yml'
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "dev"
+
+variables:
+  REGISTRY_BASE: "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0"
+  PAM_IMAGE: "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/pretrain-auto-metrics_custom:2026_10_25_commited483be4"
+  GENERATIONS_S3: "gigaeye-s3:gigaeye-pretrain-checkpoints/pretrain-auto-metrics-e2e-generations"
+  DOCKERFILE_PATH: "Dockerfile"
+  MYPY_CONFIG_FILE: "mypy.ini"
+  MYPY_EXCLUDE: '^sber_tests/'
+  COVERAGE_MIN: "100"
+  COVERAGE_FILE: "coverage.data"
+
+.build:pam_docker_base:
+  extends: .build:docker_base
+  tags:
+    - advanced
+  before_script:
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ai.cloud.ru/gigallms/ci-cd.git
+    - bash ci-cd/scripts/download_dependencies_s3.sh
+    - |
+      echo $REGISTRY_PASSWORD | docker login \
+          $REGISTRY_BASE \
+          --username $REGISTRY_LOGIN \
+          --password-stdin
+  script:
+    - set -a && . build_utils/refs.env && set +a
+    - git -C contrib/gorilla rev-parse HEAD > bfcl_version.txt
+    - git -C contrib/swe_bench_harbor_rli rev-parse HEAD > swe_bench_version.txt
+    - git -C contrib/terminal_bench rev-parse HEAD > terminal_bench_version.txt
+    - |
+      BUILD_DATE=$(TZ=MSK-3 date +"%Y_%m_%d")
+      IMAGE_PATH=${REGISTRY_BASE}/${CI_PROJECT_NAME}_${SGLANG_TAG}:${BUILD_DATE}_commit${CI_COMMIT_SHORT_SHA}
+    - echo "IMAGE_PATH=$IMAGE_PATH" >> build.env
+    - cd "$CI_PROJECT_DIR"
+    - |
+      cd contrib/lm_evaluation_harness && \
+          git rev-parse HEAD > lm_eval_version.txt && \
+          cd "$CI_PROJECT_DIR"
+    - |
+      host=gitlab.ai.cloud.ru
+      auth="https://gitlab-ci-token:${CI_JOB_TOKEN}@${host}/"
+      git config --global \
+          "url.${auth}.insteadOf" \
+          "https://${host}/"
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${TAU2_REPO_URL} \
+          tau2-bench
+      git -C tau2-bench checkout --detach "${TAU2_REF}"
+      git -C tau2-bench rev-parse HEAD > tau2-bench/tau2_version.txt
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${PLANBENCH_REPO_URL} \
+          plan-bench-pam
+      git -C plan-bench-pam checkout --detach "${PLANBENCH_REF}"
+      git -C plan-bench-pam submodule update --init --recursive
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${APPWORLD_BENCH_REPO_URL} \
+          appworld-bench
+      git -C appworld-bench fetch --depth 1 origin "${APPWORLD_BENCH_REF}"
+      git -C appworld-bench checkout --detach FETCH_HEAD
+      git -C appworld-bench rev-parse HEAD > appworld-bench/pam_shooter_version.txt
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${CLAWEVAL_BENCH_REPO_URL} \
+          claweval-bench
+      git -C claweval-bench checkout --detach "${CLAWEVAL_BENCH_REF}"
+      git -C claweval-bench rev-parse HEAD > claweval-bench/pam_shooter_version.txt
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${NCCL_REPO_URL} \
+          nccl-pretrain
+      git -C nccl-pretrain fetch --depth 1 origin "${NCCL_REF}"
+      git -C nccl-pretrain checkout --detach FETCH_HEAD
+      git -C nccl-pretrain rev-parse HEAD > nccl-pretrain/nccl_version.txt
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_REPO_URL} \
+          harbor-rli
+      git -C harbor-rli checkout --detach "${HARBOR_RLI_REF}"
+    - |
+      git clone --no-checkout --depth 1 --filter=blob:none \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_COWORK_DATA_REPO_URL} \
+          harbor-rli-cowork-data
+      git -C harbor-rli-cowork-data fetch --depth 1 origin "$HARBOR_RLI_COWORK_DATA_REF"
+      git -C harbor-rli-cowork-data checkout --detach FETCH_HEAD
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${GIGARLI_REPO_URL} \
+          harbor-gigarli
+      git -C harbor-gigarli checkout --detach "${GIGARLI_REF}"
+    - |
+      git clone --no-checkout --depth 1 --filter=blob:none \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_SWE_DATA_REPO_URL} \
+          harbor-rli-swe-data
+      git -C harbor-rli-swe-data sparse-checkout set \
+          datasets/swebench-verified datasets/swebench_multilingual
+      git -C harbor-rli-swe-data fetch --depth 1 origin "$HARBOR_RLI_SWE_DATA_REF"
+      git -C harbor-rli-swe-data checkout --detach FETCH_HEAD
+    - |
+      git clone --no-checkout --depth 1 --filter=blob:none \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_TERMINAL_2_0_DATA_REPO_URL} \
+          harbor-rli-terminal-data
+      git -C harbor-rli-terminal-data fetch --depth 1 origin "$HARBOR_RLI_TERMINAL_2_0_DATA_REF"
+      git -C harbor-rli-terminal-data checkout --detach FETCH_HEAD
+    - |
+      git clone --no-checkout --depth 1 --filter=blob:none \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_TERMINAL_2_1_DATA_REPO_URL} \
+          harbor-rli-terminal-21-data
+      git -C harbor-rli-terminal-21-data fetch --depth 1 origin "$HARBOR_RLI_TERMINAL_2_1_DATA_REF"
+      git -C harbor-rli-terminal-21-data checkout --detach FETCH_HEAD
+      git clone --no-checkout \
+          "https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_HARNESS_016_REPO_URL}" \
+          harness-bench-016
+      git -C harness-bench-016 checkout --detach "$HARBOR_RLI_HARNESS_016_REF"
+      git clone --no-checkout \
+          "https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_HARNESS_017_REPO_URL}" \
+          harness-bench-017
+      git -C harness-bench-017 checkout --detach "$HARBOR_RLI_HARNESS_017_REF"
+      git clone --no-checkout \
+          "https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_HARNESS_018_REPO_URL}" \
+          harness-bench-018
+      git -C harness-bench-018 checkout --detach "$HARBOR_RLI_HARNESS_018_REF"
+      cat > harbor-rli/harbor_rli_version.txt <<EOF
+      {
+        "rli": "$(git -C harbor-rli rev-parse HEAD)+$(git -C harbor-gigarli rev-parse HEAD)",
+        "benchmarks": {
+          "cowork-bench": "cowork.$(git -C harbor-rli-cowork-data rev-parse HEAD)",
+          "harness-bench-lite": "harness018.$(git -C harness-bench-018 rev-parse HEAD)",
+          "harness-bench-medium": "harness018.$(git -C harness-bench-018 rev-parse HEAD)",
+          "swe-bench-verified": "swe.$(git -C harbor-rli-swe-data rev-parse HEAD)",
+          "swe-bench-multilingual": "swe.$(git -C harbor-rli-swe-data rev-parse HEAD)",
+          "terminal-bench-2.0": "terminal20.$(git -C harbor-rli-terminal-data rev-parse HEAD)",
+          "terminal-bench-2.1": "terminal21.$(git -C harbor-rli-terminal-21-data rev-parse HEAD)"
+        }
+      }
+      EOF
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${GIGARLI_REPO_URL} \
+          terminal-env-gigarli
+      git -C terminal-env-gigarli checkout --detach "${GIGARLI_REF}"
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${NL2REPO_BENCH_REPO_URL} \
+          nl2repo-bench
+      git -C nl2repo-bench checkout --detach "${NL2REPO_BENCH_REF}"
+      git -C nl2repo-bench rev-parse HEAD > nl2repo-bench/nl2repo_version.txt
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${PIER_RLI_REPO_URL} \
+          pier-rli
+      git -C pier-rli checkout --detach "${PIER_RLI_REF}"
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${GIGARLI_REPO_URL} \
+          pier-gigarli
+      git -C pier-gigarli checkout --detach "${GIGARLI_REF}"
+    - |
+      git clone --no-checkout --depth 1 --filter=blob:none \
+          https://${DEEPSWE_REPO_URL} \
+          deep-swe
+      git -C deep-swe fetch --depth 1 origin "${DEEPSWE_REF}"
+      git -C deep-swe checkout --detach FETCH_HEAD
+      printf '%s+gigarli.%s+deepswe.%s\n' \
+          "$(git -C pier-rli rev-parse HEAD)" \
+          "$(git -C pier-gigarli rev-parse HEAD)" \
+          "$(git -C deep-swe rev-parse HEAD)" \
+          > pier-rli/pier_rli_version.txt
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${AA_LCR_REPO_URL} \
+          aa-lcr-bench
+      git -C aa-lcr-bench checkout --detach "${AA_LCR_REF}"
+      git -C aa-lcr-bench rev-parse HEAD > aa-lcr-bench/aa_lcr_version.txt
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${MERA_REPO_URL} \
+          /tmp/mera_united
+      git -C /tmp/mera_united checkout --detach "${MERA_REF}"
+      git -C /tmp/mera_united submodule update --init --recursive
+    - |
+      cd /tmp/mera_united/lm-evaluation-harness && \
+          git rev-parse HEAD > /tmp/mera_version.txt && \
+          cd -
+    - cp /tmp/mera_version.txt /tmp/mera_united/mera_version.txt
+    - |
+      cd contrib/dredd && \
+          git rev-parse HEAD > dredd_version.txt && \
+          cd "$CI_PROJECT_DIR"
+    - cp -r /tmp/mera_united ./mera_united
+    - |
+      git clone \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${OBM_REPO_URL}
+      git -C one-button-metrics checkout --detach "${OBM_REF}"
+    - |
+      cd one-button-metrics && \
+          git rev-parse HEAD > obm_version.txt && \
+          cd "$CI_PROJECT_DIR"
+    - |
+      git clone \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${NEW_OBM_REPO_URL}
+      git -C new_obm checkout --detach "${NEW_OBM_REF}"
+    - |
+      cd new_obm && \
+          git rev-parse HEAD > new_obm_version.txt && \
+          cd "$CI_PROJECT_DIR"
+    - |
+      git clone --no-checkout \
+          https://oauth2:${GITVERSE_READONLY_TOKEN}@${GIGAMETRIC_REPO_URL} \
+          contrib/papayametric
+      git -C contrib/papayametric fetch --depth 1 origin "${GIGAMETRIC_REF}"
+      git -C contrib/papayametric checkout --detach FETCH_HEAD
+    - |
+      cd contrib/papayametric && \
+          git rev-parse HEAD > "$CI_PROJECT_DIR/gigametric_version.txt" && \
+          cd "$CI_PROJECT_DIR"
+    - |
+      git clone --no-checkout \
+          https://oauth2:${GITVERSE_READONLY_TOKEN}@${FORGE_LITE_REPO_URL} \
+          contrib/forge_lite
+      git -C contrib/forge_lite checkout --detach "${FORGE_LITE_REF}"
+    - |
+      cd contrib/forge_lite && \
+          git rev-parse HEAD > "$CI_PROJECT_DIR/forge_lite_version.txt" && \
+          cd "$CI_PROJECT_DIR"
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${SKILLSBENCH_BENCH_REPO_URL} \
+          skillsbench-bench
+      git -C skillsbench-bench checkout --detach "${SKILLSBENCH_BENCH_REF}"
+      git -C skillsbench-bench rev-parse HEAD \
+          > skillsbench-bench/skillsbench_version.txt
+    - |
+      git clone --no-checkout \
+          https://gitlab-ci-token:${CI_JOB_TOKEN}@${SAFETY_UNIFIED_REPO_URL} \
+          safety-unified
+      git -C safety-unified checkout --detach "${SAFETY_UNIFIED_REF}"
+      git -C safety-unified rev-parse HEAD > safety-unified/safety_unified_version.txt
+    - |
+      docker build \
+          --target ${SGLANG_TAG} \
+          --secret id=gpqa_hf_token,env=GPQA_HF_TOKEN \
+          --secret id=sage_hf_token,env=SAGE_HF_TOKEN \
+          --secret id=obm_repo_url,env=OBM_REPO_URL \
+          --secret id=obm_s3_access_key,env=OBM_S3_ACCESS_KEY_ID \
+          --secret id=obm_s3_secret_key,env=OBM_S3_SECRET_ACCESS_KEY \
+          --secret id=obm_s3_endpoint_url,env=OBM_S3_ENDPOINT_URL \
+          --secret id=gigametric_s3_access_key,env=S3_ACCESS_KEY \
+          --secret id=gigametric_s3_secret_key,env=S3_SECRET_KEY \
+          --secret id=gigametric_s3_bucket_name,env=S3_BUCKET_NAME \
+          --secret id=gigametric_s3_endpoint_url,env=S3_ENDPOINT_URL \
+          --secret id=gigametric_s3_region_name,env=S3_REGION_NAME \
+          -f $DOCKERFILE_PATH -t $IMAGE_PATH .
+      docker push $IMAGE_PATH
+      echo "Image pushed to ---> $IMAGE_PATH <--"
+  after_script:
+    - docker logout "$REGISTRY_BASE"
+
+.image_inputs: &image_inputs
+  paths:
+    - Dockerfile
+    - .dockerignore
+    - requirements.txt
+    - convertation_requirements.txt
+    - build_utils/**/*
+    - node_runner/resources/mera_system_instruction.txt
+    - contrib/dredd
+    - contrib/gigarli
+    - contrib/gorilla
+    - contrib/lm_evaluation_harness
+    - contrib/sglang_pretrain
+    - contrib/swe_bench_harbor_rli
+    - contrib/terminal_bench
+  compare_to: refs/heads/main
+
+.rules:manual_web:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+      allow_failure: true
+
+.rules:manual_commit:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH != "main"
+      when: manual
+      allow_failure: true
+
+.rules:nightly_build:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY == "1"
+      changes: *image_inputs
+    - !reference [.rules:manual_web, rules]
+
+.rules:nightly_dev_build:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY == "1" && $CI_COMMIT_BRANCH == "dev"
+      changes: *image_inputs
+
+build:opensource_sglang:
+  extends:
+    - .build:pam_docker_base
+    - .base_job_with_retry
+  variables:
+    SGLANG_TAG: "opensource"
+  rules:
+    - !reference [.rules:nightly_build, rules]
+    - !reference [.rules:manual_commit, rules]
+
+build:custom_sglang:
+  extends:
+    - .build:pam_docker_base
+    - .base_job_with_retry
+  variables:
+    SGLANG_TAG: "custom"
+  rules:
+    - !reference [.rules:nightly_build, rules]
+    - !reference [.rules:manual_commit, rules]
+
+push:papaya_opensource:
+  tags:
+    - advanced
+  extends:
+    - .build:papaya_docker
+  timeout: 8h
+  rules:
+    - !reference [.rules:manual_web, rules]
+    - !reference [.rules:manual_commit, rules]
+  needs:
+    - job: build:opensource_sglang
+      artifacts: true
+
+push:papaya_custom:
+  tags:
+    - advanced
+  extends:
+    - .build:papaya_docker
+  timeout: 8h
+  rules:
+    - !reference [.rules:manual_web, rules]
+    - !reference [.rules:manual_commit, rules]
+  needs:
+    - job: build:custom_sglang
+      artifacts: true
+
+push:papaya_opensource:nightly:
+  extends:
+    - push:papaya_opensource
+    - .rules:nightly_dev_build
+    - .base_job_with_retry
+  stage: deploy
+  needs:
+    - job: build:opensource_sglang
+      artifacts: true
+    - job: test:e2e:text
+    - job: test:e2e:vision
+    - job: test:e2e:430b
+
+push:papaya_custom:nightly:
+  extends:
+    - push:papaya_custom
+    - .rules:nightly_dev_build
+    - .base_job_with_retry
+  stage: deploy
+  needs:
+    - job: build:custom_sglang
+      artifacts: true
+    - job: test:e2e:text
+    - job: test:e2e:vision
+    - job: test:e2e:430b
+
+push:fast:
+  tags:
+    - advanced
+  extends:
+    - .build:papaya_docker
+    - .rules:manual_web
+
+
+check:submodules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"'
+      allow_failure: true
+
+check:mr_target:
+  extends:
+    - .python_job
+  stage: validate
+  needs: []
+  variables:
+    GIT_STRATEGY: none
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - |
+      if [ "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}" = "main" ]; then
+        echo "MR из ${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME} открыт в main. main двигает только ночной релиз, пересоздайте MR в dev."
+        exit 1
+      fi
+    - echo "MR в ${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
+
+check:refs:
+  extends:
+    - .python_job
+  stage: validate
+  needs: []
+  allow_failure: true
+  variables:
+    GIT_SUBMODULE_STRATEGY: none
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - python3 ci/check_refs.py build_utils/refs.env
+
+test:unit:
+  extends:
+    - .python_job
+  stage: unit
+  variables:
+    PIP_BREAK_SYSTEM_PACKAGES: 1
+    GIT_SUBMODULE_STRATEGY: normal
+    GIT_SUBMODULE_PATHS: "contrib/terminal_bench contrib/gigarli"
+  needs:
+    - job: lint:optional:ruff
+      optional: true
+    - job: lint:required:ruff
+      optional: true
+    - job: lint:optional:yaml_lint
+      optional: true
+    - job: lint:required:yaml_lint
+      optional: true
+    - job: lint:optional:mypy
+      optional: true
+    - job: lint:required:mypy
+      optional: true
+    - job: check:submodules
+      optional: true
+    - check:mr_target
+    - check:refs
+  script:
+    - pytest -m unit
+      --strict-markers
+      --cov=node_runner
+      --cov-report=
+      --junitxml=pytest-report.xml
+      --cov-branch
+      sber_tests
+    - coverage xml -o coverage.xml
+  artifacts:
+    when: always
+    reports:
+      junit: pytest-report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.data
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+test:coverage:
+  extends:
+    - .python_job
+  stage: unit
+  variables:
+    GIT_SUBMODULE_STRATEGY: none
+  needs:
+    - job: test:unit
+      artifacts: true
+  allow_failure: false
+  coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+%)/'
+  script:
+    - pip install coverage
+    - coverage report --show-missing --skip-covered --fail-under="$COVERAGE_MIN"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+
+.test:e2e:
+  extends:
+    - .python_job
+    - .base_job_with_retry
+  stage: integration
+  needs:
+    - job: build:custom_sglang
+      artifacts: true
+      optional: true
+    - job: test:integrational
+      artifacts: false
+  timeout: 6h
+  tags:
+    - sr008
+  script:
+    - /workspace-SR008.nfs2/pam_tests/bin/python sber_tests/submit_e2e_tests.py --suite "$PAM_E2E_SUITE"
+  rules:
+    - !reference [.rules:nightly, rules]
+
+test:e2e:text:
+  extends:
+    - .test:e2e
+  resource_group: e2e-text
+  variables:
+    PAM_E2E_SUITE: "text"
+
+test:e2e:vision:
+  extends:
+    - .test:e2e
+  resource_group: e2e-vision
+  variables:
+    PAM_E2E_SUITE: "vision"
+
+test:e2e:record:
+  extends: test:e2e:text
+  variables:
+    PAM_E2E_OVERLAY: sber_tests/test_data/configs/10b_test_record.yaml
+  needs: []
+  rules:
+    - !reference [.rules:manual_commit, rules]
+  script:
+    - !reference [.test:e2e, script]
+    - |
+      set -euo pipefail
+      MODEL=/home/jovyan/models/10b_v4_1_no_delete
+      NAME=10b_test_${CI_COMMIT_SHORT_SHA}_${CI_JOB_ID}
+      STAGE=$(mktemp -d)
+      mkdir "$STAGE/tokenizer"
+      for f in tokenizer.json tokenizer_config.json tokenizer.model special_tokens_map.json added_tokens.json vocab.json merges.txt chat_template.jinja; do
+        for d in "$MODEL" "$MODEL/artifacts/hf_checkpoint"; do
+          if [ -f "$d/$f" ]; then cp "$d/$f" "$STAGE/tokenizer/"; break; fi
+        done
+      done
+      tar -czf "$STAGE.tar.gz" -C "$MODEL/artifacts/generations" . -C "$STAGE" tokenizer
+      RCLONE=/home/jovyan/job-dispatcher-utils/s3-interaction
+      "$RCLONE/rclone" --config "$RCLONE/rclone.conf" --s3-no-check-bucket copyto "$STAGE.tar.gz" "$GENERATIONS_S3/$NAME.tar.gz"
+      rm -rf "$STAGE" "$STAGE.tar.gz"
+      echo "Recorded $NAME: put /ci-data/pam/generations/$NAME into sber_tests/test_data/configs/10b_test_replay.yaml"
+
+test:integrational:
+  extends:
+    - .python_job
+    - .base_job_with_retry
+  image: "$IMAGE_PATH"
+  tags:
+    - advanced_light
+  stage: integration
+  needs:
+    - job: test:unit
+      artifacts: false
+      optional: true
+    - job: build:custom_sglang
+      artifacts: true
+      optional: true
+  timeout: 2h
+  variables:
+    IMAGE_PATH: "$PAM_IMAGE"
+    PAM_E2E_OVERLAY: sber_tests/test_data/configs/10b_test_replay.yaml
+    PAM_E2E_CHECKPOINT: "$CI_PROJECT_DIR/e2e_cpu"
+    PYTHONPATH: "$CI_PROJECT_DIR:$CI_PROJECT_DIR/contrib/gigafsdp:$CI_PROJECT_DIR/contrib/gigachat_utils/convertation:$CI_PROJECT_DIR/contrib/lm_evaluation_harness:$CI_PROJECT_DIR/contrib/sglang_pretrain/python"
+  rules:
+    - !reference [.rules:nightly, rules]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"
+      when: manual
+      allow_failure: false
+  before_script:
+    - |
+      set -euo pipefail
+      DIR=$(sed -n 's/^ *replay-generations-dir: *//p' "$PAM_E2E_OVERLAY")
+      if [ ! -d "$DIR" ]; then
+        TMP=$(mktemp -d -p "$(dirname "$DIR")")
+        rclone --config "$RCLONE_CONF_FILE" cat "$GENERATIONS_S3/$(basename "$DIR").tar.gz" | tar -xz -C "$TMP"
+        mv -T "$TMP" "$DIR" || rm -rf "$TMP"
+      fi
+      find "$(dirname "$DIR")" -mindepth 1 -maxdepth 1 -mtime +30 ! -path "$DIR" -exec rm -rf {} +
+      mkdir -p "$PAM_E2E_CHECKPOINT/artifacts"
+      cp -r "$DIR/tokenizer/." "$PAM_E2E_CHECKPOINT/artifacts/"
+  script:
+    - ulimit -n "$(ulimit -Hn)"
+    - python3 -m pytest -m e2e --strict-markers -q --tb=short -rf sber_tests/e2e/test_e2e.py
+  after_script: []
+  artifacts:
+    when: always
+    paths:
+      - e2e_cpu/artifacts/logs
+
+review:pam:
+  extends:
+    - .python_job
+  stage: integration
+  needs:
+    - job: test:integrational
+      artifacts: false
+  timeout: 30m
+  environment:
+    name: pam-review
+    action: access
+  variables:
+    RUNNER_SCRIPT_TIMEOUT: 25m
+    RUNNER_AFTER_SCRIPT_TIMEOUT: 1m
+    GIT_DEPTH: "0"
+    GIT_SUBMODULE_STRATEGY: none
+    OPENAI_BASE_URL: "https://openrouter.ai/api/v1"
+    PAM_REVIEW_MODEL: "deepseek/deepseek-v4.1-flash-1017"
+    NO_PROXY: "$CI_SERVER_HOST,localhost,127.0.0.1"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"
+      when: manual
+      allow_failure: true
+  script:
+    - python3 ci/review_mr.py
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - review/
+
+test:e2e:430b:
+  extends:
+    - .test:e2e
+  resource_group: e2e-430b
+  timeout: 8h
+  variables:
+    PAM_E2E_SUITE: "430b"
+
+release:nightly:
+  extends: .new_gen:release
+  needs:
+    - job: test:integrational
+    - job: test:e2e:text
+    - job: test:e2e:vision
+    - job: test:e2e:430b
+    - job: build:custom_sglang
+      artifacts: true
+      optional: true
+    - job: push:papaya_custom:nightly
+      optional: true
+    - job: push:papaya_opensource:nightly
+      optional: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY == "1" && $CI_COMMIT_BRANCH == "dev"
+  script:
+    - !reference [.new_gen:release:version, script]
+    - |
+      if [ -n "${IMAGE_PATH:-}" ]; then
+        python3 build_utils/update_images_json.py "${IMAGE_PATH##*:}"
+        git add images.json .gitlab-ci.yml
+      fi
+    - !reference [.new_gen:release:publish, script]
+
+release:images:
+  extends:
+    - .docker_job
+    - .base_job_with_retry
+  stage: release
+  needs:
+    - job: release:nightly
+      artifacts: true
+    - job: build:custom_sglang
+      artifacts: true
+  variables:
+    GIT_STRATEGY: none
+  rules:
+    - !reference [.rules:nightly_dev_build, rules]
+  before_script:
+    - echo $REGISTRY_PASSWORD | docker login $REGISTRY_BASE --username $REGISTRY_LOGIN --password-stdin
+  script:
+    - |
+      for SGLANG_TAG in custom opensource; do
+        IMAGE=${REGISTRY_BASE}/${CI_PROJECT_NAME}_${SGLANG_TAG}
+        docker pull ${IMAGE}:${IMAGE_PATH##*:}
+        docker tag ${IMAGE}:${IMAGE_PATH##*:} ${IMAGE}:${RELEASE_TAG}
+        docker push ${IMAGE}:${RELEASE_TAG}
+      done
+    - docker tag ${REGISTRY_BASE}/${CI_PROJECT_NAME}_opensource:${RELEASE_TAG} ${REGISTRY_BASE}/${CI_PROJECT_NAME}_opensource:latest
+    - docker push ${REGISTRY_BASE}/${CI_PROJECT_NAME}_opensource:latest
+  after_script:
+    - docker logout "$REGISTRY_BASE"
+    - !reference [.after_job_cleanup, after_script]
+
+.rules:push_branch:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH != "main"
+
+save:job_id:
+  extends:
+    - .rules:push_branch
+  stage: build
+  variables:
+    GIT_STRATEGY: none
+  tags:
+    - cloud
+  script:
+    - echo "PARENT_JOB_ID=$CI_JOB_ID" > job_id.env
+    - echo "PARENT_PIPELINE_ID=$CI_PIPELINE_ID" >> job_id.env
+    - cat job_id.env
+  artifacts:
+    reports:
+      dotenv: job_id.env
+    paths:
+      - job_id.env
+
+trigger:papaya:
+  extends:
+    - .rules:push_branch
+  stage: build
+  needs:
+    - job: save:job_id
+      artifacts: true
+  trigger:
+    include:
+      - project: 'gigallms/ci-cd'
+        ref: main
+        file: 'pipelines/papaya.yml'
+  variables:
+    PARENT_JOB_ID: $PARENT_JOB_ID
+    PARENT_PIPELINE_ID: $PARENT_PIPELINE_ID
+    PARENT_IMAGE_PATH: $IMAGE_PATH
+    RELEASE_VERSION: $CI_COMMIT_TAG
+    SOURCE_PROJECT: $CI_PROJECT_PATH
+    PARENT_PROJECT_NAME: $CI_PROJECT_NAME
+    PARENT_PROJECT_PATH: $CI_PROJECT_PATH
+    GIT_STRATEGY: none
+    GIT_SUBMODULE_STRATEGY: none
+
+papaya:init:
+  extends: .new_gen:papaya:init
+
+papaya:to_o1:
+  extends: .new_gen:papaya:to_o1
+
+papaya:to_o2:
+  extends: .new_gen:papaya:to_o2
+
+papaya:to_o5:
+  extends: .new_gen:papaya:to_o5

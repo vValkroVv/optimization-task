@@ -1,0 +1,166 @@
+---
+run_name: lmms-eval-full
+exp_name: lmms-eval-full
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    # Keep converted HF checkpoint after the run only when it is useful for
+    # debugging or repeated local evaluation.
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+    policy: cache_aware
+    cache-threshold: 0.50
+    balance-abs-threshold: 4
+    balance-rel-threshold: 1.10
+
+  preparation:
+    skip: true
+
+  convertation:
+    # Choose mapper chain for the source checkpoint format.
+    # Common examples:
+    # - map_gigafsdp_to_hf
+    # - map_mixed_gigafsdp_to_fsdp + map_fsdp_to_hf
+    mappers:
+      - map_gigafsdp_to_hf
+    input_tp_size: 1
+    skip_optimizer: true
+    use_ema: false
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    # REQUIRED for lmms_eval. Must match chatml_version below.
+    template-version: v4.1
+    # Prefer the exact tokenizer and template from the HF checkpoint.
+    tokenizer-path: /path/to/hf_model
+    chat-template: /path/to/hf_model/chat_template.jinja
+    # If the checkpoint template is missing, use a matching external v4.1
+    # template from sft-data-tokenizer or a compatible shared_res bundle.
+    # Do not switch tokenizer unless the external tokenizer is the one used
+    # to train/export this model.
+    # Keep the default 16 workers unless OBM proxy itself is the bottleneck.
+    # Multi-node/GPU scaling is configured in submit_pam_job.py with n_workers
+    # and in inference.tp/pp; this field is only OBM proxy HTTP worker count.
+    # workers: 16
+    # Optional request-time template kwargs. For lmms_eval, gigavision-eval
+    # already sets use_suggester and derives use_devsystem.
+    # chat-template-kwargs:
+    #   reasoning: true
+    # reasoning-token-budget: 32768
+
+  inference:
+    allow-auto-truncate: true
+    tp: 8
+    dp: 1
+    ep: 1
+    pp: 1
+    disable-fast-image-processor: true
+    attention-backend: triton
+    # Usually not needed when obm_proxy.tokenizer-path is set: PAM syncs it
+    # into inference.tokenizer-path.
+    # tokenizer-path: /path/to/hf_model_or_processor
+    # SGLang processor lookup path inside HF checkpoint. Default is
+    # processors/GigaVisionProcessor. Override only for a different converted
+    # checkpoint layout.
+    # processor_internal_path: processors/GigaVisionProcessor
+
+  model_info:
+    model_class: vision
+    size: max
+    username: ${user}
+
+  evaluators:
+    lmms_eval:
+      # Required by the current PAM schema. Reference obm_proxy.template-version
+      # to keep one source of truth for ChatML version.
+      chatml_version: ${autometrics.obm_proxy.template-version}
+
+      # These paths are PAM defaults baked into the image. Override only when
+      # testing a custom local lmms-eval installation.
+      # lmms_eval_venv_python: /home/user/lmms_eval/bin/python
+      # lmms_eval_version_file: /home/user/lmms_eval_version.txt
+
+      # Used when a run does not define its own benchmarks. If both tasks and
+      # categories are set, gigavision-eval merges them with stable
+      # de-duplication.
+      benchmarks:
+        # mode defaults to sequential: each selected benchmark is launched
+        # separately, and successful results are merged even if one benchmark
+        # fails. Set mode: grouped only when one combined gigavision-eval
+        # process is desired.
+        tasks:
+          - giga_countbench
+        # Set only for smoke tests.
+        limit: 5
+
+      # Low-level gigavision-eval overrides. Most runs should not need this:
+      # PAM generates model.name, model.step, obm_proxy.api.base_url, output_dir,
+      # cache_dir, and disables direct gigavision-eval JD export.
+      #
+      # Example overrides:
+      # gigavision:
+      #   model:
+      #     api:
+      #       obm_proxy:
+      #         # PAM default is inference_instances * 50.
+      #         parallel: 50
+      #         # Advanced request kwargs. Usually omit for lmms_eval.
+      #         params:
+      #           chat_template_kwargs:
+      #             reasoning: true
+      #   results:
+      #     export:
+      #       mode: runs
+
+      runs:
+        multiple_tasks:
+          benchmarks:
+            tasks:
+              - giga_countbench
+              - ai2d
+            limit: 5
+
+        ocr_group:
+          benchmarks:
+            categories:
+              - ocr
+            limit: 5
+
+        hallucination_group:
+          benchmarks:
+            categories:
+              - hallucination
+            limit: 5
+
+        mixed_tasks_and_group:
+          benchmarks:
+            tasks:
+              - giga_countbench
+              - ai2d
+            categories:
+              - hallucination
+            limit: 5
+
+        grouped_mixed_smoke:
+          benchmarks:
+            # Runs all selected benchmarks in one gigavision-eval process.
+            mode: grouped
+            tasks:
+              - giga_countbench
+            categories:
+              - hallucination
+            limit: 5
+
+        production_all:
+          benchmarks:
+            categories:
+              - all

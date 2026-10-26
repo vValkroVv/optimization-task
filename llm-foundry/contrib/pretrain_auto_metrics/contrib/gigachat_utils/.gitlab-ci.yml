@@ -1,0 +1,37 @@
+include:
+  - project: 'gigallms/ci-cd'
+    ref: main
+    file:
+      - 'pipelines/check_submodules.yml'
+
+run:unit:all:
+  stage: test
+  tags:
+    - sr008
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+    - pip install pytest-cov omegaconf
+    - python convertation/submit_tests.py --type unit
+  rules:
+    - changes:
+        - convertation/**/*
+      when: manual
+      allow_failure: false
+    - when: never
+
+run:integration:all:
+  stage: test
+  tags:
+    - sr008
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+    - pip install pytest-cov omegaconf
+    - python convertation/submit_tests.py --type integration
+  rules:
+    - changes:
+        - convertation/**/*
+      when: manual
+      allow_failure: false
+    - when: never

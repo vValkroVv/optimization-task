@@ -1,0 +1,25 @@
+task: supergpqa_cot_official
+
+dataset_path: m-a-p/SuperGPQA
+dataset_name: null
+test_split: train
+num_fewshot: 0
+output_type: generate_until
+process_docs: !function utils.process_docs_official_cot
+
+doc_to_text: !function utils.doc_to_official_cot_text
+doc_to_target: "{{answer_letter}}"
+process_results: !function utils.process_results_official_cot
+generation_kwargs:
+  until:
+    - "</s>"
+    - "<|im_end|>"
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 4096
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  version: 1.0

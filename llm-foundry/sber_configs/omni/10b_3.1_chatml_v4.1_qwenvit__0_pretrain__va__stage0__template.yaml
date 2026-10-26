@@ -1,0 +1,394 @@
+# ============================================================================
+# Core config parameters
+# ============================================================================
+global_seed: 42
+image_token_id: 128004
+max_seq_len: 16384
+global_train_batch_size: 256
+max_duration: 8000ba
+# In-train eval cadence.
+# To disable in-train evals entirely: set eval_interval to 0 and remove all icl_tasks.
+eval_interval: 500ba
+save_interval: 2000ba
+t_warmup: 400ba
+
+
+# Expreriment metadata
+user: ...
+# Experiment name without launch hash.
+# At launch prepend YYMMDDHHMMSS__: {hash}__{model}__{stage}__{unfreeze}__{data}__{meta}
+# Optional: insert __lora__a_<n>__r_<n> after unfreeze, and/or __from_<12digits> before meta.
+# Use only [a-z0-9_.]; fields separated by __; same name for exp_name, ML Space job, and W&B.
+exp_name: 10b_3.1_chatml_v4.1_qwenvit__0_pretrain__va__stage0__template
+wandb_project: ...
+
+
+# Model paths
+load_path: ...
+ve_path: /workspace-SR004.nfs2/gigavision_common/shared_res/models/Qwen3.5-35B-A3B-VE
+tokenizer_path: /workspace-SR004.nfs2/gigavision_common/shared_res/tokenizers/chatml_v4.1_tokenizer
+save_folder: /mnt/gigavision-training-artifacts/gigachat_checkpoints/vision/${user}/${exp_name}
+
+
+# VE settings
+qwen_max_image_tokens: 2048
+num_image_tokens_per_crop: 1
+
+
+# Freeze settings
+disable_grad: [language_model, Qwen3ViTForVisualLanguageModeling]
+
+
+# ============================================================================
+# Single-line parameters
+# ============================================================================
+seed: ${global_seed}
+varlen_input: false
+zero_nan_grads: false
+sft_mode: true
+omni_mode: true
+tp_size: 1
+sp_size: 1
+eos_token_id: 2
+data_proportion: 1
+precision: amp_bf16
+# Allowed values: skip | regular. Prefer skip for short test runs.
+eval_before_train: regular
+eval_subset_num_batches: -1
+dist_timeout: 3600
+progress_bar: true
+log_to_console: true
+console_log_interval: 1ba
+auto_log_hparams: true
+autoresume: true
+load_weights_only: true
+load_strict_model_weights: false
+device_train_microbatch_size: 1
+device_eval_batch_size: 1
+
+
+# ============================================================================
+# Model
+# ============================================================================
+model:
+  name: gigaomni_causal_lm
+  init_device: meta
+  square_multimodal_attention: false
+  # Keep the LLM block unchanged in most cases.
+  # The one knob to touch is moe_router_bias_update_rate:
+  #   0.0 when language_model is frozen, 0.001 when it is trainable.
+  language_model:
+    init_device: ${model.init_device}
+    name: giga_mix_causal_lm
+    pretrained: false
+    pretrained_model_name_or_path: null
+
+    use_cache: false
+    vocab_size: 128256
+    max_position_embeddings: 262144
+    attention_dropout: 0.0
+    eos_token_id: 2
+    hidden_act: silu
+    tie_word_embeddings: false
+    router_seq_aux: true
+    router_legacy_weight_init: false
+    use_liger: false
+    loss_inplace_backward: true
+    delete_logits: true
+    hidden_size: 1536
+    dense_intermediate_size: 8960
+    num_attention_heads: 32
+    num_hidden_layers: 26
+    num_key_value_heads: 32
+    norm_topk_prob: true
+    initializer_range: 0.006
+    attention_bias: false
+    attention_hidden_size: null
+    first_k_dense_replace: 1
+    intermediate_size: 1280
+    n_shared_experts: 1
+    num_routed_experts: 64
+    num_experts_per_tok: 4
+    aux_loss_free: true
+    moe_router_bias_update_rate: 0.0  # 0.0 if LLM frozen, else 0.001
+    aux_loss_free_strategy: adaptive
+    rope_theta: 100000.0
+    rope_scaling:
+      factor: 64.0
+      beta_fast: 32
+      beta_slow: 1
+      mscale: 1.0
+      mscale_all_dim: 1.0
+      original_max_position_embeddings: 4096
+      rope_type: yarn
+    router_aux_loss_coef: 0.0001
+    moe_impl: DeepseekGMMMoeBlock
+    fused_mlp: false
+    fused_mlp_checkpoint_lvl: 0
+    attention_type: LlamaLatentAttention
+    apply_torch_compile_to_projections: false
+    use_custom_rotary_kernel: false
+    qk_nope_head_dim: 128
+    qk_rope_head_dim: 64
+    v_head_dim: 192
+    kv_lora_rank: 512
+    q_lora_rank: 0
+    num_krope_heads: 1
+    use_mtp: false
+    z_loss_eps: 0.0
+    hidden_z_loss_eps: 0.0
+    drop_by_group_capacity: true
+    moe_router_num_groups: null
+    moe_router_group_topk: null
+    scoring_func: sigmoid
+    moe_router_routed_scaling_factor: 1
+    rms_norm_eps: 1.0e-06
+    adaptive_scale: 5.0
+    init_type: deepseek
+    moe_enable_deepep: true
+    first_seq_aux_moe_layers: 5
+    first_router_aux_loss_coef: 0.004
+    tp_size: ${tp_size}
+    activation_checkpoint_layers_num: 26
+
+  encoders:
+    - name: Qwen3ViTForVisualLanguageModeling
+      pretrained_model_name_or_path: ${ve_path}
+      init_device: ${model.init_device}
+
+
+  adapters:
+    - name: VisionQwen3Adapter
+      init_device: ${model.init_device}
+      llm_hidden_size: ${model.language_model.hidden_size}
+      ve_hidden_size: 1152
+      spatial_merge_size: 2
+      initializer_range: 0.02
+
+
+  modalities:
+    - name: VisionModality
+      data_flow_preset: vision_qwen3_vit
+      modality_output:
+        type: adapter_outputs
+        name: qwen3_adapter.image
+        key: pixel_embeds
+        placeholder_token_id: ${image_token_id}
+
+
+tokenizer:
+  name: ${tokenizer_path}
+  kwargs:
+    model_max_length: ${max_seq_len}
+
+
+vision_processor: &vision_processor
+  name: GigaOmniVisionProcessor
+  image_aspect_ratio: qwen
+  num_image_tokens_per_crop: ${num_image_tokens_per_crop}
+  image_token_id: ${image_token_id}
+  image_processor: ${ve_path}
+  qwen_max_image_tokens: ${qwen_max_image_tokens}
+
+
+image_collator: &image_collator
+  name: QwenImageCollator
+
+
+train_loader:
+  name: omni
+  eos_token_id: ${eos_token_id}
+  sft_mode: ${sft_mode}
+  dataset:
+    processors:
+      - <<: *vision_processor
+
+    collators:
+      - <<: *image_collator
+
+    max_seq_len: ${max_seq_len}
+    shuffle_seed: ${global_seed}
+    shuffle: true
+    streams:
+      stage0:
+        local: ...
+        proportion: 1.0
+        split: mds
+        files_folder_path: /workspace-SR004.nfs2/gigavision_common/shared_res/data_new_format
+  drop_last: true
+  num_workers: 16
+
+
+gigafsdp_config:
+  load_monolith_rank0_only: false
+  state_dict_type: local
+  sync_module_states: false
+  hybrid_group_size: 8
+  activation_checkpointing: true
+  activation_checkpointing_reentrant: false
+  mixed_precision:
+    param_dtype: bf16
+    buffer_dtype: fp32
+    reduce_dtype: fp32
+  tp_size: ${tp_size}
+
+
+# ============================================================================
+# Scheduler and Optimizer
+# ============================================================================
+scheduler:
+  name: cosine_with_warmup
+  alpha_f: 0
+  t_warmup: ${t_warmup}
+
+
+optimizer:
+  name: decoupled_adamw
+  disable_grad: ${disable_grad}
+  betas: [0.9, 0.95]
+  eps: 1.0e-08
+  lr: 0.0001
+  weight_decay: 0
+
+
+# ============================================================================
+# Algorithms, Callbacks and Loggers
+# ============================================================================
+algorithms:
+  gradient_clipping:
+    clipping_type: norm
+    clipping_threshold: 1.0
+  update_bias: {}
+
+
+callbacks:
+  speed_monitor:
+    window_size: 10
+  lr_monitor: {}
+  memory_monitor: {}
+  runtime_estimator: {}
+  optimizer_monitor:
+    batch_log_interval: 10
+  scheduled_gc:
+    batch_interval: 50
+  training_metrics_monitor:
+    batch_log_interval: 10
+  processor_fallback_counter:
+    max_processor_fallback_count: 100000
+
+
+loggers:
+  tensorboard:
+    log_dir: /mnt/gigavision-training-artifacts/tensorboards/${user}/${exp_name}
+    rank_zero_only: true
+  wandb:
+    name: ${exp_name}
+    group: null
+    entity: giga_vision
+    log_artifacts: false
+    rank_zero_only: true
+    save_folder: ${save_folder}
+    project: ${wandb_project}
+    tags: []
+
+
+# ============================================================================
+# ICL Tasks
+# ============================================================================
+# Used for in-train evaluation.
+# To disable in-train evals entirely: clear this list and set eval_interval to 0.
+icl_tasks:
+  - label: mmmu
+    dataset_uri: /workspace-SR004.nfs2/gigavision_common/shared_res/data/validation/intrain_benchmarks/mmmu
+    dataset_json_filename: mmmu_testqa_4_choices_intrain_omni.jsonl
+    dataset_files_dirname: images
+    icl_task_type: mmmu
+    num_fewshot: [0]
+    max_seq_len: ${max_seq_len}
+    sft_args:
+      chatml_version: v4
+      processors:
+        - <<: *vision_processor
+
+      collators:
+        - <<: *image_collator
+
+
+  - label: mmbench
+    dataset_uri: /workspace-SR004.nfs2/gigavision_common/shared_res/data/validation/intrain_benchmarks/mmbench
+    dataset_json_filename: mmbench_4_choices_intrain_omni.jsonl
+    dataset_files_dirname: images
+    icl_task_type: mmbench
+    num_fewshot: [0]
+    max_seq_len: ${max_seq_len}
+    sft_args:
+      chatml_version: v4
+      processors:
+        - <<: *vision_processor
+
+      collators:
+        - <<: *image_collator
+
+
+  - label: rusdocvqa
+    dataset_uri: /workspace-SR004.nfs2/gigavision_common/shared_res/data/validation/intrain_benchmarks/rusdocvqa
+    dataset_json_filename: rusdocvqa_intrain_omni.jsonl
+    dataset_files_dirname: images
+    icl_task_type: rusdocvqa
+    num_fewshot: [0]
+    max_seq_len: ${max_seq_len}
+    sft_args:
+      chatml_version: v4
+      processors:
+        - <<: *vision_processor
+
+      collators:
+        - <<: *image_collator
+
+
+  - label: chart_summ
+    dataset_uri: /workspace-SR004.nfs2/gigavision_common/shared_res/data/validation/intrain_benchmarks/chart_summ
+    icl_task_type: chart_summ
+    dataset_json_filename: chart_summ_intrain_omni.jsonl
+    dataset_files_dirname: images
+    num_fewshot: [0]
+    max_seq_len: ${max_seq_len}
+    sft_args:
+      chatml_version: v4
+      processors:
+        - <<: *vision_processor
+
+      collators:
+        - <<: *image_collator
+
+
+  - label: vim_mmmu
+    dataset_uri: /workspace-SR004.nfs2/gigavision_common/shared_res/data/validation/intrain_benchmarks/vim_mmmu
+    icl_task_type: vim_mmmu
+    dataset_json_filename: vim_mmmu__intrain_omni.jsonl
+    dataset_files_dirname: images
+    num_fewshot: [0]
+    max_seq_len: ${max_seq_len}
+    sft_args:
+      chatml_version: v4
+      processors:
+        - <<: *vision_processor
+
+      collators:
+        - <<: *image_collator
+
+
+  - label: mme-realworld-ocr
+    dataset_uri: /workspace-SR004.nfs2/gigavision_common/shared_res/data/validation/tmp_MME-RealWorld
+    dataset_json_filename: intrain_final_ocr_MME_RealWorld_omni.jsonl
+    dataset_files_dirname: ''
+    icl_task_type: mme-realworld-ocr
+    num_fewshot: [0]
+    max_seq_len: ${max_seq_len}
+    sft_args:
+      chatml_version: v4
+      processors:
+        - <<: *vision_processor
+
+      collators:
+        - <<: *image_collator

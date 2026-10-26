@@ -1,0 +1,88 @@
+##################
+# general settings
+##################
+
+use_flash: False
+use_compile: False
+max_samples: 512
+save_wav: True
+save_code: True
+decode_wav: True
+
+
+#################################
+# metrics (requires 'decode_wav')
+# Possible values: 
+# - SpeechCER
+# - SpeechWER
+# - UTMOS
+#################################
+
+metrics: []
+
+
+#######################
+# generation parameters
+#######################
+
+batch_size: 8
+max_seq_len_context: 8192
+max_seq_len_gen: 1024
+use_force_text: False # True for TTS | False for QA
+
+
+#####################
+# sampling parameters
+#####################
+
+generation_config:
+  text:
+    temperature: 0.7
+    top_p: 1.0
+  speech:
+    top_k: 5
+    repetition_penalty: 1.5
+    temperature: 0.7
+    do_sample: True
+
+
+##################
+# codec parameters
+##################
+
+codec_path: /home/jovyan/shares/SR008.fs2/emlagutin/gigaam-codec/runs/gigaam_rvq2111_4k_12Hz/best/gigadac/weights.pth
+codec:
+  decoder_dim: 1536
+  decoder_rates: [8, 6, 5, 4]
+
+  quantizer_dropout: 1.0
+  attn_window_size: 32
+  noise: true
+  depthwise: false
+  fsq: false
+  q_strides: [2,1,1,1]
+  codebook_size: 4096
+  q_downsample_factor: []
+
+  enc_layers: 24
+  encoder_params:
+    feat_in: 64
+    feat_out: -1
+    n_layers: 24
+    d_model: &d_model 1024
+    # Sub-sampling params
+    subsampling: striding
+    subsampling_factor: 4
+    subsampling_conv_channels: *d_model
+    # Feed forward module's params
+    ff_expansion_factor: 4
+    # Multi-headed Attention Module's params
+    self_attention_model: rel_pos
+    pos_emb_max_len: 5000
+    n_heads: 16
+    xscaling: false
+    untie_biases: true
+    conv_kernel_size: 31
+    dropout: 0.1
+    dropout_emb: 0.1
+    dropout_att: 0.1

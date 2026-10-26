@@ -1,0 +1,83 @@
+defaults:
+- _self_
+merged_config_path: /home/jovyan/models/10b_v4_1_no_delete/artifacts/metrics/dredd/dredd_merged_config.yaml
+experiment:
+  overwrite_generations: false
+  overwrite_judgments: false
+datasets:
+- judge:
+    model_name: gpt-oss-120b
+    parallel_api_calls: 128
+    api_type: openai
+    api_base: http://localhost:30000/v1
+    api_key: EMPTY
+    temperature: 0.0
+    max_tokens: 65536
+    num_retries: 20
+    verbose_errors: false
+    fail_on_error: false
+    fail_on_missing_verdict: true
+    missing_verdict_retries: 1
+    regex_pattern: \[\[([AB<>=]+)\]\]
+    system_prompt: prompts/judge_minimax_m2_7_sbs.txt
+    prompt_template: prompts/judge_prompt_template.txt
+  experiment:
+    overwrite_generations: false
+    overwrite_judgments: false
+  model:
+    name: hf_checkpoint
+    parallel_api_calls: 128
+    num_retries: 3
+    request_timeout: 300
+    path: /home/jovyan/models/10b_v4_1_no_delete/artifacts/metrics/dredd
+    artifacts_dir: ''
+    api_type: openai
+    api_base: http://localhost:29999/v1
+    api_key: EMPTY
+    temperature: 0.0
+    max_tokens: 4096
+    system_prompt: ''
+  baseline:
+    name: gpt-4o
+    parallel_api_calls: 4
+    num_retries: 3
+    temperature: 0.0
+    max_tokens: 4096
+    system_prompt: ''
+  name: arena-hard-ru
+judge:
+  model_name: gpt-oss-120b
+  parallel_api_calls: 128
+  api_type: openai
+  api_base: http://localhost:30000/v1
+  api_key: EMPTY
+  temperature: 0.0
+  max_tokens: 65536
+  num_retries: 20
+  verbose_errors: false
+  fail_on_error: false
+  fail_on_missing_verdict: true
+  missing_verdict_retries: 1
+  regex_pattern: \[\[([AB<>=]+)\]\]
+  system_prompt: prompts/judge_minimax_m2_7_sbs.txt
+  prompt_template: prompts/judge_prompt_template.txt
+model:
+  name: hf_checkpoint
+  parallel_api_calls: 128
+  num_retries: 3
+  request_timeout: 300
+  path: /home/jovyan/models/10b_v4_1_no_delete/artifacts/metrics/dredd
+  artifacts_dir: ''
+  api_type: openai
+  api_base: http://localhost:29999/v1
+  api_key: EMPTY
+  temperature: 0.0
+  max_tokens: 4096
+  system_prompt: ''
+baseline:
+  name: gpt-4-0314
+  parallel_api_calls: 4
+  num_retries: 3
+  temperature: 0.0
+  max_tokens: 4096
+  system_prompt: ''

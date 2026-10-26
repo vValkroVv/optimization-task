@@ -1,0 +1,82 @@
+stages:
+  - check
+  - build
+
+prepare:terminal-dataset:
+  stage: check
+  tags:
+    - advanced
+  variables:
+    TERMINAL_BENCH_REF: "2fd12b88aafdd04a52c298e3940bcb189f9766d6"
+    TERMINAL_BENCH_DATASET_ROOT: "$CI_PROJECT_DIR/rli_image_update/build/terminal-bench-2"
+  script:
+    - |
+      case "${TERMINAL_IMAGE_MODE:-}" in
+        pilot|all) ;;
+        *) echo "TERMINAL_IMAGE_MODE must be pilot or all" >&2; exit 2 ;;
+      esac
+
+      retry_git() {
+        for attempt in 1 2 3; do
+          if git -c http.version=HTTP/1.1 "$@"; then
+            return 0
+          fi
+          [ "$attempt" -lt 3 ] || return 1
+          sleep $((attempt * 10))
+        done
+      }
+
+      rm -rf "$TERMINAL_BENCH_DATASET_ROOT"
+      retry_git clone --no-checkout --depth 1 --filter=blob:none \
+        https://github.com/harbor-framework/terminal-bench-2.git \
+        "$TERMINAL_BENCH_DATASET_ROOT"
+      retry_git -C "$TERMINAL_BENCH_DATASET_ROOT" fetch --depth 1 \
+        origin "$TERMINAL_BENCH_REF"
+      git -C "$TERMINAL_BENCH_DATASET_ROOT" checkout --detach FETCH_HEAD
+      rm -rf "$TERMINAL_BENCH_DATASET_ROOT/.git"
+  artifacts:
+    paths:
+      - rli_image_update/build/terminal-bench-2/
+    expire_in: 7 days
+  rules:
+    - if: '$TERMINAL_IMAGE_MODE == "pilot" || $TERMINAL_IMAGE_MODE == "all"'
+
+manifest:terminal-images:
+  stage: check
+  tags:
+    - advanced
+  needs:
+    - job: prepare:terminal-dataset
+      artifacts: true
+  variables:
+    TERMINAL_BENCH_REF: "2fd12b88aafdd04a52c298e3940bcb189f9766d6"
+    TERMINAL_BENCH_DATASET_ROOT: "$CI_PROJECT_DIR/rli_image_update/build/terminal-bench-2"
+  script:
+    - |
+      python3 ./rli_image_update/scripts/manifest.py \
+        "$TERMINAL_BENCH_DATASET_ROOT" manifest.json \
+        --dataset-ref "$TERMINAL_BENCH_REF"
+      python3 ./rli_image_update/scripts/pipeline.py \
+        manifest.json child-pipeline.yml --mode "$TERMINAL_IMAGE_MODE"
+  artifacts:
+    paths:
+      - manifest.json
+      - child-pipeline.yml
+    expire_in: 7 days
+  rules:
+    - if: '$TERMINAL_IMAGE_MODE == "pilot" || $TERMINAL_IMAGE_MODE == "all"'
+
+trigger:terminal-images:
+  stage: build
+  needs:
+    - job: manifest:terminal-images
+      artifacts: true
+  trigger:
+    include:
+      - artifact: child-pipeline.yml
+        job: manifest:terminal-images
+    strategy: depend
+  variables:
+    PARENT_PIPELINE_ID: "$CI_PIPELINE_ID"
+  rules:
+    - if: '$TERMINAL_IMAGE_MODE == "pilot" || $TERMINAL_IMAGE_MODE == "all"'

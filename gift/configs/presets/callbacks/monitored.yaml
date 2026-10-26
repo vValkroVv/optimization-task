@@ -1,0 +1,171 @@
+# Monitoring, EMA, system metrics and timers for the debug smoke run.
+# Optional evaluation and warmup callbacks are configured separately.
+#
+# Order matters twice over: a callback is built after whatever it takes as an
+# argument, and inside each group (mutators, then observers) it runs in this
+# order. `timers` is last because it drains the timer registry every callback
+# above wrote into.
+callbacks:
+  system_metrics:
+    type: system_monitor
+    memory_log_interval: 1
+    host_log_interval: 0
+
+  ema:
+    type: ema
+    decay: 0.99
+    update_period: 10
+
+  monitoring:
+    type: monitoring
+    log_interval: 10
+    sources:
+      modelling:
+        type: modelling
+        capture_backward: true
+        capture_inputs: true
+        capture_grad_inputs: true
+        output: all_tensors
+        # DP ranks see different batches and CP ranks different sequence
+        # chunks; neither group spans the pp mesh, so these stages cannot
+        # deadlock hooks that exist on a single pipeline stage.
+        metrics:
+          - name: amax
+            pipeline: [{op: abs_max}]
+            reduce: &over_data_max
+              stages: [{group: dp, op: max}, {group: cp, op: max}]
+          - name: amean
+            pipeline: [{op: abs}, {op: mean}]
+            reduce: &over_data_mean
+              stages: [{group: dp, op: mean}, {group: cp, op: mean}]
+          - name: l2norm
+            pipeline: [{op: norm, dim: -1}, {op: mean}]
+            reduce: *over_data_mean
+          - name: mean
+            pipeline: [{op: mean}]
+            reduce: *over_data_mean
+          - name: std
+            pipeline: [{op: std}]
+            reduce: *over_data_mean
+          - name: rms
+            pipeline: [{op: rms}]
+            reduce: *over_data_mean
+          - name: max
+            pipeline: [{op: max}]
+            reduce: *over_data_max
+          - name: min
+            pipeline: [{op: min}]
+            reduce:
+              stages: [{group: dp, op: min}, {group: cp, op: min}]
+          - name: zero_ratio
+            pipeline: [{op: zero_ratio}]
+            reduce: *over_data_mean
+          - name: finite_ratio
+            pipeline: [{op: finite_ratio}]
+            reduce: *over_data_mean
+          - name: kurtosis
+            pipeline: [{op: kurtosis}]
+            reduce: *over_data_mean
+          # Massive-activation detectors: fraction of |x| above an absolute
+          # threshold and above threshold * mean(|x|) (llm-f actabs/actrel).
+          - name: actabs_gt_1000
+            pipeline: [{op: actabs, threshold: 1000.0}]
+            reduce: *over_data_mean
+          - name: actrel_gt_100
+            pipeline: [{op: actrel, threshold: 100.0}]
+            reduce: *over_data_mean
+        moe:
+          expert_weights: true
+          per_expert_tokens: true
+          # Pooled over the loss mesh first, then the statistic.
+          token_metrics:
+            - name: sum
+              steps: &pool_then_sum
+                - {kind: reduce, reduce: {group: loss, op: mean}}
+                - {kind: stat, stat: {op: sum}}
+            - name: mean
+              steps: &pool_then_mean
+                - {kind: reduce, reduce: {group: loss, op: mean}}
+                - {kind: stat, stat: {op: mean}}
+            - name: max
+              steps: &pool_then_max
+                - {kind: reduce, reduce: {group: loss, op: mean}}
+                - {kind: stat, stat: {op: max}}
+            - name: min
+              steps: &pool_then_min
+                - {kind: reduce, reduce: {group: loss, op: mean}}
+                - {kind: stat, stat: {op: min}}
+            - name: max_vio
+              steps:
+                - {kind: reduce, reduce: {group: loss, op: mean}}
+                - {kind: stat, stat: {op: max_vio}}
+            - name: utilization
+              steps:
+                - {kind: reduce, reduce: {group: loss, op: mean}}
+                - {kind: stat, stat: {op: positive_ratio}}
+          score_metrics:
+            - {name: sum, steps: *pool_then_sum}
+            - {name: mean, steps: *pool_then_mean}
+            - {name: max, steps: *pool_then_max}
+            - {name: min, steps: *pool_then_min}
+          bias_metrics:
+            - {name: sum, pipeline: [{op: sum}]}
+            - {name: mean, pipeline: [{op: mean}]}
+            - {name: max, pipeline: [{op: max}]}
+            - {name: min, pipeline: [{op: min}]}
+            - {name: std, pipeline: [{op: std}]}
+            - {name: max_min, pipeline: [{op: max_min}]}
+          weight_stats:
+            - {name: weights_amax, pipeline: [{op: abs_max}]}
+            - {name: weights_amean, pipeline: [{op: abs}, {op: mean}]}
+            - {name: weights_l2norm, pipeline: [{op: norm}]}
+          weight_spread:
+            - {name: norm_std, pipeline: [{op: std}]}
+            - {name: norm_max_min_ratio, pipeline: [{op: max_min_ratio}]}
+            - {name: norm_min_median_ratio, pipeline: [{op: min_median_ratio}]}
+
+      optimizer:
+        type: optimizer
+        metrics:
+          - {name: mean, pipeline: [{op: mean}]}
+          - {name: std, pipeline: [{op: std}]}
+          - {name: abs_max, pipeline: [{op: abs_max}]}
+          - {name: finite_ratio, pipeline: [{op: finite_ratio}]}
+          - {name: l2_norm, pipeline: [{op: norm}]}
+          - {name: rms, pipeline: [{op: rms}]}
+          - {name: max, pipeline: [{op: max}]}
+          - {name: min, pipeline: [{op: min}]}
+          - {name: zero_ratio, pipeline: [{op: zero_ratio}]}
+          - {name: nan_count, pipeline: [{op: nan_count}]}
+
+      data:
+        type: data
+        emit_batch_stats: true
+
+      trainer:
+        type: trainer
+        topk_accuracy: [1, 5, 20]
+        include_parameter_lr_tags: true
+        log_throughput: true
+        throughput_window_size: 10
+        log_remaining_estimate: true
+
+      dispatcher:
+        type: dispatcher
+        local_tokens_metrics: &token_stats
+          - {name: sum, pipeline: [{op: sum}]}
+          - {name: mean, pipeline: [{op: mean}]}
+          - {name: max, pipeline: [{op: max}]}
+          - {name: min, pipeline: [{op: min}]}
+        global_tokens_metrics: *token_stats
+        max_vio:
+          - {name: experts_max_vio_microbatch_avg, window: global, level: microbatch}
+          - {name: experts_max_vio_batch_avg, window: global, level: batch}
+          - {name: experts_max_vio_batch_no_pad_avg, window: no_pad, level: batch}
+          - {name: experts_max_vio_batch_no_pad_no_prefix_avg, window: no_pad_no_prefix, level: batch}
+          - {name: ep_ranks_max_vio_microbatch_avg, window: global, level: ep_group}
+
+  timers:
+    type: timers_monitor
+    interval: 10
+    timers_threshold: 2

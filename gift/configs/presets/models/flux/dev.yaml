@@ -1,0 +1,23 @@
+# Model preset: flux "flux-dev".
+# Runs under `trainer: {type: flux}`. The autoencoder and the T5/CLIP encoder
+# ids keep the FLUX.1 defaults.
+model:
+  label: flux-dev
+  config:
+    type: flux
+    hidden_size: 3072
+    num_heads: 24
+    in_channels: 64
+    out_channels: 64
+    vec_in_dim: 768
+    context_in_dim: 4096
+    pe_config:
+      theta: 10000
+      axes_dim: [16, 56, 56]
+    blocks:
+      double: {type: double_stream, mlp_ratio: 4.0, qkv_bias: true}
+      single: {type: single_stream, mlp_ratio: 4.0}
+    double_blocks:
+    - {block: double, repeat: 19}
+    single_blocks:
+    - {block: single, repeat: 38}

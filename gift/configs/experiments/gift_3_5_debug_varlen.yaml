@@ -1,0 +1,19 @@
+# Document-packed (varlen) GIFT 3.5 hybrid: varlen GDN + varlen-kernel MLA.
+# The VARLEN-kind kernel enables document packing; every layer shares one
+# VarlenMetadata that resets at document boundaries, and here the GDN scan and
+# short conv reset there too.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/gift_3_5_debug_varlen.yaml
+config_version: 1
+
+imports:
+  - gift_3_5_debug.yaml
+
+model:
+  config:
+    blocks:
+      mla_moe:
+        attention: &attention
+          inner_attention: {type: varlen}
+      mtp:
+        attention: *attention

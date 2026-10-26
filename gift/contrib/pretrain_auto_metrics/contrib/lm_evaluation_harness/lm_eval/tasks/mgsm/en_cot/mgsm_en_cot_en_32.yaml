@@ -1,0 +1,22 @@
+include: mgsm_en_cot_en.yaml
+task: mgsm_en_cot_en_32
+repeats: 32
+filter_list:
+  - name: "scored"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.score_all_responses
+metric_list:
+  - metric: !function utils.pass_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+  - metric: !function utils.mean_at_k
+    aggregation: mean
+    higher_is_better: true
+    k: [1, 8, 16, 32]
+generation_kwargs:
+  until: ["Question:", "</s>", "<|im_end|>"]
+  do_sample: true
+  temperature: 0.6
+  top_p: 0.95

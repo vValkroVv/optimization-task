@@ -1,0 +1,595 @@
+{
+  "results": {
+    "repa": {
+      "acc,none": 0.36363636363636365,
+      "acc_stderr,none": "N/A",
+      "alias": "repa"
+    },
+    "repa_code_switching": {
+      "alias": " - repa_code_switching",
+      "acc,none": 1.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_contradiction": {
+      "alias": " - repa_contradiction",
+      "acc,none": 0.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_factuality": {
+      "alias": " - repa_factuality",
+      "acc,none": 0.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_fluency": {
+      "alias": " - repa_fluency",
+      "acc,none": 0.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_harmfulness": {
+      "alias": " - repa_harmfulness",
+      "acc,none": 1.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_overall": {
+      "alias": " - repa_overall",
+      "acc,none": 0.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_refusal": {
+      "alias": " - repa_refusal",
+      "acc,none": 1.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_relevance": {
+      "alias": " - repa_relevance",
+      "acc,none": 1.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_repetition": {
+      "alias": " - repa_repetition",
+      "acc,none": 0.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_request_following": {
+      "alias": " - repa_request_following",
+      "acc,none": 0.0,
+      "acc_stderr,none": "N/A"
+    },
+    "repa_sudden_interruption": {
+      "alias": " - repa_sudden_interruption",
+      "acc,none": 0.0,
+      "acc_stderr,none": "N/A"
+    }
+  },
+  "groups": {
+    "repa": {
+      "acc,none": 0.36363636363636365,
+      "acc_stderr,none": "N/A",
+      "alias": "repa"
+    }
+  },
+  "group_subtasks": {
+    "repa": [
+      "repa_request_following",
+      "repa_factuality",
+      "repa_repetition",
+      "repa_code_switching",
+      "repa_relevance",
+      "repa_harmfulness",
+      "repa_fluency",
+      "repa_contradiction",
+      "repa_sudden_interruption",
+      "repa_refusal",
+      "repa_overall"
+    ]
+  },
+  "configs": {
+    "repa_code_switching": {
+      "task": "repa_code_switching",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def code_switching_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"code_switching\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def code_switching_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"code_switching\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_contradiction": {
+      "task": "repa_contradiction",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def contradiction_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"contradiction\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def contradiction_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"contradiction\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_factuality": {
+      "task": "repa_factuality",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def factuality_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"factuality\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def factuality_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"factuality\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_fluency": {
+      "task": "repa_fluency",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def fluency_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"fluency\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def fluency_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"fluency\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_harmfulness": {
+      "task": "repa_harmfulness",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def harmfulness_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"harmfulness\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def harmfulness_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"harmfulness\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_overall": {
+      "task": "repa_overall",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def overall_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"overall\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def overall_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"overall\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_refusal": {
+      "task": "repa_refusal",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def refusal_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"refusal\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def refusal_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"refusal\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_relevance": {
+      "task": "repa_relevance",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def relevance_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"relevance\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def relevance_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"relevance\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_repetition": {
+      "task": "repa_repetition",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def repetition_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"repetition\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def repetition_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"repetition\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_request_following": {
+      "task": "repa_request_following",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def request_following_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"request_following\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def request_following_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"request_following\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "repa_sudden_interruption": {
+      "task": "repa_sudden_interruption",
+      "tag": "repa_tasks",
+      "dataset_path": "RussianNLP/repa",
+      "test_split": "train",
+      "fewshot_split": "train",
+      "doc_to_text": "def sudden_interruption_to_text(doc):\n    global prompts, error_type_description\n\n    prompt = random.choice(prompts).format(\n        **doc, error_type_description=error_type_description[\"sudden_interruption\"]\n    )\n    return prompt\n",
+      "doc_to_target": "def sudden_interruption_to_target(doc):\n    global choice_dict\n\n    return choice_dict[doc[\"sudden_interruption\"]]\n",
+      "unsafe_code": false,
+      "doc_to_choice": [
+        "A лучше",
+        "B лучше",
+        "Оба хороши",
+        "Оба плохи"
+      ],
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 5,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "aggregation": "mean",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": false,
+      "metadata": {
+        "version": 1.0
+      }
+    }
+  },
+  "versions": {
+    "repa": 1.0,
+    "repa_code_switching": 1.0,
+    "repa_contradiction": 1.0,
+    "repa_factuality": 1.0,
+    "repa_fluency": 1.0,
+    "repa_harmfulness": 1.0,
+    "repa_overall": 1.0,
+    "repa_refusal": 1.0,
+    "repa_relevance": 1.0,
+    "repa_repetition": 1.0,
+    "repa_request_following": 1.0,
+    "repa_sudden_interruption": 1.0
+  },
+  "n-shot": {
+    "repa_code_switching": 5,
+    "repa_contradiction": 5,
+    "repa_factuality": 5,
+    "repa_fluency": 5,
+    "repa_harmfulness": 5,
+    "repa_overall": 5,
+    "repa_refusal": 5,
+    "repa_relevance": 5,
+    "repa_repetition": 5,
+    "repa_request_following": 5,
+    "repa_sudden_interruption": 5
+  },
+  "higher_is_better": {
+    "repa": {
+      "acc": true
+    },
+    "repa_code_switching": {
+      "acc": true
+    },
+    "repa_contradiction": {
+      "acc": true
+    },
+    "repa_factuality": {
+      "acc": true
+    },
+    "repa_fluency": {
+      "acc": true
+    },
+    "repa_harmfulness": {
+      "acc": true
+    },
+    "repa_overall": {
+      "acc": true
+    },
+    "repa_refusal": {
+      "acc": true
+    },
+    "repa_relevance": {
+      "acc": true
+    },
+    "repa_repetition": {
+      "acc": true
+    },
+    "repa_request_following": {
+      "acc": true
+    },
+    "repa_sudden_interruption": {
+      "acc": true
+    }
+  },
+  "n-samples": {
+    "repa_request_following": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_factuality": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_repetition": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_code_switching": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_relevance": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_harmfulness": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_fluency": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_contradiction": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_sudden_interruption": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_refusal": {
+      "original": 3006,
+      "effective": 1
+    },
+    "repa_overall": {
+      "original": 3006,
+      "effective": 1
+    }
+  },
+  "config": {
+    "model": "dummy",
+    "model_args": "",
+    "batch_size": 1,
+    "batch_sizes": [],
+    "device": null,
+    "use_cache": null,
+    "limit": 1.0,
+    "bootstrap_iters": 100000,
+    "gen_kwargs": null,
+    "random_seed": 0,
+    "numpy_seed": 1234,
+    "torch_seed": 1234,
+    "fewshot_seed": 1234
+  },
+  "git_hash": "357d2c0",
+  "date": 1768313336.345369,
+  "pretty_env_info": "PyTorch version: 2.8.0\nIs debug build: False\nCUDA used to build PyTorch: None\nROCM used to build PyTorch: N/A\n\nOS: macOS 26.2 (arm64)\nGCC version: Could not collect\nClang version: 17.0.0 (clang-1700.6.3.2)\nCMake version: Could not collect\nLibc version: N/A\n\nPython version: 3.13.4 (main, Jun  3 2025, 15:34:24) [Clang 17.0.0 (clang-1700.0.13.3)] (64-bit runtime)\nPython platform: macOS-26.2-arm64-arm-64bit-Mach-O\nIs CUDA available: False\nCUDA runtime version: No CUDA\nCUDA_MODULE_LOADING set to: N/A\nGPU models and configuration: No CUDA\nNvidia driver version: No CUDA\ncuDNN version: No CUDA\nHIP runtime version: N/A\nMIOpen runtime version: N/A\nIs XNNPACK available: True\n\nCPU:\nApple M4 Pro\n\nVersions of relevant libraries:\n[pip3] mypy_extensions==1.1.0\n[pip3] numpy==2.3.2\n[pip3] torch==2.8.0\n[conda] No relevant packages",
+  "transformers_version": "4.56.1",
+  "lm_eval_version": "0.4.9.1",
+  "upper_git_hash": null,
+  "task_hashes": {},
+  "model_source": "dummy",
+  "model_name": "",
+  "model_name_sanitized": "",
+  "system_instruction": null,
+  "system_instruction_sha": null,
+  "fewshot_as_multiturn": false,
+  "chat_template": null,
+  "chat_template_sha": null,
+  "start_time": 50661.542987583,
+  "end_time": 50680.450646333,
+  "total_evaluation_time_seconds": "18.907658750002156"
+}

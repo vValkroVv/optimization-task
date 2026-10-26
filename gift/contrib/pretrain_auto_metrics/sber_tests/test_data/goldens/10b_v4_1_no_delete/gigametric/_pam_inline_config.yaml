@@ -1,0 +1,39 @@
+validation_name: pam_10b_math500
+strategy: breadth_first
+storage:
+  type: local
+  base_path: ./llm_scoring_data
+scheduler:
+  max_parallel_runs: auto
+  model_capacity_mode: tokens
+  prewarm_environments: false
+  fail_fast: false
+defaults:
+  llm_config:
+    max_retries: 5
+    parameters: {}
+  benchmark_config:
+    timeout: 7200
+    parameters:
+      max_concurrent_requests: 128
+benchmarks:
+  math500:
+    name: math500-adapter
+    primary_metric: mean_exact_match
+models:
+- id: gigachat_10b_local
+  llm_config:
+    model: openai
+    name: gigachat-10b
+    api_url: http://localhost:29999/v1
+    api_key: not-needed
+    parameters: {}
+    semaphore: 64
+  benchmarks:
+  - math500
+pricing:
+  default_currency: RUB
+  models:
+    gigachat_10b_local:
+      input_1m_tokens: 0.0
+      output_1m_tokens: 0.0

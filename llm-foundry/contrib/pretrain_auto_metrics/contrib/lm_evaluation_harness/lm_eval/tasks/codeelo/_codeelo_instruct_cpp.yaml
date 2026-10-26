@@ -1,0 +1,17 @@
+include: _codeelo_template.yaml
+doc_to_text: !function utils.format_instruct_prompt
+process_results: !function utils.submit_oneshot_problem
+
+repeats: 8
+generation_kwargs:
+  do_sample: true
+  temperature: 1.0
+  top_p: 1.0
+  max_gen_toks: 32768
+  until: []
+
+filter_list:
+  - name: "last_code_block"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.extract_last_code_block

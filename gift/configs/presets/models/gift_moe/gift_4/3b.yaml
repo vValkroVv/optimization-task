@@ -1,0 +1,42 @@
+# Model preset: gift 4 "3b": the gift_3_5 3b with plain
+# (not zero-centered) norms, post-attention norms starting at zero and a
+# softcapped head.
+imports:
+  - ../gift_3_5/3b.yaml
+
+model:
+  label: gift_4/3b
+  config:
+    norm: &norm {zero_centered: false}
+    lm_head: {type: unembedding, logit_softcap: 30.0}
+    blocks:
+      gdn_dense:
+        attention: &attention
+          o_norm: *norm
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: &norm2
+          param_init:
+            weight: {type: zeros}
+          zero_centered: false
+        post_ffn_norm: *norm
+      gdn_moe:
+        attention: *attention
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm2
+        post_ffn_norm: *norm
+      mla_moe:
+        attention: &attention2
+          kv_norm: *norm
+          q_norm: *norm
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm2
+        post_ffn_norm: *norm
+      mtp:
+        attention: *attention2
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm2
+        post_ffn_norm: *norm

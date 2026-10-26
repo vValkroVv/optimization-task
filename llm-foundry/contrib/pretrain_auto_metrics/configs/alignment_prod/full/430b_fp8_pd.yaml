@@ -1,0 +1,287 @@
+---
+run_name: <run_name>
+exp_name: <exp_name>
+user: <user>
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 65536
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+    full_metrics_recalculate: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    shared_params:
+      allow-auto-truncate: true
+      tp: 16
+      ep: 16
+      # dp-attention needs NVreg_RegistryDwords="PeerMappingOverride=1" on
+      # every node; without it a multi-node start hangs instead of failing. Not
+      # set on every cluster yet: on o5 drop dp and enable-dp-attention and fall
+      # back to plain tp/ep.
+      dp: 16
+      enable-dp-attention: true
+      cuda-graph-max-bs: 64
+    prefill_fraction: 0.3
+    prefill:
+      mem-fraction-static: 0.7
+      gated-norm-impl: triton
+      chunked-prefill-size: 32768
+    decode: {}
+
+  quantization:
+    skip: false
+    device_map: auto
+    quantization_config:
+      weight_block_size: [128, 128]
+      modules_to_not_convert: [
+        "lm_head",
+        "embed_tokens",
+        "shared_head.head",
+        "mlp.gate.weight",
+        "eh_proj",
+        "self_attn.A_log",
+        "self_attn.conv1d",
+        "self_attn.dt_bias",
+        "self_attn.in_proj_ba",
+        "self_attn.norm.weight",
+        "gate_up_projection",
+        "gate_down_projection",
+        "shared_expert_sigmoid",
+      ]
+
+  model_info:
+    model_class: "sft"
+    size: "lite"
+    username: ${user}
+
+  obm_proxy:
+    # sampling-params:
+    #   temperature: 0.7
+    chat-template-kwargs:
+      reasoning: true
+      use_devsystem: false
+      use_suggester: false
+    reasoning-token-budget: 32768
+    chat-template: <path to jinja template>
+
+  evaluators:
+    gigametric:
+      benchmarks:
+        toolathlon:
+          num_attempts: 3
+          workers: 32
+          timeout_seconds: 5400
+        esg:
+        hr:
+        drpa_gc:
+        tenderscanner:
+        insait:
+        papayaedition:
+        fin_consultant:
+        papaya_kib_table:
+        bank_legal_document_analysis:
+        bank_multilabel_numbers:
+        bank_legal_hypothetical_norm:
+        bank_multilabel:
+        bank_multichoice:
+        rubq:
+        b2c_fin_literacy_combined:
+        bbac:
+
+    gigametric_judged:
+      benchmarks:
+        bank_agents:
+        kazna:
+        mmb_summ:
+        mmb_rec:
+        Legal_L1_QuickAnswer:
+        ragqa:
+        finance_qa:
+        finam_finbench:
+      judges:
+        Qwen3-235B-A22B-Instruct-2507-FP8:
+          - bank_agents
+          - kazna
+          - mmb_summ
+          - mmb_rec
+          - Legal_L1_QuickAnswer
+          - ragqa
+          - finance_qa
+          - finam_finbench
+
+    safety_unified:
+      judges:
+        Qwen3-235B-A22B-Instruct-2507-FP8: all
+        Qwen3.5-397B-A17B-FP8: all
+      selection_manifest: big_pipeline.json
+      domain_rules_file: domain_rules.json
+
+    aa_lcr:
+      judge:
+        model_name: "Qwen3-235B-A22B-Instruct-2507-FP8"
+    tau3:
+      num-trials: 3
+      domains:
+        - airline
+        - retail
+        - telecom
+        - banking_knowledge
+      user_model_name: Qwen3-235B-A22B-Instruct-2507-FP8
+    appworld: {}
+
+    new_obm:
+      obm_config: devices-v2
+      all:
+        tasks:
+          - struct_eval_text
+          - natural_plan
+          - nih_complex
+          - graphwalks
+          - gpqa_diamond_official
+          - aime_2025
+          - aime_2026
+          - hmmt
+
+    new_obm_judged:
+      obm_config: devices
+      all:
+        tasks:
+          - pollux
+          - hle_text
+          - imo_answer_bench
+      judges:
+        pollux-judge-32b:
+          - pollux
+        Qwen3-235B-A22B-Instruct-2507-FP8:
+          - hle_text
+          - imo_answer_bench
+
+    lm_eval:
+      instruct:
+        lcb_code_gen_lite_instruct:
+          log_samples: true
+
+        jsonschema_bench:
+          log_samples: true
+
+        ifbench:
+          log_samples: true
+
+    dredd:
+      judge:
+        model_name: "minimax-m2.7"
+      datasets:
+        - name: "arena-hard-logs-v3"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "validator-sbs-pollux"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "ru-llm-arena"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "arena-hard-ru"
+          baseline:
+            name: "openrouter-openai-gpt-5-2"
+        - name: "sbs-gc3-ultra-vs-alice-ai"
+          baseline:
+            name: "Alice_Ai_LLM_2025_10"
+
+    bfcl:
+      model: gigachat-FC
+      test_category: all
+
+    tau2:
+      domains:
+        - airline
+        - retail
+        - telecom
+      user_model_name: Qwen3-235B-A22B-Instruct-2507-FP8
+
+    skillsbench:
+      agent: openhands-cli
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 32
+
+    terminal_bench:
+      agent: mini-swe-agent
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 89
+
+    harbor_rli:
+      runs:
+        - benchmark: harness-bench-lite
+          pass-at-k: 8
+          agent-timeout: 25200
+          benchmark-kwargs:
+            forward-reasoning-history: true
+            recursion-limit: 80
+        - benchmark: harness-bench-medium
+          pass-at-k: 8
+          agent-timeout: 25200
+          benchmark-kwargs:
+            forward-reasoning-history: true
+            recursion-limit: 80
+        - benchmark: terminal-bench-2.1
+          agent: mini-swe-agent
+          max-tokens: 16384
+          n-concurrent: 89
+          pass-at-k: 1
+          agent-timeout: 25200
+        - benchmark: cowork-bench
+          agent: strands
+          max-tokens: 32768
+          n-concurrent: 64
+          pass-at-k: 1
+          agent-timeout: 25200
+        - benchmark: swe-bench-multilingual
+          agent: mini-swe-agent
+          max-tokens: 16384
+          n-concurrent: 64
+          pass-at-k: 1
+          agent-timeout: 25200
+
+    pier_rli:
+      benchmark: deepswe
+      pass-at-k: 1
+      command-timeout: 30
+      agent: mini-swe-agent
+      max-tokens: 16384
+      agent-timeout: 36000
+      n-concurrent: 64
+
+    swe_bench:
+      agent: mini-swe-agent
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 64
+
+    nl2repo:
+      agent: openhands-sdk
+      pass-at-k: 1
+      max-tokens: 16384
+      max-input-tokens: 98304
+      agent-timeout: 25200
+      n-concurrent: 32

@@ -1,0 +1,79 @@
+# Канонические benchmark id из validation/configs/default.yaml GigaMetric.
+# services и esg_risk требуют внешней инфраструктуры; для строки 13 из
+# исходного набора нет отдельного benchmark-профиля.
+
+run_name: gm_all_judged
+exp_name: gm_all_judged
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+max_seq_len: 32768
+
+autometrics:
+    globals:
+        delete_converted_hf: true
+        full_metrics_recalculate: false
+    router:
+        host: 0.0.0.0
+    convertation:
+        mappers:
+            - map_gigafsdp_to_hf_safetensor
+        input_tp_size: 1
+    preparation:
+        skip: true
+
+    inference:
+        allow-auto-truncate: true
+        tp: 1
+        dp: 8
+        tool_call_parser: qwen
+
+    obm_proxy:
+        # sampling-params:
+        #     temperature: 0.7
+        chat-template-kwargs:
+            enable_thinking: false
+
+    model_info:
+        model_class: "sft"
+        size: "lite"
+        username: ${user}
+
+    evaluators:
+        gigametric:
+            benchmarks:
+                esg:
+                hr:
+                drpa_gc:
+                tenderscanner:
+                insait:
+                papayaedition:
+                fin_consultant:
+                papaya_kib_table:
+                aime_sgr:
+                bank_legal_document_analysis:
+                bank_multilabel_numbers:
+                bank_legal_hypothetical_norm:
+                bank_multilabel:
+                bank_multichoice:
+                rubq:
+                b2c_fin_literacy_combined:
+                bbac:
+
+        gigametric_judged:
+            benchmarks:
+                bank_agents:
+                kazna:
+                mmb_summ:
+                mmb_rec:
+                Legal_L1_QuickAnswer:
+                ragqa:
+
+            judges:
+                Qwen3-235B-A22B-Instruct-2507-FP8:
+                    - bank_agents
+                    - kazna
+                    - mmb_summ
+                    - mmb_rec
+                    - Legal_L1_QuickAnswer
+                    - ragqa

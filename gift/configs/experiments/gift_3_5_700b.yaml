@@ -1,0 +1,18 @@
+# GIFT 3.5 700B production preset. Supply a real 128256-vocab tokenizer at hf_assets_path
+# and a real corpus; the placeholders below are not bundled.
+#
+#   torchrun --nnodes=<N> --nproc_per_node=8 -m torchtitan.train configs/experiments/gift_3_5_700b.yaml
+#
+# expert_parallel_degree 32 needs at least 32 GPUs; on the cluster submit it
+# with gift_scripts/submit_train_job.py (config_file set to this file).
+config_version: 1
+
+imports:
+  - ../presets/models/gift_moe/gift_3_5/700b.yaml
+  - ../presets/train/gift_700b.yaml
+
+hf_assets_path: ./assets/hf/gift_3_5-700b-base
+
+model:
+  label: gift_3_5/700b
+  config: {}

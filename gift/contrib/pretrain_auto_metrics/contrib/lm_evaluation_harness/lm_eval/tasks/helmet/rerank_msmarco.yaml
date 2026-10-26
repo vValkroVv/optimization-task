@@ -1,0 +1,32 @@
+include: _helmet_common_yaml
+tag:
+  - helmet_tasks
+  - helmet_rerank_tasks
+task: helmet_rerank_msmarco
+task_alias: msmarco
+dataset_kwargs:
+  dataset: msmarco_rerank_psg
+  demo_file: data/msmarco/test_reranking_data_k10_dep3.jsonl
+  shots: 2
+metric_list:
+  - metric: "8192"
+    aggregation: !function utils.aggregate_helmet_score
+    higher_is_better: true
+  - metric: "16384"
+    aggregation: !function utils.aggregate_helmet_score
+    higher_is_better: true
+  - metric: "32768"
+    aggregation: !function utils.aggregate_helmet_score
+    higher_is_better: true
+  - metric: "65536"
+    aggregation: !function utils.aggregate_helmet_score
+    higher_is_better: true
+  - metric: "131072"
+    aggregation: !function utils.aggregate_helmet_score
+    higher_is_better: true
+generation_kwargs:
+  max_gen_toks: 200
+  temperature: 0.0
+  do_sample: false
+  until:
+    - "\n"

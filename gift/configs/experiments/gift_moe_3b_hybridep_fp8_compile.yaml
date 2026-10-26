@@ -1,0 +1,62 @@
+# GiftMoE 3B, full fp8 over HybridEP, with the model compiled; one node: EP8,
+# FSDP over whatever ranks remain. The smallest model that carries the
+# production shape. pad_multiple 128 is what DeepGEMM's grouped GEMM needs; fp8
+# dispatch has no config of its own -- GroupedExperts turns it on with the fp8
+# grouped GEMM. Selective AC puts the fp8 quantization ops
+# through the SAC save list, which full AC never exercises.
+#
+#   torchrun --nproc_per_node=8 -m torchtitan.train configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml
+config_version: 1
+
+imports:
+  - ../presets/models/gift_moe/3b.yaml
+  - ../presets/train/fp8_full.yaml
+
+model:
+  config:
+    blocks:
+      mla_dense:
+        attention: &attention
+          inner_attention: {type: flex}
+      mla_moe:
+        attention: *attention
+        moe:
+          experts:
+            token_dispatcher: {type: hybridep, pad_multiple: 128, comm_stream: true}
+
+loss:
+  type: chunked_cross_entropy
+
+hf_assets_path: ./tests/assets/tokenizer
+
+dataloader:
+  type: hf_text
+  dataset: c4_test
+
+optimizer:
+  lr: 4.0e-4
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-20
+  weight_decay: 4.0e-5
+
+lr_scheduler:
+  warmup_steps: 2000
+  decay_ratio: 0.0
+
+training:
+  local_batch_size: 8
+  global_batch_size: 256
+  seq_len: 4096
+  max_norm: 1.0
+  steps: 30000
+
+activation_checkpoint:
+  mode: selective
+
+compile:
+  enable: true
+  components: [model, loss]
+
+parallelism:
+  expert_parallel_degree: 8

@@ -1,0 +1,73 @@
+---
+task: ifbench_32
+dataset_path: allenai/IFBench_test
+dataset_name: null
+output_type: generate_until
+test_split: train
+num_fewshot: 0
+doc_to_text: prompt
+doc_to_target: 0
+repeats: 32
+generation_kwargs:
+  until: []
+  do_sample: true
+  temperature: 0.2
+  top_p: 0.95
+  max_gen_toks: 1280
+filter_list:
+  - name: "all_responses"
+    filter:
+      - function: "take_first_k"
+        k: 32
+process_results: !function utils.process_results_pass_at_k
+metric_list:
+  - metric: pass@1_prompt_level_strict_acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: pass@1_inst_level_strict_acc
+    aggregation: inst_level_acc
+    higher_is_better: true
+  - metric: pass@1_prompt_level_loose_acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: pass@1_inst_level_loose_acc
+    aggregation: inst_level_acc
+    higher_is_better: true
+  - metric: pass@8_prompt_level_strict_acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: pass@8_inst_level_strict_acc
+    aggregation: inst_level_acc
+    higher_is_better: true
+  - metric: pass@8_prompt_level_loose_acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: pass@8_inst_level_loose_acc
+    aggregation: inst_level_acc
+    higher_is_better: true
+  - metric: pass@16_prompt_level_strict_acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: pass@16_inst_level_strict_acc
+    aggregation: inst_level_acc
+    higher_is_better: true
+  - metric: pass@16_prompt_level_loose_acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: pass@16_inst_level_loose_acc
+    aggregation: inst_level_acc
+    higher_is_better: true
+  - metric: pass@32_prompt_level_strict_acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: pass@32_inst_level_strict_acc
+    aggregation: inst_level_acc
+    higher_is_better: true
+  - metric: pass@32_prompt_level_loose_acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: pass@32_inst_level_loose_acc
+    aggregation: inst_level_acc
+    higher_is_better: true
+metadata:
+  version: 1.0

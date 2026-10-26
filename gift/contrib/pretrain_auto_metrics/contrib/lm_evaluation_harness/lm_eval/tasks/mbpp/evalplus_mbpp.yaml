@@ -1,0 +1,28 @@
+include: mbpp.yaml
+task: evalplus_mbpp
+dataset_path: evalplus/mbppplus
+dataset_name: null
+doc_to_text: "\"\"\"\n{{prompt if prompt is defined else text}}\n{{test_list[0]}}\n\"\"\"\n"
+doc_to_target: "{{test_list | join('\n')}}"
+num_fewshot: 0
+repeats: 1
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+filter_list:
+  - name: "extract_code"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.build_predictions
+generation_kwargs:
+  until:
+    - "\n\"\"\""
+    - "\nassert"
+    - "\nif __name__"
+    - "\ndef main("
+    - "\nprint("
+  max_gen_toks: 768
+  do_sample: false
+metadata:
+  version: 1.0

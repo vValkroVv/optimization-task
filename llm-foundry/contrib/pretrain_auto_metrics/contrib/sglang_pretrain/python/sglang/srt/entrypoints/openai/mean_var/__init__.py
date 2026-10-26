@@ -1,0 +1,1 @@
+SIGMA_FLOOR = 0.1

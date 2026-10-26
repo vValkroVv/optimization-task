@@ -1,0 +1,1175 @@
+############
+### Misc ###
+############
+max_seq_len: 4096
+
+global_seed: 4096
+seed: ${global_seed}
+train_loader.dataset.shuffle_seed: ${global_seed}
+
+user: ...
+exp_name: ...
+run_name: ...
+
+save_folder: /mnt/nfs/07-share/checkpoints/${exp_name}/${run_name}
+tensorboard_path: /mnt/nfs/07-share/transfer2cloud/o5/tensorboard/${exp_name}
+tokenizer_path: /mnt/nfs/07-share/models_templates/dclm-7b-128k_digit_tokenizer_FIM
+
+tokenizer:
+  name: ${tokenizer_path}
+
+vocab_size: 128256
+eos_token_id: 2
+
+varlen_input: false
+enable_async_tp: false
+zero_nan_grads: false
+
+ep_size: 1
+tp_size: 1
+sp_size: 1
+############
+### Misc ###
+############
+
+
+#############
+### Model ###
+#############
+model_path: /mnt/nfs/07-share/models_templates/dclm-7b-128k_digit_tokenizer
+model:
+  name: giga_mix_causal_lm
+  init_device: meta
+  pretrained: false
+  pretrained_model_name_or_path: ${model_path}
+  config_overrides:
+    # --- Model Size ---
+    hidden_size: 2560
+    num_hidden_layers: 30
+
+    # --- Vocabulary ---
+    vocab_size: ${vocab_size}
+    eos_token_id: ${eos_token_id}
+
+    # --- Positional Encoding ---
+    max_position_embeddings: ${max_seq_len}
+    rope_scaling: null
+    rope_theta: 10000
+
+    # --- Initialization ---
+    deepseek_init_std: 6.0e-3
+    initializer_range: null
+    init_type: deepseek
+    zero_init_post_attention_norm: true
+
+    # --- Activation ---
+    hidden_act: silu
+
+    # --- Normalization ---
+    norm_type: GatedNorm
+    layernorm_type: pre_post
+    rms_norm_eps: 1.0e-6
+
+    # --- Embeddings & LM Head ---
+    tie_word_embeddings: false
+    lm_head_logit_softcapping: 30.0
+
+    # --- FFN ---
+    renorm_router_weights: true
+    use_shared_expert_sigmoid: false
+    intermediate_size: 1536
+    dense_intermediate_size: 1536
+    norm_topk_prob: true
+    n_shared_experts: 2
+    num_routed_experts: 72
+    num_experts_per_tok: 6
+    scoring_func: sigmoid
+    moe_impl: DeepseekGMMMoeBlock
+    drop_by_group_capacity: true
+    aux_loss_free: true
+    aux_loss_free_strategy: adaptive
+    moe_router_bias_update_rate: 1.0e-3
+    router_aux_loss_coef: 1.0e-4
+    router_seq_aux: true
+    router_legacy_weight_init: false
+    moe_router_routed_scaling_factor: 2.5
+    moe_router_num_groups: null
+    moe_router_group_topk: null
+
+    # --- Full Attention ---
+    attention_type: LlamaLatentAttention
+    num_attention_heads: 32
+    num_key_value_heads: 32
+    attention_hidden_size: null
+    attention_dropout: 0.0
+    attention_bias: false
+    apply_torch_compile_to_projections: false
+    use_custom_rotary_kernel: false
+    qk_nope_head_dim: 128
+    qk_rope_head_dim: 64
+    v_head_dim: 128
+    kv_lora_rank: 512
+    q_lora_rank: 1536
+    num_krope_heads: 1
+    gated_attention: true
+    use_mla_scaling_factor: true
+
+    # --- Linear Attention ---
+    linear_attention_type: Qwen3NextGatedDeltaNet
+    full_attention_layers:
+      - 1
+      - 5
+      - 9
+      - 13
+      - 17
+      - 21
+      - 25
+      - 29
+    linear_key_head_dim: 128
+    linear_value_head_dim: 128
+    linear_conv_kernel_dim: 4
+    linear_num_key_heads: 16
+    linear_num_value_heads: 32
+    linear_gating_type: gated_rmsnorm_sigmoid
+    linear_attn_o_norm_eps: 1.0e-6
+    linear_sigmoid_gate_scale: 2.0
+    linear_conv_init_std: 0.1
+
+    # --- MTP ---
+    use_mtp: true
+    mtp_predictor_num: 1
+    mtp_loss_weight: 0.1
+    mtp_block_type: dense
+
+    # --- Performance ---
+    loss_inplace_backward: true
+    delete_logits: true
+    use_cache: false
+    use_liger: false
+    fused_mlp: false
+    fused_mlp_checkpoint_lvl: 3
+    first_k_dense_replace: 1
+    tp_size: ${tp_size}
+#############
+### Model ###
+#############
+
+
+####################
+### Optimization ###
+####################
+global_train_batch_size: 1280
+device_train_microbatch_size: 5
+device_eval_batch_size: 4
+
+max_duration: 50000ba
+eval_interval: 5000ba
+
+eval_before_train: regular
+eval_subset_num_batches: -1
+
+scheduler:
+  name: constant_multi_step_with_gamma_with_warmup
+  t_warmup: 2000ba
+  milestones:
+    - 0.8dur
+    - 0.9dur
+  milestones_gamma:
+    - 0.316
+    - 0.1
+
+optimizer:
+  name: decoupled_adamw
+  lr: 4.0e-4
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1.0e-20
+  weight_decay: 4.0e-5
+
+algorithms:
+  gradient_clipping:
+    clipping_type: norm
+    clipping_threshold: 1.0
+####################
+### Optimization ###
+####################
+
+
+############
+### FSDP ###
+############
+precision: amp_bf16
+dist_timeout: 1800
+
+gigafsdp_config:
+  load_monolith_rank0_only: false
+  state_dict_type: local
+  sync_module_states: false
+  all_reduce_grads_across_model_parallel_group: ${enable_async_tp}
+  activation_checkpointing: true
+  activation_checkpointing_reentrant: false
+  hybrid_group_size: 256
+  zero_stage: 3
+  mixed_precision:
+    param_dtype: bf16
+    buffer_dtype: fp32
+    reduce_dtype: fp32
+############
+### FSDP ###
+############
+
+
+#################
+### Callbacks ###
+#################
+callbacks:
+  stage_time_profiler: {}
+  lr_monitor: {}
+  memory_monitor: {}
+  runtime_estimator: {}
+
+  weight_monitor:
+    interval: 200ba
+    only_log_wandb: false
+    tp_size: ${tp_size}
+    stat_list:
+    - amax
+    - amean
+    - l2norm
+
+  activation_monitor:
+    interval: 200ba
+    only_log_wandb: false
+    keep_only_module_types:
+      - proj
+      - conv
+      - lm_head
+      - embed_tokens
+      - gate
+    ignore_module_types:
+      - _tp_linear_submodule
+    log_module_output: false
+    log_gradients: true
+    log_grad_input: false
+    stat_list:
+      - amax
+      - amean
+      - l2norm
+
+  speed_monitor:
+    window_size: 10
+
+  optimizer_monitor:
+    batch_log_interval: 200
+
+  scheduled_gc:
+    batch_interval: 40
+
+  training_metrics_monitor:
+    batch_log_interval: 100
+
+  expert_balancing_monitor:
+    batch_log_interval: 40
+    activate_h_balance_metrics: false
+    activate_per_expert_metrics: false
+
+  token_dispatcher_monitor:
+    batch_log_interval: 40
+    activate_per_expert_metrics: false
+    activate_per_layer_metrics: true
+    activate_ep_rank_metrics: false
+    activate_eval_metrics: false
+
+  ema_weights:
+    alpha: 0.01
+    update_period: 10
+    start_batch: 5000
+
+  # autometrics:
+  #   user: ${user}
+  #   eval_interval: ${stable_save_interval}
+  #   stable_save_interval: ${stable_save_interval}
+  #   nnodes: 4
+  #   sglang_tag: custom
+  #   debug: true
+#################
+### Callbacks ###
+#################
+
+
+###############
+### Logging ###
+###############
+use_profiler: false
+profiler:
+  trace_handlers:
+    - name: json
+      params:
+        folder: /mnt/nfs/07-share/${user}/profiles/${exp_name}/${run_name}/composer_profiler
+        merged_trace_filename: null
+        merged_trace_remote_file_name: null
+        overwrite: true
+        num_traces_to_keep: -1
+  cyclic_schedule:
+    skip_first: 10000000
+    wait: 5
+    warmup: 2
+    active: 1
+    repeat: 1
+  profiler_overrides:
+    torch_prof_folder: /mnt/nfs/07-share/${user}/profiles/${exp_name}/${run_name}/torch_profiler
+    torch_prof_overwrite: true
+    torch_prof_num_traces_to_keep: -1
+    sys_prof_stats_thread_interval_seconds: 0.5
+    sys_prof_cpu: false
+    sys_prof_memory: false
+    sys_prof_disk: false
+    sys_prof_net: false
+    torch_prof_record_shapes: false
+    torch_prof_profile_memory: false
+    torch_prof_with_stack: false
+    torch_prof_memory_filename: null
+
+progress_bar: false
+auto_log_hparams: false
+log_to_console: true
+console_log_interval: 20ba
+
+date: null
+loggers:
+  tensorboard:
+    log_dir: ${tensorboard_path}
+    rank_zero_only: true
+
+autoresume: true
+compute_checkpoint_hashes: true
+save_checkpoint_async: true
+save_interval: 125ba
+stable_save_interval: 2000ba
+moe_scale_log_interval: 40ba
+
+load_strict_model_weights: false
+load_weights_only: false
+###############
+### Logging ###
+###############
+
+
+##################
+### Dataloader ###
+##################
+train_loader:
+  name: text
+  eos_token_id: ${eos_token_id}
+  sft_mode: false
+  dataset:
+    epoch_size: 2685546875
+    fim_rates:
+      vanilla_fim: 0.1
+      inline_fim: 0.0
+      multiline_fim: 0.0
+      syntax_aware_fim: 0.0
+    streams:
+      # ---------------------------------------------------------------
+      # Multilingual  (1.990%) — config 5.3.1
+      # ---------------------------------------------------------------
+      ar:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: ar_ar_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      de:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: de_de_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      es:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: es_es_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      fr:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: fr_fr_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      ja:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: ja_ja_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      kk:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: kk_kk_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      pt:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: pt_pt_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      uz:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: uz_uz_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      zh:
+        local: /mnt/nfs/07-share/tokenized_data/5.3.1/4k_context_128k_digit_tokenizer/web/multilingual
+        proportion: 0.110
+        split: zh_zh_200k_edu_markup_fixed_score_filtered_0_5_no_urls
+      multilingual_averkiev:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: multilingual_averkiev_013bf543
+        proportion: 1.000
+
+      # ---------------------------------------------------------------
+      # Ru Base  (10.235%)
+      # ---------------------------------------------------------------
+      ruCC_filtered_new_clf:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: main_MinerU_ru_f53e14ca
+        proportion: 9.764
+      ru_hplt:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: ru_hplt_clf_gr_0_5_9520f8d7
+        proportion: 0.471
+
+      # ---------------------------------------------------------------
+      # En Base  (41.696%)
+      # ---------------------------------------------------------------
+      CC_en:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: main_MinerU_en_a8e26842
+        proportion: 26.125
+      nemotron_filtered_ours:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: nemotron_cc_clf_gr_0_5_e8398ba9
+        proportion: 3.370
+      rfw:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: rfw_34551286
+        proportion: 6.922
+      en_hplt:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: en_hplt_clf_gr_0_5_b23a1b8f
+        proportion: 4.394
+      dclm_baseline_filtered:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: dclm_baseline_clf_gr_0_5_08343a4d
+        proportion: 0.885
+
+      # ---------------------------------------------------------------
+      # En HQ  (1.101%)
+      # ---------------------------------------------------------------
+      wikipedia:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: wikipedia_sharded_be08498c
+        proportion: 1.099
+      wikiquote:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: wikiquote_94266ea4
+        proportion: 0.002
+
+      # ---------------------------------------------------------------
+      # Synth web  (5.025%)
+      # ---------------------------------------------------------------
+      diverse_qa_pairs_nemotron_qwen:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: nemotron_cc_2_dqa_qwen3_30b_a3b_6ca66ecb
+        proportion: 2.025
+      # rev-prompt / llm-notes  (config 5.3.1 unpacked)
+      dclm_rev_prompt:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/unpacked/5.3.1_no_leaks_no_urls/4096_context/synthetic_web
+        split: dclm-rev-prompt_tokenized_4096_mds
+        proportion: 1.500
+      dclm_llm_notes:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/unpacked/5.3.1_no_leaks_no_urls/4096_context/synthetic_web
+        split: dclm-llm-notes_tokenized_4096_mds
+        proportion: 1.500
+
+      # ---------------------------------------------------------------
+      # OCR-PDF  (13.797%)
+      # ---------------------------------------------------------------
+      ocr_pdf:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: ocr_md_10__olmocr__finepdf__dclm_top25_1T_exact_dedup_minhash_dedup_35b18933
+        proportion: 13.797
+
+      # ---------------------------------------------------------------
+      # Math  (5.484%)
+      # ---------------------------------------------------------------
+      math_union_web:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: union_web_with_translated_0_5_no_leaks_dedup_b8575ff4
+        proportion: 3.269
+      ultradatamath:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: UltraData-Math-l3_dedup_no_leaks_75762eab
+        proportion: 0.746
+      swallowmath:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: stage3-qa-and-textbook-text-no-leaks_485d4099
+        proportion: 0.298
+      dimasynth_nemotron_regen:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: expr_mcq_proof_with_solution_d2d87484
+        proportion: 0.936
+      dimasynth_ocr_synth:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: books_mcq_expr_no_rus_filtered_f58f72d1
+        proportion: 0.235
+
+      # ---------------------------------------------------------------
+      # Code  (16.936%)
+      # ---------------------------------------------------------------
+      swh_content_dedup_opc_filtered_code:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: swh_content-dedup-opc-filtered-code_bd912224
+        proportion: 10.391
+        fim_rates:
+          vanilla_fim: 0.0
+          inline_fim: 0.375
+          multiline_fim: 0.0
+          syntax_aware_fim: 0.375
+      swh_content_dedup_opc_filtered_text:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: swh_content-dedup-opc-filtered-text_4bac49eb
+        proportion: 0.578
+      swh_content_dedup_opc_filtered_data:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: swh_content-dedup-opc-filtered-data_1fad892c
+        proportion: 0.173
+      algebraic_stack_ravel_filtered:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: train_filtered_ravel_filtered_593e290e
+        proportion: 0.064
+      scicode_data_filtered:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: data_filtered_909dfc13
+        proportion: 0.064
+      code_related:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: nemotrone_and_cc_code_related_07_minhash_global_code_related_07_5fdb3255
+        proportion: 3.336
+      ir_code_expl_py:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: instruction_reversal_python_new_230dc1be
+        proportion: 0.782
+      ir_code:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: IR_code_d1c1c353
+        proportion: 1.548
+        fim_rates:
+          vanilla_fim: 0.0
+          inline_fim: 0.375
+          multiline_fim: 0.0
+          syntax_aware_fim: 0.375
+
+      # ---------------------------------------------------------------
+      # Vital  (3.736%)
+      # ---------------------------------------------------------------
+      quizlet:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: quizlet_e1321cf9
+        proportion: 2.131
+      stackexchange:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: stackexchange_165b1ea5
+        proportion: 0.201
+      law_crawled:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: law_ffb8194d
+        proportion: 0.236
+      ssu:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: union_ssu_89e44d18
+        proportion: 0.023
+      financial_reports:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: beancounter_eb9b6dc8
+        proportion: 0.800
+      cybersecurity:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: cybersecurity_49798892
+        proportion: 0.034
+      cyberleninka:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: cyberleninka_c6170afe
+        proportion: 0.166
+      law:
+        local: /mnt/nfs/07-share/pretrain-data/registries/tokenized_datasets/ready
+        split: legal_orginized_b524cb72
+        proportion: 0.145
+
+    shuffle: true
+    max_seq_len: ${max_seq_len}
+  drop_last: true
+  num_workers: 4
+  prefetch_factor: 1
+  persistent_workers: false
+##################
+### Dataloader ###
+##################
+
+
+###########
+### ICL ###
+###########
+cached_datasets_directory_template: /mnt/nfs/07-share/infidelis/metrics_cache
+eval_gauntlet:
+  weighting: EQUAL
+  averages:
+    ru_en_average:
+    - ru
+    - en
+icl_tasks:
+  - label: mmlu
+    dataset_uri: /mnt/nfs/07-share/metrics/mmlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [0, 5]
+    icl_task_type: mmlu
+    ####################
+    # only for mmlu
+    # be careful, because the settings
+    # applied to all dataloaders in this tasks
+    num_workers: 1
+    pin_memory: true
+    prefetch_factor: 2
+    persistent_workers: false
+    max_seq_len: 4096
+    gauntlet_tags: ['en']
+    ####################
+  - label: teenmmlu
+    dataset_uri: /mnt/nfs/07-share/metrics/mmlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [0, 5]
+    icl_task_type: teenmmlu
+    ####################
+    # only for mmlu
+    # be careful, because the settings
+    # applied to all dataloaders in this tasks
+    num_workers: 1
+    pin_memory: true
+    prefetch_factor: 2
+    persistent_workers: false
+    max_seq_len: 4096
+    gauntlet_tags: ['en']
+    ####################
+  - label: mmlu-pro
+    dataset_uri: /mnt/nfs/07-share/metrics/mmlu-pro
+    # each num_fewshot is separate dataloader
+    num_fewshot: [0, 5]
+    icl_task_type: mmlu
+    choice_num2symbol:
+       0: A
+       1: B
+       2: C
+       3: D
+       4: E
+       5: F
+       6: G
+       7: H
+       8: I
+       9: J
+    ####################
+    # only for mmlu
+    # be careful, because the settings
+    # applied to all dataloaders in this tasks
+    num_workers: 1
+    pin_memory: true
+    prefetch_factor: 2
+    persistent_workers: false
+    max_seq_len: 4096
+    gauntlet_tags: ['en']
+    ####################
+  - label: fakemmlu
+    dataset_uri: /mnt/nfs/07-share/metrics/fakemmlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: fakemmlu
+    max_seq_len: 4096
+    gauntlet_tags: ['en']
+  - label: babymmlu
+    dataset_uri: /mnt/nfs/07-share/metrics/babymmlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: babymmlu
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+  - label: babymmlu2
+    dataset_uri: /mnt/nfs/07-share/metrics/babymmlu2
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: babymmlu
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+  - label: rummlu
+    dataset_uri: /mnt/nfs/07-share/metrics/rummlu-new
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: rummlu
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+  - label: biommlu
+    dataset_uri: /mnt/nfs/07-share/metrics/biommlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: biommlu
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+  - label: medmmlu
+    dataset_uri: /mnt/nfs/07-share/metrics/medmmlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: medmmlu
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+  - label: biommlu
+    dataset_uri: /mnt/nfs/07-share/metrics/biommlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: biommlu
+    max_seq_len: 4096
+  - label: chemmmlu
+    dataset_uri: /mnt/nfs/07-share/metrics/chemmmlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: chemmmlu
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+  - label: mathmmlu
+    dataset_uri: /mnt/nfs/07-share/metrics/mathmmlu
+    # each num_fewshot is separate dataloader
+    num_fewshot: [5]
+    icl_task_type: mathmmlu
+    max_seq_len: 4096 #, says 4k is too small, there are larger samples
+    gauntlet_tags: ['ru', 'math']
+  - label: ruopenbookqa
+    dataset_uri: /mnt/nfs/07-share/metrics/ruopenbookqa.jsonl # ADD YOUR OWN DATASET URI
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+  - label: boolq
+    dataset_uri: /mnt/nfs/07-share/metrics/boolq.jsonl # ADD YOUR OWN DATASET URI
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    max_seq_len: 4096
+    gauntlet_tags: ['en']
+  - label: hellaswag
+    dataset_uri: /mnt/nfs/07-share/metrics/hellaswag.jsonl # ADD YOUR OWN DATASET URI
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    max_seq_len: 4096
+    gauntlet_tags: ['en']
+  - label: ruworldtree
+    dataset_uri: /mnt/nfs/07-share/metrics/ruworldtree.jsonl # ADD YOUR OWN DATASET URI
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+  - label: winogrande
+    dataset_uri: /mnt/nfs/07-share/metrics/winogrande.jsonl # ADD YOUR OWN DATASET URI
+    num_fewshot: [0]
+    icl_task_type: schema
+    max_seq_len: 4096
+    gauntlet_tags: ['en']
+  - label: rulang-0.3
+    dataset_uri: /mnt/nfs/07-share/metrics/rulang-bench-foundry-0.3
+    # each num_fewshot is separate dataloader
+    num_fewshot: [2]
+    icl_task_type: mmlu
+    prompt_string: "Ниже приведены вопросы с множественным выбором по {subject}."
+    prompt_answer_template: "Ответ:"
+    choice_num2symbol:
+        0: "1"
+        1: "2"
+        2: "3"
+        3: "4"
+        4: "5"
+        5: "6"
+        6: "7"
+        7: "8"
+    ####################
+    # only for mmlu
+    # be careful, because the settings
+    # applied to all dataloaders in this tasks
+    num_workers: 1
+    pin_memory: true
+    prefetch_factor: 2
+    persistent_workers: false
+    max_seq_len: 4096
+    gauntlet_tags: ['ru']
+    ####################
+  # --- Core Metrics ---
+  - label: hellaswag_zeroshot
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/language_understanding/hellaswag.jsonl"
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: arc_easy
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/world_knowledge/arc_easy.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: arc_challenge
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/world_knowledge/arc_challenge.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: copa
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/commonsense_reasoning/copa.jsonl"
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: commonsense_qa
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/commonsense_reasoning/commonsense_qa.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: piqa
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/commonsense_reasoning/piqa.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: openbook_qa
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/commonsense_reasoning/openbook_qa.jsonl"
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: lambada_openai
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/language_understanding/lambada_openai.jsonl"
+    num_fewshot: [0]
+    icl_task_type: language_modeling
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: hellaswag-10shot
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/language_understanding/hellaswag.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: winograd
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/language_understanding/winograd_wsc.jsonl"
+    num_fewshot: [0]
+    icl_task_type: schema
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: winogrande
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/language_understanding/winogrande.jsonl"
+    num_fewshot: [0]
+    icl_task_type: schema
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: bigbench_language_identification
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/language_understanding/bigbench_language_identification.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: agi_eval_lsat_ar
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/symbolic_problem_solving/agi_eval_lsat_ar.jsonl"
+    num_fewshot: [3]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: agi_eval_lsat_lr
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/reading_comprehension/agi_eval_lsat_lr.jsonl"
+    num_fewshot: [3]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  - label: boolq
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/reading_comprehension/boolq.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    gauntlet_tags: ['core']
+    max_seq_len: 4096
+  # --- RU Core Metrics ---
+  - label: ru_hellaswag_zeroshot
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/hellaswag.jsonl"
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_arc_easy
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/arc_easy.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_arc_challenge
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/arc_challenge.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_copa
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/copa.jsonl"
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_commonsense_qa
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/commonsense_qa.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_piqa
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/piqa.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_openbook_qa
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/openbook_qa.jsonl"
+    num_fewshot: [0]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_lambada_openai
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/lambada_openai.jsonl"
+    num_fewshot: [0]
+    icl_task_type: language_modeling
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_hellaswag
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/hellaswag.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_winograd
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/winograd_wsc.jsonl"
+    num_fewshot: [0]
+    icl_task_type: schema
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_winogrande
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/winogrande.jsonl"
+    num_fewshot: [0]
+    icl_task_type: schema
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_agi_eval_lsat_ar
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/agi_eval_lsat_ar.jsonl"
+    num_fewshot: [3]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['ru-core']
+    max_seq_len: 4096
+  - label: ru_boolq
+    dataset_uri: "/mnt/nfs/07-share/metrics/extended/ru_core_metrics/boolq.jsonl"
+    num_fewshot: [10]
+    icl_task_type: multiple_choice
+    gauntlet_tags: ['ru-core']
+    continuation_delimiter: "\nAnswer: " # this separates questions from answers
+    max_seq_len: 4096
+###########
+### ICL ###
+###########
+
+
+###################
+### Autometrics ###
+###################
+# autometrics:
+#   globals:
+#     delete_converted_hf: false
+
+#   router:
+#     host: 0.0.0.0
+
+#   convertation:
+#     mappers:
+#       - map_gigafsdp_to_hf_safetensor
+#     input_tp_size: 1
+#     use_ema: true # ibo nehui
+
+#   preparation:
+#     skip: true
+
+#   inference:
+#     tp: 32
+#     ep: 32
+#     mem-fraction-static: 0.7
+#     # chat-template: <path to jinja template> #NEED FOR OBM!
+#     # tokenizer-path: <tokenizer path> #NEED FOR OBM!
+
+#   model_info:
+#     model_class: "sft"
+#     size: "custom"
+#     username: ${user}
+
+#   evaluators:
+#     lm_eval:
+#       pretrain:
+#         # Knowledge / reasoning
+#         mmlu_pro:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         mmlu:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         mmlu_redux_generative:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         bbh:
+#           num_fewshot: 3
+#           log_samples: true
+
+#         supergpqa:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         gpqa_diamond_zeroshot:
+#           num_fewshot: 0
+#           log_samples: true
+
+#         triviaqa:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         agieval:
+#           num_fewshot: 0
+#           log_samples: true
+
+#         nq_open:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         hellaswag:
+#           num_fewshot: 10
+#           log_samples: true
+
+#         winogrande:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         arc_easy:
+#           num_fewshot: 25
+#           log_samples: true
+
+#         arc_challenge:
+#           num_fewshot: 25
+#           log_samples: true
+
+#         gpqa_diamond_n_shot:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         drop:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         # Math
+#         gsm8k:
+#           num_fewshot: 8
+#           log_samples: true
+
+#         minerva_math:
+#           num_fewshot: 4
+#           log_samples: true
+
+#         # Code
+#         humaneval:
+#           num_fewshot: 0
+#           log_samples: true
+
+#         mbpp:
+#           num_fewshot: 3
+#           log_samples: true
+
+#         humaneval_plus:
+#           num_fewshot: 0
+#           log_samples: true
+
+#         mbpp_plus:
+#           num_fewshot: 3
+#           log_samples: true
+
+#         lcb_code_gen_lite:
+#           num_fewshot: 0
+#           log_samples: true
+
+#         cruxeval:
+#           num_fewshot: 0
+#           log_samples: true
+
+#         #Multilingual
+#         mmmlu_zh_cn:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         mgsm_en_cot_en:
+#           num_fewshot: 8
+#           log_samples: true
+
+#         mgsm_en_cot_ru:
+#           num_fewshot: 8
+#           log_samples: true
+
+#         mgsm_en_cot_zh:
+#           num_fewshot: 8
+#           log_samples: true
+
+#         # LongContext
+#         # longbench2:
+#         #   num_fewshot: 0
+
+#         # ruler:
+#         #   num_fewshot: 0
+
+#         # mrcr:
+#         #   num_fewshot: 0
+
+#         # Ru
+#         doom:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         bouquet:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         babymmlu2:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         spellcheck_punctuation_ru:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         slava:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         russian_gec:
+#           num_fewshot: 0
+#           log_samples: true
+
+#         rublimp:
+#           num_fewshot: 0
+#           log_samples: true
+
+#         ruscontext:
+#           num_fewshot: 5
+#           log_samples: true
+
+#         rucola:
+#           num_fewshot: 5
+#           log_samples: true
+###################
+### Autometrics ###
+###################

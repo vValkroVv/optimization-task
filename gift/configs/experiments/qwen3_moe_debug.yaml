@@ -1,0 +1,38 @@
+# Qwen3-MoE debug model on the bundled c4_test corpus.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/qwen3_moe_debug.yaml
+#
+# Expert parallelism is left at the default degree of 1; raise it with
+# `--parallelism.expert_parallel_degree N`.
+config_version: 1
+
+imports:
+  - ../presets/models/qwen3/debugmodel_moe.yaml
+  - ../presets/train/debug.yaml
+
+loss:
+  type: chunked_cross_entropy
+
+optimizer:
+  lr: 3.0e-4
+
+lr_scheduler:
+  # The debug preset shapes a decay schedule; this config keeps the scheduler
+  # defaults and only warms up.
+  decay_ratio: null
+
+training:
+  local_batch_size: 4
+  seq_len: 4096
+
+parallelism:
+  expert_parallel_degree: 1
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false
+  export_dtype: float16
+
+model:
+  label: qwen3_moe/debugmodel_moe
+  config: {}

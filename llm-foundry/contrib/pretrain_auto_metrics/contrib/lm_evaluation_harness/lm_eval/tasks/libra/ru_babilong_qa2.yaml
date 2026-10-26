@@ -1,0 +1,53 @@
+tag: libra_tasks
+task: ru_babilong_qa2
+task_alias: ruBABILongQA2
+dataset_name: ru_babilong_qa2
+dataset_kwargs:
+  dataset_name: ru_babilong_qa2
+include: _template_yaml
+doc_to_text: 'Я даю тебе контекст с фактами о местоположении и действиях разных людей.
+  Тебе нужно ответить на вопрос, основываясь только на фактической информации. Если
+  человек взял предмет в одном месте и отправился в другое место, этот предмет также
+  находится во втором месте. Если человек оставил предмет в первом месте и перешел
+  во второе место, предмет остается в первом месте.
+
+  {{context}}
+
+  Ответь на вопрос одним словом.
+
+  Вопрос: {{input}}
+
+  Ответ:'
+generation_kwargs:
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 16
+  
+filter_list:
+- name: "scoring"
+  filter:
+    - function: libra_scorer
+      score_type: em
+
+metric_list:
+  - metric: 4k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 8k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 16k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 32k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 64k_em
+    aggregation: mean
+    higher_is_better: true
+  - metric: 128k_em
+    aggregation: mean
+    higher_is_better: true
+  
+metadata:
+  version: 2.0

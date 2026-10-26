@@ -1,0 +1,27 @@
+eval_subset_num_batches: 2
+
+
+eval_loaders:
+  eval_set:
+    dataset:
+      shuffle: false
+      streams:
+        eval_set:
+          local: /home/jovyan/test_cache/datasets/speech/converted_chatml_test_dev/test/mds/mds
+    metric_names:
+        - WordErrorRate
+        - WordErrorRateE2E
+    mode: generate_with_logits
+
+
+default_eval_dataset_params:
+  max_seq_len: ${max_seq_len}
+  shuffle_seed: ${global_seed}
+
+
+default_eval_loader_params:
+  drop_last: false
+  feature_extractor_cfg: ${feature_extractor_cfg}
+  left_padding: true
+  name: audio
+  num_workers: 1

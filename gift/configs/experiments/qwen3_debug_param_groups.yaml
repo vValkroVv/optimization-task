@@ -1,0 +1,20 @@
+# Qwen3 debug model with per-pattern optimizer parameter groups: embeddings,
+# biases and norms train without weight decay.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/qwen3_debug_param_groups.yaml
+config_version: 1
+
+imports:
+  - qwen3_debug.yaml
+
+optimizer:
+  param_groups:
+    - pattern: 'tok_embeddings\.'
+      weight_decay_multiplier: 0.0
+    - pattern: '\.bias$'
+      weight_decay_multiplier: 0.0
+    - pattern: '(?:attention_norm|ffn_norm|norm)\.'
+      weight_decay_multiplier: 0.0
+
+model:
+  config: {}

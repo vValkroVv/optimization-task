@@ -1,0 +1,21 @@
+# GIFT 4 hidden z-loss attachment points.
+#
+# Attachment points, not an enabled configuration: at coefficient 0.0
+# HiddenZLoss.attach registers no hook. MLA penalizes Q after norm/scaling and
+# KV before norm, excluding RoPE; q_latent is inactive on full-rank Q. Routed
+# experts' gate/up are halves of one grouped GEMM, so GroupedExperts splices
+# them itself; a non-zero coefficient there on the fp8 experts needs
+# `fp8.sparse_fused_swiglu_quant: false`. Production coefficients land in a
+# separate change.
+model:
+  config:
+    hidden_z_loss_patterns:
+      layers.*.attention.qkv.qkv_proj: 0.0 # linear-attention: fused qkv
+      layers.*.attention.q_latent: 0.0     # MLA LoRA Q after norm/alpha
+      layers.*.attention.kv_latent: 0.0    # MLA KV after split, before norm
+      layers.*.feed_forward.w1: 0.0        # dense MLP gate
+      layers.*.feed_forward.w3: 0.0        # dense MLP up
+      layers.*.moe.shared_experts.w1: 0.0
+      layers.*.moe.shared_experts.w3: 0.0
+      layers.*.moe.experts.w1: 0.0         # routed experts gate
+      layers.*.moe.experts.w3: 0.0         # routed experts up

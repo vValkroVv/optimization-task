@@ -1,0 +1,59 @@
+---
+run_name: lmms-eval-openrouter
+exp_name: lmms-eval-openrouter
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+
+max_seq_len: 4096
+
+autometrics:
+  globals:
+    delete_converted_hf: false
+
+  router:
+    host: 0.0.0.0
+
+  convertation:
+    mappers:
+      - map_gigafsdp_to_hf_safetensor
+    input_tp_size: 1
+
+  preparation:
+    skip: true
+
+  inference:
+    engine_type: external_api
+    formatting: openai
+    # Переопределите адрес, если OpenRouter доступен через отдельный шлюз.
+    base_url: ${oc.env:OPENROUTER_BASE_URL,https://openrouter.ai/api/v1}
+    model: ${oc.env:OPENROUTER_MODEL,anthropic/claude-sonnet-4}
+    api_key: ${oc.env:OPENROUTER_API_KEY}
+    max_concurrency: 10
+    timeout: 7200
+    # Здесь можно передать дополнительные параметры сервиса, например:
+    # request_customization:
+    #   reasoning:
+    #     effort: none
+
+  model_info:
+    model_class: vision
+    size: max
+    username: ${user}
+
+  evaluators:
+    lmms_eval:
+      timeout: 7200
+      runs:
+        smoke:
+          benchmarks:
+            mode: sequential
+            tasks:
+              - ai2d
+            limit: 5
+
+        # Раскомментируйте, чтобы запустить все тесты GigaVision.
+        # all:
+        #   benchmarks:
+        #     categories:
+        #       - all

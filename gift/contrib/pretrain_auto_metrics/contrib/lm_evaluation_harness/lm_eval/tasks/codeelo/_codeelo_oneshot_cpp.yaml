@@ -1,0 +1,21 @@
+include: _codeelo_template.yaml
+doc_to_text: !function utils.format_oneshot_prompt
+process_results: !function utils.submit_oneshot_problem
+
+repeats: 8
+generation_kwargs:
+  do_sample: true
+  temperature: 0.7
+  top_p: 0.8
+  top_k: 20
+  repetition_penalty: 1.1
+  max_gen_toks: 4096
+  until:
+    - "```"
+    - "\n### Question"
+
+filter_list:
+  - name: "fenced"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.strip_code_fence

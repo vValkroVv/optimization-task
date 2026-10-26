@@ -1,0 +1,31 @@
+# gpt-oss debug model on the bundled c4_test corpus.
+#
+#   torchrun --nproc_per_node=1 -m torchtitan.train configs/experiments/gpt_oss_debug.yaml
+#
+# Expert parallelism is left at the default degree of 1; the CI's EP case
+# raises it with `--parallelism.expert_parallel_degree N`.
+config_version: 1
+
+imports:
+  - ../presets/models/gpt_oss/debugmodel.yaml
+  - ../presets/train/debug.yaml
+
+loss:
+  type: chunked_cross_entropy
+
+parallelism:
+  expert_parallel_degree: 1
+
+checkpoint:
+  interval: 10
+  last_save_model_only: false
+
+activation_checkpoint:
+  mode: none
+
+validator:
+  freq: 5
+  steps: 10
+
+model:
+  config: {}

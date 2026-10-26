@@ -1,0 +1,50 @@
+<clickhouse>
+    <storage_configuration>
+        <disks>
+            <obs_cold>
+                <type>s3</type>
+                <endpoint>__S3_BUCKET_URL__/metric-sampler/clickhouse-cold/</endpoint>
+                <access_key_id>__S3_ACCESS_KEY__</access_key_id>
+                <secret_access_key>__S3_SECRET_KEY__</secret_access_key>
+            </obs_cold>
+            <obs_cold_cached>
+                <type>cache</type>
+                <disk>obs_cold</disk>
+                <path>/var/lib/clickhouse/disks/obs_cold_cache/</path>
+                <max_size>300Gi</max_size>
+            </obs_cold_cached>
+        </disks>
+        <policies>
+            <tiered>
+                <volumes>
+                    <!-- Named like the volume of the default policy, which a table switching to this one must keep. -->
+                    <default>
+                        <disk>default</disk>
+                    </default>
+                    <cold>
+                        <disk>obs_cold_cached</disk>
+                        <prefer_not_to_merge>true</prefer_not_to_merge>
+                    </cold>
+                </volumes>
+                <move_factor>0</move_factor>
+            </tiered>
+            <!-- The raw tables' policy: the local disk keeps parts below 1 GiB, which is what an insert writes and where
+                 the summary loops read the newest steps, and a merge of them writes its result to the cold volume. The
+                 local disk then takes the raw rows once instead of again with every merge, and the parts on the cold
+                 volume are large enough for ClickHouse's too-many-parts checks to stay off. -->
+            <tiered_raw>
+                <volumes>
+                    <default>
+                        <disk>default</disk>
+                        <max_data_part_size_bytes>1073741824</max_data_part_size_bytes>
+                    </default>
+                    <cold>
+                        <disk>obs_cold_cached</disk>
+                        <prefer_not_to_merge>true</prefer_not_to_merge>
+                    </cold>
+                </volumes>
+                <move_factor>0</move_factor>
+            </tiered_raw>
+        </policies>
+    </storage_configuration>
+</clickhouse>

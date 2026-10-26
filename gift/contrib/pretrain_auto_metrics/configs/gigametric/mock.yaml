@@ -1,0 +1,149 @@
+# =============================================================================
+# Mock smoke: end-to-end PAM↔GigaMetric wiring без API/GPU.
+# =============================================================================
+# Назначение: проверка subprocess-цепи + storage + JD payload shape
+# на CI / local dev / контейнере без credential'ов. mock_model не делает
+# реальных HTTP-запросов — возвращает фиксированный/случайный ответ.
+#
+# Edge cases / параметры:
+#   * do_errors=true ниже включает ~10% random ValueError, чтобы проверить
+#     adapter retry-логику. Для чистого smoke поставь false.
+#   * Mock model usage всегда {input_tokens: 0, output_tokens: 0} —
+#     pricing будет считать 0 затрат, но формат таблицы валидируется.
+#   * Если adapter требует структурированный ответ (function call, JSON
+#     mode), mock_format параметр контролирует обёртку. См.
+#     contrib/papayametric/src/models/mock_model.py.
+# =============================================================================
+
+run_name: gigametric_mock_smoke
+exp_name: gigametric_smoke
+user: user
+
+tensorboard_path: /home/jovyan/${user}/tensorboard_test/${exp_name}
+max_seq_len: 4096
+
+autometrics:
+    # obm_proxy:
+    #     sampling-params:
+    #         temperature: 0.7
+    globals:
+        delete_converted_hf: false
+        full_metrics_recalculate: false
+
+    router:
+        host: 0.0.0.0
+
+    convertation:
+        mappers:
+            - map_gigafsdp_to_hf_safetensor
+        input_tp_size: 1
+
+    preparation:
+        skip: true
+
+    inference:
+        # tp/dp/ep игнорятся mock'ом, но PAM требует валидное произведение
+        # tp*dp*ep == n_gpus в job-template (job_submitter assert).
+        allow-auto-truncate: true
+        tp: 1
+        ep: 1
+
+    model_info:
+        model_class: "sft"
+        size: "smoke"
+        username: ${user}
+
+    evaluators:
+        gigametric:
+            # State.json + per-task logs + .uv_envs symlinks приедут сюда.
+            # На cluster это NFS path, на CI — tmpdir.
+            base_dir: /home/jovyan/${user}/gigametric_runs
+
+            # local_model_id: для mock — любая модель, метрики которой
+            # должны попасть в JD payload. Здесь mock_a.
+            local_model_id: mock_a
+
+            # env-блок не нужен — mock_model ничего не требует
+            # (BaseLLMHandler.env_keys по умолчанию []).
+            # Для real-API benches пробрось токены здесь:
+            #   env:
+            #       OPENAI_API_KEY: ${oc.env:OPENAI_API_KEY,''}
+            #       GIGACHAT_IFT_TOKEN: ${oc.env:GIGACHAT_IFT_TOKEN,''}
+
+            validation_config:
+                validation_name: pam_smoke
+                strategy: breadth_first  # альтернатива: depth_first
+
+                scheduler:
+                    max_parallel_runs: auto  # либо int N
+                    model_capacity_mode: tokens  # alternative: requests
+                    # prewarm_environments=false — быстрый старт smoke'а.
+                    # В основном сценарии стоит ставить true
+                    # для предсказуемости first item.
+                    prewarm_environments: false
+                    # Два уровня fail-fast:
+                    # * fail_fast (scheduler) — уровень валидации:
+                    #   одна сломанная
+                    #   задача (один бенч × модель) валит ВСЮ валидацию (все
+                    #   остальные прогоны бенч × модель отменяются).
+                    # * fail_fast_consecutive_item_errors (benchmark_config) —
+                    #   повопросный уровень: N подряд is_error в одном бенче
+                    #   роняют ТОЛЬКО этот прогон, остальные продолжают.
+                    fail_fast: false
+
+                defaults:
+                    llm_config:
+                        model: mock_model
+                        name: MockModel
+                        api_key: test
+                        semaphore: 2  # одновременные in-flight requests
+                        parameters:
+                            do_errors: true  # ~10% random ValueError
+                            mock_format: openai  # openai|gigachat|raw
+                    benchmark_config:
+                        parameters:
+                            max_concurrent_requests: 1
+
+                benchmarks:
+                    math500:
+                        name: math500-adapter
+                        # Item-level fail-fast: 5 подряд is_error → задача
+                        # отменяется с FailFastTriggered. Остальные бенчи
+                        # продолжают (scheduler.fail_fast=false).
+                        fail_fast_consecutive_item_errors: 5
+                        parameters:
+                            num_items: 5  # cap dataset для smoke
+                        primary_metric: mean_exact_match
+
+                    ifeval:
+                        name: ifeval-adapter
+                        parameters:
+                            num_items: 5
+                        primary_metric: avg_inst_strict_avg
+
+                models:
+                    - id: mock_a
+                      capacity: 2  # token-rate weight для scheduler
+                      llm_config:
+                          name: MockA
+                      benchmarks:
+                          - math500
+                          - ifeval
+                    - id: mock_b
+                      capacity: 2
+                      llm_config:
+                          name: MockB
+                      benchmarks:
+                          - math500
+
+                pricing:
+                    default_currency: RUB
+                    # Раздельный pricing input/output. На mock'е usage=0,
+                    # значения чисто декларативные.
+                    models:
+                        mock_a:
+                            input_1m_tokens: 1.0
+                            output_1m_tokens: 2.0
+                        mock_b:
+                            input_1m_tokens: 1.0
+                            output_1m_tokens: 2.0

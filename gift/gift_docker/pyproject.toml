@@ -1,0 +1,122 @@
+[project]
+name = "torchtitan-gift-docker"
+version = "0.1.0"
+description = "Pinned Python dependency set for the TorchTitan GIFT Docker image."
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.optional-dependencies]
+bootstrap = [
+    "packaging==24.2",
+    "setuptools==78.1.0",
+]
+
+runtime = [
+    "datasets==4.7.0",
+    "einops==0.8.2",
+    "fsspec==2026.2.0",
+    "omegaconf==2.3.0",
+    "pillow==12.2.0",
+    "pyyaml==6.0.3",
+    "rich==13.9.4",
+    "safetensors==0.7.0",
+    "tensorboard==2.20.0",
+    "tokenizers==0.22.2",
+    "torchdata==0.11.0",
+    "wandb==0.27.0",
+]
+
+dev = [
+    "expecttest==0.3.0",
+    "numpy==2.4.4",
+    "pre-commit==4.6.0",
+    "pyrefly==0.45.1",
+    "pytest==7.3.2",
+    "pytest-cov==7.1.0",
+    "ruff==0.14.10",
+]
+
+model-suites = [
+    "av==17.0.1",
+    "sentencepiece==0.2.1",
+    "transformers==4.57.1",
+]
+
+kiwi = [
+    "pandas==3.0.1",
+    "pyarrow==22.0.0",
+    "boto3==1.43.17",  # aligned with extra "streaming"
+]
+
+streaming = [
+    "azure-identity==1.25.3",
+    "azure-storage-blob==12.29.0",
+    "azure-storage-file-datalake==12.24.0",
+    "boto3==1.43.17",
+    "Brotli==1.2.0",
+    "catalogue==2.0.10",
+    "coolname==2.2.0",
+    "google-cloud-storage==2.19.0",
+    "matplotlib==3.10.8",
+    "oci==2.176.0",
+    "paramiko==3.5.1",
+    "python-snappy==0.7.3",
+    "tree-sitter==0.26.0",
+    "tree-sitter-language-pack==1.14.0",
+    "zstd==1.5.7.2",
+]
+
+nightly-cu130 = [
+    "torch==2.15.0.dev20260822+cu130",
+    "torchvision==0.30.0.dev20260823+cu130",
+    "triton==3.8.0+git3f6e4113",
+]
+
+kernels = [
+    "nvidia-cutlass-dsl[cu13]==4.4.1",
+    "apache-tvm-ffi==0.1.11",
+    "tilelang==0.1.12",
+]
+
+integrations = [
+    "flash-attn-3==3.0.0",
+    "nvidia-nvshmem-cu13==3.3.24",
+    "torchcomms==0.3.0.dev20260823+cu130",
+    "torchft-nightly==2026.8.9",
+]
+
+[tool.uv]
+# In 4.4.1, cu13 contains the full base payload at the same paths. Installing
+# both mixes incompatible MLIR bindings. Revisit when upgrading CUTLASS.
+# https://github.com/NVIDIA/cutlass/issues/3170
+exclude-dependencies = ["nvidia-cutlass-dsl-libs-base"]
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+override-dependencies = [
+    # Torch nightly currently requires 3.4.5, but DeepEP hits a CUDA 13 multiple
+    # definition regression with NVSHMEM 3.5+; keep the known-good cu13 wheel.
+    "nvidia-nvshmem-cu13==3.3.24",
+    "torch==2.15.0.dev20260822+cu130"
+]
+
+[tool.uv.sources]
+flash-attn-3 = { index = "pytorch-test-cu130" }
+torch = { index = "pytorch-nightly-cu130" }
+torchcomms = { index = "pytorch-nightly-cu130" }
+torchvision = { index = "pytorch-nightly-cu130" }
+triton = { index = "pytorch-nightly-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly-cu130"
+url = "https://gitlab.ai.cloud.ru/api/v4/projects/3100/packages/pypi/simple"
+explicit = true
+authenticate = "always"
+
+[[tool.uv.index]]
+name = "pytorch-test-cu130"
+url = "https://download.pytorch.org/whl/test/cu130"
+explicit = true

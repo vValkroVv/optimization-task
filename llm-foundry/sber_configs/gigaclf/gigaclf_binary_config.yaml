@@ -1,0 +1,151 @@
+max_seq_len: 4096
+global_seed: 2048
+num_labels: 2 # binary classification
+
+user: <USERNAME>
+exp_name: <EXP_NAME>
+run_name: <RUN_NAME>
+tensorboard_path: /path/to/tensorboard/${exp_name}/${run_name} # !CHANGE IT
+save_folder: /path/to/checkpoints/${exp_name}/${run_name} # !CHANGE IT
+
+# eos/bos token ids — tied to the qwen family models; defined once here and reused via interpolation below
+eos_token_id: 151643
+bos_token_id: 151643
+speedup_llama: false
+varlen_input: false
+enable_async_tp: false
+zero_nan_grads: false
+tp_size: 1
+sp_size:
+- sp_size: 1
+  max_seq_len: ${max_seq_len}
+
+model_path: /path/to/model # e.g. Qwen3-8B backbone
+model:
+  name: gigar_classifier
+  init_device: cpu
+  pretrained: true
+  pretrained_model_name_or_path: ${model_path}
+  num_labels: ${num_labels}
+  config_overrides:
+    max_position_embeddings: ${max_seq_len}
+    eos_token_id: ${eos_token_id}
+    bos_token_id: ${bos_token_id}
+tokenizer:
+  name: ${model_path}
+
+global_train_batch_size: 1024
+device_train_microbatch_size: 2
+device_eval_batch_size: 1
+max_duration: 1600ba # 1 epoch in ba = number of jsonl samples * ${max_seq_len} / ${global_train_batch_size}
+
+eval_interval: 50ba
+eval_before_train: force
+eval_subset_num_batches: 40 #-1
+
+# Start from the checkpoint
+# load_path: /path/to/checkpoint/ep0-ba96000-tp_rank0-ep_rank0
+# load_strict_model_weights: false # true
+# load_weights_only: true
+
+loggers:
+  tensorboard:
+    log_dir: ${tensorboard_path}
+    rank_zero_only: true
+
+train_loader:
+  name: text_classification
+  #
+  eos_token_id: ${eos_token_id}
+  bos_token_id: ${bos_token_id}
+  sft_mode: false
+  dataset:
+    streams:
+      train_mds:
+        local: /path/to/data/train # MDS folder with train split
+        proportion: 1.0
+    num_labels: ${num_labels}
+    shuffle: true
+    max_seq_len: ${max_seq_len}
+    shuffle_seed: ${global_seed}
+  drop_last: true
+  num_workers: 1
+
+eval_loader:
+  name: text_classification
+  #
+  eos_token_id: ${eos_token_id}
+  bos_token_id: ${bos_token_id}
+  sft_mode: false
+  dataset:
+    streams:
+      val_mds:
+        local: /path/to/data/test # MDS folder with val split
+        proportion: 1.0
+    num_labels: ${num_labels}
+    shuffle: false
+    max_seq_len: ${max_seq_len}
+    shuffle_seed: ${global_seed}
+  drop_last: false
+  num_workers: 1
+
+
+scheduler:
+  name: cosine_with_warmup
+  t_warmup: 40ba
+  alpha_f: 0.015
+optimizer:
+  name: decoupled_adamw
+  lr: 5e-5
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1.0e-08
+  weight_decay: 0.0001
+algorithms:
+  gradient_clipping:
+    clipping_type: norm
+    clipping_threshold: 1.0
+
+use_profiler: false
+
+save_interval: 400ba
+stable_save_interval: 800ba
+save_overwrite: false
+seed: 2048
+precision: amp_bf16
+dist_timeout: 1800
+gigafsdp_config:
+  load_monolith_rank0_only: false
+  state_dict_type: local
+  sync_module_states: false
+  all_reduce_grads_across_model_parallel_group: false
+  hybrid_group_size: 8
+  activation_checkpointing: false # false
+  activation_checkpointing_reentrant: false
+  mixed_precision:
+    param_dtype: bf16
+    buffer_dtype: fp32
+    reduce_dtype: fp32
+progress_bar: false
+log_to_console: true
+console_log_interval: 20ba
+callbacks:
+  speed_monitor:
+    window_size: 10
+  stage_time_profiler: {}
+  lr_monitor: {}
+  memory_monitor: {}
+  runtime_estimator: {}
+  optimizer_monitor:
+    batch_log_interval: 20
+  scheduled_gc:
+    batch_interval: 1000
+  training_metrics_monitor:
+    batch_log_interval: 500
+auto_log_hparams: false
+autoresume: true
+save_checkpoint_async: true
+compute_checkpoint_hashes: true
+date:
+use_clearml: false

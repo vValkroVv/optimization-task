@@ -1,0 +1,20 @@
+# DeepSeek-V3 debug model with the hybrid expert-parallel token dispatcher
+# through the graph trainer.
+#
+#   torchrun --nproc_per_node=2 -m torchtitan.train configs/experiments/graph_deepseek_v3_debug_hybridep.yaml
+config_version: 1
+
+imports:
+  - graph_deepseek_v3_debug.yaml
+
+model:
+  config:
+    blocks:
+      mla_moe:
+        moe:
+          experts:
+            token_dispatcher: {type: hybridep, non_blocking_capacity_factor: 1.0}
+
+# HybridEP dispatch needs expert parallelism.
+parallelism:
+  expert_parallel_degree: 2

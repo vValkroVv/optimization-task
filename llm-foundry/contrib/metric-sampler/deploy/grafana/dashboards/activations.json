@@ -1,0 +1,801 @@
+{
+  "uid": "ms-activations",
+  "title": "metric-sampler / Activations",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "exp",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT exp FROM metric_sampler.batches GROUP BY exp ORDER BY exp = (SELECT exp FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT run FROM metric_sampler.batches WHERE exp = '${exp}' GROUP BY run ORDER BY run = (SELECT run FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' AND exp = '${exp}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "capture_interval",
+        "label": "capture_interval",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT greatest(max(capture_interval), 1) FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}'"
+      },
+      {
+        "name": "point",
+        "label": "Point",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT DISTINCT extract(name, '^act/([^/]+)/moments$') AS point FROM metric_sampler.metrics WHERE exp = '${exp}' AND run = '${run}' AND match(name, '^act/[^/]+/moments$') ORDER BY point",
+        "refresh": 1
+      },
+      {
+        "name": "layer",
+        "label": "Layer (quantiles)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT DISTINCT layer FROM metric_sampler.router_vectors WHERE exp = '${exp}' AND run = '${run}' AND layer <= 255 AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'act/${point}/moments') AND step >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') - 200 ORDER BY layer",
+        "refresh": 1
+      },
+      {
+        "name": "rank",
+        "label": "Rank",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT '-2' AS __value, 'All (aggregate)' AS __text UNION ALL SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT rank AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "refresh": 1,
+        "current": {
+          "text": "All (aggregate)",
+          "value": "-2"
+        }
+      },
+      {
+        "name": "microbatch",
+        "label": "Microbatch",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT '-2' AS __value, 'All (aggregate)' AS __text UNION ALL SELECT toString(v) AS __value, if(v = -1, 'Legacy aggregate (not separable)', toString(v)) AS __text FROM (SELECT DISTINCT microbatch AS v FROM metric_sampler.scalars WHERE exp = '${exp}' AND run = '${run}' AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'loss/total') ORDER BY v)",
+        "refresh": 1,
+        "current": {
+          "text": "All (aggregate)",
+          "value": "-2"
+        }
+      },
+      {
+        "name": "src",
+        "label": "Source",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT multiIf(ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 3 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation', 'activation_massive', 'activation_exp_quantiles') GROUP BY summary)), 'all', ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() = 3 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_rank', 'activation_massive_rank', 'activation_exp_quantiles_rank') GROUP BY summary)), 'ranksum', ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() = 3 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_rank_mb', 'activation_massive_rank_mb', 'activation_exp_quantiles_rank_mb') GROUP BY summary)), 'rankmbsum', ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND (SELECT count() = 3 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('activation_mb', 'activation_massive_mb', 'activation_exp_quantiles_mb') GROUP BY summary)), 'mbsum', 'live') AS src"
+      },
+      {
+        "name": "hsrc",
+        "label": "hsrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT multiIf('${src}' = 'all' AND (SELECT count() FROM metric_sampler.summary_activation_hist_latest WHERE exp = '${exp}' AND run = '${run}') > 0, 'all', ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 AND (SELECT count() FROM metric_sampler.summary_activation_hist_latest_rank WHERE exp = '${exp}' AND run = '${run}' AND rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) > 0, 'ranklatest', ifNull(toInt32OrNull(${rank:sqlstring}), -3) != -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() FROM metric_sampler.summary_activation_hist_latest_rank_mb WHERE exp = '${exp}' AND run = '${run}' AND rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3) AND microbatch = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) > 0, 'rankmblatest', ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 AND ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) != -2 AND (SELECT count() FROM metric_sampler.summary_activation_hist_latest_mb WHERE exp = '${exp}' AND run = '${run}' AND microbatch = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) > 0, 'mblatest', 'step_live') AS hsrc"
+      },
+      {
+        "name": "hist_step",
+        "label": "hist_step",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT greatest((SELECT max(step) FROM metric_sampler.expert_counts WHERE '${hsrc}' = 'step_live' AND exp = '${exp}' AND run = '${run}' AND layer <= 255 AND step <= (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}')) AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) AND (ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 OR microbatch = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'act/${point}/counts')), (SELECT max(step) FROM metric_sampler.router_vectors WHERE '${hsrc}' = 'step_live' AND exp = '${exp}' AND run = '${run}' AND layer <= 255 AND step <= (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}')) AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) AND (ifNull(toInt32OrNull(${microbatch:sqlstring}), -3) = -2 OR microbatch = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'act/${point}/exp_hist'))) AS hist_step"
+      },
+      {
+        "name": "step_from",
+        "label": "step_from",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 0, toUInt64(${__from}))"
+      },
+      {
+        "name": "step_to",
+        "label": "step_to",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 4294967295, toUInt64(${__to}))"
+      },
+      {
+        "name": "act_stat",
+        "label": "Stat (per-rank and per-point panels)",
+        "type": "custom",
+        "query": "RMS : rms, amax (max over microbatches) : amax_max, mean : mean, std : std, kurtosis : kurtosis, skewness : skewness, FP8 e4m3 headroom (log2) : fp8_e4m3_headroom_log2, non-finite elements : nonfinite",
+        "current": {
+          "text": "RMS",
+          "value": "rms"
+        }
+      },
+      {
+        "name": "remember",
+        "label": "Remembered selection",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '' AS remembered SETTINGS log_comment = 'ms-selection ${__user.login} ${exp} ${run}', use_query_cache = 0"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "trend",
+      "title": "Activation RMS by layer — selected rank/microbatch, point ${point}",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(toString(measured.layer), 'No data') AS layer, measured.rms AS rms FROM (WITH observed AS (SELECT step, layer, rms FROM metric_sampler.activation_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND point = '${point}' ORDER BY layer, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, layer, rms, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, layer, point.2 AS rms, first_step, last_step FROM (SELECT layer, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, rms), min(rms)), (argMax(step, rms), max(rms))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY layer, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY layer ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, layer, rms FROM marked UNION ALL SELECT last_step + 1 AS step, layer, CAST(NULL AS Nullable(Float64)) AS rms FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Layer ${__field.labels.layer}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw capture; rank=${rank}, microbatch=${microbatch}. All aggregates available observations before computing statistics. -1 means legacy aggregate: original ranks/microbatches cannot be recovered. New runs capture activation moments, maxima and histograms on every microbatch; historical sparse captures remain sparse. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 2,
+      "type": "trend",
+      "title": "Activation amax by layer — selected rank/microbatch, point ${point}",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(toString(measured.layer), 'No data') AS layer, measured.amax_max AS amax_max FROM (WITH observed AS (SELECT step, layer, amax_max FROM metric_sampler.activation_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND point = '${point}' ORDER BY layer, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, layer, amax_max, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, layer, point.2 AS amax_max, first_step, last_step FROM (SELECT layer, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, amax_max), min(amax_max)), (argMax(step, amax_max), max(amax_max))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY layer, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY layer ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, layer, amax_max FROM marked UNION ALL SELECT last_step + 1 AS step, layer, CAST(NULL AS Nullable(Float64)) AS amax_max FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Layer ${__field.labels.layer}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw capture; rank=${rank}, microbatch=${microbatch}. All aggregates available observations before computing statistics. -1 means legacy aggregate: original ranks/microbatches cannot be recovered. New runs capture activation moments, maxima and histograms on every microbatch; historical sparse captures remain sparse. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 3,
+      "type": "trend",
+      "title": "Massive-token share by layer — selected rank/microbatch, point ${point}",
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(toString(measured.layer), 'No data') AS layer, measured.massive_share AS massive_share FROM (WITH observed AS (SELECT step, layer, massive_share FROM metric_sampler.activation_massive_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND point = '${point}' ORDER BY layer, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, layer, massive_share, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, layer, point.2 AS massive_share, first_step, last_step FROM (SELECT layer, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, massive_share), min(massive_share)), (argMax(step, massive_share), max(massive_share))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY layer, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY layer ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, layer, massive_share FROM marked UNION ALL SELECT last_step + 1 AS step, layer, CAST(NULL AS Nullable(Float64)) AS massive_share FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Layer ${__field.labels.layer}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!step$).*"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw capture; rank=${rank}, microbatch=${microbatch}. All aggregates available observations before computing statistics. -1 means legacy aggregate: original ranks/microbatches cannot be recovered. New runs capture activation moments, maxima and histograms on every microbatch; historical sparse captures remain sparse. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 4,
+      "type": "trend",
+      "title": "Activation |x| quantiles (approximate, log2) — layer ${layer}, point ${point}",
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, p50_log2, p99_log2, p999_log2, max_log2 FROM metric_sampler.activation_exp_quantiles_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND point = '${point}' ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, p50_log2, p99_log2, p999_log2, max_log2 FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS p50_log2, CAST(NULL AS Nullable(Float64)) AS p99_log2, CAST(NULL AS Nullable(Float64)) AS p999_log2, CAST(NULL AS Nullable(Float64)) AS max_log2 FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw capture; rank=${rank}, microbatch=${microbatch}. All aggregates available observations before computing statistics. -1 means legacy aggregate: original ranks/microbatches cannot be recovered. New runs capture activation moments, maxima and histograms on every microbatch; historical sparse captures remain sparse. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Quantiles are approximate histogram bin centers. A log2 bin has width 1 (a factor of 2 in |x|); values outside the histogram range accumulate in the edge bins. The maximum series shows the lower edge of the highest occupied bin, not the exact amax.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p50_log2"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "p50 (approx., log2)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p99_log2"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "p99 (approx., log2)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p999_log2"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "p99.9 (approx., log2)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_log2"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max bin lower edge (log2)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "type": "trend",
+      "title": "FP8 e4m3 headroom (log2) — minimum over layers, point ${point}",
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, min(fp8_e4m3_headroom_log2) AS fp8_e4m3_headroom_log2 FROM metric_sampler.activation_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND point = '${point}' GROUP BY step ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, fp8_e4m3_headroom_log2 FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS fp8_e4m3_headroom_log2 FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw capture; rank=${rank}, microbatch=${microbatch}. All aggregates available observations before computing statistics. -1 means legacy aggregate: original ranks/microbatches cannot be recovered. New runs capture activation moments, maxima and histograms on every microbatch; historical sparse captures remain sparse. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Latest recorded activations — selected rank/microbatch",
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT a.layer AS layer, a.point AS point, a.rms AS rms, a.amax_max AS amax, m.massive_share AS massive_share, a.nonfinite AS nonfinite FROM metric_sampler.activation_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) AS a LEFT JOIN metric_sampler.activation_massive_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) AS m ON m.exp = a.exp AND m.run = a.run AND m.step = a.step AND m.layer = a.layer AND m.point = a.point WHERE a.exp = '${exp}' AND a.run = '${run}' AND a.step = (SELECT max(step) FROM metric_sampler.activation_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE step <= (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}'))) ORDER BY layer, point SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "Raw capture; rank=${rank}, microbatch=${microbatch}. All aggregates available observations before computing statistics. -1 means legacy aggregate: original ranks/microbatches cannot be recovered. New runs capture activation moments, maxima and histograms on every microbatch; historical sparse captures remain sparse."
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Гистограмма экспонент — latest recorded step, selected rank/microbatch, point ${point}",
+      "gridPos": {
+        "x": 0,
+        "y": 77,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH observed AS (SELECT * FROM metric_sampler.activation_histograms_${hsrc}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3), step_filter = toUInt32OrZero(${hist_step:sqlstring})) WHERE exp = '${exp}' AND run = '${run}' AND point = '${point}' AND histogram = 'exp'), bins AS (SELECT layer, bins_start + bins_width * (bin_index - 1) AS log2_exponent, exact_hist[bin_index] AS exact_count, legacy_hist[bin_index] AS legacy_count, counts_exact FROM observed ARRAY JOIN range(1, bins_count + 1) AS bin_index WHERE step = (SELECT max(step) FROM observed)), totals AS (SELECT layer, log2_exponent, sum(exact_count) AS exact_count, sum(legacy_count) AS legacy_count, min(counts_exact) AS all_counts_exact FROM bins GROUP BY layer, log2_exponent) SELECT layer, log2_exponent, exact_count + legacy_count AS count, all_counts_exact, CASE WHEN all_counts_exact = 1 THEN exact_count ELSE NULL END AS exact_bin_count FROM totals WHERE exact_count > 0 OR legacy_count > 0 ORDER BY layer, log2_exponent SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "Raw capture; rank=${rank}, microbatch=${microbatch}. All aggregates available observations before computing statistics. -1 means legacy aggregate: original ranks/microbatches cannot be recovered. New runs capture activation moments, maxima and histograms on every microbatch; historical sparse captures remain sparse."
+    },
+    {
+      "id": 8,
+      "type": "trend",
+      "title": "Activation kurtosis by layer — selected rank/microbatch, point ${point}",
+      "gridPos": {
+        "x": 0,
+        "y": 86,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "layer"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(toString(measured.layer), 'No data') AS layer, measured.kurtosis AS kurtosis FROM (WITH observed AS (SELECT step, layer, kurtosis FROM metric_sampler.activation_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND point = '${point}' ORDER BY layer, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, layer, kurtosis, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, layer, point.2 AS kurtosis, first_step, last_step FROM (SELECT layer, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, kurtosis), min(kurtosis)), (argMax(step, kurtosis), max(kurtosis))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY layer, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY layer ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, layer, kurtosis FROM marked UNION ALL SELECT last_step + 1 AS step, layer, CAST(NULL AS Nullable(Float64)) AS kurtosis FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Layer ${__field.labels.layer}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "Pearson kurtosis E[(x-mean)^4]/var^2 of the finite elements of every selected observation, from the power sums captured with the activation statistics; a normal distribution gives 3, and outlier features and massive activations raise it. Empty before power sums were captured. An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Raw capture; rank=${rank}, microbatch=${microbatch}. All aggregates available observations before computing statistics. -1 means legacy aggregate: original ranks/microbatches cannot be recovered. New runs capture activation moments, maxima and histograms on every microbatch; historical sparse captures remain sparse. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 9,
+      "type": "heatmap",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "${act_stat} for every rank - layer ${layer}, point ${point} (x: step; y: rank)",
+      "description": "From the per-rank summary (microbatches summed, so the microbatch selection does not apply; a selected rank shows only its row). Over 600 steps a column is a bucket of steps showing its most extreme value (the smallest FP8 headroom); drag over steps to zoom until every step is a column. Empty until the run's per-rank summary is filled.",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 14
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "format": 1,
+          "editorType": "sql",
+          "rawSql": "WITH (SELECT greatest(1, intDiv(max(step) - min(step), 600)) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) AS width SELECT intDiv(step, width) * width AS step, concat('r', leftPad(toString(rank), 3, '0')) AS rank_name, if('${act_stat}' = 'fp8_e4m3_headroom_log2', min(toFloat64(${act_stat})), argMax(toFloat64(${act_stat}), abs(toFloat64(${act_stat})))) AS value FROM metric_sampler.summary_activation_rank_by_layer FINAL WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) AND point = '${point}' AND (ifNull(toInt32OrNull(${rank:sqlstring}), -3) = -2 OR rank = ifNull(toInt32OrNull(${rank:sqlstring}), -3)) GROUP BY step, rank_name ORDER BY step, rank_name SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1",
+          "queryType": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "rank_name",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\rank_name",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "trend",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "${act_stat} for every point (projection) - layer ${layer}, selected rank/microbatch",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.point}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "format": 1,
+          "editorType": "sql",
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.point, ''), 'No data') AS point, measured.value AS value FROM (WITH observed AS (SELECT step, point, toFloat64(${act_stat}) AS value FROM metric_sampler.activation_${src}(exp_filter = '${exp}', run_filter = '${run}', rank_filter = ifNull(toInt32OrNull(${rank:sqlstring}), -3), microbatch_filter = ifNull(toInt32OrNull(${microbatch:sqlstring}), -3)) WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND layer = toInt32OrNull(${layer:sqlstring}) ORDER BY point, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY point ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, point, value FROM marked UNION ALL SELECT step + 1 AS step, point, CAST(NULL AS Nullable(Float64)) AS value FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS max_threads = 8, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1",
+          "queryType": "table"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ]
+}

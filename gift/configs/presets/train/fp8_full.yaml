@@ -1,0 +1,7 @@
+# Dense + sparse fp8 mixin: blockwise fp8 on the FFN and attention-output
+# projections with one shared input quantizer per FFN, plus the fp8 grouped
+# experts. Sparse fp8 needs a deepep or hybridep token dispatcher.
+fp8:
+  dense_include_linear_layers: '.*\.(w1|w2|w3|wo)$'
+  dense_use_shared_quantizer: true
+  sparse_use_grouped_gemm: true

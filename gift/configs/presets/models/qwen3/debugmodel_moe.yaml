@@ -1,0 +1,30 @@
+# Model preset: qwen3 "qwen3_moe/debugmodel_moe".
+imports:
+  - ../../init/depth_scaled.yaml
+
+model:
+  label: qwen3_moe/debugmodel_moe
+  config:
+    type: qwen3
+    dim: 256
+    vocab_size: 2048
+    norm: &norm {type: rmsnorm, eps: 1.0e-06}
+    rope: {type: cos_sin, dim: 128, max_seq_len: 4096, theta: 1000000.0}
+    blocks:
+      moe:
+        attention:
+          type: gqa
+          n_heads: 16
+          qk_norm: *norm
+          n_kv_heads: 8
+          head_dim: 128
+        moe:
+          experts:
+            hidden_dim: 768
+            num_experts: 64
+            token_dispatcher: {type: local}
+          router: {top_k: 8, score_func: softmax, route_norm: true}
+        attention_norm: *norm
+        ffn_norm: *norm
+    layers:
+    - {block: moe, repeat: 8}

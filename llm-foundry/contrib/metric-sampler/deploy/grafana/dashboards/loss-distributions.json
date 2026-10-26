@@ -1,0 +1,1157 @@
+{
+  "uid": "ms-loss",
+  "title": "metric-sampler / Loss distributions",
+  "tags": [
+    "metric-sampler"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": false,
+  "refresh": "",
+  "description": "The heatmap uses the training step as seconds since 1970-01-01 UTC because the heatmap panel needs a time axis; read 00:05:00 as step 300.",
+  "time": {
+    "from": "1970-01-01T00:00:00.000Z",
+    "to": "1970-01-01T00:20:00.000Z"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "exp",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT exp FROM metric_sampler.batches GROUP BY exp ORDER BY exp = (SELECT exp FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT run FROM metric_sampler.batches WHERE exp = '${exp}' GROUP BY run ORDER BY run = (SELECT run FROM metric_sampler.viewer_selection WHERE viewer = '${__user.login}' AND exp = '${exp}' ORDER BY event_time DESC LIMIT 1) DESC, max(ingested_at) DESC SETTINGS use_query_cache = 0",
+        "refresh": 1
+      },
+      {
+        "name": "capture_interval",
+        "label": "capture_interval",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT greatest(max(capture_interval), 1) FROM metric_sampler.node_manifests WHERE exp = '${exp}' AND run = '${run}'"
+      },
+      {
+        "name": "summ",
+        "label": "Summaries",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() = 4 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('grad_per_rank', 'timing_per_rank', 'loss_position', 'sample_loss_quantiles') GROUP BY summary)), '_fast', '_live') AS summ"
+      },
+      {
+        "name": "lsumm",
+        "label": "lsumm",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() = 4 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('loss_quantiles', 'stream_loss', 'stream_share', 'expert_loss') GROUP BY summary)), '_fast', '_live') AS lsumm"
+      },
+      {
+        "name": "essrc",
+        "label": "essrc",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if((SELECT count() = 1 AND min(done) + 50 >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') FROM (SELECT summary, max(complete_through) AS done FROM metric_sampler.summary_progress WHERE exp = '${exp}' AND run = '${run}' AND summary IN ('expert_stream') GROUP BY summary)), 'fast', 'live') AS essrc"
+      },
+      {
+        "name": "layer",
+        "label": "Layer",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "query": "SELECT DISTINCT layer FROM metric_sampler.expert_counts WHERE exp = '${exp}' AND run = '${run}' AND layer <= 255 AND metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'expert_loss/count') AND step >= (SELECT max(step) FROM metric_sampler.step_index WHERE exp = '${exp}' AND run = '${run}') - 200 ORDER BY layer",
+        "refresh": 1
+      },
+      {
+        "name": "step_from",
+        "label": "step_from",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 0, toUInt64(${__from}))"
+      },
+      {
+        "name": "step_to",
+        "label": "step_to",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 2,
+        "query": "SELECT if(${__from} > 100000000000, 4294967295, toUInt64(${__to}))"
+      },
+      {
+        "name": "remember",
+        "label": "Remembered selection",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "metric-sampler-ch"
+        },
+        "refresh": 1,
+        "query": "SELECT '' AS remembered SETTINGS log_comment = 'ms-selection ${__user.login} ${exp} ${run}', use_query_cache = 0"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "trend",
+      "title": "Loss tails per step, main segment (p50/p90/p99/p99.9 and mean, from the token histogram)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, mean, p50, p90, p99, p999 FROM metric_sampler.loss_quantiles${lsumm} WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) AND segment = 'main' ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, mean, p50, p90, p99, p999 FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS mean, CAST(NULL AS Nullable(Float64)) AS p50, CAST(NULL AS Nullable(Float64)) AS p90, CAST(NULL AS Nullable(Float64)) AS p99, CAST(NULL AS Nullable(Float64)) AS p999 FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "trend",
+      "title": "Loss by data stream per step (mean)",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "stream_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.stream_name, ''), 'No data') AS stream_name, measured.mean AS mean FROM (WITH observed AS (SELECT step, stream_name, mean FROM metric_sampler.stream_loss${lsumm} WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY stream_name, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, stream_name, mean, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, stream_name, point.2 AS mean, first_step, last_step FROM (SELECT stream_name, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, mean), min(mean)), (argMax(step, mean), max(mean))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY stream_name, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY stream_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, stream_name, mean FROM marked UNION ALL SELECT last_step + 1 AS step, stream_name, CAST(NULL AS Nullable(Float64)) AS mean FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.stream_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Streams summary (tokens, samples, mean, std over the run)",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT stream_id, stream_name, sum(tokens) AS run_tokens, sum(samples) AS run_samples, sum(tokens * mean) / sum(tokens) AS run_mean, sqrt(sum(tokens * (std * std + mean * mean)) / sum(tokens) - pow(sum(tokens * mean) / sum(tokens), 2)) AS run_std FROM metric_sampler.stream_loss${lsumm} WHERE exp = '${exp}' AND run = '${run}' GROUP BY stream_id, stream_name ORDER BY stream_id SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Hardest experts, layer ${layer} (top 20 by hardness, latest step)",
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT expert, tokens, mean, std, hardness FROM metric_sampler.expert_loss_latest${lsumm}(exp_filter = '${exp}', run_filter = '${run}', layer_filter = toInt32OrZero(${layer:sqlstring})) ORDER BY hardness DESC LIMIT 20 SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Expert x stream map, layer ${layer} (latest detailed step)",
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT expert, stream_id, tokens, mean FROM metric_sampler.expert_stream_latest_${essrc}(exp_filter = '${exp}', run_filter = '${run}', layer_filter = toInt32OrZero(${layer:sqlstring})) ORDER BY expert, stream_id SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "trend",
+      "title": "Gradient norm outliers per step (robust z-score, max, p99 and median |z| over cards; the cards are in the top-20 table)",
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT step, max(abs(robust_z)) AS max_abs_z, quantileExact(0.99)(abs(robust_z)) AS p99_abs_z, quantileExact(0.5)(abs(robust_z)) AS median_abs_z FROM (SELECT step, concat(node, '/r', toString(rank)) AS card, robust_z FROM metric_sampler.grad_per_rank${summ}(exp_filter = '${exp}', run_filter = '${run}') WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) GROUP BY step ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, max_abs_z, p99_abs_z, median_abs_z FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS max_abs_z, CAST(NULL AS Nullable(Float64)) AS p99_abs_z, CAST(NULL AS Nullable(Float64)) AS median_abs_z FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "trend",
+      "title": "GPU memory per step, GB (max and median over ranks)",
+      "gridPos": {
+        "x": 0,
+        "y": 67,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.* FROM (WITH observed AS (SELECT s.step AS step, max(s.values[1]) AS allocated_gb_max, median(s.values[1]) AS allocated_gb_median FROM metric_sampler.scalars AS s FINAL INNER JOIN metric_sampler.latest_attempt_step AS latest ON s.exp = latest.exp AND s.run = latest.run AND s.step = latest.step AND s.attempt = latest.attempt INNER JOIN metric_sampler.metric_names AS mn ON mn.exp = s.exp AND mn.run = s.run AND mn.attempt = s.attempt AND mn.metric_id = s.metric_id WHERE s.metric_id IN (SELECT metric_id FROM metric_sampler.metrics WHERE name = 'memory/allocated_gb') AND s.exp = '${exp}' AND s.run = '${run}' AND mn.name = 'memory/allocated_gb' GROUP BY step ORDER BY step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, allocated_gb_max, allocated_gb_median FROM marked UNION ALL SELECT step + 1 AS step, CAST(NULL AS Nullable(Float64)) AS allocated_gb_max, CAST(NULL AS Nullable(Float64)) AS allocated_gb_median FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "spanNulls": false
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "trend",
+      "title": "GPU stage timings per step, seconds (median over ranks)",
+      "gridPos": {
+        "x": 12,
+        "y": 67,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "metric"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.metric, ''), 'No data') AS metric, measured.value AS value FROM (WITH observed AS (SELECT step, metric, median(value) AS value FROM metric_sampler.timing_per_rank${summ}(exp_filter = '${exp}', run_filter = '${run}') WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) GROUP BY step, metric ORDER BY metric, step SETTINGS join_use_nulls = 0), marked AS (SELECT *, leadInFrame(step, 1, step) OVER (PARTITION BY metric ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)) SELECT step, metric, value FROM marked UNION ALL SELECT step + 1 AS step, metric, CAST(NULL AS Nullable(Float64)) AS value FROM marked WHERE marked.next_step > marked.step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.metric}",
+          "custom": {
+            "scaleDistribution": {
+              "type": "log",
+              "log": 2
+            },
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "GPU intervals summed over each rank's microbatches, then median over ranks; not the median of individual microbatches. An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps."
+    },
+    {
+      "id": 9,
+      "type": "trend",
+      "title": "Доля потока в батче, % сэмплов (100% stacked)",
+      "gridPos": {
+        "x": 0,
+        "y": 75,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "stream_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.stream_name, ''), 'No data') AS stream_name, measured.sample_share AS sample_share FROM (WITH observed AS (SELECT step, stream_name, sample_share FROM metric_sampler.stream_share${lsumm} WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY stream_name, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, stream_name, sample_share, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, stream_name, point.2 AS sample_share, first_step, last_step FROM (SELECT stream_name, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, sample_share), min(sample_share)), (argMax(step, sample_share), max(sample_share))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY stream_name, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY stream_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, stream_name, sample_share FROM marked UNION ALL SELECT last_step + 1 AS step, stream_name, CAST(NULL AS Nullable(Float64)) AS sample_share FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.stream_name}",
+          "unit": "percentunit",
+          "custom": {
+            "fillOpacity": 100,
+            "stacking": {
+              "mode": "percent",
+              "group": "A"
+            },
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "step"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "displayName",
+                "value": "step"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 10,
+      "type": "trend",
+      "title": "Доля потока в батче, % токенов (100% stacked)",
+      "gridPos": {
+        "x": 0,
+        "y": 84,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "stream_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.stream_name, ''), 'No data') AS stream_name, measured.token_share AS token_share FROM (WITH observed AS (SELECT step, stream_name, token_share FROM metric_sampler.stream_share${lsumm} WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY stream_name, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, stream_name, token_share, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, stream_name, point.2 AS token_share, first_step, last_step FROM (SELECT stream_name, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, token_share), min(token_share)), (argMax(step, token_share), max(token_share))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY stream_name, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY stream_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, stream_name, token_share FROM marked UNION ALL SELECT last_step + 1 AS step, stream_name, CAST(NULL AS Nullable(Float64)) AS token_share FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.stream_name}",
+          "unit": "percentunit",
+          "custom": {
+            "fillOpacity": 100,
+            "stacking": {
+              "mode": "percent",
+              "group": "A"
+            },
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "step"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "displayName",
+                "value": "step"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 11,
+      "type": "trend",
+      "title": "Вклад потока в лосс батча, % (100% stacked)",
+      "gridPos": {
+        "x": 0,
+        "y": 93,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "stream_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.stream_name, ''), 'No data') AS stream_name, measured.loss_share AS loss_share FROM (WITH observed AS (SELECT step, stream_name, loss_share FROM metric_sampler.stream_share${lsumm} WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY stream_name, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, stream_name, loss_share, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, stream_name, point.2 AS loss_share, first_step, last_step FROM (SELECT stream_name, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, loss_share), min(loss_share)), (argMax(step, loss_share), max(loss_share))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY stream_name, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY stream_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, stream_name, loss_share FROM marked UNION ALL SELECT last_step + 1 AS step, stream_name, CAST(NULL AS Nullable(Float64)) AS loss_share FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.stream_name}",
+          "unit": "percentunit",
+          "custom": {
+            "fillOpacity": 100,
+            "stacking": {
+              "mode": "percent",
+              "group": "A"
+            },
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "step"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "displayName",
+                "value": "step"
+              }
+            ]
+          }
+        ]
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Средняя доля потока за ран (ожидаемая доля; min/max по шагам)",
+      "gridPos": {
+        "x": 0,
+        "y": 102,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT stream_id, stream_name, avg(sample_share) AS avg_sample_share, min(sample_share) AS min_sample_share, max(sample_share) AS max_sample_share FROM metric_sampler.stream_share${lsumm} WHERE exp = '${exp}' AND run = '${run}' GROUP BY stream_id, stream_name ORDER BY avg_sample_share DESC SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "trend",
+      "title": "Токенов на сэмпл по потоку",
+      "gridPos": {
+        "x": 0,
+        "y": 111,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "xField": "step"
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "stream_name"
+            ],
+            "keepFields": false
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "step",
+            "mode": "outer"
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT measured.step AS step, ifNull(nullIf(measured.stream_name, ''), 'No data') AS stream_name, measured.tokens_per_sample AS tokens_per_sample FROM (WITH observed AS (SELECT step, stream_name, tokens_per_sample FROM metric_sampler.stream_share${lsumm} WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0) ORDER BY stream_name, step SETTINGS join_use_nulls = 0), shown AS (SELECT * FROM observed WHERE step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM shown) AS shown_points, toUInt32(ceil(shown_points / 450000)) AS width, kept AS (SELECT step, stream_name, tokens_per_sample, step AS first_step, step AS last_step FROM shown WHERE shown_points <= 900000 UNION ALL SELECT point.1 AS step, stream_name, point.2 AS tokens_per_sample, first_step, last_step FROM (SELECT stream_name, min(step) AS first_step, max(step) AS last_step, arrayDistinct([(argMin(step, tokens_per_sample), min(tokens_per_sample)), (argMax(step, tokens_per_sample), max(tokens_per_sample))]) AS points FROM shown WHERE shown_points > 900000 GROUP BY stream_name, intDiv(step, width)) ARRAY JOIN points AS point), marked AS (SELECT *, leadInFrame(first_step, 1, first_step) OVER (PARTITION BY stream_name ORDER BY step ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS next_step FROM kept) SELECT step, stream_name, tokens_per_sample FROM marked UNION ALL SELECT last_step + 1 AS step, stream_name, CAST(NULL AS Nullable(Float64)) AS tokens_per_sample FROM marked WHERE marked.next_step > marked.last_step + ${capture_interval} SETTINGS join_use_nulls = 0) AS measured RIGHT JOIN (SELECT 1) AS present ON 1 ORDER BY step SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.stream_name}",
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "description": "An empty plot means this measurement has not been recorded for the selection; missing values are not zeros. Missing steps are separated by NULL gap markers; lines do not imply measurements between recorded steps. Past 900k points each line keeps, per bucket of consecutive steps, its minimum and maximum at their own steps (exact recorded values), so spikes stay visible."
+    },
+    {
+      "id": 14,
+      "type": "heatmap",
+      "title": "Лосс по позиции в последовательности (x: шаг; y: корзина position*64/seq_len; colour: средний лосс)",
+      "gridPos": {
+        "x": 0,
+        "y": 120,
+        "w": 24,
+        "h": 14
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "WITH cells AS (SELECT step, bucket, mean FROM metric_sampler.loss_position_per_step${summ} WHERE exp = '${exp}' AND run = '${run}' AND step BETWEEN ifNull(toUInt64OrNull(${step_from:sqlstring}), 4294967295) AND ifNull(toUInt64OrNull(${step_to:sqlstring}), 0)), (SELECT count() FROM cells) AS cell_count, toUInt32(ceil(cell_count / 900000)) AS width SELECT step, concat('b', leftPad(toString(bucket), 2, '0')) AS bucket, mean FROM (SELECT step, bucket, mean FROM cells WHERE cell_count <= 900000 UNION ALL SELECT intDiv(step, width) * width AS step, bucket, avg(mean) AS mean FROM cells WHERE cell_count > 900000 GROUP BY step, bucket) ORDER BY step, bucket SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "step",
+            "columnField": "bucket",
+            "valueField": "mean",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "step\\bucket",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Past 900k cells the steps are grouped into the fewest equal buckets that fit, each showing the mean of its steps."
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Квантили среднего лосса сэмпла по потокам, latest detailed step (detailed steps)",
+      "gridPos": {
+        "x": 0,
+        "y": 134,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT stream_id, stream_name, samples, p50, p90, p99 FROM metric_sampler.sample_loss_quantiles_per_step${summ} WHERE exp = '${exp}' AND run = '${run}' AND step = (SELECT max(step) FROM metric_sampler.sample_loss_quantiles_per_step${summ} WHERE exp = '${exp}' AND run = '${run}' AND step <= (SELECT step_limit FROM metric_sampler.latest_step_limit(exp_filter = '${exp}', run_filter = '${run}'))) ORDER BY stream_id SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Loss per stream over the run (mean and std)",
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 8,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "stream_name",
+        "orientation": "auto",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "xTickLabelRotation": -45,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT stream_name, run_mean AS mean, run_std AS std FROM (SELECT stream_id, stream_name, sum(tokens) AS run_tokens, sum(samples) AS run_samples, sum(tokens * mean) / sum(tokens) AS run_mean, sqrt(sum(tokens * (std * std + mean * mean)) / sum(tokens) - pow(sum(tokens * mean) / sum(tokens), 2)) AS run_std FROM metric_sampler.stream_loss${lsumm} WHERE exp = '${exp}' AND run = '${run}' GROUP BY stream_id, stream_name ORDER BY stream_id) SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Token share per stream over the run",
+      "gridPos": {
+        "x": 8,
+        "y": 27,
+        "w": 8,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "stream_name",
+        "orientation": "auto",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "xTickLabelRotation": -45,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT stream_name, run_tokens / sum(run_tokens) OVER () AS token_share FROM (SELECT stream_id, stream_name, sum(tokens) AS run_tokens, sum(samples) AS run_samples, sum(tokens * mean) / sum(tokens) AS run_mean, sqrt(sum(tokens * (std * std + mean * mean)) / sum(tokens) - pow(sum(tokens * mean) / sum(tokens), 2)) AS run_std FROM metric_sampler.stream_loss${lsumm} WHERE exp = '${exp}' AND run = '${run}' GROUP BY stream_id, stream_name ORDER BY stream_id) SETTINGS join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Hardest experts, layer ${layer} (hardness and mean loss, latest step)",
+      "gridPos": {
+        "x": 16,
+        "y": 27,
+        "w": 8,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "expert_name",
+        "orientation": "auto",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "xTickLabelRotation": -45,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT concat('e', leftPad(toString(expert), 3, '0')) AS expert_name, hardness, mean FROM (SELECT expert, tokens, mean, std, hardness FROM metric_sampler.expert_loss_latest${lsumm}(exp_filter = '${exp}', run_filter = '${run}', layer_filter = toInt32OrZero(${layer:sqlstring})) ORDER BY hardness DESC LIMIT 20) ORDER BY hardness DESC\nSETTINGS query_plan_optimize_lazy_materialization = 0, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "heatmap",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "metric-sampler-ch"
+      },
+      "title": "Expert x stream mean loss, layer ${layer} (latest detailed step; x: expert; y: stream)",
+      "description": "The same values as the expert x stream table above; an empty cell means the expert got no tokens of that stream.",
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 24,
+        "h": 13
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 0,
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "color": {
+          "mode": "scheme",
+          "scheme": "Turbo",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "reverse": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "legend": {
+          "show": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "metric-sampler-ch"
+          },
+          "editorType": "sql",
+          "queryType": "table",
+          "format": 1,
+          "rawSql": "SELECT m.expert AS expert, concat(leftPad(toString(m.stream_id), 2, '0'), ' ', ifNull(n.stream_name, '')) AS stream, m.mean AS mean FROM (SELECT expert, stream_id, tokens, mean FROM metric_sampler.expert_stream_latest_${essrc}(exp_filter = '${exp}', run_filter = '${run}', layer_filter = toInt32OrZero(${layer:sqlstring})) ORDER BY expert, stream_id) AS m LEFT JOIN (SELECT stream_id, any(stream_name) AS stream_name FROM metric_sampler.stream_loss${lsumm} WHERE exp = '${exp}' AND run = '${run}' GROUP BY stream_id) AS n ON n.stream_id = m.stream_id ORDER BY expert, stream SETTINGS join_use_nulls = 1, join_algorithm = 'hash', optimize_move_to_prewhere_if_final = 1"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "expert",
+            "columnField": "stream",
+            "valueField": "mean",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "fields": {},
+            "conversions": [
+              {
+                "targetField": "expert\\stream",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "title": "Metric sampler dashboards",
+      "type": "dashboards",
+      "tags": [
+        "metric-sampler"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ]
+}
