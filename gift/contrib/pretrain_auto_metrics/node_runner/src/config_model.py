@@ -3131,12 +3131,160 @@ class RliConfig(BaseConfigModel):
         ),
         serialization_alias="probe-retry-backoff-sec",
     )
-    command_timeout: int = Field(
+    command_timeout: int | None = Field(
         default=600,
         ge=1,
         validation_alias=AliasChoices("command-timeout", "command_timeout"),
         serialization_alias="command-timeout",
     )
+
+
+class HarborRliJudgedEvaluatorConfig(MetricsEvaluatorConfig, RliConfig):
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    judge_n_concurrent: int | None = Field(
+        default=None,
+        ge=1,
+        validation_alias=AliasChoices("judge-n-concurrent", "judge_n_concurrent"),
+        serialization_alias="judge-n-concurrent",
+    )
+    verify_ssl: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("verify-ssl", "verify_ssl"),
+        serialization_alias="verify-ssl",
+    )
+    judge_model_name: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("judge-model-name", "judge_model_name"),
+        serialization_alias="judge-model-name",
+    )
+    shooter_root: str = Field(
+        default="/home/user/harbor_rli_env",
+        exclude=True,
+        validation_alias=AliasChoices("shooter-root", "shooter_root"),
+    )
+    venv_python: str = Field(
+        default="/home/user/harbor_rli_env/bin/python",
+        exclude=True,
+        validation_alias=AliasChoices("venv-python", "venv_python"),
+    )
+
+    @property
+    def secondary_model_names(self) -> list[str]:
+        return [self.judge_model_name]
+
+
+class JobBenchEvaluatorConfig(HarborRliJudgedEvaluatorConfig):
+    infrastructure_retries: int = Field(
+        default=3,
+        ge=0,
+        validation_alias=AliasChoices(
+            "infrastructure-retries", "infrastructure_retries"
+        ),
+        serialization_alias="infrastructure-retries",
+    )
+    split: Literal["main", "easy"] = "main"
+    agent: Literal["terminus-2", "mini-swe-agent", "opencode"] = "mini-swe-agent"
+    model_api_base: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("model-api-base", "model_api_base"),
+        serialization_alias="model-api-base",
+    )
+    model_name: str = Field(
+        default="openai/pam-model",
+        validation_alias=AliasChoices("model-name", "model_name"),
+        serialization_alias="model-name",
+    )
+    timeout: int = Field(default=DEFAULT_REQUEST_TIMEOUT, gt=0)
+    max_tokens: int = Field(
+        default=131072,
+        ge=1,
+        validation_alias=AliasChoices("max-tokens", "max_tokens"),
+        serialization_alias="max-tokens",
+    )
+    max_input_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        validation_alias=AliasChoices("max-input-tokens", "max_input_tokens"),
+        serialization_alias="max-input-tokens",
+    )
+    agent_timeout: int = Field(
+        default=7200,
+        gt=0,
+        validation_alias=AliasChoices("agent-timeout", "agent_timeout"),
+        serialization_alias="agent-timeout",
+    )
+    judge_model_name: str = Field(
+        default="Qwen3.5-397B-A17B-FP8",
+        min_length=1,
+        validation_alias=AliasChoices("judge-model-name", "judge_model_name"),
+        serialization_alias="judge-model-name",
+    )
+    judge_api_base: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("judge-api-base", "judge_api_base"),
+        serialization_alias="judge-api-base",
+    )
+    judge_timeout: int = Field(
+        default=DEFAULT_REQUEST_TIMEOUT,
+        gt=0,
+        validation_alias=AliasChoices("judge-timeout", "judge_timeout"),
+        serialization_alias="judge-timeout",
+    )
+    judge_max_tokens: int = Field(
+        default=16384,
+        ge=1,
+        validation_alias=AliasChoices("judge-max-tokens", "judge_max_tokens"),
+        serialization_alias="judge-max-tokens",
+    )
+    judge_reasoning_effort: str | None = Field(
+        default=None,
+        min_length=1,
+        validation_alias=AliasChoices(
+            "judge-reasoning-effort", "judge_reasoning_effort"
+        ),
+        serialization_alias="judge-reasoning-effort",
+    )
+    judge_chat_template_kwargs: dict[str, Any] | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "judge-chat-template-kwargs", "judge_chat_template_kwargs"
+        ),
+        serialization_alias="judge-chat-template-kwargs",
+    )
+    judge_retries: int = Field(
+        default=3,
+        ge=1,
+        validation_alias=AliasChoices("judge-retries", "judge_retries"),
+        serialization_alias="judge-retries",
+    )
+    verifier_timeout: int = Field(
+        default=3600,
+        gt=0,
+        validation_alias=AliasChoices("verifier-timeout", "verifier_timeout"),
+        serialization_alias="verifier-timeout",
+    )
+
+    def apply_defaults(
+        self, *, inference_instances: int, base_url: str, **_: Any
+    ) -> None:
+        if self.model_api_base is None:
+            self.model_api_base = f"{base_url}/v1"
+        if self.n_concurrent is None:
+            self.n_concurrent = (
+                inference_instances * HARBOR_RLI_DEFAULT_PARALLEL_PER_INFERENCE_INSTANCE
+            )
+
+        judge = self.judge_endpoints[self.judge_model_name]
+        if self.judge_api_base is None:
+            self.judge_api_base = f"{judge.base_url}/v1"
+        if self.judge_n_concurrent is None:
+            self.judge_n_concurrent = (
+                judge.instances * HARBOR_RLI_DEFAULT_PARALLEL_PER_INFERENCE_INSTANCE
+            )
+
+    def to_shooter_config(self) -> dict[str, Any]:
+        return self.model_dump(mode="json", by_alias=False, exclude_none=True)
 
 
 class TerminalBenchEvaluatorConfig(MetricsEvaluatorConfig, RliConfig):
@@ -4319,6 +4467,7 @@ class EvaluatorsConfig(BaseConfigModel):
     new_obm_judged: ObmJudgedEvaluatorConfig | None = None
     bfcl: BfclEvaluatorConfig | None = None
     dredd: DreddEvaluatorConfig | None = None
+    jobbench: JobBenchEvaluatorConfig | None = None
     tau2: Tau2EvaluatorConfig | None = None
     tau3: Tau3EvaluatorConfig | None = None
     forge: ForgeEvaluatorConfig | None = None
@@ -4338,6 +4487,15 @@ class EvaluatorsConfig(BaseConfigModel):
     aa_lcr: AaLcrEvaluatorConfig | None = None
     token_nll: TokenNllEvaluatorConfig | None = None
     checkpoint_stats: CheckpointStatsEvaluatorConfig | None = None
+
+    @model_validator(mode="after")
+    def _reject_grouped_harbor_judged(self) -> EvaluatorsConfig:
+        if "harbor_rli_judged" in (self.model_extra or {}):
+            raise ValueError(
+                "Configure jobbench and healthadminbench as separate evaluators "
+                "instead of harbor_rli_judged"
+            )
+        return self
 
     @model_validator(mode="after")
     def _forbid_obm_with_new_obm(self) -> "EvaluatorsConfig":

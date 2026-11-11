@@ -4,6 +4,7 @@ from typing import Optional, Union
 import torch
 
 from sglang.srt.layers.attention.base_attn_backend import AttentionBackend
+from sglang.srt.layers.attention.fla.chunk_delta_h import CHUNK_SIZE as FLA_CHUNK_SIZE
 from sglang.srt.layers.attention.mamba.causal_conv1d_triton import PAD_SLOT_ID
 from sglang.srt.layers.attention.mamba.mamba import MambaMixer2
 from sglang.srt.layers.attention.mamba.mamba2_metadata import (
@@ -291,9 +292,11 @@ class MambaAttnBackendBase(AttentionBackend):
 
         # Calculate the number of hidden states per request
         if isinstance(self, Mamba2AttnBackend):
-            num_h_states = extend_seq_lens // mamba_cache_chunk_size
+            kernel_chunk_size = mamba_cache_chunk_size
+            num_h_states = extend_seq_lens // kernel_chunk_size
         else:
-            num_h_states = (extend_seq_lens - 1) // mamba_cache_chunk_size + 1
+            kernel_chunk_size = FLA_CHUNK_SIZE
+            num_h_states = (extend_seq_lens - 1) // kernel_chunk_size + 1
 
         # Calculate the starting offset for each sequence in the packed batch
         track_ssm_src_offset = torch.zeros_like(num_h_states)
@@ -316,7 +319,10 @@ class MambaAttnBackendBase(AttentionBackend):
         # TODO: if support mamba_cache_chunk_size % page size != 0, then need to modify this
         not_aligned = ~is_aligned
         track_ssm_h_src = offset_masked[not_aligned] + (
-            lens_masked[not_aligned] // mamba_cache_chunk_size
+            lens_masked[not_aligned]
+            // mamba_cache_chunk_size
+            * mamba_cache_chunk_size
+            // kernel_chunk_size
         )
         track_ssm_h_dst = dst_masked[not_aligned]
 

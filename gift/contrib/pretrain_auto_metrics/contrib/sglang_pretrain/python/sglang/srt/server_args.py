@@ -4501,7 +4501,11 @@ class ServerArgs:
             "NemotronHPuzzleForCausalLM",
             "Gigachat35ForCausalLM",
         ]:
-            return self.linear_attn_backend == "triton"
+            prefill = self.linear_attn_prefill_backend or self.linear_attn_backend
+            return self.linear_attn_backend == "triton" and (
+                prefill == "triton"
+                or (prefill == "cutedsl" and is_cuda() and get_device_sm() < 100)
+            )
 
         return False
 

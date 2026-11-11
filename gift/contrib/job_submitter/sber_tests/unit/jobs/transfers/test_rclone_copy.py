@@ -54,6 +54,25 @@ def test_to_config_keeps_explicit_script_and_home() -> None:
     assert config.env_variables == {"HOME": "/home/elsewhere"}
 
 
+def test_to_config_runs_on_success_callback_only_after_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RCLONE_CONFIG", raising=False)
+    job = make_job(on_success_callback="python3 notify.py")
+
+    script = job.to_config().script
+
+    assert script == make_job().to_config().script + " && python3 notify.py"
+
+
+def test_delete_on_success_deletes_source_after_upload(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("RCLONE_CONFIG", raising=False)
+
+    script = make_job(delete_on_success=True).to_config().script
+
+    assert 'rclone moveto -L "$SOURCE" "$DESTINATION"' in script
+
+
 def test_from_spec_builds_copy_job(monkeypatch: pytest.MonkeyPatch, tmp_yaml) -> None:
     monkeypatch.delenv("RCLONE_CONFIG", raising=False)
     spec = tmp_yaml(

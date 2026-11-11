@@ -139,13 +139,20 @@ class TritonGDNKernel(LinearAttnKernelBase):
         ssm_states: torch.Tensor,
         cache_indices: torch.Tensor,
         query_start_loc: torch.Tensor,
+        intermediate_state_dtype: Optional[torch.dtype] = None,
         **kwargs,
     ) -> tuple:
         recurrent_state = ssm_states
-        recurrent_state_indices_args = {"initial_state_indices": cache_indices}
+        state_args = {"initial_state_indices": cache_indices}
         if is_npu() or is_cpu():
             recurrent_state = ssm_states[cache_indices]
-            recurrent_state_indices_args = {}
+            state_args = {}
+        else:
+            state_args["intermediate_state_dtype"] = (
+                torch.promote_types(q.dtype, intermediate_state_dtype)
+                if intermediate_state_dtype is not None
+                else None
+            )
         return chunk_gated_delta_rule(
             q=q,
             k=k,
@@ -156,7 +163,7 @@ class TritonGDNKernel(LinearAttnKernelBase):
             cu_seqlens=query_start_loc,
             head_first=False,
             use_qk_l2norm_in_kernel=True,
-            **recurrent_state_indices_args,
+            **state_args,
         )
 
     def target_verify(

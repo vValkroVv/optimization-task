@@ -25,15 +25,17 @@ def build_copy_script(
     source_path: str,
     destination_path: str,
     rclone_config: str = "",
+    delete_on_success: bool = False,
 ) -> str:
     config_line = ""
     if rclone_config:
         config_line = f"    --config {shlex.quote(rclone_config)} \\\n"
+    command = "moveto" if delete_on_success else "copyto"
     return f"""
 SOURCE={shlex.quote(source_path)}
 DESTINATION={shlex.quote(destination_path)}
 
-rclone copyto -L "$SOURCE" "$DESTINATION" \\
+rclone {command} -L "$SOURCE" "$DESTINATION" \\
 {config_line}    --transfers 8 \\
     --checkers 16 \\
     --multi-thread-streams 8 \\

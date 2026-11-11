@@ -312,6 +312,7 @@ def submit_slurm_job(
     startup_file = (
         startup_scripts / f"slurm_submit_{now.strftime('%Y%m%d_%H%M%S_%f')}.sh"
     )
+    startup_file.touch(mode=0o600, exist_ok=False)
     with open(startup_file, "w") as f:
         f.write(output)
 

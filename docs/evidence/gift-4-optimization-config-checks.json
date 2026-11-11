@@ -1,0 +1,1061 @@
+{
+  "date": "2026-10-27",
+  "task_revision": "c6eb0f83fdf535c206840b116053161771c3fca7",
+  "gift_source_revision": "f840cf25e4294f93a5c91a20707c30b97e3c1dbf",
+  "scope": "Executed torch-free run_pre_submit schema/decode/materialization/round-trip validation only. No GPU allocation, training, installed-package availability, speed, numerical parity, or runtime kernel compatibility verified. World sizes are validation inputs, not executed ranks.",
+  "python": "3.13.3",
+  "pyyaml": "6.0.3",
+  "reproduce": "From optimization-task/gift, use an existing Python with PyYAML: python -B scripts/config_check.py configs/experiments/<preset>.yaml --world-size <world_size> followed by each overrides pair as --<key> <value>. Pass every value as one shell-quoted argument. Expected rejected cases exit nonzero.",
+  "cases": [
+    {
+      "case": "chunked_mtp_4",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "loss.num_chunks",
+          "4"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "chunked_mtp_16",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "loss.num_chunks",
+          "16"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "loader_workers_pinned_prefetch",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "dataloader.num_workers",
+          "2"
+        ],
+        [
+          "dataloader.persistent_workers",
+          "true"
+        ],
+        [
+          "dataloader.pin_memory",
+          "true"
+        ],
+        [
+          "dataloader.prefetch_factor",
+          "4"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "gfsdp_keep_weights",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "parallelism.fsdp_reshard_after_forward",
+          "never"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "adamw_bf16_states",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "optimizer.implementation",
+          "fused_opt_states_bf16"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "all_norms_cute",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.gdn_dense.attention_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.gdn_dense.ffn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.gdn_dense.post_attn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.gdn_dense.post_ffn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.gdn_moe.attention_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.gdn_moe.ffn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.gdn_moe.post_attn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.gdn_moe.post_ffn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mla_moe.ffn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mla_moe.post_attn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mla_moe.post_ffn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mtp.attention_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mtp.ffn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mtp.post_attn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mtp.post_ffn_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.kv_norm.norm_backend",
+          "cute"
+        ],
+        [
+          "model.config.blocks.mtp.attention.kv_norm.norm_backend",
+          "cute"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "attention_flash_fa2",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.inner_attention",
+          "{type: flash_fa2}"
+        ],
+        [
+          "model.config.blocks.mtp.attention.inner_attention",
+          "{type: flash_fa2}"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "attention_flash_fa3",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.inner_attention",
+          "{type: flash_fa3}"
+        ],
+        [
+          "model.config.blocks.mtp.attention.inner_attention",
+          "{type: flash_fa3}"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "attention_flash_fa4",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.inner_attention",
+          "{type: flash_fa4}"
+        ],
+        [
+          "model.config.blocks.mtp.attention.inner_attention",
+          "{type: flash_fa4}"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "attention_varlen",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.inner_attention",
+          "{type: varlen}"
+        ],
+        [
+          "model.config.blocks.mtp.attention.inner_attention",
+          "{type: varlen}"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "attention_flash_varlen_fa2",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.inner_attention",
+          "{type: flash_varlen_fa2}"
+        ],
+        [
+          "model.config.blocks.mtp.attention.inner_attention",
+          "{type: flash_varlen_fa2}"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "attention_flash_varlen_fa3",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.inner_attention",
+          "{type: flash_varlen_fa3}"
+        ],
+        [
+          "model.config.blocks.mtp.attention.inner_attention",
+          "{type: flash_varlen_fa3}"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "attention_flash_varlen_fa4",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.inner_attention",
+          "{type: flash_varlen_fa4}"
+        ],
+        [
+          "model.config.blocks.mtp.attention.inner_attention",
+          "{type: flash_varlen_fa4}"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "attention_flex",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "model.config.blocks.mla_moe.attention.inner_attention",
+          "{type: flex}"
+        ],
+        [
+          "model.config.blocks.mtp.attention.inner_attention",
+          "{type: flex}"
+        ]
+      ],
+      "expected_ok": false,
+      "ok": false,
+      "issues": [
+        "model.config: GiftHybridModelConfig mixes attention masking across layers ([\"(<AttentionMaskKind.BLOCK_MASK: 'block_mask'>, <MaskType.BLOCK_CAUSAL: 'block_causal'>)\", \"(<AttentionMaskKind.VARLEN: 'varlen'>, <MaskType.BLOCK_CAUSAL: 'block_causal'>)\"]); the decoder builds one attention_masks object for all of them."
+      ]
+    },
+    {
+      "case": "hybrid_comm_stream",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.comm_stream",
+          "true"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher.comm_stream",
+          "true"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "hybrid_sm_budgets",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.num_sms_dispatch",
+          "24"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher.num_sms_dispatch",
+          "24"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.num_sms_combine",
+          "24"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher.num_sms_combine",
+          "24"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "deepgemm_sm_budget",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "fp8.sparse_deep_gemm_num_sms",
+          "108"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "shared_quant_off",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "fp8.dense_use_shared_quantizer",
+          "false"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "dense_swiglu_unfused",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "fp8.dense_fused_swiglu_quant",
+          "false"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "sparse_swiglu_unfused",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "fp8.sparse_fused_swiglu_quant",
+          "false"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "nonblocking_sparse",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.non_blocking_capacity_factor",
+          "1.0"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher.non_blocking_capacity_factor",
+          "1.0"
+        ]
+      ],
+      "expected_ok": false,
+      "ok": false,
+      "issues": [
+        "model.config.blocks.mla_moe.moe.experts.token_dispatcher.non_blocking_capacity_factor: fp8 HybridEP dispatch does not support non_blocking_capacity_factor yet: the fixed-capacity tail reaches gradients as NaN (source: CLI override)",
+        "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.non_blocking_capacity_factor: fp8 HybridEP dispatch does not support non_blocking_capacity_factor yet: the fixed-capacity tail reaches gradients as NaN (source: CLI override)"
+      ]
+    },
+    {
+      "case": "nonblocking_bf16",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.non_blocking_capacity_factor",
+          "1.0"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher.non_blocking_capacity_factor",
+          "1.0"
+        ],
+        [
+          "fp8.sparse_use_grouped_gemm",
+          "false"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "unfused_permute_sparse",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.fuse_permute",
+          "false"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher.fuse_permute",
+          "false"
+        ]
+      ],
+      "expected_ok": false,
+      "ok": false,
+      "issues": [
+        "model.config.blocks.mla_moe.moe.experts.token_dispatcher.fuse_permute: fp8 HybridEP dispatch requires fuse_permute=True (source: CLI override)",
+        "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.fuse_permute: fp8 HybridEP dispatch requires fuse_permute=True (source: CLI override)"
+      ]
+    },
+    {
+      "case": "unfused_permute_bf16",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher.fuse_permute",
+          "false"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher.fuse_permute",
+          "false"
+        ],
+        [
+          "fp8.sparse_use_grouped_gemm",
+          "false"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "warmup_off",
+      "preset": "gift_4_700b",
+      "world_size": 32,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "training.enable_cpu_offload",
+          "false"
+        ],
+        [
+          "model.config.blocks.gdn_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "model.config.blocks.mla_moe.moe.experts.token_dispatcher",
+          "{type: hybridep, pad_multiple: 128}"
+        ],
+        [
+          "fp8.deep_gemm_warmup_on_start",
+          "false"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "ac_selective",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "activation_checkpoint.mode",
+          "selective"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "ac_full",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "activation_checkpoint.mode",
+          "full"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "ac_memory_budget",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "activation_checkpoint.mode",
+          "memory_budget"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    },
+    {
+      "case": "ac_early_stop",
+      "preset": "gift_4_debug",
+      "world_size": 8,
+      "overrides": [
+        [
+          "parallelism.fsdp_backend",
+          "gfsdp2"
+        ],
+        [
+          "compile.enable",
+          "true"
+        ],
+        [
+          "compile.components",
+          "[model, loss]"
+        ],
+        [
+          "activation_checkpoint.early_stop",
+          "true"
+        ]
+      ],
+      "expected_ok": true,
+      "ok": true,
+      "issues": []
+    }
+  ]
+}

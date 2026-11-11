@@ -25,6 +25,9 @@ JOB_DISPATCHER_BASE_URL_ENV = "JOB_DISPATCHER_BASE_URL"
 JOB_DISPATCHER_SLURM_BASE_URL_ENV = "JOB_DISPATCHER_SLURM_BASE_URL"
 JOB_DISPATCHER_TIMEOUT_SECONDS_ENV = "JOB_DISPATCHER_TIMEOUT_SECONDS"
 JOB_DISPATCHER_TOKEN_ENV = "JOB_DISPATCHER_TOKEN"
+DEFAULT_JOB_DISPATCHER_S3_DEST = "gigaeye-s3:gigaeye-pretrain-checkpoints/jd_artifacts"
+DEFAULT_JOB_DISPATCHER_SLURM_S3_DEST = "papayaeye-papaya:jd-artifacts"
+JOB_DISPATCHER_S3_DEST_ENV = "JOB_DISPATCHER_S3_DEST"
 
 DEFAULT_JOB_DISPATCHER_API_ENVS = {
     JOB_DISPATCHER_BASE_URL_ENV: DEFAULT_JOB_DISPATCHER_BASE_URL,
@@ -33,10 +36,9 @@ DEFAULT_JOB_DISPATCHER_API_ENVS = {
 }
 
 DEFAULT_JOB_DISPATCHER_S3_ENVS = {
-    "JOB_DISPATCHER_S3_DEST": "gigaeye-s3:gigaeye-pretrain-checkpoints/jd_artifacts",
+    JOB_DISPATCHER_S3_DEST_ENV: DEFAULT_JOB_DISPATCHER_S3_DEST,
     "JOB_DISPATCHER_RCLONE_PATH": "/workspace/job-dispatcher-utils/s3-interaction/rclone",
     "JOB_DISPATCHER_RCLONE_CONFIG": "/workspace/job-dispatcher-utils/s3-interaction/rclone.conf",
-    "JOB_DISPATCHER_S3_PATH_MARKER": "gigachat_checkpoints/",
 }
 
 TRACKING_AUTO_TRACK_DB_LOCAL_DIR_ENV = "TRACKING_AUTO_TRACK_DB_LOCAL_DIR"
@@ -92,6 +94,7 @@ DEFAULT_REGION_ENVS = {
         "ENV_FILEPATH_S3_DB": "/mnt/nfs/07-share/optimusprime/.config/super_secret/s3_db.env",
         "RCLONE_PATH": "/usr/bin/rclone",
         **DEFAULT_JOB_DISPATCHER_API_ENVS,
+        JOB_DISPATCHER_S3_DEST_ENV: DEFAULT_JOB_DISPATCHER_SLURM_S3_DEST,
     },
     SLURM_REGIONS.o1: {
         "OMPI_MCA_btl": "smcuda",
@@ -123,6 +126,7 @@ DEFAULT_REGION_ENVS = {
         "RCLONE_PATH": "/mnt/nfs/01-home/infidelis/rclone-v1.68.1-linux-amd64/rclone",
         "CACHED_DATASETS_DIRECTORY_TEMPLATE": "/mnt/nfs/01-home/infidelis/.cache/benches",
         **DEFAULT_JOB_DISPATCHER_API_ENVS,
+        JOB_DISPATCHER_S3_DEST_ENV: DEFAULT_JOB_DISPATCHER_SLURM_S3_DEST,
     },
     SLURM_REGIONS.o5: {
         "OMPI_MCA_btl": "smcuda",
@@ -154,6 +158,7 @@ DEFAULT_REGION_ENVS = {
         "RCLONE_PATH": "/mnt/nfs/01-home/infidelis/rclone-v1.69.3-linux-amd64/rclone",
         "CACHED_DATASETS_DIRECTORY_TEMPLATE": "/mnt/nfs/01-home/infidelis/.cache/benches",
         **DEFAULT_JOB_DISPATCHER_API_ENVS,
+        JOB_DISPATCHER_S3_DEST_ENV: DEFAULT_JOB_DISPATCHER_SLURM_S3_DEST,
     },
     CLOUD_REGIONS.sr004: {
         "OMPI_MCA_btl": "^openib,smcuda",
@@ -195,6 +200,12 @@ DEFAULT_REGION_ENVS = {
     },
 }
 
+
+# The metric sampler's raw root on each island its collector reads: a training writes <root>/<experiment>/<run>.
+METRIC_SAMPLER_RAW_ROOTS = {
+    SLURM_REGIONS.o1: "/mnt/nfs/07-share/optimusprime/metric-sampler/node",
+    SLURM_REGIONS.o5: "/mnt/nfs/07-share/optimusprime/metric-sampler/node",
+}
 
 # jinja2 template
 DEFAULT_SLURM_REGION_TEMPLATE_PARAMS = {

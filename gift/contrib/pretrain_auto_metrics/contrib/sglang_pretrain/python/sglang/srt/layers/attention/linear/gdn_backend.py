@@ -537,6 +537,12 @@ class GDNAttnBackend(MambaAttnBackendBase):
                 ssm_states=ssm_states,
                 cache_indices=cache_indices,
                 query_start_loc=query_start_loc,
+                intermediate_state_dtype=(
+                    ssm_states.dtype
+                    if forward_metadata.has_mamba_track_mask
+                    and forward_metadata.track_ssm_h_src.numel() > 0
+                    else None
+                ),
             )
 
             if (is_npu() or is_cpu()) and last_recurrent_state is not None:

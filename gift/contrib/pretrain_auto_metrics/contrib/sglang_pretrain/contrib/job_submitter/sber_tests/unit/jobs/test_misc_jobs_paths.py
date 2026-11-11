@@ -1,4 +1,5 @@
 import json
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
@@ -6,6 +7,7 @@ from job_submitter.jobs.any_script import AnyScriptJob
 from job_submitter.jobs.image_registry import PAM_BASE_IMAGES, load_pam_base_images
 from job_submitter.jobs.infinite import InfiniteJob
 from job_submitter.jobs.llmf.autometrics import AutometricsJobLLMF
+from job_submitter.jobs.llmf.test import TestJobLLMF as LLMFTestJob
 from job_submitter.jobs.llmf.train import TrainJobLLMF
 from job_submitter.jobs.pam.autometrics import AutometricsJobPAM
 from job_submitter.jobs.pam.autometrics_external_api import (
@@ -75,6 +77,33 @@ class TestLLMFTrainSubmitPath:
         libs = job._external_code_libraries()
         assert len(libs) >= 4
         assert job._before_submit() is None
+
+    def test_llmf_test_job_external_libraries_include_metric_sampler(self) -> None:
+        job = LLMFTestJob(
+            user_login="u",
+            exp_name="e",
+            submission_type="cloud",
+            region="SR008",
+            script="python test.py",
+            args=Namespace(modality="UNIT"),
+        )
+
+        assert job._script() == "python test.py"
+        assert job._resolve_n_gpus() == 1
+        job._before_submit()
+
+        assert job._external_code_libraries() == [
+            str(job.llm_f_root),
+            f"{job.llm_f_root}/contrib/composer",
+            f"{job.llm_f_root}/contrib/streaming",
+            f"{job.llm_f_root}/contrib/gigafsdp",
+            f"{job.llm_f_root}/contrib/metric-sampler",
+            f"{job.llm_f_root}/contrib/gigachat-utils/convertation/",
+            f"{job.llm_f_root}/contrib/flash-linear-attention",
+        ]
+
+        job.args.modality = "TRAIN"
+        assert job._resolve_n_gpus() == job.n_gpus
 
     def test_llmf_autometrics_external_libraries(self, tmp_path) -> None:
         job = AutometricsJobLLMF(

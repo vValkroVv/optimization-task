@@ -1675,6 +1675,10 @@ class SuperTensor:
         self.grad_reusable_buffer = None
         self.first_reduce_scatter = True  # For ZeRO-2,3
 
+        # Set by metric_sampler's adapter; called with the full unsharded local gradient
+        # buffer right before it is reduce-scattered across `_fsdp_process_group`.
+        self.pre_reduce_observer = None
+
         self.bit32_acc_for_bit16_reduce_scatter = False
 
         self.all_reduce_grads_across_model_parallel_group = all_reduce_grads_across_model_parallel_group
@@ -2124,6 +2128,8 @@ class SuperTensor:
             if self.bit32_acc_for_bit16_reduce_scatter and target_tensor.dtype == torch.bfloat16:
                 # Only bfloat16 -> float32 ReduceScatter is currently supported.
                 kwargs["acc_type"] = torch.float32
+            if self.pre_reduce_observer is not None:
+                self.pre_reduce_observer(reduce_grad_buffer.get())
             torch.distributed.reduce_scatter_tensor(
                 target_tensor,
                 reduce_grad_buffer.get(),

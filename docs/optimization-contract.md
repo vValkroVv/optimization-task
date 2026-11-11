@@ -6,6 +6,8 @@ Increase throughput on the selected representative end-to-end workload while pre
 
 The [initial task boundary](task-boundary.md) specifies GFSDP, model and loss compilation, FP8, and SAC/full-checkpointing directions, with PP deprioritized for now. These are task requirements, not a tested or resolved production configuration. Record the concrete model, preset, data, topology, precision recipe, thresholds, and authorized compute before using this contract to accept a candidate.
 
+For [OPT-004](../backlog/tasks/opt-004-cuda-graphs-hybridep-fp8.md), the owner's later selection of the exact 3B HybridEP FP8 preset takes precedence: preserve its inherited FSDP2 and selective AC rather than substituting GFSDP or full AC. All behavior, evidence and numerical requirements below still apply.
+
 ## Behavior to preserve
 
 - **Data and objective:** Preserve source examples, ordering and sampling, tokenizer, truncation, target shifting, masks, packed sequence boundaries, attention context, and convolution/scan state resets. Preserve each loss component's weighting, denominator, and eligible target population.

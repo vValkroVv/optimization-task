@@ -194,6 +194,53 @@ js kill <job-id>
 - `use_clearml: bool = False` - включение интеграции с ClearML.
 - `script_args: str = ""` - дополнительные аргументы командной строки для train скрипта.
 - `processes_per_worker: int = 8` - процессов на ноду (для cloud сценария).
+- `metric_sampler: str | None = None` - включает metric sampler: имя пресета (`light`, `standard`, `full`) или путь к своему YAML того же вида (см. [Metric sampler](#metric-sampler)).
+- `metric_sampler_overrides: dict = {}` - точечные правки конфига metric sampler, вложенные как в YAML, например `{"capture": {"every_n_steps": 4}}`.
+- `metric_sampler_unsafe_reason: str | None = None` - причина, по которой запуск может превысить то, что принимает бэкенд metric sampler за шаг (короткий отладочный запуск и т.п.); с ней проверка ёмкости только предупреждает.
+
+#### Metric sampler
+
+Metric sampler записывает статистики обучения по каждому рангу и микробатчу; коллектор острова доставляет их в ClickHouse и Grafana. Работает на `o1` и `o5` для MoE-моделей.
+
+```python
+TrainJobLLMF(
+    user_login="user",
+    exp_name="my-exp",
+    path_to_config="train.yaml",
+    region="o1",
+    n_workers=32,
+    metric_sampler="standard",
+    metric_sampler_overrides={"capture": {"every_n_steps": 4}, "families": {"attention": True}},
+).submit()
+```
+
+Пресеты лежат в `job_submitter/jobs/llmf/metric_sampler_configs/`; каждое поле там прокомментировано, файл можно скопировать и передать путь к своей копии в `metric_sampler`.
+
+| Пресет | Шаги | Семейства |
+| --- | --- | --- |
+| `light` | каждый 10-й | активации, лосс, эксперты; без мониторов и точных квантилей |
+| `standard` | каждый | всё, кроме attention; точные квантили (как на продовом претрейне) |
+| `full` | каждый | всё, включая attention |
+
+Поля конфига:
+
+- `capture.every_n_steps` - собирать каждый N-й шаг обучения; на остальных шагах сбор ничего не стоит.
+- `capture.distributions_every_n_steps` - детальные распределения (гистограммы лосса экспертов, худшие сэмплы) каждый N-й шаг; кратно `every_n_steps`.
+- `capture.window_steps` - собранных шагов в одном опубликованном окне: меньше - быстрее в Grafana, больше - меньше файлов.
+- `families.activations | token_loss | experts | attention | monitors` - включение семейств метрик (`act/*`, `loss/*`, `router/* dispatcher/* expert_loss/*`, `attn/*`, `monitor/*`). Для `monitors` недостающие в train-конфиге мониторы добавляются с нужными настройками; мониторы, которые в конфиге уже есть, сохраняют свои настройки и проверяются.
+- `exact_quantiles` - точные квантили активаций, лосса токенов и энтропии роутера.
+- `activation_dump` - сырые активации ранга 0 каждые `every_n_steps` шагов (0 - выключено) для `points` и `layers`.
+
+Настройки передаются в обучение аргументами `train.py` (`callbacks.metric_sampler.*`, `loggers.metric_sampler.*` и недостающие мониторы); сам train YAML не меняется. `output_dir` выводится автоматически: `<raw root острова>/<exp_name>/<run_name>` из train YAML.
+
+Проверки при сабмите (действуют и для metric sampler, настроенного вручную в train YAML):
+
+- остров с коллектором (`o1`, `o5`); metric sampler не задан дважды (пресет и `callbacks.metric_sampler` в YAML);
+- известные ключи колбэка; положительные интервалы; `distributions_every_n_steps` кратен `every_n_steps`; корректный `activation_dump`;
+- `output_dir` колбэка и логгера - там, где его читает коллектор; `loggers.tensorboard` с `rank_zero_only: true` перед логгером metric sampler;
+- для семейства `monitors` - все нужные мониторы перед `metric_sampler` и их настройки (`stat_list: [amax, l2norm]`, `k_values: [1, 5, 20]`, без `log_pre_clip_gradients`, `memory_keys` по умолчанию);
+- `tp_size` и `sp_size` равны 1, фиксированный `device_train_microbatch_size`, не `amp_fp16`, `gigafsdp_config.zero_stage: 1`, MoE-модель;
+- ёмкость бэкенда: в среднем не больше 1.25e9 значений на шаг обучения; модель уровня 37b (34 слоя, 192 эксперта, 8 микробатчей) со всеми семействами пишет около 1e6 значений на ранг за шаг. Оценка берётся из train YAML (слои, эксперты, микробатчи, потоки данных) и числа GPU; при превышении сабмит отклоняется с минимальным `every_n_steps`. Запуск сверх ёмкости возможен только с `metric_sampler_unsafe_reason` - тогда выводится предупреждение с причиной.
 
 ---
 
@@ -324,7 +371,8 @@ js kill <job-id>
   - конфиг autometrics проверяется детально (ключи, валидность `tp/dp/pp`, пути и т.д.).
 - Для `TrainJobLLMF`:
   - `path_to_config` должен существовать;
-  - если в train-конфиге включен autometrics, проверяется согласованность с autometrics-валидатором.
+  - если в train-конфиге включен autometrics, проверяется согласованность с autometrics-валидатором;
+  - если включен metric sampler (полем `metric_sampler` или в train YAML), проверяются его настройки, мониторы, параллелизм и ёмкость бэкенда (см. [Metric sampler](#metric-sampler)).
 - Для `TrainJobGIFT`:
   - задан `config_file`;
   - `config_file` существует, `gift_root_path` указывает на checkout с `gift_scripts/train.py`, `torchtitan/train.py` и `scripts/config_check.py`;

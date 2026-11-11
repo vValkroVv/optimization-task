@@ -502,6 +502,22 @@ def build_hybrid_mamba_stack(
     storage_backend_extra_config: Optional[dict] = None,
     enable_storage_metrics: bool = False,
 ) -> tuple[HostPoolGroup, HybridCacheController]:
+    from sglang.srt.mem_cache.memory_pool import DSATokenToKVPool
+
+    is_dsa = isinstance(kv_pool, DSATokenToKVPool)
+    if is_dsa and storage_backend is not None:
+        raise ValueError("Hybrid DSA HiCache storage backends are not supported.")
+    if is_dsa and (
+        server_args.hicache_io_backend != "direct"
+        or server_args.hicache_mem_layout != "page_first_direct"
+    ):
+        raise ValueError(
+            "Hybrid DSA HiCache requires direct IO and page_first_direct layout."
+        )
+    if not full_layer_mapping or not mamba_layer_mapping:
+        raise ValueError(
+            "Hybrid HiCache requires full-attention and Mamba layers on every pipeline stage."
+        )
     transfer_layer_num = len(full_layer_mapping | mamba_layer_mapping)
     mamba_allocator = params.req_to_token_pool.mamba_allocator
     kv_host_pool = build_kv_host_pool(
@@ -509,6 +525,7 @@ def build_hybrid_mamba_stack(
         page_size=page_size,
         server_args=server_args,
         use_mla=use_mla,
+        override_kv_cache_dim=kv_pool.kv_cache_dim if is_dsa else None,
     )
     mamba_host_pool = MambaPoolHost(
         mamba_pool,
@@ -538,6 +555,21 @@ def build_hybrid_mamba_stack(
             device_free_fn=mamba_allocator.free,
         ),
     ]
+    if is_dsa:
+        entries.append(
+            build_pool_entry(
+                name=PoolName.INDEXER,
+                host_pool=DSAIndexerPoolHost(
+                    kv_pool,
+                    kv_host_pool,
+                    server_args.hicache_mem_layout,
+                    allocator_type=server_args.hicache_storage_backend,
+                ),
+                device_pool=kv_pool,
+                layer_mapping=full_layer_mapping,
+                transfer_layer_num=transfer_layer_num,
+            )
+        )
     host_pool_group = HostPoolGroup(entries)
     cache_controller = HybridCacheController(
         params.token_to_kv_pool_allocator,
@@ -779,9 +811,21 @@ class _MambaStrategy(StackStrategy):
         enable_storage_metrics=False,
     ):
         from sglang.srt.mem_cache.base_prefix_cache import EvictParams
+        from sglang.srt.mem_cache.memory_pool import DSATokenToKVPool
 
-        full_layer_mapping = dict(kvcache.full_attention_layer_id_mapping)
-        mamba_layer_mapping = dict(params.req_to_token_pool.mamba_map)
+        if kvcache.dense_kv_pool is not None:
+            raise ValueError(
+                "Hybrid HiCache with a separate dense KV pool is not supported."
+            )
+        full_layer_mapping = {
+            layer - kvcache.start_layer: local
+            for layer, local in kvcache.full_attention_layer_id_mapping.items()
+        }
+        mamba_layer_mapping = {
+            layer - kvcache.start_layer: local
+            for layer, local in params.req_to_token_pool.mamba_map.items()
+        }
+        is_dsa = isinstance(kvcache.full_kv_pool, DSATokenToKVPool)
         host_pool_group, cache_controller = build_hybrid_mamba_stack(
             params=params,
             server_args=server_args,
@@ -811,9 +855,12 @@ class _MambaStrategy(StackStrategy):
                 ComponentType.FULL: host_pool_group.get_pool(PoolName.KV),
                 ComponentType.MAMBA: host_pool_group.get_pool(PoolName.MAMBA),
             },
+            sidecars=(
+                [SidecarPoolSpec(PoolName.INDEXER, PoolName.KV)] if is_dsa else []
+            ),
             register_req_to_token_counter=True,
             transfer_layer_num=len(full_layer_mapping | mamba_layer_mapping),
-            pools_desc="KV + MAMBA",
+            pools_desc="KV + MAMBA + INDEXER" if is_dsa else "KV + MAMBA",
         )
 
 
@@ -1200,8 +1247,20 @@ def attach_hybrid_pool_to_mamba_cache(
     try:
         hybrid_kv = mamba_cache.hybrid_kv_cache
         kvcache = mamba_cache.kvcache
-        full_layer_mapping = dict(hybrid_kv.full_attention_layer_id_mapping)
-        mamba_layer_mapping = dict(params.req_to_token_pool.mamba_map)
+        from sglang.srt.mem_cache.memory_pool import DSATokenToKVPool
+
+        if isinstance(kvcache, DSATokenToKVPool):
+            raise ValueError(
+                "Hybrid DSA HiCache requires SGLANG_ENABLE_UNIFIED_RADIX_TREE=1."
+            )
+        full_layer_mapping = {
+            layer - hybrid_kv.start_layer: local
+            for layer, local in hybrid_kv.full_attention_layer_id_mapping.items()
+        }
+        mamba_layer_mapping = {
+            layer - hybrid_kv.start_layer: local
+            for layer, local in params.req_to_token_pool.mamba_map.items()
+        }
         host_pool_group, cache_controller = build_hybrid_mamba_stack(
             params=params,
             server_args=server_args,

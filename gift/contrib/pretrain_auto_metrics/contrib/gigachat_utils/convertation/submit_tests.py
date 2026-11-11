@@ -27,7 +27,7 @@ from contrib.job_submitter.job_submitter.jobs.gigachat_utils.test_convertation i
     TestConvertationJobGigachatUtils,
 )
 
-GITLAB_TOKEN = "REPLACE_WITH_GITLAB_TOKEN.01.0z13yhw6a"
+GITLAB_TOKEN = "REPLACE_WITH_GITLAB_TOKEN"
 
 # Test paths
 TEST_PATHS = {

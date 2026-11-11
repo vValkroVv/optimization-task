@@ -42,6 +42,28 @@ class TestTrainJobLLMF:
         assert "use_clearml=true" in script
         assert "foo=bar" in script
 
+    def test_script_passes_the_metric_sampler_settings_quoted_before_script_args(
+        self, tmp_path: Path
+    ) -> None:
+        config_path = tmp_path / "train.yaml"
+        config_path.write_text("exp_name: exp\nrun_name: run\n", encoding="utf-8")
+        job = TrainJobLLMF(
+            user_login="u",
+            exp_name="e",
+            submission_type="slurm",
+            region="o1",
+            path_to_config=config_path,
+            metric_sampler="light",
+            metric_sampler_overrides={"capture": {"every_n_steps": 5}},
+            script_args="foo=bar",
+        )
+
+        script = job._script()
+
+        assert "use_clearml=false 'callbacks.metric_sampler.output_dir=" in script
+        assert "'callbacks.metric_sampler.capture_interval=5'" in script
+        assert script.endswith("'loggers.metric_sampler.window_steps=5' foo=bar")
+
     def test_submit_dry_run_calls_before_submit_and_skips_backend(
         self, monkeypatch
     ) -> None:

@@ -72,7 +72,9 @@ def test_mean_var_dispatch_is_opt_in(
         assert resolved.full_attention_layer_ids == [1]
     else:
         assert ServerArgs._support_mamba_cache_extra_buffer(
-            SimpleNamespace(linear_attn_backend="triton"),
+            SimpleNamespace(
+                linear_attn_backend="triton", linear_attn_prefill_backend=None
+            ),
             resolved.hf_config.architectures[0],
         )
 

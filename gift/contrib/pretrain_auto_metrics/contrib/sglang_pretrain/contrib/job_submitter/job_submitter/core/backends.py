@@ -433,7 +433,7 @@ class SlurmBackend(JobBackend):
         self.last_submitted_job: Optional[SlurmSubmittedJob] = None
 
     def submit(self, cfg: JobTemplate) -> None:
-        print(f"Submitting slurm job: {cfg}")
+        print(f"Submitting slurm job: {cfg.job_desc}, nodes={cfg.n_workers}")
         submitted_job_id = submit_slurm_job(
             slurm_submit_type=cfg.slurm_submit_type,
             job_desc=cfg.job_desc,

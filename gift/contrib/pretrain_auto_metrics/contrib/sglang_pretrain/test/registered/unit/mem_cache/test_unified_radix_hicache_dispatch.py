@@ -1,5 +1,6 @@
 import unittest
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from sglang.srt.mem_cache.hicache_storage import PoolName, SidecarPoolSpec
 from sglang.srt.mem_cache.hybrid_cache import hybrid_pool_assembler
@@ -29,6 +30,225 @@ def _mock_kvcache(cls):
 FULL = ComponentType.FULL
 SWA = ComponentType.SWA
 MAMBA = ComponentType.MAMBA
+
+
+class TestHybridDsaHiCache(unittest.TestCase):
+    def test_hybrid_stack_preserves_indexer_and_fp8_kv_width(self):
+        from sglang.srt.mem_cache.memory_pool import DSATokenToKVPool
+
+        kv_pool = MagicMock(spec=DSATokenToKVPool)
+        kv_pool.kv_cache_dim = 656
+        params = MagicMock()
+        args = SimpleNamespace(
+            hicache_ratio=2,
+            hicache_size=0,
+            hicache_mem_layout="page_first_direct",
+            hicache_storage_backend=None,
+            hicache_write_policy="write_through",
+            hicache_io_backend="direct",
+        )
+        with (
+            patch.object(hybrid_pool_assembler, "build_kv_host_pool") as kv_host,
+            patch.object(hybrid_pool_assembler, "MambaPoolHost"),
+            patch.object(hybrid_pool_assembler, "DSAIndexerPoolHost") as indexer,
+            patch.object(
+                hybrid_pool_assembler,
+                "HostPoolGroup",
+                side_effect=lambda entries: entries,
+            ),
+            patch.object(hybrid_pool_assembler, "HybridCacheController"),
+        ):
+            entries, _ = hybrid_pool_assembler.build_hybrid_mamba_stack(
+                params=params,
+                server_args=args,
+                kv_pool=kv_pool,
+                mamba_pool=MagicMock(),
+                full_layer_mapping={1: 0, 3: 1},
+                mamba_layer_mapping={0: 0, 2: 1},
+                page_size=64,
+                tp_group=None,
+                load_cache_event=None,
+                storage_backend=None,
+                use_mla=True,
+            )
+        self.assertEqual(kv_host.call_args.kwargs["override_kv_cache_dim"], 656)
+        self.assertEqual(
+            [entry.name for entry in entries],
+            [PoolName.KV, PoolName.MAMBA, PoolName.INDEXER],
+        )
+        indexer.assert_called_once_with(
+            kv_pool, kv_host.return_value, "page_first_direct", allocator_type=None
+        )
+        self.assertEqual(
+            [entries[2].layer_mapper(i) for i in range(4)], [None, 0, None, 1]
+        )
+        self.assertIs(entries[2].device_pool, kv_pool)
+        self.assertIsNone(entries[2].device_alloc_fn)
+        self.assertIsNone(entries[2].device_free_fn)
+
+    def test_plain_hybrid_stack_has_no_indexer(self):
+        args = MagicMock()
+        with (
+            patch.object(hybrid_pool_assembler, "build_kv_host_pool"),
+            patch.object(hybrid_pool_assembler, "MambaPoolHost"),
+            patch.object(hybrid_pool_assembler, "DSAIndexerPoolHost") as indexer,
+            patch.object(
+                hybrid_pool_assembler,
+                "HostPoolGroup",
+                side_effect=lambda entries: entries,
+            ),
+            patch.object(hybrid_pool_assembler, "HybridCacheController"),
+        ):
+            for use_mla in (False, True):
+                entries, _ = hybrid_pool_assembler.build_hybrid_mamba_stack(
+                    params=MagicMock(),
+                    server_args=args,
+                    kv_pool=object(),
+                    mamba_pool=MagicMock(),
+                    full_layer_mapping={1: 0},
+                    mamba_layer_mapping={0: 0},
+                    page_size=64,
+                    tp_group=None,
+                    load_cache_event=None,
+                    storage_backend=None,
+                    use_mla=use_mla,
+                )
+                self.assertEqual(
+                    [entry.name for entry in entries], [PoolName.KV, PoolName.MAMBA]
+                )
+        indexer.assert_not_called()
+
+    def test_strategy_registers_sidecar_with_stage_local_layers(self):
+        from sglang.srt.mem_cache.memory_pool import DSATokenToKVPool
+
+        pool = SimpleNamespace(
+            full_kv_pool=MagicMock(spec=DSATokenToKVPool),
+            dense_kv_pool=None,
+            start_layer=8,
+            full_attention_layer_id_mapping={9: 0, 11: 1},
+            use_mla=True,
+        )
+        params = MagicMock()
+        params.req_to_token_pool.mamba_map = {8: 0, 10: 1}
+        with patch.object(
+            hybrid_pool_assembler,
+            "build_hybrid_mamba_stack",
+            return_value=(MagicMock(), MagicMock()),
+        ) as build:
+            result = _MambaStrategy().build(
+                cache=MagicMock(),
+                kvcache=pool,
+                params=params,
+                server_args=MagicMock(),
+                load_cache_event=None,
+            )
+        self.assertEqual(build.call_args.kwargs["full_layer_mapping"], {1: 0, 3: 1})
+        self.assertEqual(build.call_args.kwargs["mamba_layer_mapping"], {0: 0, 2: 1})
+        self.assertEqual(result.transfer_layer_num, 4)
+        self.assertEqual(
+            result.sidecars, [SidecarPoolSpec(PoolName.INDEXER, PoolName.KV)]
+        )
+
+    def test_unsupported_hybrid_dsa_paths_fail_before_allocation(self):
+        from sglang.srt.mem_cache.memory_pool import DSATokenToKVPool
+
+        dsa = MagicMock(spec=DSATokenToKVPool)
+        args = SimpleNamespace(
+            hicache_io_backend="direct", hicache_mem_layout="page_first_direct"
+        )
+        kwargs = dict(
+            params=None,
+            server_args=args,
+            kv_pool=dsa,
+            mamba_pool=None,
+            full_layer_mapping={},
+            mamba_layer_mapping={},
+            page_size=64,
+            tp_group=None,
+            load_cache_event=None,
+            use_mla=True,
+        )
+        with patch.object(hybrid_pool_assembler, "build_kv_host_pool") as allocate:
+            with self.assertRaisesRegex(ValueError, "storage"):
+                hybrid_pool_assembler.build_hybrid_mamba_stack(
+                    **kwargs, storage_backend="file"
+                )
+            for backend, layout in (
+                ("kernel", "page_first"),
+                ("direct", "layer_first"),
+            ):
+                args.hicache_io_backend, args.hicache_mem_layout = backend, layout
+                with self.assertRaisesRegex(ValueError, "direct"):
+                    hybrid_pool_assembler.build_hybrid_mamba_stack(
+                        **kwargs, storage_backend=None
+                    )
+            allocate.assert_not_called()
+        pool = SimpleNamespace(full_kv_pool=dsa, dense_kv_pool=object(), start_layer=0)
+        with patch.object(hybrid_pool_assembler, "build_hybrid_mamba_stack") as build:
+            with self.assertRaisesRegex(ValueError, "dense"):
+                _MambaStrategy().build(
+                    cache=MagicMock(),
+                    kvcache=pool,
+                    params=MagicMock(),
+                    server_args=MagicMock(),
+                    load_cache_event=None,
+                )
+            legacy = SimpleNamespace(hybrid_kv_cache=pool, kvcache=dsa)
+            with self.assertRaisesRegex(ValueError, "SGLANG_ENABLE_UNIFIED_RADIX_TREE"):
+                hybrid_pool_assembler.attach_hybrid_pool_to_mamba_cache(
+                    legacy,
+                    MagicMock(),
+                    MagicMock(),
+                    extra_config={},
+                    prefetch_threshold=256,
+                    load_cache_event=None,
+                )
+            build.assert_not_called()
+
+    def test_hybrid_indexer_reads_wait_before_layer_remapping(self):
+        from sglang.srt.mem_cache.memory_pool import HybridLinearKVPool
+
+        for name, args in (
+            ("get_index_k_with_scale_buffer", ()),
+            ("get_index_k_continuous", (1, None)),
+            ("get_index_k_scale_continuous", (1, None)),
+            ("get_index_k_scale_buffer", (None, None, 1, 1)),
+        ):
+            with self.subTest(name=name):
+                events = []
+                pool = object.__new__(HybridLinearKVPool)
+                pool.start_layer = 8
+                pool.full_attention_layer_id_mapping = {9: 0}
+                pool.layer_transfer_counter = SimpleNamespace(
+                    wait_until=lambda layer: events.append(("wait", layer))
+                )
+                pool.full_kv_pool = SimpleNamespace(
+                    **{name: lambda layer, *args: events.append(("read", layer))}
+                )
+                getattr(pool, name)(9, *args)
+                self.assertEqual(events, [("wait", 1), ("read", 0)])
+
+    def test_hybrid_mla_gather_waits_before_layer_remapping(self):
+        from sglang.srt.mem_cache.memory_pool import HybridLinearKVPool
+
+        events = []
+        pool = object.__new__(HybridLinearKVPool)
+        pool.use_mla = True
+        pool.dense_kv_pool = None
+        pool.start_layer = 8
+        pool.full_attention_layer_id_mapping = {9: 0}
+        pool.layer_transfer_counter = SimpleNamespace(
+            wait_until=lambda layer: events.append(("wait", layer))
+        )
+        pool.full_kv_pool = SimpleNamespace(
+            get_mla_kv_buffer=lambda layer, *args: events.append(
+                ("read", layer.layer_id)
+            )
+        )
+        layer = SimpleNamespace(layer_id=9)
+        pool.get_mla_kv_buffer(layer, None)
+        self.assertEqual(events, [("wait", 1), ("read", 0)])
+        self.assertEqual(layer.layer_id, 9)
 
 
 class TestUnifiedRadixHiCacheDispatch(unittest.TestCase):

@@ -38,7 +38,7 @@
 #SBATCH --account={{ account }}
 {% endif %}
 
-set -evx
+set -e
 
 MOUNTS="{{nfs_path}}"
 CONTAINER_IMAGE="{{ base_image }}"
@@ -67,7 +67,6 @@ export NODE_RANK=\$SLURM_PROCID
 CLEANUP_HOST=\$(hostname)
 CLEANUP_LOG="\$LOGDIR/cleanup_\${SLURM_PROCID}_\${CLEANUP_HOST}.log"
 
-echo \$(env) > \$LOGDIR/\$SLURM_PROCID.env
 
 echo \$(nvidia-smi) > \$LOGDIR/\$SLURM_PROCID.nvidia_smi
 

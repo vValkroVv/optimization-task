@@ -3,10 +3,13 @@ import unittest
 
 import torch
 
+from sglang.srt.mem_cache.hicache_storage import PoolName, PoolTransfer
 from sglang.srt.mem_cache.memory_pool import DSATokenToKVPool
 from sglang.srt.mem_cache.memory_pool_host import (
     DSAIndexerPoolHost,
+    HostPoolGroup,
     MLATokenToKVPoolHost,
+    PoolEntry,
 )
 from sglang.srt.mem_cache.pool_host.common import (
     ALLOC_MEMORY_FUNCS,
@@ -49,7 +52,9 @@ class TestDSAHiCacheTransfer(unittest.TestCase):
         ]
         return torch.cat(parts, dim=0)
 
-    def _run_device_to_host_indexer_copy(self, io_backend: str):
+    def _run_device_to_host_indexer_copy(
+        self, io_backend: str, layout="layer_first", dtype=torch.bfloat16
+    ):
         page_size = 1 if is_hip() else 64
         layer_num = 2
         size = page_size * 4
@@ -57,13 +62,13 @@ class TestDSAHiCacheTransfer(unittest.TestCase):
         device_pool = DSATokenToKVPool(
             size=size,
             page_size=page_size,
-            kv_lora_rank=128,
-            dtype=torch.bfloat16,
-            qk_rope_head_dim=32,
+            kv_lora_rank=512 if dtype == torch.float8_e4m3fn else 128,
+            dtype=dtype,
+            qk_rope_head_dim=64 if dtype == torch.float8_e4m3fn else 32,
             layer_num=layer_num,
             device="cuda",
             enable_memory_saver=False,
-            kv_cache_dim=576,
+            kv_cache_dim=656 if dtype == torch.float8_e4m3fn else 576,
             index_head_dim=128,
         )
         pin_memory = io_backend == "kernel"
@@ -76,7 +81,7 @@ class TestDSAHiCacheTransfer(unittest.TestCase):
                 host_to_device_ratio=2.0,
                 host_size=0,
                 page_size=page_size,
-                layout="layer_first",
+                layout=layout,
                 pin_memory=pin_memory,
                 device="cpu",
                 allocator_type="default",
@@ -85,7 +90,7 @@ class TestDSAHiCacheTransfer(unittest.TestCase):
             indexer_host = DSAIndexerPoolHost(
                 device_pool=device_pool,
                 anchor_host=mla_host,
-                layout="layer_first",
+                layout=layout,
                 pin_memory=pin_memory,
                 device="cpu",
                 allocator_type="default",
@@ -96,14 +101,15 @@ class TestDSAHiCacheTransfer(unittest.TestCase):
         for layer_id in range(layer_num):
             buf = device_pool.index_k_with_scale_buffer[layer_id]
             data = torch.arange(
-                buf.numel(), device=buf.device, dtype=torch.uint8
+                buf.numel(), device=buf.device, dtype=torch.int32
             ).view_as(buf)
-            buf.copy_((data + layer_id) % 256)
+            buf.copy_(((data + layer_id) % 251).to(buf.dtype))
+            self.assertFalse(torch.equal(buf[1], buf[2]))
             kv_buf = device_pool.kv_buffer[layer_id]
             kv_data = torch.arange(
-                kv_buf.numel(), device=kv_buf.device, dtype=kv_buf.dtype
+                kv_buf.numel(), device=kv_buf.device, dtype=torch.int32
             ).view_as(kv_buf)
-            kv_buf.copy_(kv_data + layer_id)
+            kv_buf.copy_((kv_data % 127 + 32 * layer_id).to(kv_buf.dtype))
 
         device_pages = torch.tensor([1, 2, 3], device="cuda", dtype=torch.int64)
         host_pages = torch.tensor(
@@ -131,20 +137,84 @@ class TestDSAHiCacheTransfer(unittest.TestCase):
             for host_page, device_page in zip(
                 host_pages.tolist(), device_pages.tolist()
             ):
-                got = indexer_host.index_k_with_scale_buffer[layer_id][host_page].cpu()
+                if layout == "page_first_direct":
+                    got = indexer_host.index_k_with_scale_buffer[
+                        host_page, layer_id, 0
+                    ].cpu()
+                else:
+                    got = indexer_host.index_k_with_scale_buffer[layer_id][
+                        host_page
+                    ].cpu()
                 expected = device_pool.index_k_with_scale_buffer[layer_id][
                     device_page
                 ].cpu()
                 self.assertTrue(torch.equal(got, expected))
                 host_start = host_page * page_size
                 device_start = device_page * page_size
-                got_kv = mla_host.kv_buffer[layer_id][
-                    host_start : host_start + page_size
-                ].cpu()
+                if layout == "page_first_direct":
+                    got_kv = mla_host.kv_buffer[host_page, layer_id].cpu()
+                else:
+                    got_kv = mla_host.kv_buffer[layer_id][
+                        host_start : host_start + page_size
+                    ].cpu()
                 expected_kv = device_pool.kv_buffer[layer_id][
                     device_start : device_start + page_size
                 ].cpu()
                 self.assertTrue(torch.equal(got_kv, expected_kv))
+
+        expected_kv = [buf[device_indices].clone() for buf in device_pool.kv_buffer]
+        expected_indexer = [
+            buf[device_pages].clone() for buf in device_pool.index_k_with_scale_buffer
+        ]
+        for layer_id in range(layer_num):
+            device_pool.kv_buffer[layer_id][device_indices] = 0
+            device_pool.index_k_with_scale_buffer[layer_id][device_pages] = 0
+
+        group = HostPoolGroup(
+            [
+                PoolEntry(
+                    name=PoolName.KV,
+                    host_pool=mla_host,
+                    device_pool=device_pool,
+                    layer_mapper=lambda layer: layer,
+                    is_primary_index_anchor=True,
+                ),
+                PoolEntry(
+                    name=PoolName.INDEXER,
+                    host_pool=indexer_host,
+                    device_pool=device_pool,
+                    layer_mapper=lambda layer: layer,
+                ),
+            ]
+        )
+        indexer_transfer = PoolTransfer(
+            name=PoolName.INDEXER,
+            host_indices=host_indices,
+            device_indices=device_indices,
+        )
+        for layer_id in range(layer_num):
+            group.load_to_device_per_layer(
+                device_pool,
+                host_indices,
+                device_indices,
+                layer_id,
+                io_backend,
+                pool_transfers=[indexer_transfer],
+            )
+        torch.cuda.synchronize()
+        for layer_id in range(layer_num):
+            self.assertTrue(
+                torch.equal(
+                    device_pool.kv_buffer[layer_id][device_indices],
+                    expected_kv[layer_id],
+                )
+            )
+            self.assertTrue(
+                torch.equal(
+                    device_pool.index_k_with_scale_buffer[layer_id][device_pages],
+                    expected_indexer[layer_id],
+                )
+            )
 
     @unittest.skipIf(
         is_hip(),
@@ -163,6 +233,12 @@ class TestDSAHiCacheTransfer(unittest.TestCase):
     )
     def test_device_to_host_indexer_direct(self):
         self._run_device_to_host_indexer_copy(io_backend="direct")
+
+    @unittest.skipIf(is_hip(), "Packed FP8 DSA page layout is CUDA-specific.")
+    def test_indexer_roundtrip_direct_fp8_page_first(self):
+        self._run_device_to_host_indexer_copy(
+            io_backend="direct", layout="page_first_direct", dtype=torch.float8_e4m3fn
+        )
 
 
 if __name__ == "__main__":

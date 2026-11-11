@@ -14,6 +14,7 @@ autometrics:
 
   router:
     host: 0.0.0.0
+    policy: consistent_hashing
 
   convertation:
     mappers:
@@ -58,6 +59,13 @@ autometrics:
     mem-fraction-static: 0.82
     max-running-requests: 512
     max-mamba-cache-size: 96
+    enable-hierarchical-cache: true
+    hicache-ratio: 2
+    hicache-write-policy: write_through
+    hicache-io-backend: direct
+    hicache-mem-layout: page_first_direct
+    load-balance-method: prefix_affinity
+    prefix-affinity-max-load-skew: 2
 
   model_info:
     model_class: "sft"
@@ -357,6 +365,10 @@ autometrics:
       max-tokens: 16384
       max-input-tokens: 98304
       n-concurrent: 32
+
+    jobbench:
+      judge_model_name: Qwen3.5-397B-A17B-FP8
+      max_input_tokens: 98304
 
     terminal_bench:
       agent: mini-swe-agent

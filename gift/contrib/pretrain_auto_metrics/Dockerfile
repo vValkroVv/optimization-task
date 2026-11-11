@@ -657,6 +657,7 @@ COPY --from=harness_bench_task_index --chown=user:user \
 COPY --from=harness_bench_task_index --chown=user:user \
     /home/user/harness-bench-018-task-index.json \
     ${HARBOR_RLI_VENV}/datasets/harness-bench-0.18.0/task-index.json
+COPY --chown=user:user ./jobbench-build/tasks ${HARBOR_RLI_VENV}/datasets/jobbench
 COPY --chown=user:user ./harbor-rli ${HARBOR_RLI_VENV}/harbor_rli
 COPY --chown=user:user ./harbor-rli/harbor_rli_version.txt \
     /home/user/harbor_rli/harbor_rli_version.txt

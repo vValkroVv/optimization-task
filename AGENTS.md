@@ -4,6 +4,7 @@ These rules make this clone usable on its own. The task record and current user 
 
 ## Current prioritization
 
+- For the selected CUDA Graph campaign, follow [OPT-004](backlog/tasks/opt-004-cuda-graphs-hybridep-fp8.md): the exact 3B MoE/HybridEP/FP8 preset on one eight-H100 NVLink server. Preserve its FSDP2, EP8, selective AC and model/loss compilation. This specific 11 November request overrides the older general priorities below for that campaign; it does not authorize running the plan during its preparation.
 - Target GFSDP, compilation of both model and loss, FP8, and SAC/full activation checkpointing. Keep `gift 4` as supplied until its exact model/preset meaning is clarified.
 - Focus initial optimization research on small models on one or two nodes; exact hardware and configuration remain to be selected.
 - Deprioritize PP for now. It is not excluded or a blocker.

@@ -1,0 +1,36 @@
+# Metric sampler preset "light": loss, expert and activation statistics on every 10th step, without the monitor family
+# and exact quantiles, for runs where overhead and data volume matter most. Copy this file to make a config of your own; pass a preset name or the file's path as
+# TrainJobLLMF(metric_sampler=...), and change single fields with metric_sampler_overrides.
+capture:
+  # Capture every Nth training step (1 = every step). Steps in between cost nothing.
+  every_n_steps: 10
+  # Detailed distributions (expert-loss histograms, worst samples, head entropy) every Nth step; a multiple of
+  # every_n_steps.
+  distributions_every_n_steps: 100
+  # Captured steps per published window: fewer reach Grafana sooner, more make fewer files.
+  window_steps: 5
+families:
+  # act/*: statistics of every layer's activations at every point.
+  activations: true
+  # loss/*: token-loss histograms and the stream, position, sample and MTP statistics.
+  token_loss: true
+  # router/*, dispatcher/*, expert_loss/*: routing, capacity and per-expert losses.
+  experts: true
+  # attn/*: softmax (MLA) and linear (GDN) attention statistics.
+  attention: false
+  # monitor/*: what the training monitors see on each rank before their reductions; adds the monitors it needs.
+  monitors: false
+# Exact quantiles of activations, token loss and router entropy.
+exact_quantiles: false
+activation_dump:
+  # Raw activations of rank 0 every Nth step (0 = off); a multiple of every_n_steps, needs families.activations.
+  every_n_steps: 0
+  # Points: residual, attn_out, mlp_out, final_norm, shared_expert_out, attn_residual_contribution,
+  # mlp_residual_contribution, embed.
+  points: []
+  # Decoder layer indices; MTP layers follow the decoder's.
+  layers: []
+  # Leading tokens of microbatch 0 per point.
+  tokens: 256
+  # Dump budget per rank and attempt.
+  max_gb: 10.0

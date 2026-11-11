@@ -84,6 +84,7 @@ def maybe_register_hicache_draft(
         return
 
     from sglang.srt.mem_cache.memory_pool import (
+        DSATokenToKVPool,
         HybridLinearKVPool,
         MHATokenToKVPool,
         MLATokenToKVPool,
@@ -96,6 +97,13 @@ def maybe_register_hicache_draft(
     pool = draft_kv_pool
     if isinstance(pool, HybridLinearKVPool):
         pool = pool.full_kv_pool
+
+    if isinstance(pool, DSATokenToKVPool):
+        raise ValueError(
+            "DSA draft models are not supported with hierarchical cache: "
+            "draft KV and indexer must be saved together. Disable hierarchical "
+            "cache or use a non-DSA draft model."
+        )
 
     # Create host pool for draft with the same slot count as the target host pool,
     # so that host indices stay 1-to-1 between target and draft KV caches.

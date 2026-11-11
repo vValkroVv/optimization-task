@@ -83,12 +83,12 @@ VERL_BASE_IMAGES = {
         "SR008": "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/verl_0.7.1:app.sglang0.5.14.mcore.2026_09_29_commitc61c0b12",
     },
     "sglang_custom": {
-        "o1": "/mnt/nfs/01-home/infidelis/transfer2papaya/images/verl_0.7.1_app.sglang_custom0.5.14.mcore.2026_09_29_commitc61c0b12.sqsh",
-        "o2": "/mnt/nfs/07-share/transfer2papaya/images/verl_0.7.1_app.sglang_custom0.5.14.mcore.2026_09_29_commitc61c0b12.sqsh",
-        "o5": "/mnt/nfs/01-home/infidelis/transfer2papaya/images/verl_0.7.1_app.sglang_custom0.5.14.mcore.2026_09_29_commitc61c0b12.sqsh",
-        "SR004": "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/verl_0.7.1:app.sglang_custom0.5.14.mcore.2026_10_12_commit0d602eb4",
-        "SR006": "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/verl_0.7.1:app.sglang_custom0.5.14.mcore.2026_10_12_commit0d602eb4",
-        "SR008": "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/verl_0.7.1:app.sglang_custom0.5.14.mcore.2026_10_12_commit0d602eb4",
+        "o1": "/mnt/nfs/01-home/infidelis/transfer2papaya/images/verl_0.7.1_app.sglang_custom0.5.14.mcore.2026_10_25_commit8d7091fb.sqsh",
+        "o2": "/mnt/nfs/07-share/transfer2papaya/images/verl_0.7.1_app.sglang_custom0.5.14.mcore.2026_10_25_commit8d7091fb.sqsh",
+        "o5": "/mnt/nfs/01-home/infidelis/transfer2papaya/images/verl_0.7.1_app.sglang_custom0.5.14.mcore.2026_10_25_commit8d7091fb.sqsh",
+        "SR004": "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/verl_0.7.1:app.sglang_custom0.5.14.mcore.2026_10_25_commit8d7091fb",
+        "SR006": "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/verl_0.7.1:app.sglang_custom0.5.14.mcore.2026_10_25_commit8d7091fb",
+        "SR008": "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/verl_0.7.1:app.sglang_custom0.5.14.mcore.2026_10_25_commit8d7091fb",
     },
     "vllm": {
         "o1": "/mnt/nfs/01-home/infidelis/transfer2papaya/images/verl_0.7.1_app.vllm0.17.0.mcore.2026_03_27_commitbb79ea8b.sqsh",

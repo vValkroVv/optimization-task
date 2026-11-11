@@ -23,6 +23,32 @@ Notes:
 
 - Besides configuring `--hicache-storage-backend` at startup, SGLang also supports **runtime attach/detach** of the HiCache storage backend (no restart required) via HTTP admin endpoints. See [Runtime Attach/Detach HiCache Storage Backend](hicache_storage_runtime_attach_detach.md).
 
+## Hybrid GDN + DSA Host Caching
+
+Hybrid GDN + DSA models require the unified radix tree so that host backup and
+restore include the DSA indexer and its scales alongside MLA KV and GDN state.
+Use these settings on the prefill instance:
+
+```bash
+SGLANG_ENABLE_UNIFIED_RADIX_TREE=1 python3 -m sglang.launch_server \
+  --model-path /path/to/model \
+  --enable-hierarchical-cache \
+  --hicache-io-backend direct \
+  --hicache-mem-layout page_first_direct \
+  --hicache-write-policy write_through \
+  --hicache-ratio 2
+```
+
+This combination supports GPU-to-host caching only. Storage backends and a
+separate dense full-attention KV sub-pool are rejected. The host ratio applies to
+cache capacity on each rank, including the additional indexer and GDN state;
+check the aggregate host-memory budget across all ranks on a node.
+Each pipeline stage must contain both full-attention and GDN layers.
+An explicit `--hicache-size` sizes KV and GDN host pools separately; the DSA
+indexer adds memory proportional to the KV capacity. It is not a total RAM limit.
+DSA draft models are not supported with HiCache; registration rejects this
+combination before allocating the draft host pool.
+
 ## Key Configurations with Storage Backends Enabled
 
 ### Memory Layout Optimization

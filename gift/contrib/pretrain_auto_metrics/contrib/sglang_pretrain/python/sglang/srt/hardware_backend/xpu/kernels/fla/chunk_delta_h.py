@@ -67,6 +67,9 @@ def chunk_gated_delta_rule_fwd_kernel_h_blockdim64_k_loop(
         NT = tl.cdiv(T, BT)
         boh = i_n * NT
 
+    bos = bos.to(tl.int64)
+    boh = boh.to(tl.int64)
+
     # calculate offset
     h += ((boh * H + i_h) * V * K).to(tl.int64)
     v += ((bos * H + i_h) * V).to(tl.int64)
@@ -105,7 +108,7 @@ def chunk_gated_delta_rule_fwd_kernel_h_blockdim64_k_loop(
             block_shape=(BT, BV),
         )
 
-    index = tl.load(initial_state_indices + i_n).to(tl.int32)
+    index = tl.load(initial_state_indices + i_n).to(tl.int64)
     h0 = initial_state + index * stride_h
     ht = initial_state + index * stride_h
     if USE_INITIAL_STATE:
@@ -137,7 +140,7 @@ def chunk_gated_delta_rule_fwd_kernel_h_blockdim64_k_loop(
 
             # Store pre-update h to output
             p_ho = tl.make_block_ptr(
-                h + i_t * stride_h,
+                h + i_t.to(tl.int64) * stride_h,
                 (V, K),
                 (K, 1),
                 (i_v * BV, k_blk),
@@ -224,6 +227,7 @@ def chunk_gated_delta_rule_fwd_h(
     save_new_value: bool = True,
     cu_seqlens: Optional[torch.LongTensor] = None,
     chunk_indices: Optional[torch.LongTensor] = None,
+    intermediate_state_dtype: Optional[torch.dtype] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     B, T, Hg, K, V = *k.shape, u.shape[-1]
     H = u.shape[-2]
@@ -242,7 +246,7 @@ def chunk_gated_delta_rule_fwd_h(
         )
     assert K <= 256, "current kernel does not support head dimension larger than 256."
 
-    h = k.new_empty(B, NT, H, V, K)
+    h = k.new_empty((B, NT, H, V, K), dtype=intermediate_state_dtype)
 
     v_new = torch.empty_like(u) if save_new_value else None
 

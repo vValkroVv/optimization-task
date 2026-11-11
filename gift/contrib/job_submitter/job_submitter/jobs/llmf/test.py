@@ -19,6 +19,7 @@ class TestJobLLMF(BaseJob):
             f"{self.llm_f_root}/contrib/composer",
             f"{self.llm_f_root}/contrib/streaming",
             f"{self.llm_f_root}/contrib/gigafsdp",
+            f"{self.llm_f_root}/contrib/metric-sampler",
             f"{self.llm_f_root}/contrib/gigachat-utils/convertation/",
             f"{self.llm_f_root}/contrib/flash-linear-attention",
         ]

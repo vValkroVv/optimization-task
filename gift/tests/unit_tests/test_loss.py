@@ -169,6 +169,26 @@ class TestGradAccumulator(unittest.TestCase):
         result = acc.result()
         torch.testing.assert_close(result, reference)
 
+    def test_accumulate_uneven_chunks_matches_cat(self):
+        """Verify accumulation when the final chunk is shorter."""
+        torch.manual_seed(42)
+
+        reference = torch.randn(2, 10, 16)
+        chunks = torch.chunk(reference, 4, dim=1)
+
+        print("chunk sizes:", [chunk.shape[1] for chunk in chunks])
+
+        acc = GradAccumulator(
+            reference,
+            num_chunks=4,
+            seq_dim=1,
+            dtype=reference.dtype,
+        )
+        for chunk in chunks:
+            acc.add(chunk)
+
+        torch.testing.assert_close(acc.result(), reference)
+
     def test_accumulate_with_dtype_conversion(self):
         """Verify fp32 accumulation from bf16 chunks."""
         torch.manual_seed(42)

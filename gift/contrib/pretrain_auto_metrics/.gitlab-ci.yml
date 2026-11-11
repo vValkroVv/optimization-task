@@ -19,7 +19,7 @@ workflow:
 
 variables:
   REGISTRY_BASE: "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0"
-  PAM_IMAGE: "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/pretrain-auto-metrics_custom:2026_10_25_commited483be4"
+  PAM_IMAGE: "cr.ai.cloud.ru/19d74875-55e7-4f05-92d7-5bff1b43b8a0/pretrain-auto-metrics_custom:2026_10_27_commit1676a481"
   GENERATIONS_S3: "gigaeye-s3:gigaeye-pretrain-checkpoints/pretrain-auto-metrics-e2e-generations"
   DOCKERFILE_PATH: "Dockerfile"
   MYPY_CONFIG_FILE: "mypy.ini"
@@ -108,6 +108,11 @@ variables:
           harbor-gigarli
       git -C harbor-gigarli checkout --detach "${GIGARLI_REF}"
     - |
+      python3 -m venv /tmp/jobbench-prepare-env
+      /tmp/jobbench-prepare-env/bin/pip install 'huggingface-hub==1.33.0' 'pydantic==2.13.5' 'pyyaml==6.0.3' 'omegaconf==2.3.0'
+      PYTHONPATH="$CI_PROJECT_DIR/harbor-rli" \
+          /tmp/jobbench-prepare-env/bin/python -m image_builder.jobbench.prepare jobbench-build
+    - |
       git clone --no-checkout --depth 1 --filter=blob:none \
           https://gitlab-ci-token:${CI_JOB_TOKEN}@${HARBOR_RLI_SWE_DATA_REPO_URL} \
           harbor-rli-swe-data
@@ -143,6 +148,7 @@ variables:
       {
         "rli": "$(git -C harbor-rli rev-parse HEAD)+$(git -C harbor-gigarli rev-parse HEAD)",
         "benchmarks": {
+          "jobbench": "jobbench.$(/tmp/jobbench-prepare-env/bin/python -c 'import json; p=json.load(open("jobbench-build/provenance.json")); print(p["upstream_commit"] + "." + p["dataset_revision"])')",
           "cowork-bench": "cowork.$(git -C harbor-rli-cowork-data rev-parse HEAD)",
           "harness-bench-lite": "harness018.$(git -C harness-bench-018 rev-parse HEAD)",
           "harness-bench-medium": "harness018.$(git -C harness-bench-018 rev-parse HEAD)",

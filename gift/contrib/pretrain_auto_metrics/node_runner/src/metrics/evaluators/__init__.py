@@ -9,6 +9,7 @@ from .forge import ForgeEvaluator
 from .gigametric import GigaMetricEvaluator, GigaMetricJudgedEvaluator
 from .harbor_rli import HarborRliEvaluator
 from .interface import MetricsEvaluator
+from .jobbench import JobBenchEvaluator
 from .lm_eval import LmEvalEvaluator
 from .lmms_eval import LmmsEvalEvaluator
 from .mera import MeraEvaluator
@@ -41,6 +42,7 @@ __all__ = [
     "GigaMetricEvaluator",
     "GigaMetricJudgedEvaluator",
     "HarborRliEvaluator",
+    "JobBenchEvaluator",
     "LmEvalEvaluator",
     "LmmsEvalEvaluator",
     "MeraEvaluator",

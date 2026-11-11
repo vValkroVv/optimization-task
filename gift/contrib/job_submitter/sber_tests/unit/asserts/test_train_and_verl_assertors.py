@@ -89,6 +89,11 @@ class TestTrainJobAssertor:
             "_assert_autometrics_config",
             lambda cfg, path: called.setdefault("ok", True),
         )
+        monkeypatch.setattr(
+            assertor,
+            "_assert_metric_sampler",
+            lambda job, cfg: called.setdefault("metric_sampler", job),
+        )
 
         fake_job = SimpleNamespace(
             user_login="u",
@@ -110,6 +115,7 @@ class TestTrainJobAssertor:
         )
         assertor.assert_job(fake_job, template)
         assert called["ok"] is True
+        assert called["metric_sampler"] is fake_job
 
     def test_assert_autometrics_config_allows_config_without_autometrics_sections(
         self,

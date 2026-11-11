@@ -1381,6 +1381,146 @@ CI отдельно клонирует Pier RLI, GigaRLI и Deep-SWE по зак
 
 Подробности shooter — в [README Pier RLI](https://gitlab.ai.cloud.ru/gigallms/pier_rli/-/blob/7472d1f882ebb876c5b5b594fd606300e4a5e465/README.md).
 
+## 23. Блок `evaluators.jobbench`
+
+Сохранённые результаты для двух Qwen и DeepSeek, опубликованные ориентиры и
+условия замеров: [сверка метрик JobBench](docs/jobbench-metric-comparison.md).
+
+Шутер находится в общем репозитории `harbor_rli`, в `adapters/jobbench/`.
+CI получает его на `HARBOR_RLI_REF` из `build_utils/refs.env`.
+PAM использует `ScoringMetricsEvaluator`: сначала агент создаёт файлы, затем
+PAM поднимает локального судью и запускает оценку в новых RLI-сессиях.
+
+```yaml
+autometrics:
+  evaluators:
+    jobbench:
+      split: main
+      agent: mini-swe-agent
+      judge_model_name: Qwen3.5-397B-A17B-FP8
+      timeout: 6400
+      max_tokens: 131072
+      max_input_tokens: 98304
+      agent_timeout: 7200
+      judge_max_tokens: 16384
+```
+
+Для OpenCode достаточно заменить `agent: mini-swe-agent` на `agent: opencode`.
+По умолчанию используются `mini-swe-agent` и судья `Qwen3.5-397B-A17B-FP8`.
+Поддерживаются `terminus-2`, `mini-swe-agent` и `opencode`; агент включён в identity
+кэша, поэтому для смены агента нужен новый каталог артефактов.
+
+OpenCode 1.14.18 (версия из upstream JobBench) предустановлен в RLI-образах `r2`.
+Он выполняется внутри RLI, а запросы к модели передаются через существующий relay
+процессом шутера вне RLI. Ни endpoint, ни ключ PAM в среду агента не передаются.
+Используется OpenAI-compatible Chat Completions, включая вызовы инструментов.
+RLI возвращает целый ответ; отдельный адаптер упаковывает его в SSE для OpenCode,
+сохраняя текст, `reasoning_content`, tool calls, finish reason и usage. Это
+буферизация ответа, а не выдача токенов по мере генерации.
+
+`max_tokens` задаёт выходной лимит, `max_input_tokens` — входной;
+их сумма задаёт окно для compaction OpenCode. Если входной лимит не указан,
+для OpenCode используется 131072. Нужно выбирать лимиты в пределах контекста
+модели. Основная и вспомогательная модель OpenCode направлены на одну модель PAM.
+Температура и режим reasoning задаются настройками inference/OBM proxy PAM;
+наличие поля `reasoning_content` поддерживается и не включает reasoning само по себе.
+Автообновление OpenCode и загрузка каталога моделей отключены.
+Интернет-действия агента выполняются внутри RLI; PAM не скачивает зависимости
+во время замера. Сохраняются сырой `opencode.txt`, данные сессии и ATIF trajectory.
+
+Адреса обеих моделей задаёт PAM. Судья выбирается из существующих inference
+presets, как в Dredd. По умолчанию `n_concurrent` равен числу экземпляров
+измеряемой модели × 8, а `judge_n_concurrent` — числу экземпляров судьи × 8.
+Явные значения в конфиге имеют приоритет. `judge_n_concurrent` ограничивает число
+параллельных судейских задач; рубрики внутри задачи идут последовательно. `agent_timeout`
+и `verifier_timeout` ограничивают фазы одной задачи; `timeout` и `judge_timeout`
+ограничивают запросы к моделям. Оба request timeout по умолчанию берутся из
+`DEFAULT_REQUEST_TIMEOUT`.
+
+В `alignment_prod` JobBench включён в профили `agent` и `full`.
+`max_input_tokens` ограничивает вход агента; к контексту судьи этот параметр
+не относится. Контекст судьи задаётся его inference preset в PAM.
+Конфиг наследует общие параметры `RliConfig`: таймауты, повторы запросов
+и передачи файлов, ожидание готовности сессии и warmup. Они передаются
+в RLI environment в обеих фазах. Версия образов по умолчанию задаётся адаптером;
+при необходимости её можно переопределить дополнительным YAML-полем `env_version`.
+Offline-настройки Hugging Face и LiteLLM устанавливает сам адаптер.
+
+Используется общее окружение `/home/user/harbor_rli_env`: Harbor 0.8.0,
+mini-swe-agent 2.3.0, LiteLLM 1.83.14, orjson 3.11.6, requests 2.34.2,
+httpx 0.28.1 и gigarli `953d891b23da4da2f94d21da4d0a9fc5f8f1343f`.
+Версии кода и SDK задаются общими `HARBOR_RLI_REF` и `GIGARLI_REF`;
+отдельный Python 3.13 для JobBench больше не устанавливается.
+Задачи лежат в `/home/user/harbor_rli_env/datasets/jobbench`.
+
+При переходе с Harbor 0.22.0 нужен новый каталог метрик: версия Harbor входит
+в identity. Путь к файлам агента берётся из `destination` в artifact manifest
+(в Harbor 0.8.0 — `artifacts/output`). Реализации агентов между версиями
+различаются; совпадение scores не заявляется. OpenCode сохраняет ATIF 1.6
+вместо 1.7; конвертер 0.8.0 не включает исходный user prompt в шаги ATIF.
+Сырой журнал OpenCode сохраняется. Образы задач и verifier остаются `r2`.
+
+Предварительная локальная проверка совместимости на Python 3.12.15 подтвердила
+разрешение зависимостей, чтение конфигов всех 128 задач и двухфазный Harbor Trial
+с подставными средой и моделью. Это не замер на RLI и не golden validation.
+Opensource-образ PAM для коммита `17eea84f` успешно собран
+([CI job](https://gitlab.ai.cloud.ru/gigallms/pretrain-auto-metrics/-/jobs/4174538)).
+Проверка с живыми RLI/model endpoints для текущей версии ещё не завершена.
+CI получает upstream JobBench `660b33a86ed032559df0b2fdc1ad38cf7ceb83f3`
+и HF `JobBench/job-bench` на `d43a66575635da0d3f6cb9a20976dc1a60f3ffc9`;
+исходный renderer готовит задачи для включения в образ PAM.
+Данные не скачиваются во время замера.
+
+Образы RLI собираются отдельным ручным pipeline `trigger:images:jobbench`
+в `harbor_rli`. Pipeline публикует образы и payloads для регистрации по digest.
+Перед замером нужно зарегистрировать все 128 задач и общий verifier с версией
+`660b33a-d43a665-r2`. Команда из корня `harbor_rli`:
+
+```bash
+python -m image_builder.jobbench.register path/to/outputs
+RLI_API_BASE=https://your-rli-endpoint \
+  python -m image_builder.jobbench.register path/to/outputs --apply
+```
+
+Агент видит исходную среду JobBench и файлы задачи. `test.sh`, judge и рубрики
+попадают только в отдельную судейскую сессию. Зависимости проверки распаковываются
+из архива; LibreOffice работает в исходной среде расчёта без вложенного Docker.
+
+Артефакты сохраняются в `metrics/jobbench/`: `generation.json`, `identity.json`,
+Harbor jobs, файлы агента, логи судьи и `metrics.json`. Метрика — среднее
+взвешенных task rewards, в диапазоне 0–1, рассчитанное стандартным
+`harbor.metrics.mean.Mean` из общего `harbor_rli_env`. Ошибки отдельных trials
+не блокируют публикацию. Отсутствующий reward даёт нулевой вклад в среднее;
+знаменатель — все 65 main или 63 easy задачи. Судья использует
+исходную механику повторов: по умолчанию до трёх попыток на рубрику
+(`judge_retries: 3`). Ошибка API или невалидный ответ, отклонённый upstream
+verifier, сохраняются как ошибка trial без reward. В `metrics.json` для таких
+задач записывается `null`; исходные Harbor results не изменяются.
+Задачи с ошибкой generation не отправляются судье и также дают нулевой вклад;
+ссылка на ошибочный generation trial сохраняется в `trial_result_paths`.
+PAM использует те же нулевые вклады в данных для доверительного интервала.
+При ошибке процесса Harbor или нечитаемых артефактах фаза по-прежнему завершается
+ошибкой. После перехода на Harbor Mean нужен новый каталог метрик:
+политика агрегации входит в identity.
+В ключ метрики включены split, агент, лимит ответа агента `max_tokens`,
+таймаут задачи `agent_timeout` в секундах и имя судьи. Формат имени в JD:
+
+```text
+JOBBENCH_<SPLIT>_<AGENT>_MAX_TOKENS_<N>_TIMEOUT_<SECONDS>_JUDGE_<JUDGE>_SCORE
+```
+
+Например: `JOBBENCH_MAIN_TERMINUS_2_MAX_TOKENS_32768_TIMEOUT_7200_JUDGE_QWEN3_235B_A22B_INSTRUCT_2507_FP8_SCORE`.
+`max_tokens` ограничивает один ответ агента, а не суммарное число токенов
+за задачу. Таймаут в имени относится к агенту, а не к судье.
+Такие имена разделяют результаты с разными условиями запуска; формула score
+остаётся прежней. Полные параметры и версии сохраняются в identity.
+Для изменённых настроек нужен новый каталог артефактов.
+
+Профиль с Qwen и настраиваемым лимитом ответа судьи отличается от upstream
+Grok-4.3 с лимитом 200000 токенов. Сопоставимость официальным результатам не
+заявляется. Golden solutions в закреплённом наборе не обнаружены;
+oracle-прогон не заявляется.
+
 # Как интегрировать PAM в ваше обучение
 ### Всего 3 действия
 1. Достать раздел `autometrics` из [примеров](./configs/) и вставить в ваш конфиг обучения

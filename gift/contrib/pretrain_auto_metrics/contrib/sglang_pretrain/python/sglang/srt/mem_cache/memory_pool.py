@@ -2251,11 +2251,13 @@ class HybridLinearKVPool(KVCache):
         dst_dtype: Optional[torch.dtype] = None,
     ):
         assert self.use_mla, "get_mla_kv_buffer called when use_mla is False"
+        self._wait_for_layer(layer.layer_id)
         pool, _ = self._route(layer.layer_id)
         with self._transfer_id_context(layer):
             return pool.get_mla_kv_buffer(layer, loc, dst_dtype)
 
     def get_index_k_with_scale_buffer(self, layer_id: int) -> torch.Tensor:
+        self._wait_for_layer(layer_id)
         layer_id = self._transfer_full_attention_id(layer_id)
         return self.full_kv_pool.get_index_k_with_scale_buffer(layer_id)
 
@@ -2265,10 +2267,9 @@ class HybridLinearKVPool(KVCache):
         seq_len: int,
         page_indices: torch.Tensor,
     ):
+        self._wait_for_layer(layer_id)
         layer_id = self._transfer_full_attention_id(layer_id)
-        return self.full_kv_pool.get_index_k_continuous(
-            layer_id, seq_len, page_indices
-        )
+        return self.full_kv_pool.get_index_k_continuous(layer_id, seq_len, page_indices)
 
     def get_index_k_scale_continuous(
         self,
@@ -2276,6 +2277,7 @@ class HybridLinearKVPool(KVCache):
         seq_len: int,
         page_indices: torch.Tensor,
     ):
+        self._wait_for_layer(layer_id)
         layer_id = self._transfer_full_attention_id(layer_id)
         return self.full_kv_pool.get_index_k_scale_continuous(
             layer_id, seq_len, page_indices
@@ -2289,6 +2291,7 @@ class HybridLinearKVPool(KVCache):
         seq_len_sum: int,
         max_seq_len: int,
     ):
+        self._wait_for_layer(layer_id)
         layer_id = self._transfer_full_attention_id(layer_id)
         return self.full_kv_pool.get_index_k_scale_buffer(
             layer_id, seq_len_tensor, page_indices, seq_len_sum, max_seq_len
@@ -2796,8 +2799,32 @@ class DSATokenToKVPool(MLATokenToKVPool):
 
         tgt_loc_flat = tgt_loc.view(-1).long()
         src_loc_flat = src_loc.view(-1).long()
+        tgt_pages, tgt_offsets = (
+            tgt_loc_flat // self.page_size,
+            tgt_loc_flat % self.page_size,
+        )
+        src_pages, src_offsets = (
+            src_loc_flat // self.page_size,
+            src_loc_flat % self.page_size,
+        )
+        key_bytes = self.page_size * self.index_head_dim
+        scale_bytes = self.index_head_dim // self.quant_block_size * 4
         for index_k in self.index_k_with_scale_buffer:
-            index_k[tgt_loc_flat] = index_k[src_loc_flat]
+            if aiter_can_use_preshuffle_paged_mqa():
+                # AITER stores keys in 16x16 token/dimension tiles.
+                keys = index_k[:, :key_bytes].view(
+                    -1, self.page_size // 16, self.index_head_dim // 16, 16, 16
+                )
+                keys[tgt_pages, tgt_offsets // 16, :, tgt_offsets % 16] = keys[
+                    src_pages, src_offsets // 16, :, src_offsets % 16
+                ]
+            else:
+                keys = index_k[:, :key_bytes].view(
+                    -1, self.page_size, self.index_head_dim
+                )
+                keys[tgt_pages, tgt_offsets] = keys[src_pages, src_offsets]
+            scales = index_k[:, key_bytes:].view(-1, self.page_size, scale_bytes)
+            scales[tgt_pages, tgt_offsets] = scales[src_pages, src_offsets]
 
     def get_index_k_with_scale_buffer(self, layer_id: int) -> torch.Tensor:
         if self.layer_transfer_counter is not None:

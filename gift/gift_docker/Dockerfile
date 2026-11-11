@@ -154,7 +154,9 @@ RUN uv pip install \
         --no-deps \
         "${TORCHTITAN_HOME}/contrib/streaming"
 
-RUN NVSHMEM_PKG_DIR="$(python3 -c "import nvidia.nvshmem as n; print(n.__path__[0])")" \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libnvidia-ml-dev \
+    && NVSHMEM_PKG_DIR="$(python3 -c "import nvidia.nvshmem as n; print(n.__path__[0])")" \
     && test -d "${NVSHMEM_PKG_DIR}/lib" \
     && test -d "${NVSHMEM_PKG_DIR}/include" \
     && HOST_LIB="$(ls "${NVSHMEM_PKG_DIR}"/lib/libnvshmem_host.so.* | head -n1)" \
@@ -164,13 +166,18 @@ RUN NVSHMEM_PKG_DIR="$(python3 -c "import nvidia.nvshmem as n; print(n.__path__[
     && git clone --branch "${DEEPEP_BRANCH}" https://github.com/deepseek-ai/DeepEP.git /tmp/DeepEP \
     && cd /tmp/DeepEP \
     && git checkout "${DEEPEP_REF}" \
+    && rm -f .use_nixl \
+    && sed -i '1i#include <torch/extension.h>' csrc/hybrid_ep/buffer/internode_doca.cu \
     && sed -i "s|f'{nvshmem_dir}/include']|f'{nvshmem_dir}/include', '${CUDA_HOME}/include/cccl']|" setup.py \
     && sed -i '/"-std=c++[0-9]*",/d' setup.py \
-    && TORCH_CUDA_ARCH_LIST="9.0" uv pip install \
+    && HYBRID_EP_MULTINODE=1 RDMA_CORE_HOME=/usr TORCH_CUDA_ARCH_LIST="9.0" uv pip install \
         -v \
         --no-build-isolation \
         . \
     && rm -rf /tmp/DeepEP \
+    && apt-get purge -y libnvidia-ml-dev \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* \
     && chown -R "${USER_NAME}:${USER_NAME}" "${TORCHTITAN_HOME}" "${NVSHMEM_DIR}"
 
 # flash-linear-attention (fla): GDN/KDA kernels for gift_moe gift_3_5.
