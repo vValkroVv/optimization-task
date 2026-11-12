@@ -82,12 +82,14 @@ Revisit only with a concrete crop bottleneck and a finite comparison plan.
 
 ## Next decisions and working layout
 
-The user has now authorized an unattended [overnight MDS/performance campaign](../planning/overnight-streaming-perf.md), including existing eight-GPU execution,
-reference-based source changes, private dependency setup and owned-heavy-artifact
-cleanup. Its English launch prompt is prepared; no campaign run has been started
-by the planning agent. The execution ledger owns progress. First establish the
-MDS data contract and warmed performance control, then analyze two-rank traces
-and evaluate applicable references under [validation](../planning/validation.md).
+The authorized [overnight MDS/performance campaign](../planning/overnight-streaming-perf.md)
+is running. Entry checks verified eight idle H100s, the existing runtime and NFS,
+and actual Perfetto MCP path/query access. Reference applicability is reconciled
+in the [campaign evidence](../runs/overnight-streaming-perf/reference-coverage.md);
+no candidate gain is established. Full-length MDS preparation and native
+profiler/measurement support are in progress. No campaign training has launched
+yet. The execution ledger owns progress; the [report](../runs/overnight-streaming-perf/report.md)
+and its results file own measurements and remaining evidence gates.
 
 The working tree now keeps four current documents, an editable planning area,
 the active GIFT source, candidate references and compact run evidence. Duplicate

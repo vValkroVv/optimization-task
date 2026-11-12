@@ -1,0 +1,127 @@
+{
+  "status": "RUNNING",
+  "entry_revision": "a2a59e14545b55ca777f94a28e332759e7c06087",
+  "start_moscow": "2026-11-13T02:18:00+03:00",
+  "baseline": null,
+  "candidates": [
+  {
+    "id": "K1",
+    "mechanism": "cap-zero fused CE and completed-chunk logits lifetime",
+    "status": "NOT_COMPLETED",
+    "source_pin": "b983803337dfcc34fdd571b38aaf5e01df583bbe",
+    "applicability": "Both absent and applicable; loss/MTP/hooks/FP8 accumulation require independent checks.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": "G3 trace hypothesis then G5 isolated numerical/native/A-B-A-B evidence"
+  },
+  {
+    "id": "K2",
+    "mechanism": "dense/shared local FFN recomputation",
+    "status": "NOT_COMPLETED",
+    "source_pin": "b983803337dfcc34fdd571b38aaf5e01df583bbe",
+    "applicability": "Donor supports FP8; incremental lifetime savings versus fixed block SAC unresolved.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": "G3 nested replay/lifetime evidence and G5"
+  },
+  {
+    "id": "K3",
+    "mechanism": "routed expert recomputation",
+    "status": "INAPPLICABLE",
+    "source_pin": "b983803337dfcc34fdd571b38aaf5e01df583bbe",
+    "applicability": "Donor gmm.py:111-115 rejects required routed FP8; BF16 substitution forbidden.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": null
+  },
+  {
+    "id": "Z1",
+    "mechanism": "fused gate/up hidden z-loss",
+    "status": "INAPPLICABLE",
+    "source_pin": "81054a3383dc349a6690cc2b4aa0bce0dc73b5e9",
+    "applicability": "Crop has norm-input z-loss only; gate/up objective absent. External CudaCherry pin missing.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": null
+  },
+  {
+    "id": "V1",
+    "mechanism": "CompactCE",
+    "status": "INAPPLICABLE",
+    "source_pin": "860152d111e4bac25daecbe3cc0cd84c68c8af9c",
+    "applicability": "Donor explicitly rejects mandatory MTP1.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": null
+  },
+  {
+    "id": "V2",
+    "mechanism": "bounded CPU streaming prefetch",
+    "status": "NOT_COMPLETED",
+    "source_pin": "860152d111e4bac25daecbe3cc0cd84c68c8af9c",
+    "applicability": "Helper missing in current loader; selected donor lacks concrete text-loader state integration.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": "G3 exposed input gaps and G5 queue/state/exception/native evidence"
+  },
+  {
+    "id": "V3",
+    "mechanism": "GFSDP buffer/prefetch work",
+    "status": "NOT_COMPLETED",
+    "source_pin": "860152d111e4bac25daecbe3cc0cd84c68c8af9c",
+    "applicability": "Existing text chains/private head gradients; missing partial-backward guard, arena planning/retention, startup slicing. Distinct lifetimes require scoped ports.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": "G3 all-gather/retention evidence and G5"
+  },
+  {
+    "id": "V4",
+    "mechanism": "frozen BF16 storage",
+    "status": "NOT_COMPLETED",
+    "source_pin": "860152d111e4bac25daecbe3cc0cd84c68c8af9c",
+    "applicability": "No configured frozen component; confirm actual trainable/nontrainable parameter census before final inapplicability.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": "G1 runtime parameter census"
+  },
+  {
+    "id": "V5",
+    "mechanism": "metric accounting and scalar tokens-seen update",
+    "status": "NOT_COMPLETED",
+    "source_pin": "860152d111e4bac25daecbe3cc0cd84c68c8af9c",
+    "applicability": "Input accounting missing (not itself speedup); device-side counter add can remove per-update scalar conversion.",
+    "correctness": null,
+    "tps": null,
+    "memory": null,
+    "trace": null,
+    "unresolved_gate": "G3 exposed scalar-read wait and G5; do not change accounting with first baseline instrumentation"
+  }
+],
+  "accepted_improvements": [],
+  "open_gates": [
+    "G1",
+    "G2",
+    "G3",
+    "G4",
+    "G5",
+    "G6",
+    "G7"
+  ],
+  "source_inspection": "reference-coverage.md"
+}

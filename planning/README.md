@@ -10,8 +10,9 @@ A planned item does not itself authorize GPU work or a change to the baseline.
 The user has authorized the [streaming/performance campaign](overnight-streaming-perf.md)
 for unattended execution, including task-source edits, existing eight-GPU runs,
 private dependency installation and owned-artifact cleanup. Its progress ledger
-owns execution status; the [English launch prompt](overnight-agent-prompt.md)
-is ready to paste into the remote agent. Writing these files did not start a run.
+owns execution status. Execution has begun from the
+[English launch prompt](overnight-agent-prompt.md); G0 passed, and MDS/native
+measurement integration is in progress. No training measurement exists yet.
 
 The campaign supersedes the earlier unstarted single-candidate plan for its
 listed reference mechanisms. It preserves the fixed model and creates a validated

@@ -1,7 +1,7 @@
 # Overnight streaming and optimization campaign
 
-Status: PLANNED — authorized for execution by the separate launch prompt; no run
-has been started while drafting this plan. Starting state: 13 November 2026,
+Status: RUNNING — execution began 13 November 2026 at 02:18 Europe/Moscow
+(12 November 23:18 UTC). Starting state: 13 November 2026,
 GIFT source as recorded at task commit `ee965d3c8e019f73c291104f345c40458a3f9f31`.
 Goal: have reproducible measurements and per-candidate conclusions available at
 the next morning handoff, prioritizing actual results over diagnostic scaffolding.
@@ -89,19 +89,26 @@ timestamps; on resume check recorded processes before relaunching anything.
 
 | Gate | Status | Evidence / next action |
 | --- | --- | --- |
-| G0 Environment, ownership, disk and Perfetto route | NOT_STARTED | Verify existing node, paths, interpreter, GPUs, MCP tools and source state |
-| G1 Full-length MDS, data contract and streaming smoke | NOT_STARTED | Prepare 4096-token data; check sharding/labels/positions and all-rank native updates |
+| G0 Environment, ownership, disk and Perfetto route | PASS | Existing master sees eight idle H100s; NFS has 2.5 TiB free and 2.9 billion free inodes. Verified Python/torch/CUDA/NCCL and installed streaming. Perfetto MCP loaded and queried a task-owned synthetic Chrome JSON via the actual absolute NFS path. |
+| G1 Full-length MDS, data contract and streaming smoke | RUNNING | Existing packer and data path inspected; 896 original full rows selected. Actual eight-rank/two-worker epoch-wrap helper is being implemented; native smoke remains open. |
 | G2 Warmed baseline A/A TPS and memory | NOT_STARTED | Fix measurement window after calibration; collect two controls |
 | G3 Baseline trace pair and Perfetto bottleneck analysis | NOT_STARTED | Ranks0/1, same one complete ordinary update, two files total |
-| G4 All reference mechanisms reconciled | NOT_STARTED | Fill coverage table below with source/trace evidence and experiment order |
+| G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 have applicable missing pieces; trace ordering and final outcomes remain open. |
 | G5 Sequential applicable experiments | NOT_STARTED | Correctness, A/B/A/B, one trace pair per executed candidate |
 | G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
 | G7 Report, state, Git publication and cleanup | NOT_STARTED | Reconcile every row, publish source/results and release owned resources |
 
-Active execution: no PID/job yet. The executing agent records launcher/controller
-PIDs, exact commands, source revision, environment, logs, current experiment,
-completed gates, blockers and next action here. Keep numeric results in the run
-matrix rather than repeating them in several documents.
+Active execution: no training PID yet. Entry revision `a2a59e14545b55ca777f94a28e332759e7c06087`,
+branch `main`, initially clean. Node `lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0`;
+task root is on verified SR008 NFS. Interpreter `/opt/torchtitan-venv/bin/python3.12`,
+torch `2.15.0.dev20260822+cu130`, CUDA 13.0, NCCL 2.30.7, streaming 0.13.0;
+source `/etc/profile.d/wm.sh`. Default image import resolves `/home/user/torchtitan`,
+so runners must explicitly set task `gift/` in `PYTHONPATH`. No new allocation needed.
+MDS, profiler/timer and reference inspections have separate bounded owners.
+Next action: generate 896 full 4096-token rows from the original local C4 corpus,
+verify the actual streaming contract, and launch native integration. G0 synthetic
+route trace is not training evidence (`artifacts/raw/g0/mcp-route.json`, MCP handle
+`trace_f8655236b978288d`; SELECT returned the expected 100000 ns slice).
 
 ## G0–G1: establish streaming without a long prerequisite campaign
 
@@ -214,15 +221,15 @@ priority lower but does not silently count an applicable candidate as evaluated.
 
 | ID | Reference mechanism | Initial applicability question | Final status / evidence |
 | --- | --- | --- | --- |
-| K1 | Kindulov fused softcap/CE and chunk lifetimes | Cap-zero path with MTP, monitoring chunks and head hooks; identify already-present chunk release | NOT_STARTED |
-| K2 | Kindulov dense/shared FFN recomputation | FP8 support and interaction with fixed per-layer SAC; avoid duplicate replay and auxiliary counters | NOT_STARTED |
-| K3 | Kindulov routed-expert recomputation | Donor rejects routed FP8; retain required FP8, document source incompatibility rather than convert to BF16 | NOT_STARTED |
-| Z1 | Fused SwiGLU/FP8 hidden z-loss | Active crop has final-norm-input z-loss only; gate/up regularizer is absent and external pinned kernels are missing | NOT_STARTED |
-| V1 | Vision CompactCE | Reference rejects MTP; do not disable MTP to make it run | NOT_STARTED |
-| V2 | Vision streaming prefetch | Now a relevant loader path; compare donor/current queue, state and exception behavior before porting | NOT_STARTED |
-| V3 | Vision GFSDP buffer/prefetch work | Determine existing versus missing code and apply only supported crop-relevant changes | NOT_STARTED |
-| V4 | Vision frozen BF16 storage | Current crop trains its parameters; no frozen-component benefit unless source shows an actual applicable path | NOT_STARTED |
-| V5 | Vision metric accounting | Check duplication and exposed logging/synchronization; adding a metric alone is not a speed optimization | NOT_STARTED |
+| K1 | Kindulov fused softcap/CE and chunk lifetimes | Cap-zero path with MTP, monitoring chunks and head hooks; identify already-present chunk release | Applicable missing cap-zero fusion and completed-logits release; separate checks required ([source evidence](../runs/overnight-streaming-perf/reference-coverage.md)). |
+| K2 | Kindulov dense/shared FFN recomputation | FP8 support and interaction with fixed per-layer SAC; avoid duplicate replay and auxiliary counters | Applicable FP8 dense/shared local recompute; incremental savings versus block SAC need trace/lifetime evidence. |
+| K3 | Kindulov routed-expert recomputation | Donor rejects routed FP8; retain required FP8, document source incompatibility rather than convert to BF16 | INAPPLICABLE: pinned donor `experts/gmm.py:111–115` rejects required routed FP8. |
+| Z1 | Fused SwiGLU/FP8 hidden z-loss | Active crop has final-norm-input z-loss only; gate/up regularizer is absent and external pinned kernels are missing | INAPPLICABLE: gate/up regularizer absent from fixed objective; pinned external kernels also missing. |
+| V1 | Vision CompactCE | Reference rejects MTP; do not disable MTP to make it run | INAPPLICABLE: donor `loss.py:1153–1164` rejects required MTP1. |
+| V2 | Vision streaming prefetch | Now a relevant loader path; compare donor/current queue, state and exception behavior before porting | Applicable bounded CPU queue helper absent; donor snapshot lacks text-loader state integration. Actual input waits and safe cursor/queue restore need checks. |
+| V3 | Vision GFSDP buffer/prefetch work | Determine existing versus missing code and apply only supported crop-relevant changes | Existing text prefetch chains/private head gradients; missing partial-backward guard and arena/retention logic. Startup slicing has startup-only costs. |
+| V4 | Vision frozen BF16 storage | Current crop trains its parameters; no frozen-component benefit unless source shows an actual applicable path | No freeze policy found; actual runtime parameter census remains before final INAPPLICABLE disposition. |
+| V5 | Vision metric accounting | Check duplication and exposed logging/synchronization; adding a metric alone is not a speed optimization | Accounting alone is not a speedup; tensor counter update can remove scalar read. Trace exposure and numerical/state evidence remain. |
 
 Allowed final candidate labels: TESTED_GAIN, TESTED_NO_GAIN, TESTED_REGRESSION,
 INAPPLICABLE (source/contract reason), ALREADY_PRESENT, BLOCKED (failed required
