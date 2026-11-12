@@ -13,6 +13,8 @@ The goal is to improve representative end-to-end training throughput while prese
 
 The current default is the agreed eight-layer 100B-dev crop in [the baseline contract](docs/baseline-100b-crop.md). Required runtime ports, configuration checks and source review are complete. The [eight-H100 smoke passed](runs/100b-crop8-ep8-smoke/report.md): ten optimizer updates and 320 microbatches per rank, including monitoring steps, without checkpoints or profiler traces. This establishes basic execution, not a performance baseline or convergence result.
 
+Browse the [meeting optimization candidates and local code map](docs/optimization-candidates.md) for Kindulov fusions, fused hidden z-loss and vision-related runtime approaches.
+
 ## Repository map
 
 | Directory | Purpose |

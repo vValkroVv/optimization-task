@@ -1,0 +1,103 @@
+# Eight-GPU L8 Muon run, based on llm-foundry's papaya L8 baseline.
+# Supply the real 128256-vocabulary tokenizer and mount the three MDS roots
+# described in ../presets/dataloaders/gift_4_l8.yaml. Use a unique output directory
+# and seed for a new trial; an existing checkpoint directory resumes its run.
+#
+# torchrun --nproc_per_node=8 -m torchtitan.train --config-file configs/experiments/gift_4_l8.yaml
+#
+# This is a close port, not numerical equivalence: TT uses dropless dispatch
+# and centered sign router-bias updates, not capacity=16000/adaptive updates.
+config_version: 1
+imports:
+  - ../presets/models/gift_moe/gift_4/l8.yaml
+  - ../presets/dataloaders/gift_4_l8.yaml
+  - ../presets/optimizers/muon.yaml
+
+hf_assets_path: ./assets/hf/gift_4_l8
+dump_folder: ./outputs/gift_4_l8
+
+loss:
+  type: mtp
+  loss_weights: [0.1]
+  fused_softcap_ce: true
+  num_chunks: 32
+
+optimizer:
+  lr: 7.0e-4
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-20
+  # Source decay is 7e-5 * (lr / 7e-4), equivalent to standard WD=0.1.
+  weight_decay: 0.1
+  implementation: for-loop
+  # Whole projections; K and V remain separate assembled logical matrices.
+  head_split_grouping: null
+  split_kv_up_projection: true
+  num_iters: 5
+  num_waves: 4
+  param_groups:
+    - pattern: '(^|\.)(A_log|dt_bias)$'
+      weight_decay_multiplier: 0.0
+
+lr_scheduler:
+  warmup_steps: 1000
+  total_steps: 40000
+  decay_ratio: 0.0
+
+training:
+  local_batch_size: 12
+  global_batch_size: 384
+  seq_len: 4096
+  steps: 40000
+  max_norm: 1.0
+  # FP32 master weights and optimizer state; BF16 computation.
+  dtype: float32
+  mixed_precision_param: bfloat16
+  mixed_precision_reduce: float32
+  gc_freq: 40
+
+parallelism:
+  fsdp_backend: gfsdp2
+  data_parallel_shard_degree: 8
+  expert_parallel_degree: 8
+  tensor_parallel_degree: 1
+  pipeline_parallel_degree: 1
+  # Retain gathered weights through backward; not identical to Papaya ZeRO-1.
+  fsdp_reshard_after_forward: never
+
+# Dense FP8 only: source expert GEMMs and token dispatch are not FP8/DeepEP.
+fp8:
+  dense_include_linear_layers: '.*\.(w1|w2|w3|wo|gate_proj|o_proj|qkv_proj|z_proj)$'
+  dense_use_shared_quantizer: true
+  dense_fused_swiglu_quant: false
+  sparse_use_grouped_gemm: false
+
+activation_checkpoint:
+  mode: none
+
+checkpoint:
+  enable: true
+  interval: 400
+  # GFSDP2 checkpoint views alias live buffers; async saves are unsupported.
+  async_mode: disabled
+  initial_load_model_only: false
+  last_save_model_only: false
+
+callbacks:
+  ema:
+    type: ema
+    # Source alpha=0.01 maps to TT decay=0.99.
+    decay: 0.99
+    update_period: 5
+    start_step: 4000
+
+metrics:
+  log_freq: 10
+
+comm:
+  init_timeout_seconds: 1800
+  train_timeout_seconds: 1800
+
+debug:
+  # Override this together with dump_folder for an independent run.
+  seed: 42

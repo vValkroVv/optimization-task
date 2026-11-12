@@ -1,5 +1,6 @@
 # Technical documents
 
+- [Meeting optimization candidates](optimization-candidates.md): approaches, crop compatibility, preserved source code and tests, exact revisions and missing external dependencies.
 - [Agreed 100B-dev crop baseline](baseline-100b-crop.md): current model, runtime, SAC, microbatch, token-drop contract, smoke limits, and finite future experiments.
 - [Historical OPT-004 stability record](../backlog/tasks/opt-004-cuda-graphs-hybridep-fp8.md): bounded native stability evidence for the separate 3B HybridEP/FP8 workload; CUDA Graph and performance research remains paused.
 - [Initial task boundary](task-boundary.md): supplied scope exchange, its original open choices, and the later agreed baseline selection.
