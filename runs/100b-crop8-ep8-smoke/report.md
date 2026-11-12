@@ -1,7 +1,8 @@
 # 100B crop8 EP8 training smoke
 
-Status: PASS for the bounded eight-H100 training smoke on 13 November 2026
-(Moscow date). No performance or convergence claim.
+Status: PASS for the patched bounded eight-H100 smoke on 13 November 2026
+(Moscow date). The requested stock-dependency control below is pending.
+No performance or convergence claim.
 
 ## Scope
 
@@ -174,3 +175,31 @@ existing Python executable, existing isolated DeepGEMM repair parent and a fresh
 attempt ID. It preserves the canonical workload and applies only the recorded
 ten-update stop and monitoring-cadence validation overrides. Future runs require
 their own compute authorization and fresh ownership preflight.
+
+### Requested control: both dependency repairs disabled
+
+The owner requested the same crop without the DeepGEMM descriptor-protocol patch
+and HybridEP scan-bound correction. This is one joint control, not independent
+attribution of either repair. Keep the configuration, seed, ten-update stop,
+monitoring interval 5, scheduler horizon, GIFT source (including the functional
+FP8/SAC correction), CUDA compatibility environment and no-checkpoint/no-profiler
+settings unchanged.
+
+Use the installed DeepGEMM package and the native `torchtitan.train` entrypoint.
+The installed original DeepGEMM header hash is
+`fd8a620440cc31ae7d01010fde1f914aae6998f2dcf6ede2a65e3b5e76001726`.
+The original HybridEP wrapper/header hashes are
+`63e425916b3c6b0c881ad402af35a2b00c4c84203fcde611a6715744b89210cb` and
+`b507f65cfa4580f16342076fc2d00afe81e43f64ddefcc4a3cf43681aef11b4b`.
+
+A fresh attempt-owned HybridEP cache prevents reuse of a corrected scan kernel;
+the native backend adds a process-specific subdirectory. DeepGEMM's installed
+library digest `0015c5c30202d513849b339660066739` differs from the repaired digest
+`a122322508f98be4c07c04c7237e53ab`, and is included in its compiled-kernel key.
+The native warmup still uses its existing node-local `/temp/.cache/rank_N`
+directories; they are not cleared or described as physically isolated. The
+control gets a fresh task-owned DeepGEMM shared cache. No installed dependency
+or shared startup file is edited.
+
+Result: pending execution. A successful short run would not prove the defects
+absent, numerical parity with the patched run, or general reliability.
