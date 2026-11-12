@@ -1,0 +1,325 @@
+config_version: 1
+trainer:
+  type: default
+model:
+  config:
+    type: gift_moe
+    dim: 1536
+    vocab_size: 102400
+    rope:
+      type: complex
+      dim: 64
+      max_seq_len: 16384
+      theta: 10000.0
+      scaling:
+        type: yarn
+        rope_factor: 40.0
+        original_seq_len: 4096
+        beta_fast: 32.0
+        beta_slow: 1.0
+    norm:
+      type: rmsnorm
+      eps: 1.0e-05
+      elementwise_affine: true
+    init:
+      linear:
+        weight:
+          type: normal
+          std: 0.006
+          mean: 0.0
+        bias:
+          type: zeros
+      norm:
+        weight:
+          type: ones
+        bias:
+          type: zeros
+      embedding:
+        weight:
+          type: normal
+          std: 0.006
+          mean: 0.0
+      router_gate:
+        weight:
+          type: normal
+          std: 0.006
+          mean: 0.0
+        bias:
+          type: zeros
+      experts:
+        w13_E2FD:
+          type: normal
+          std: 0.006
+          mean: 0.0
+        w2_EDF:
+          type: normal
+          std: 0.006
+          mean: 0.0
+    blocks:
+      mla_dense:
+        type: residual
+        attention:
+          type: mla
+          n_heads: 16
+          inner_attention:
+            type: flex
+            block_size: 128
+            kernel_options: {}
+          kv_norm:
+            type: rmsnorm
+            eps: 1.0e-05
+            elementwise_affine: true
+          q_lora_rank: 0
+          kv_lora_rank: 512
+          qk_nope_head_dim: 128
+          qk_rope_head_dim: 64
+          v_head_dim: 128
+          mscale: 0.7
+          use_mla_scaling_factor: false
+          q_latent_hidden_z_loss_coef: 0.0
+          kv_latent_hidden_z_loss_coef: 0.0
+        feed_forward:
+          type: swiglu
+          hidden_dim: 6144
+          swiglu_limit: 0.0
+        attention_norm:
+          type: rmsnorm
+          eps: 1.0e-05
+          elementwise_affine: true
+        ffn_norm:
+          type: rmsnorm
+          eps: 1.0e-05
+          elementwise_affine: true
+      mla_moe:
+        type: residual
+        attention:
+          type: mla
+          n_heads: 16
+          inner_attention:
+            type: flex
+            block_size: 128
+            kernel_options: {}
+          kv_norm:
+            type: rmsnorm
+            eps: 1.0e-05
+            elementwise_affine: true
+          q_lora_rank: 0
+          kv_lora_rank: 512
+          qk_nope_head_dim: 128
+          qk_rope_head_dim: 64
+          v_head_dim: 128
+          mscale: 0.7
+          use_mla_scaling_factor: false
+          q_latent_hidden_z_loss_coef: 0.0
+          kv_latent_hidden_z_loss_coef: 0.0
+        moe:
+          type: token_choice
+          experts:
+            hidden_dim: 1024
+            num_experts: 32
+            token_dispatcher:
+              type: hybridep
+              pad_multiple: 128
+              comm_stream: true
+              fuse_permute: true
+              num_sms_dispatch: 16
+              num_sms_combine: 16
+            score_before_experts: false
+            swiglu_limit: 0.0
+            w1_hidden_z_loss_coef: 0.0
+            w3_hidden_z_loss_coef: 0.0
+          router:
+            top_k: 4
+            score_func: softmax
+            route_norm: false
+            route_scale: 1.0
+            _debug_force_load_balance: false
+            _debug_force_first_group: false
+          load_balance_coeff: 0.001
+          shared_experts:
+            type: swiglu
+            hidden_dim: 2048
+            swiglu_limit: 0.0
+          router_aux_loss_coef: 0.0001
+          router_z_loss_coef: 0.0
+        attention_norm:
+          type: rmsnorm
+          eps: 1.0e-05
+          elementwise_affine: true
+        ffn_norm:
+          type: rmsnorm
+          eps: 1.0e-05
+          elementwise_affine: true
+    layers:
+    - block: mla_dense
+      repeat: 1
+    - block: mla_moe
+      repeat: 17
+    hidden_z_loss_patterns: {}
+    converters: []
+  label: 3B
+hf_assets_path: ./tests/assets/tokenizer
+dump_folder: /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/BASELINE-AA/attempts/001/native
+profiler:
+  enable_profiling: false
+  save_traces_folder: profiling/traces
+  profile_freq: 10
+  profiler_active: 1
+  profiler_warmup: 3
+  enable_memory_snapshot: false
+  save_memory_snapshot_folder: profiling/memory_snapshot
+callbacks:
+  campaign_timing:
+    type: campaign_timing_observer
+    start_step: 21
+    update_count: 50
+    output_dir: timing_observer
+metrics:
+  log_freq: 10
+  enable_tensorboard: false
+  disable_color_printing: false
+  save_tb_folder: tb
+  tb_rotate_mib: 64
+  tb_folder_per_launch: false
+  save_for_all_ranks: false
+  enable_wandb: false
+tokenizer:
+  type: huggingface
+dataloader:
+  type: hf_text
+  dataset: c4_test
+  num_workers: 0
+  persistent_workers: false
+  pin_memory: false
+  infinite: true
+optimizer:
+  type: default
+  name: AdamW
+  lr: 0.0004
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-20
+  weight_decay: 4.0e-05
+  implementation: fused
+  param_groups: []
+lr_scheduler:
+  warmup_steps: 2000
+  total_steps: 30000
+  decay_ratio: 0.0
+  decay_type: linear
+  min_lr_factor: 0.0
+training:
+  local_batch_size: 8
+  global_batch_size: 256
+  seq_len: 4096
+  max_norm: 1.0
+  steps: 71
+  enable_cpu_offload: false
+  dtype: float32
+  mixed_precision_param: bfloat16
+  mixed_precision_reduce: float32
+  gc_freq: 50
+  gc_debug: false
+parallelism:
+  data_parallel_replicate_degree: 1
+  data_parallel_shard_degree: -1
+  fsdp_backend: fsdp2
+  fsdp_reshard_after_forward: default
+  gfsdp_match_fsdp2_init: false
+  enable_fsdp_symm_mem: false
+  tensor_parallel_degree: 1
+  disable_loss_parallel: false
+  enable_async_tensor_parallel: false
+  enable_sequence_parallel: true
+  full_dtensor: false
+  pipeline_parallel_degree: 1
+  pipeline_parallel_balancing: layer_count
+  pipeline_parallel_module_costs_ms: {}
+  pipeline_parallel_first_stage_less_layers: 1
+  pipeline_parallel_last_stage_less_layers: 1
+  pipeline_parallel_schedule: 1F1B
+  pipeline_parallel_schedule_csv: ''
+  pipeline_parallel_microbatch_size: 1
+  pipeline_parallel_grad_reduce: 'off'
+  pipeline_parallel_pool_recv_buffers: false
+  context_parallel_degree: 1
+  context_parallel_load_balancer: headtail
+  expert_parallel_degree: 8
+checkpoint:
+  type: default
+  enable: false
+  folder: checkpoint
+  interval: 500
+  initial_load_model_only: true
+  initial_load_in_hf: false
+  initial_load_in_hf_quantized: false
+  last_save_model_only: true
+  save_in_hf: false
+  last_save_in_hf: false
+  last_save_ema_model_also: false
+  ema_folder: ema_checkpoint
+  hf_remote_code_dir: ''
+  export_dtype: float32
+  async_mode: disabled
+  keep_latest_k: 10
+  load_step: -1
+  exclude_from_loading: []
+  enable_first_step_checkpoint: false
+  create_seed_checkpoint: false
+  load_only: false
+activation_checkpoint:
+  mode: selective
+  per_op_sac_force_recompute_mm_shapes_by_fqns:
+  - moe.router.gate
+  early_stop: false
+  memory_budget: 0.5
+  visualize_memory_budget_pareto: false
+  preserve_rng_state: true
+  determinism_check: default
+  debug: false
+compile:
+  enable: true
+  components:
+  - model
+  - loss
+  backend: inductor
+comm:
+  init_timeout_seconds: 3600
+  train_timeout_seconds: 1800
+  trace_buf_size: 20000
+  save_traces_folder: comm_traces
+  save_traces_file_prefix: rank_
+  mode: default
+validator:
+  type: default
+  freq: 10
+  enable: false
+  steps: -1
+  dataloader:
+    type: hf_text
+    dataset: c4_validation
+    num_workers: 0
+    persistent_workers: false
+    pin_memory: false
+    infinite: false
+debug:
+  seed: 42
+  deterministic: false
+  deterministic_warn_only: false
+  moe_force_load_balance: false
+  moe_force_first_group: false
+  detect_anomaly: false
+  batch_invariant: false
+  print_config: false
+  enable_structured_logging: true
+fp8:
+  dense_include_linear_layers: .*\.(w1|w2|w3|wo)$
+  dense_use_shared_quantizer: true
+  dense_fused_swiglu_quant: true
+  sparse_use_grouped_gemm: true
+  sparse_deep_gemm_num_sms: 116
+  deep_gemm_warmup_on_start: true
+  sparse_fused_swiglu_quant: true
+loss:
+  type: chunked_cross_entropy
+  num_chunks: 8

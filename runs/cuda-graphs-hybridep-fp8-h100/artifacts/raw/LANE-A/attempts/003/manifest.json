@@ -1,0 +1,98 @@
+{
+  "attempt": "LANE-A/003",
+  "status": "FAILED_RUNTIME_DURING_CUDAGRAPH_TREES_FORWARD_WARMUP",
+  "purpose": "One graph-on actual-target diagnostic to verify complete optimizer updates, callback step-boundary markers, and graph replay coverage after the scoped source review.",
+  "source_snapshot": {
+    "manifest": "runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/SOURCE-SNAPSHOT/003/manifest.json",
+    "manifest_sha256": "eae89a656a0e59efb2248dd921395d418afa2485ab2ae320d1e834a14ce97526",
+    "source_file_count": 22,
+    "archive_sha256": "ea215abaac14d98a21c36e8684dbd8ce88a1d48f47cec5fe4f85f61be5dd4e27",
+    "changed_files_archive": "runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/SOURCE-SNAPSHOT/003/changed-files.zip",
+    "identity_gate": "Wait for the owner-supplied final manifest SHA-256; launch.sh verifies the manifest, every listed source file byte count and SHA-256, and the archive SHA-256 before importing GIFT."
+  },
+  "workload": {
+    "preset": "gift/configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml",
+    "preset_sha256": "b341701bd1eef7774c110fbf7ed69cf6280ba8691100b05be457dee3e7d50a7b",
+    "entry": "torchtitan.experiments.cuda_graph_campaign.train_scan_fix",
+    "training_steps": 25,
+    "scheduler_total_steps": 30000,
+    "seed": 42,
+    "deterministic_debug": false,
+    "checkpoint_enabled": false,
+    "world_size": 8,
+    "preserved_settings": [
+      "3B MoE HybridEP FP8",
+      "EP8 and FSDP2",
+      "selective activation checkpointing",
+      "model and loss compilation",
+      "local batch 8 and global batch 256",
+      "sequence length 4096",
+      "four accumulation microbatches",
+      "FlexAttention policy unchanged"
+    ]
+  },
+  "graph_policy": {
+    "only_compiler_option_change": "TORCHINDUCTOR_CUDAGRAPHS=1",
+    "logging": "TORCH_LOGS=cudagraphs",
+    "private_graph_manager_creation": false,
+    "hybrid_ep_runtime": "Fresh attempt-local GIFT_HYBRID_EP_SCAN_RUNTIME_DIR; never reuse attempt 002 runtime."
+  },
+  "callbacks": {
+    "timing": {
+      "type": "campaign_timing_observer",
+      "start_step": 3,
+      "update_count": 5
+    },
+    "step_boundary": {
+      "type": "campaign_cudagraph_step_boundary",
+      "order": "Immediately after campaign_timing so the native batch_start marker remains last."
+    }
+  },
+  "profiling": {
+    "enabled": true,
+    "frequency": 4,
+    "skip_first": 20,
+    "warmup": 1,
+    "active": 3,
+    "repeat": 1,
+    "memory_sampling_ms": 500
+  },
+  "acceptance": {
+    "require_all_eight_ranks_complete_25_optimizer_updates": true,
+    "require_forward_backward_four_microbatches_per_update": true,
+    "require_actual_step_boundary_markers": true,
+    "require_torch_cudagraph_activation_logs": true,
+    "require_actual_cuda_graph_launches_in_representative_all_rank_traces": true,
+    "require_fresh_hybrid_ep_runtime_and_memory_samples": true,
+    "independent_run_bitwise_aa_loss_or_norm": "Diagnostic only; calibrate interpretation against A/A variation and precision behavior before A/B numeric conclusions.",
+    "numerical_parity_or_speedup_claim": false
+  },
+  "outcome_policy": [
+    "Preserve the earliest genuine error with complete stack, all-rank phase evidence, and surrounding cudagraph logs; then unwind only exact task-owned PIDs.",
+    "Do not infer optimizer completion from a finally-only step_end event.",
+    "Do not retry, change options, change attention policy, or launch another lane after failure.",
+    "After unwind, verify all eight GPUs idle before heavy trace analysis."
+  ],
+  "launch": {
+    "pid": 510132,
+    "started_at_utc": "2026-11-11T23:21:56.091983+00:00",
+    "method": "subprocess.Popen(start_new_session=True, stdin=DEVNULL, stdout=supervisor.log, stderr=STDOUT, close_fds=True)",
+    "finished_at_utc": "2026-11-11T23:22:24.064243+00:00",
+    "runner_exit_code": 1,
+    "popen_exit_code": "not collected after monitor controller setup failure"
+  },
+  "result": {
+    "summary": "failure-summary.json",
+    "summary_sha256": "d7509aa6bd4b7a8b2d2626dfeb115302d729a5a6561dad0a2d7e14ec0ea97ff3",
+    "first_error_rank_timestamped": 5,
+    "first_error_message": "Detected 1 tensor(s) in the cudagraph pool not tracked as outputs. All live allocations must be tracked for correctness.",
+    "optimizer_updates_completed": 0,
+    "trace_file_count": 0,
+    "performance_or_numerical_claim": false
+  },
+  "monitor_setup_failure": {
+    "exception": "TypeError: JSONEncoder.__init__() got an unexpected keyword argument 'flush'",
+    "timing": "After Popen and launch.json creation, before entering its wait loop.",
+    "recovery": "Attached once to exact PID 510132; exit-status.json and native logs confirmed runtime exit 1. No relaunch."
+  }
+}

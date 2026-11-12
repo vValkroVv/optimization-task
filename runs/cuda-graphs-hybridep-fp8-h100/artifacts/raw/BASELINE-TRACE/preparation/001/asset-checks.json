@@ -1,0 +1,77 @@
+{
+  "attempt": "BASELINE-TRACE/attempts/003",
+  "prelaunch_only": true,
+  "gpu_launch_performed": false,
+  "training_source_modified": false,
+  "expected_trace_files": [
+    "native/profiling/traces/iteration_111/rank0_trace.json",
+    "native/profiling/traces/iteration_111/rank1_trace.json"
+  ],
+  "runtime": {
+    "python": "/opt/torchtitan-venv/bin/python3.12",
+    "torch": "2.15.0.dev20260822+cu130"
+  },
+  "checks": [
+    {
+      "name": "bash syntax",
+      "command": "bash -n runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/BASELINE-TRACE/attempts/003/launch.sh",
+      "result": "pass"
+    },
+    {
+      "name": "Python syntax without bytecode output",
+      "method": "compile(source, filename, 'exec') in memory",
+      "files": [
+        "BASELINE-TRACE/attempts/003/profile_entry.py",
+        "BASELINE-TRACE/preparation/001/controller.py"
+      ],
+      "result": "pass"
+    },
+    {
+      "name": "py_compile no-output attempt",
+      "command": "py_compile.compile(..., cfile='/dev/null', doraise=True)",
+      "result": "unsupported target",
+      "detail": "Python rejected /dev/null as a nonregular output file; in-memory compilation passed without writing bytecode."
+    },
+    {
+      "name": "targeted Ruff",
+      "command": "/opt/torchtitan-venv/bin/ruff check --select F821,F811,F841 --no-cache <profile_entry.py> <controller.py>",
+      "result": "pass"
+    },
+    {
+      "name": "adapter CPU behavior",
+      "result": "pass",
+      "verified": [
+        "global rank 2 returns None without calling the native builder",
+        "selected rank 0 forces record_shapes, with_stack, and profile_memory false",
+        "all other positional and keyword arguments are forwarded",
+        "torch.profiler.profile is restored after successful and failing native builds"
+      ]
+    },
+    {
+      "name": "native profiler schedule",
+      "result": "pass",
+      "torch": "2.15.0.dev20260822+cu130",
+      "steps_0_through_111": "NONE x109, WARMUP, RECORD_AND_SAVE, NONE"
+    },
+    {
+      "name": "static launch contract",
+      "result": "pass",
+      "verified": [
+        "accepted baseline GPU UUID order, cache, compiler controls, and exact preset are retained",
+        "update 111 profiler CLI and launch-local adapter SHA-256 gate are present",
+        "Source010 all98, preset, and original/candidate DeepGEMM all844 gates are present",
+        "controller pins the accepted process owner and deadline 1800 and matches the absolute profile_entry.py path"
+      ]
+    }
+  ],
+  "launch_gates_not_executed": [
+    "release status and runtime output refusal gate",
+    "Source010 and DeepGEMM source hash gate during launch",
+    "eight-rank native profiler lifecycle and trace export"
+  ],
+  "sha256": {
+    "attempts/003/launch.sh": "2ca7fa7b64d3a28f6918d06370095867dad4cb578b70fc0b9a0829a2d44429d1",
+    "attempts/003/profile_entry.py": "1e1128725ee1654e311027bc0bf0fa15ee4ed124496eb4a087a4950d848fb64f",
+    "preparation/001/controller.py": "331b6faf96e1df6feadce8f7c86ef6240a3ed971f32b4cdfcac048185614c177"
+  }
+}

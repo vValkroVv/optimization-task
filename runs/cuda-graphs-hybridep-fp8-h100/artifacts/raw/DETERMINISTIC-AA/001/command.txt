@@ -1,0 +1,12 @@
+attempt_id=DETERMINISTIC-AA/001
+cwd=/workspace-SR008.nfs2/vkropotin/optimization-task/gift
+source_config=/workspace-SR008.nfs2/vkropotin/optimization-task/gift/configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml
+source_config_sha256=b341701bd1eef7774c110fbf7ed69cf6280ba8691100b05be457dee3e7d50a7b
+python=/opt/torchtitan-venv/bin/python3.12
+world_size=8
+command=/opt/torchtitan-venv/bin/python3.12 -m torch.distributed.run --standalone --nnodes=1 --nproc_per_node=8 --max-restarts=0 --log-dir=/workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/DETERMINISTIC-AA/001/torchrun --redirects=3 --tee=3 -m torchtitan.train configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml --training.steps 10 --lr_scheduler.total_steps 30000 --debug.seed 42 --debug.deterministic --checkpoint.enable false --metrics.enable_tensorboard true --metrics.log_freq 1 --dump_folder /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/DETERMINISTIC-AA/001/native
+HOME=inherited unchanged
+HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+TorchInductor/Triton/HuggingFace cache=/workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/NATIVE-SMOKE/001/cache
+DeepGEMM cache=/workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/cache/deepgemm_shared
+TensorBoard tags expected from inspected MetricsProcessor: loss/train/total and l2_norm/grad/global

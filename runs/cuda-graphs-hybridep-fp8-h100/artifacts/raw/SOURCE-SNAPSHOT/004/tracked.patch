@@ -1,0 +1,43 @@
+diff --git a/gift/tests/unit_tests/test_config_torch_free.py b/gift/tests/unit_tests/test_config_torch_free.py
+index 8e968f9e..b6ce1c9f 100644
+--- a/gift/tests/unit_tests/test_config_torch_free.py
++++ b/gift/tests/unit_tests/test_config_torch_free.py
+@@ -43,6 +43,9 @@ COMPONENT_TYPES: dict[str, tuple[str | None, list[str]]] = {
+         None,
+         [
+             "autometrics",
++            "campaign_cudagraph_step_boundary",
++            "campaign_rng_continuation",
++            "campaign_timing_observer",
+             "dynamic_block_lr_rescaler",
+             "ema",
+             "monitoring",
+diff --git a/gift/torchtitan/config/registry.py b/gift/torchtitan/config/registry.py
+index 29f38cef..5aef7c44 100644
+--- a/gift/torchtitan/config/registry.py
++++ b/gift/torchtitan/config/registry.py
+@@ -96,6 +96,11 @@ TRAINER_TYPES: dict[str, TrainerType] = {
+         spec="torchtitan.config.schema.experiments.graph_trainer.trainer:GraphTrainerConfig",
+         model_trainer_type="graph_trainer",
+     ),
++    # Exact-target CUDA Graph campaign experiments, layered over the default
++    # model runtime contract and native trainer path.
++    "cuda_graph_campaign": TrainerType(
++        spec="torchtitan.config.schema.experiments.cuda_graph_campaign.trainer:CampaignTrainerConfig",
++    ),
+     # GRPO controller on Monarch (rollouts through vLLM, a PolicyTrainer
+     # actor); its own root sections.
+     "rl": TrainerType(
+diff --git a/gift/torchtitan/ops/float8/_cudacherry.py b/gift/torchtitan/ops/float8/_cudacherry.py
+index 26c41cd3..719efd85 100644
+--- a/gift/torchtitan/ops/float8/_cudacherry.py
++++ b/gift/torchtitan/ops/float8/_cudacherry.py
+@@ -53,7 +53,7 @@ def _check_qtensor_binding() -> None:
+ 
+ _check_qtensor_binding()
+ 
+-from cudacherry.gemm import gemm as fp8_gemm  # noqa: E402
++from ._cudacherry_graph_safe import fp8_gemm  # noqa: E402
+ from cudacherry.quantization import (  # noqa: E402
+     quantize_blk128x128,
+     quantize_vec128,

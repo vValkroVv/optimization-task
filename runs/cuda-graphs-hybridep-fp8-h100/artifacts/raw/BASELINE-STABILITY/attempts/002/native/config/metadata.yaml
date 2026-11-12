@@ -1,0 +1,58 @@
+config_version: 1
+timestamp: 2026-11-12T15:31:06+0000
+hostname: lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0
+python: 3.12.3
+command: /opt/torchtitan-venv/bin/python3.12 -u -m torchtitan.experiments.cuda_graph_campaign.train_scan_fix
+  configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml --training.steps 200 --lr_scheduler.total_steps
+  30000 --debug.seed 42 --checkpoint.enable false --validator.enable false --profiler.enable_profiling
+  false --profiler.enable_memory_snapshot false --dump_folder /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/BASELINE-STABILITY/attempts/002/native
+argv:
+- /opt/torchtitan-venv/bin/python3.12
+- -u
+- -m
+- torchtitan.experiments.cuda_graph_campaign.train_scan_fix
+- configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml
+- --training.steps
+- '200'
+- --lr_scheduler.total_steps
+- '30000'
+- --debug.seed
+- '42'
+- --checkpoint.enable
+- 'false'
+- --validator.enable
+- 'false'
+- --profiler.enable_profiling
+- 'false'
+- --profiler.enable_memory_snapshot
+- 'false'
+- --dump_folder
+- /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/BASELINE-STABILITY/attempts/002/native
+environment:
+  CUDA_VISIBLE_DEVICES: GPU-c5efeb4a-3298-d3d3-d740-9aeaa1cdd60c,GPU-7e4c74eb-40df-7c3c-0886-8d158b9b48d9,GPU-2f380105-fce8-292b-f1a6-54dbea10840a,GPU-7d17ce5f-a48a-731b-4fa1-a8c6eb959117,GPU-1c5ac011-cc53-c978-d10e-03f900f8fac7,GPU-aeea52a7-1100-c642-3465-82d9ab487492,GPU-9974d8fe-53b0-a7e0-68d3-8d0fdd5ed653,GPU-bb2558b3-a4fc-6fce-46a1-45180afa9681
+  WORLD_SIZE: '8'
+  RANK: '0'
+  LOCAL_RANK: '0'
+  MASTER_ADDR: lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0.lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5.ai0001071-01058.svc.cluster.local
+  MASTER_PORT: '37309'
+  TORCHELASTIC_RESTART_COUNT: '0'
+working_directory: /workspace-SR008.nfs2/vkropotin/optimization-task/gift
+git:
+  commit: 446431dfa191ef0300f116257ae918bc85e38c06
+  branch: main
+  dirty: 'true'
+packages:
+  torch: 2.15.0.dev20260822+cu130
+  torchdata: 0.11.0
+  torchtitan: 0.2.2
+  datasets: 4.7.0
+  tokenizers: 0.22.2
+  transformers: 4.57.1
+  pyyaml: 6.0.3
+runtime:
+  world_size: 8
+  local_world_size: 8
+  rank: 0
+  local_rank: 0
+  hostname: lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0
+  device_count: 8

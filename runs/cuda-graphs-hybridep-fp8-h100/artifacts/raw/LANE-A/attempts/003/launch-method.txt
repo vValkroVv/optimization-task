@@ -1,0 +1,13 @@
+Wait for the owner’s explicit source-review release, final SOURCE-SNAPSHOT/003 manifest SHA-256, and coordinator’s final launch confirmation before launch. `launch.sh` enforces the recorded final confirmation in `release.json`.
+
+When released, start exactly once with Python subprocess.Popen using:
+- argv: ["/bin/bash", "<attempt-003>/launch.sh"]
+- cwd: the task repository root
+- env: inherited environment plus EXPECTED_SOURCE_MANIFEST_SHA256=<released manifest SHA-256>
+- start_new_session=True
+- stdin=subprocess.DEVNULL
+- stdout=<attempt-003>/supervisor.log opened without truncation
+- stderr=subprocess.STDOUT
+- close_fds=True
+
+Keep one monitor for this Popen child, bounded to 15 minutes and polling at approximately two-minute intervals. Do not retry or alter launch options after a failure.

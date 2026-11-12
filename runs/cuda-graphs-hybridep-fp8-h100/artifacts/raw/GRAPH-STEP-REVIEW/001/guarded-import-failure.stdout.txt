@@ -1,0 +1,37 @@
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/opt/torchtitan-venv/lib/python3.12/site-packages/_pytest/config/__init__.py:328: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.
+Plugin: helpconfig, Hook: pytest_cmdline_parse
+ConftestImportFailure: AssertionError: CUDA discovery/initialization is forbidden in this review (from /workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/callbacks/conftest.py)
+For more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning
+  config = pluginmanager.hook.pytest_cmdline_parse(
+ImportError while loading conftest '/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/callbacks/conftest.py'.
+tests/unit_tests/callbacks/conftest.py:12: in <module>
+    from tests.unit_tests.callbacks.trainer_stub import make_trainer
+tests/unit_tests/callbacks/trainer_stub.py:12: in <module>
+    from torchtitan.callbacks.base import MutableState, ObserverState
+torchtitan/callbacks/__init__.py:1: in <module>
+    from torchtitan.callbacks.builtin import (
+torchtitan/callbacks/builtin/__init__.py:1: in <module>
+    from torchtitan.callbacks.builtin.autometrics import Autometrics, EvalTaskConfig
+torchtitan/callbacks/builtin/autometrics.py:12: in <module>
+    from torchtitan.callbacks.base import Observer, ObserverState
+torchtitan/callbacks/base.py:12: in <module>
+    from torchtitan.callbacks.metrics.emitters import MetricEmitter
+torchtitan/callbacks/metrics/emitters.py:5: in <module>
+    from torchtitan.callbacks.metrics.reducers import (
+torchtitan/callbacks/metrics/reducers.py:16: in <module>
+    from torchtitan.distributed import ParallelDims
+torchtitan/distributed/__init__.py:7: in <module>
+    from torchtitan.distributed.parallel_dims import ParallelDims
+torchtitan/distributed/parallel_dims.py:21: in <module>
+    from torchtitan.tools.utils import device_type
+torchtitan/tools/utils.py:49: in <module>
+    device_type, device_module = get_device_info()
+torchtitan/tools/utils.py:44: in get_device_info
+    device_type = _get_available_device_type() or "cuda"
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_utils.py:820: in _get_available_device_type
+    if torch.cuda.is_available():
+../runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/GRAPH-STEP-REVIEW/001/guarded_cpu_tests.py:7: in reject_cuda
+    raise AssertionError('CUDA discovery/initialization is forbidden in this review')
+E   AssertionError: CUDA discovery/initialization is forbidden in this review

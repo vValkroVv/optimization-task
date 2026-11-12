@@ -96,6 +96,11 @@ TRAINER_TYPES: dict[str, TrainerType] = {
         spec="torchtitan.config.schema.experiments.graph_trainer.trainer:GraphTrainerConfig",
         model_trainer_type="graph_trainer",
     ),
+    # Exact-target CUDA Graph campaign experiments, layered over the default
+    # model runtime contract and native trainer path.
+    "cuda_graph_campaign": TrainerType(
+        spec="torchtitan.config.schema.experiments.cuda_graph_campaign.trainer:CampaignTrainerConfig",
+    ),
     # GRPO controller on Monarch (rollouts through vLLM, a PolicyTrainer
     # actor); its own root sections.
     "rl": TrainerType(

@@ -460,6 +460,17 @@ replace positions. Converter templates are not part of the placed module tree.
 
 ## Trainer type
 
+### Per-block CUDA Graph exclusions
+
+| Field | Default | Behavior |
+| --- | --- | --- |
+| `compile.cudagraph_exclude_blocks` | `[]` | Exact model block FQNs where Inductor CUDA Graphs are off. Blocks remain compiled; loss compilation is unchanged. |
+
+A nonempty list requires `compile.enable: true`, `model` in
+`compile.components`, and `compile.backend: inductor`. Names must match blocks
+reported by the model's `named_segments()` exactly. For example, an override can
+select `layers.1` and `layers.17` without changing the model or loss compile path.
+
 `config_version` must be the integer `1`; booleans and floating-point values
 are not versions. `trainer` must be a mapping. If no section is present, the
 default trainer is used. An empty `{}` is valid and preserves an imported

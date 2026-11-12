@@ -1,0 +1,55 @@
+Traceback (most recent call last):
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 380, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/trainer.py", line 937, in train
+    self.train_step(data_iterator)
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/trainer.py", line 777, in train_step
+    loss = self.forward_backward_step(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/observability/structured_logger/structured_logging.py", line 437, in sync_wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/trainer.py", line 701, in forward_backward_step
+    loss.backward()
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_tensor.py", line 623, in backward
+    torch.autograd.backward(
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/__init__.py", line 395, in backward
+    _engine_run_backward(
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/graph.py", line 1072, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/function.py", line 374, in apply_boxed
+    return self._get_user_fn()(self, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 3532, in backward
+    return CompiledFunction._bwd_fn(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_functorch/_aot_autograd/codegen.py:codegen(compiled_function_backward)", line 16, in _compiled_backward
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_functorch/_aot_autograd/codegen.py:codegen(compiled_function_backward)", line 10, in impl_fn
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 3613, in _backward_impl
+    return call_func_at_runtime_with_args(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_functorch/_aot_autograd/utils.py", line 151, in call_func_at_runtime_with_args
+    out = normalize_as_list(f(args))
+                            ^^^^^^^
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py", line 1548, in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_inductor/output_code.py", line 828, in __call__
+    return self.current_callable(inputs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_inductor/utils.py", line 3739, in run
+    out = model(new_inputs)
+          ^^^^^^^^^^^^^^^^^
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/NATIVE-SMOKE/001/cache/torchinductor/hk/chkdyyctwia2rt54e367cu7drsuuliiqgwpyl7lsu3gvmuuzsf2d.py", line 4911, in call
+    triton_poi_fused__to_copy_cat_slice_transpose_view_34.run(buf197, buf226, buf227, 100663296, stream=raw_stream6)
+  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_inductor/runtime/triton_heuristics.py", line 2467, in run
+    return fast(*args, stream=stream)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 5, in launcher
+RuntimeError: CUDA driver error: an illegal instruction was encountered
+The CUDA driver logged these messages, which may provide useful details:
+Sticky error detected
+Returning 715 (CUDA_ERROR_ILLEGAL_INSTRUCTION) from cuLaunchKernel
+

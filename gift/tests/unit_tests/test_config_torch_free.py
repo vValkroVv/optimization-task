@@ -43,6 +43,10 @@ COMPONENT_TYPES: dict[str, tuple[str | None, list[str]]] = {
         None,
         [
             "autometrics",
+            "campaign_combine_bwd_completion",
+            "campaign_cudagraph_step_boundary",
+            "campaign_rng_continuation",
+            "campaign_timing_observer",
             "dynamic_block_lr_rescaler",
             "ema",
             "monitoring",

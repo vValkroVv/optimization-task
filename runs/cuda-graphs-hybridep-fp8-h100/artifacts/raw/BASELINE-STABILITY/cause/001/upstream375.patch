@@ -1,0 +1,78 @@
+From 4e4e54036becc2a1ee9b5470015566673045acfd Mon Sep 17 00:00:00 2001
+From: Functionhx <2994114386@qq.com>
+Date: Fri, 10 Jul 2026 01:59:42 +0800
+Subject: [PATCH] Fix non-deterministic numerical results in
+ k_grouped_fp8_gemm_nt_contiguous
+
+The SM90 FP8 1D1D kernel updates TMA tensor map descriptors in-place
+during k-grouped GEMM group switches. The original code issued
+tensormap.replace operations before draining in-flight TMA data loads,
+committing both into the same cp.async.bulk commit group. Per the PTX
+ISA, operations within a commit group may complete in any order, which
+allows the tensor map descriptor modifications to become visible before
+pending TMA data loads complete.
+
+This race manifests as non-deterministic numerical errors when one
+expert has exactly 128 tokens (k=BLOCK_K, a single k-block) and a column
+of the activation tensor is all zeros. The shorter pipeline depth with
+k=128 exposes the race, while the all-zero column with a non-negligible
+scale factor (e.g., 1.0) makes wrong reads visible.
+
+Fix: drain all pending TMA data operations before modifying tensor map
+descriptors, then fence the modifications in a separate commit group.
+This ensures clean separation between data operations and descriptor
+updates.
+
+Fixes #365
+
+Test Plan:
+  Reproduced the non-determinism with the reproducer from #365 on a
+  GH200/H100 GPU and confirmed the fix eliminates all failures across
+  10,000 iterations for all scale factor values: 1, 1e-4, 1e-8, 1e-30.
+
+Signed-off-by: Yuchen Fan <functionhx@gmail.com>
+---
+ .../deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh      | 17 ++++++++++-------
+ 1 file changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh b/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh
+index b16fd6c271..d5a9003447 100644
+--- a/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh
++++ b/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh
+@@ -191,26 +191,29 @@ sm90_fp8_gemm_1d1d_impl(__nv_fp8_e4m3* gmem_a_ptr, __nv_fp8_e4m3* gmem_b_ptr,
+                 if (kGemmType == GemmType::KGroupedContiguous and last_group_idx != scheduler.current_group_idx) {
+                     last_group_idx = scheduler.current_group_idx;
+ 
+-                    // Directly update current tensor map
++                    // Drain all pending TMA data operations before modifying tensor map descriptors.
++                    // This prevents a race where tensormap.replace operations and in-flight TMA loads
++                    // compete within the same commit group, which the PTX ISA allows to resolve in any order.
++                    cute::tma_desc_commit_group();
++                    cute::tma_desc_wait_group();
++                    __syncwarp(1U << lane_idx);
++
++                    // Update current tensor map descriptors
+                     const uint64_t current_k_offset = scheduler.current_k_cumsum;
+                     ptx::tensor_map_replace_global_addr_in_smem(smem_tensor_map_a, gmem_a_ptr + current_k_offset * shape_m);
+                     ptx::tensor_map_replace_global_addr_in_smem(smem_tensor_map_b, gmem_b_ptr + current_k_offset * shape_n);
+                     ptx::tensor_map_replace_global_inner_dim_stride_in_smem(smem_tensor_map_a, scheduler.current_shape_k, scheduler.current_shape_k);
+                     ptx::tensor_map_replace_global_inner_dim_stride_in_smem(smem_tensor_map_b, scheduler.current_shape_k, scheduler.current_shape_k);
+ 
+-                    // Make sure tensormaps are not used by TMA before updating GMEM.
++                    // Fence the descriptor modifications
+                     cute::tma_desc_commit_group();
+                     cute::tma_desc_wait_group();
+-                    // Only used to prevent `ptxas` from moving the following GMEM stores before `cute::tma_desc_wait_group()`.
+-                    // Shouldn't be needed otherwise, since we only use one thread.
+-
+                     __syncwarp(1U << lane_idx);
+ 
++                    // Copy updated descriptors to global memory and make them visible to TMA
+                     *(gmem_tensor_map_a) = *(smem_tensor_map_a);
+                     *(gmem_tensor_map_b) = *(smem_tensor_map_b);
+                     ptx::tensor_map_release_gpu();
+-
+-                    // Immediately acquire current tensor map
+                     ptx::tensor_map_acquire_gpu(gmem_tensor_map_a);
+                     ptx::tensor_map_acquire_gpu(gmem_tensor_map_b);
+                 }

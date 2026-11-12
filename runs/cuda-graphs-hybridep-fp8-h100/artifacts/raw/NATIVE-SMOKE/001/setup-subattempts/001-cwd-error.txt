@@ -1,0 +1,28 @@
+Prelaunch artifact-generation subattempt 001
+Command context: manifest generator loaded torchtitan.config.cli while current directory was optimization-task instead of task-local gift/. No training process or GPU launch occurred.
+
+Exact observed stderr:
+ /opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+   import pynvml  # type: ignore[import]
+Traceback (most recent call last):
+  File "/home/user/torchtitan/torchtitan/config/loader.py", line 300, in _read_yaml_file
+    with open(path, encoding="utf-8") as handle:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<stdin>", line 32, in <module>
+  File "/home/user/torchtitan/torchtitan/config/cli.py", line 90, in load_config
+    document, applied = _load_document_layers(path, layers, applied)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/torchtitan/torchtitan/config/cli.py", line 45, in _load_document_layers
+    raw_document = load_raw_document(config_path, overrides=override_layers)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/torchtitan/torchtitan/config/loader.py", line 463, in load_raw_document
+    entry_document = _read_yaml_file(path)
+                     ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/torchtitan/torchtitan/config/loader.py", line 303, in _read_yaml_file
+    raise ConfigFileError(f"config file not found: {path}") from exc
+torchtitan.config.errors.ConfigFileError: config file not found: configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml

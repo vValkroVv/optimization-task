@@ -1,0 +1,27 @@
+# Full-state continuation validation for the exact CUDA Graph campaign target.
+# Keep its 30,000-step training and scheduler horizon; stop short checks through
+# the command-line training.steps override.
+config_version: 1
+
+imports:
+  - gift_moe_3b_hybridep_fp8_compile.yaml
+
+trainer:
+  type: cuda_graph_campaign
+
+callbacks:
+  campaign_rng_continuation:
+    type: campaign_rng_continuation
+
+checkpoint:
+  enable: true
+  interval: 5
+  async_mode: disabled
+  initial_load_model_only: false
+  initial_load_in_hf: false
+  last_save_model_only: false
+  save_in_hf: false
+  last_save_in_hf: false
+
+lr_scheduler:
+  total_steps: 30000

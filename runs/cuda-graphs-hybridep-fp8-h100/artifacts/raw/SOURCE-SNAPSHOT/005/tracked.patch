@@ -1,0 +1,899 @@
+diff --git a/gift/docs/config.md b/gift/docs/config.md
+index f9878c67..a6cc8501 100644
+--- a/gift/docs/config.md
++++ b/gift/docs/config.md
+@@ -460,6 +460,17 @@ replace positions. Converter templates are not part of the placed module tree.
+ 
+ ## Trainer type
+ 
++### Per-block CUDA Graph exclusions
++
++| Field | Default | Behavior |
++| --- | --- | --- |
++| `compile.cudagraph_exclude_blocks` | `[]` | Exact model block FQNs where Inductor CUDA Graphs are off. Blocks remain compiled; loss compilation is unchanged. |
++
++A nonempty list requires `compile.enable: true`, `model` in
++`compile.components`, and `compile.backend: inductor`. Names must match blocks
++reported by the model's `named_segments()` exactly. For example, an override can
++select `layers.1` and `layers.17` without changing the model or loss compile path.
++
+ `config_version` must be the integer `1`; booleans and floating-point values
+ are not versions. `trainer` must be a mapping. If no section is present, the
+ default trainer is used. An empty `{}` is valid and preserves an imported
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug.yaml
+index c2d6000f..3b5f8c85 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug.yaml
+@@ -1409,6 +1409,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_flex_attn.yaml b/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_flex_attn.yaml
+index 5d278182..312c6a63 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_flex_attn.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_flex_attn.yaml
+@@ -1388,6 +1388,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_hybridep.yaml b/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_hybridep.yaml
+index 25a4d8f4..ca52f745 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_hybridep.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_hybridep.yaml
+@@ -1405,6 +1405,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/flux_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/flux_debug.yaml
+index 135d1024..d254c85a 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/flux_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/flux_debug.yaml
+@@ -485,6 +485,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:flux
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/ft_llama3_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/ft_llama3_debug.yaml
+index b2a6be0d..4a26535b 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/ft_llama3_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/ft_llama3_debug.yaml
+@@ -853,6 +853,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_700b.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_700b.yaml
+index d3568c8e..14e57645 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_700b.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_700b.yaml
+@@ -1943,6 +1943,7 @@ trainer:
+     backend: inductor
+     components:
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug.yaml
+index 5cc6dcd4..238d7712 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug.yaml
+@@ -1004,6 +1004,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_mds.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_mds.yaml
+index 08769e5f..47fb96e3 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_mds.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_mds.yaml
+@@ -1004,6 +1004,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:streaming_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_varlen.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_varlen.yaml
+index a6b17e9b..e3797236 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_varlen.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_varlen.yaml
+@@ -1010,6 +1010,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_4_700b.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_4_700b.yaml
+index 1ceea815..8fc78f3a 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_4_700b.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_4_700b.yaml
+@@ -2052,6 +2052,7 @@ trainer:
+     backend: inductor
+     components:
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_4_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_4_debug.yaml
+index 1adbb37d..869d17c6 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_4_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_4_debug.yaml
+@@ -1110,6 +1110,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_dense_fp8_compile_non_blocking.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_dense_fp8_compile_non_blocking.yaml
+index c9a44348..4895941e 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_dense_fp8_compile_non_blocking.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_dense_fp8_compile_non_blocking.yaml
+@@ -898,6 +898,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml
+index ce67e59c..e7ee0444 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml
+@@ -898,6 +898,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_hsdp.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_hsdp.yaml
+index 0546ee7e..45b95559 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_hsdp.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_hsdp.yaml
+@@ -898,6 +898,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_pp.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_pp.yaml
+index e52f05d9..fc1ea6be 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_pp.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_pp.yaml
+@@ -898,6 +898,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_tp.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_tp.yaml
+index b60ac965..67e0ed55 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_tp.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_tp.yaml
+@@ -898,6 +898,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug.yaml
+index 0d00dce3..37e863cd 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug.yaml
+@@ -788,6 +788,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep.yaml
+index 10e34dac..d90a7a76 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep.yaml
+@@ -790,6 +790,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_fp8.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_fp8.yaml
+index 0a5e9e99..364360c2 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_fp8.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_fp8.yaml
+@@ -790,6 +790,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop.yaml
+index d64f2df0..96d0d5a0 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop.yaml
+@@ -812,6 +812,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop_fp8.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop_fp8.yaml
+index 4ec471a9..54c707fa 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop_fp8.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop_fp8.yaml
+@@ -812,6 +812,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_frozen.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_frozen.yaml
+index 992674f4..21cf8510 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_frozen.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_frozen.yaml
+@@ -796,6 +796,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8.yaml
+index 9ca758ff..5952df9e 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8.yaml
+@@ -792,6 +792,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8_compile.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8_compile.yaml
+index 52bde430..027908fb 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8_compile.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8_compile.yaml
+@@ -792,6 +792,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop.yaml
+index 308e961b..cfddc86d 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop.yaml
+@@ -817,6 +817,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop_branchless.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop_branchless.yaml
+index fae0c12f..d64a4890 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop_branchless.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop_branchless.yaml
+@@ -817,6 +817,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_mds.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_mds.yaml
+index 78e46496..cf3ea6e7 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_mds.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_mds.yaml
+@@ -788,6 +788,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:streaming_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_monitored.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_monitored.yaml
+index b8e4b151..8a04c6c1 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_monitored.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_monitored.yaml
+@@ -1386,6 +1386,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_streaming_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_streaming_debug.yaml
+index 32a1930f..5f7349ad 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gift_moe_streaming_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gift_moe_streaming_debug.yaml
+@@ -704,6 +704,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:streaming_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/gpt_oss_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/gpt_oss_debug.yaml
+index 19f7f78f..781d34d6 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/gpt_oss_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/gpt_oss_debug.yaml
+@@ -996,6 +996,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug.yaml
+index c3d354ec..299bb1a3 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug.yaml
+@@ -1412,6 +1412,7 @@ trainer:
+     cpu_offload_budget_gb: 100.0
+     cpu_offload_defer_n_layers: 1
+     cpu_offload_prefetch_n_layers: 1
++    cudagraph_exclude_blocks: []
+     debug_graph_passes: false
+     disable_passes: []
+     enable: true
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_flex_attn.yaml b/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_flex_attn.yaml
+index 8fde1ad3..41308e56 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_flex_attn.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_flex_attn.yaml
+@@ -1391,6 +1391,7 @@ trainer:
+     cpu_offload_budget_gb: 100.0
+     cpu_offload_defer_n_layers: 1
+     cpu_offload_prefetch_n_layers: 1
++    cudagraph_exclude_blocks: []
+     debug_graph_passes: false
+     disable_passes: []
+     enable: true
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_hybridep.yaml b/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_hybridep.yaml
+index 4cf8cfd0..1d2e75b6 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_hybridep.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_hybridep.yaml
+@@ -1408,6 +1408,7 @@ trainer:
+     cpu_offload_budget_gb: 100.0
+     cpu_offload_defer_n_layers: 1
+     cpu_offload_prefetch_n_layers: 1
++    cudagraph_exclude_blocks: []
+     debug_graph_passes: false
+     disable_passes: []
+     enable: true
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_8b.yaml b/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_8b.yaml
+index 96994355..3fdfb771 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_8b.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_8b.yaml
+@@ -3055,6 +3055,7 @@ trainer:
+     cpu_offload_budget_gb: 100.0
+     cpu_offload_defer_n_layers: 1
+     cpu_offload_prefetch_n_layers: 1
++    cudagraph_exclude_blocks: []
+     debug_graph_passes: false
+     disable_passes: []
+     enable: true
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug.yaml
+index 39610428..6687a4fb 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug.yaml
+@@ -855,6 +855,7 @@ trainer:
+     cpu_offload_budget_gb: 100.0
+     cpu_offload_defer_n_layers: 1
+     cpu_offload_prefetch_n_layers: 1
++    cudagraph_exclude_blocks: []
+     debug_graph_passes: false
+     disable_passes: []
+     enable: true
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug_flex_attn.yaml b/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug_flex_attn.yaml
+index a596306d..91802173 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug_flex_attn.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug_flex_attn.yaml
+@@ -834,6 +834,7 @@ trainer:
+     cpu_offload_budget_gb: 100.0
+     cpu_offload_defer_n_layers: 1
+     cpu_offload_prefetch_n_layers: 1
++    cudagraph_exclude_blocks: []
+     debug_graph_passes: false
+     disable_passes: []
+     enable: true
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_debug.yaml
+index abdf99be..f3032125 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_debug.yaml
+@@ -1028,6 +1028,7 @@ trainer:
+     cpu_offload_budget_gb: 100.0
+     cpu_offload_defer_n_layers: 1
+     cpu_offload_prefetch_n_layers: 1
++    cudagraph_exclude_blocks: []
+     debug_graph_passes: false
+     disable_passes: []
+     enable: true
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_moe_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_moe_debug.yaml
+index 31931477..15193de7 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_moe_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_moe_debug.yaml
+@@ -1372,6 +1372,7 @@ trainer:
+     cpu_offload_budget_gb: 100.0
+     cpu_offload_defer_n_layers: 1
+     cpu_offload_prefetch_n_layers: 1
++    cudagraph_exclude_blocks: []
+     debug_graph_passes: false
+     disable_passes: []
+     enable: true
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/llama3_8b.yaml b/gift/tests/unit_tests/golden_configs/experiments/llama3_8b.yaml
+index 73bc9d18..a91f5224 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/llama3_8b.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/llama3_8b.yaml
+@@ -3052,6 +3052,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug.yaml
+index c1843ec8..70fa61fd 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug.yaml
+@@ -852,6 +852,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_ce_loss.yaml b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_ce_loss.yaml
+index c6de68ec..f6ff570c 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_ce_loss.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_ce_loss.yaml
+@@ -852,6 +852,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_flex_attn.yaml b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_flex_attn.yaml
+index b5167262..d46fc6c4 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_flex_attn.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_flex_attn.yaml
+@@ -831,6 +831,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_float8.yaml b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_float8.yaml
+index bfd31b73..ab3dc8a0 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_float8.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_float8.yaml
+@@ -852,6 +852,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_varlen_attn.yaml b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_varlen_attn.yaml
+index f4c042ed..c9443e26 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_varlen_attn.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/llama3_debug_varlen_attn.yaml
+@@ -833,6 +833,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/llama4_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/llama4_debug.yaml
+index b611c784..45e3f60e 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/llama4_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/llama4_debug.yaml
+@@ -1188,6 +1188,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/llama4_debug_fp8.yaml b/gift/tests/unit_tests/golden_configs/experiments/llama4_debug_fp8.yaml
+index 6082ba0c..817e90c9 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/llama4_debug_fp8.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/llama4_debug_fp8.yaml
+@@ -1192,6 +1192,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug.yaml
+index 66ec7ee7..5ac3bff1 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug.yaml
+@@ -1025,6 +1025,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_fused_qkv.yaml b/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_fused_qkv.yaml
+index 0b4276db..bfe87988 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_fused_qkv.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_fused_qkv.yaml
+@@ -1019,6 +1019,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_param_groups.yaml b/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_param_groups.yaml
+index 69602f31..c8eb5f0e 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_param_groups.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_param_groups.yaml
+@@ -1025,6 +1025,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/qwen3_moe_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/qwen3_moe_debug.yaml
+index da229445..591b3432 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/qwen3_moe_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/qwen3_moe_debug.yaml
+@@ -1369,6 +1369,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_text
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_debug.yaml
+index 85380a62..2fe62c2b 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_debug.yaml
+@@ -1044,6 +1044,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_multimodal
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_moe_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_moe_debug.yaml
+index bcf136d3..b019f7eb 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_moe_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_moe_debug.yaml
+@@ -838,6 +838,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_multimodal
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b.yaml b/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b.yaml
+index 87dc8040..47c19225 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b.yaml
+@@ -2500,6 +2500,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dump_folder: outputs/rl
+   env:
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b_batch_invariant.yaml b/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b_batch_invariant.yaml
+index e2bcb44a..107865cf 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b_batch_invariant.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b_batch_invariant.yaml
+@@ -2500,6 +2500,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dump_folder: outputs/rl
+   env:
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_14b.yaml b/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_14b.yaml
+index e739fd31..d6000d20 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_14b.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_14b.yaml
+@@ -3426,6 +3426,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dump_folder: outputs/rl
+   env:
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_1_7b.yaml b/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_1_7b.yaml
+index a74d4e5e..fa4fe5f5 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_1_7b.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_1_7b.yaml
+@@ -2500,6 +2500,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: true
+   dump_folder: outputs/rl
+   env:
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/sft_llama3_debug.yaml b/gift/tests/unit_tests/golden_configs/experiments/sft_llama3_debug.yaml
+index deddc74b..e699ed90 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/sft_llama3_debug.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/sft_llama3_debug.yaml
+@@ -831,6 +831,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_chat
+diff --git a/gift/tests/unit_tests/golden_configs/experiments/sft_qwen3_8b_math.yaml b/gift/tests/unit_tests/golden_configs/experiments/sft_qwen3_8b_math.yaml
+index 8e95a495..bbb7d962 100644
+--- a/gift/tests/unit_tests/golden_configs/experiments/sft_qwen3_8b_math.yaml
++++ b/gift/tests/unit_tests/golden_configs/experiments/sft_qwen3_8b_math.yaml
+@@ -3154,6 +3154,7 @@ trainer:
+     components:
+     - model
+     - loss
++    cudagraph_exclude_blocks: []
+     enable: false
+   dataloader:
+     __type__: dataloader:hf_chat
+diff --git a/gift/tests/unit_tests/test_config_torch_free.py b/gift/tests/unit_tests/test_config_torch_free.py
+index 8e968f9e..b6ce1c9f 100644
+--- a/gift/tests/unit_tests/test_config_torch_free.py
++++ b/gift/tests/unit_tests/test_config_torch_free.py
+@@ -43,6 +43,9 @@ COMPONENT_TYPES: dict[str, tuple[str | None, list[str]]] = {
+         None,
+         [
+             "autometrics",
++            "campaign_cudagraph_step_boundary",
++            "campaign_rng_continuation",
++            "campaign_timing_observer",
+             "dynamic_block_lr_rescaler",
+             "ema",
+             "monitoring",
+diff --git a/gift/torchtitan/config/configs.py b/gift/torchtitan/config/configs.py
+index 363d435e..3f60e48a 100644
+--- a/gift/torchtitan/config/configs.py
++++ b/gift/torchtitan/config/configs.py
+@@ -480,6 +480,46 @@ class CompileConfig:
+ 
+     backend: str = "inductor"
+ 
++    cudagraph_exclude_blocks: list[str] = field(default_factory=list)
++    """Exact model block FQNs compiled without Inductor CUDA Graphs.
++
++    An empty list preserves the default compile call. A nonempty list requires
++    model compilation with the Inductor backend.
++    """
++
++    def __post_init__(self) -> None:
++        if type(self.cudagraph_exclude_blocks) is not list:
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks must be a list of block FQNs"
++            )
++        if not self.cudagraph_exclude_blocks:
++            return
++        if any(
++            type(name) is not str or not name
++            for name in self.cudagraph_exclude_blocks
++        ):
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks must contain nonempty block FQNs"
++            )
++        if len(set(self.cudagraph_exclude_blocks)) != len(
++            self.cudagraph_exclude_blocks
++        ):
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks contains duplicate block FQNs"
++            )
++        if not self.enable:
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks requires compile.enable=true"
++            )
++        if "model" not in self.components:
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks requires 'model' in compile.components"
++            )
++        if self.backend != "inductor":
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks requires compile.backend='inductor'"
++            )
++
+ 
+ @dataclass(kw_only=True, slots=True)
+ class CommConfig:
+diff --git a/gift/torchtitan/config/registry.py b/gift/torchtitan/config/registry.py
+index 29f38cef..5aef7c44 100644
+--- a/gift/torchtitan/config/registry.py
++++ b/gift/torchtitan/config/registry.py
+@@ -96,6 +96,11 @@ TRAINER_TYPES: dict[str, TrainerType] = {
+         spec="torchtitan.config.schema.experiments.graph_trainer.trainer:GraphTrainerConfig",
+         model_trainer_type="graph_trainer",
+     ),
++    # Exact-target CUDA Graph campaign experiments, layered over the default
++    # model runtime contract and native trainer path.
++    "cuda_graph_campaign": TrainerType(
++        spec="torchtitan.config.schema.experiments.cuda_graph_campaign.trainer:CampaignTrainerConfig",
++    ),
+     # GRPO controller on Monarch (rollouts through vLLM, a PolicyTrainer
+     # actor); its own root sections.
+     "rl": TrainerType(
+diff --git a/gift/torchtitan/distributed/compile.py b/gift/torchtitan/distributed/compile.py
+index 599b35f1..c6793786 100644
+--- a/gift/torchtitan/distributed/compile.py
++++ b/gift/torchtitan/distributed/compile.py
+@@ -31,6 +31,46 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
+     (after applying DP). Blocks come from ``model.named_segments()``, so every
+     container is covered without per-model wiring.
+     """
++    excluded_fqns = compile_config.cudagraph_exclude_blocks
++    if type(excluded_fqns) is not list:
++        raise ValueError(
++            "compile.cudagraph_exclude_blocks must be a list of block FQNs"
++        )
++    if excluded_fqns:
++        if any(type(name) is not str or not name for name in excluded_fqns):
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks must contain nonempty block FQNs"
++            )
++        if not compile_config.enable:
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks requires compile.enable=true"
++            )
++        if "model" not in compile_config.components:
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks requires 'model' in compile.components"
++            )
++        if compile_config.backend != "inductor":
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks requires compile.backend='inductor'"
++            )
++        if len(set(excluded_fqns)) != len(excluded_fqns):
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks contains duplicate block FQNs"
++            )
++
++    blocks = None
++    if excluded_fqns:
++        blocks = [segment for segment in model.named_segments() if segment.is_block]
++        available_fqns = {segment.fqn for segment in blocks}
++        unmatched_fqns = [
++            name for name in excluded_fqns if name not in available_fqns
++        ]
++        if unmatched_fqns:
++            raise ValueError(
++                "compile.cudagraph_exclude_blocks contains unmatched block FQNs: "
++                f"{unmatched_fqns}"
++            )
++
+     # Needed for torch.compile to handle data-dependent dynamic shapes in
+     # token-choice MoE dispatch. Harmless for dense models.
+     torch._dynamo.config.capture_scalar_outputs = True
+@@ -53,10 +93,18 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
+         )
+ 
+     compiled: dict[str, int] = {}
+-    for segment in model.named_segments():
++    segments = blocks if blocks is not None else model.named_segments()
++    for segment in segments:
+         if not segment.is_block:
+             continue
+-        segment.module.compile(backend=compile_config.backend, fullgraph=True)
++        if segment.fqn in excluded_fqns:
++            segment.module.compile(
++                backend=compile_config.backend,
++                fullgraph=True,
++                options={"triton.cudagraphs": False},
++            )
++        else:
++            segment.module.compile(backend=compile_config.backend, fullgraph=True)
+         compiled[segment.group] = compiled.get(segment.group, 0) + 1
+ 
+     if not compiled:
+@@ -69,6 +117,14 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
+ 
+     counts = ", ".join(f"{n} in {group}" for group, n in compiled.items())
+     logger.info(f"Compiling each block with torch.compile ({counts})")
++    if excluded_fqns:
++        assert blocks is not None
++        matched = [segment.fqn for segment in blocks if segment.fqn in excluded_fqns]
++        logger.info(
++            "Disabled Inductor CUDA Graphs for "
++            f"{len(matched)} block(s) with options={{'triton.cudagraphs': False}}: "
++            f"{matched}"
++        )
+ 
+ 
+ class EagerWindow:
+diff --git a/gift/torchtitan/ops/float8/_cudacherry.py b/gift/torchtitan/ops/float8/_cudacherry.py
+index 26c41cd3..719efd85 100644
+--- a/gift/torchtitan/ops/float8/_cudacherry.py
++++ b/gift/torchtitan/ops/float8/_cudacherry.py
+@@ -53,7 +53,7 @@ def _check_qtensor_binding() -> None:
+ 
+ _check_qtensor_binding()
+ 
+-from cudacherry.gemm import gemm as fp8_gemm  # noqa: E402
++from ._cudacherry_graph_safe import fp8_gemm  # noqa: E402
+ from cudacherry.quantization import (  # noqa: E402
+     quantize_blk128x128,
+     quantize_vec128,

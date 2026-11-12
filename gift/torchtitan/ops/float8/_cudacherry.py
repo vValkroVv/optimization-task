@@ -53,7 +53,7 @@ def _check_qtensor_binding() -> None:
 
 _check_qtensor_binding()
 
-from cudacherry.gemm import gemm as fp8_gemm  # noqa: E402
+from ._cudacherry_graph_safe import fp8_gemm  # noqa: E402
 from cudacherry.quantization import (  # noqa: E402
     quantize_blk128x128,
     quantize_vec128,

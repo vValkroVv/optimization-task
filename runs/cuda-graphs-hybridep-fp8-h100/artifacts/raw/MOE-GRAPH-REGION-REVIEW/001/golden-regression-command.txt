@@ -1,0 +1,18 @@
+/opt/torchtitan-venv/bin/python - <<'PY_CHECK'
+import sys
+sys.path.insert(0, 'gift')
+import torch
+torch.cuda.is_available = lambda: False
+torch.cuda.device_count = lambda: 0
+def forbid(*args, **kwargs):
+    raise AssertionError('CUDA initialization forbidden')
+torch.cuda.init = forbid
+torch.cuda._lazy_init = forbid
+from tests.unit_tests.config_golden import check_golden, resolve
+key = 'experiments/gift_moe_3b_hybridep_fp8_compile.yaml'
+try:
+    check_golden(key, resolve(key))
+except AssertionError as error:
+    print(error)
+    raise SystemExit(2)
+PY_CHECK

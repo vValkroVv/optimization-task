@@ -1,0 +1,132 @@
+{
+  "status": "INVALID_STOPPED",
+  "variant": "C0a/off",
+  "attempt": "001",
+  "source_snapshot": "006",
+  "source_manifest_sha256": "3a606c81d6b13692e422da04c333252620e504df9f1c4ba59c4bcf0c1a51f603",
+  "controller_pid": 575353,
+  "started_at_utc": "2026-11-12T03:00:21.495556+00:00",
+  "finished_at_utc": "2026-11-12T03:04:13.199326+00:00",
+  "process_exit_code": 1,
+  "first_observed_fault": {
+    "rank": 3,
+    "local_rank": 3,
+    "worker_pid": 575479,
+    "step": 48,
+    "structured_fwd_bwd_error_utc": "2026-11-12T03:03:53.706+00:00",
+    "nccl_watchdog_cuda_event_error_utc": "2026-11-12T03:03:53.881167187+00:00",
+    "error": "CUDA error: an illegal instruction was encountered",
+    "observed_stack": "loss.backward() through AOT/Inductor compiled backward; generated call stack includes torch.ops.cudacherry.quantize_blk128x128.default",
+    "interpretation_limit": "CUDA notes asynchronous kernel errors can surface at a later API call. This stack does not prove which kernel originated the fault or an NCCL transport failure.",
+    "torchrun_rank_exit": "-6 (SIGABRT)",
+    "peer_termination_started_utc": "2026-11-12T03:04:09.070+00:00"
+  },
+  "training_progress": {
+    "successful_optimizer_updates_per_rank": 47,
+    "successful_fwd_bwd_microbatches_per_rank": 188,
+    "successful_microbatches_per_update": 4,
+    "all_rank_progress_matches": true,
+    "basis": "Structured records show four successful fwd_bwd completions for each step 1-47 on every rank. gift/torchtitan/trainer.py processes the microbatch loop before optimizers.step (lines 759-807). Step 48 failed during backward before that optimizer block.",
+    "step_48": {
+      "one_fwd_bwd_start_per_rank": true,
+      "rank3_failed_fwd_bwd": true,
+      "successful_fwd_bwd_microbatches": 0,
+      "optimizer_update_completed": false
+    }
+  },
+  "required_window": {
+    "start_step": 21,
+    "expected_updates": 50,
+    "end_boundary_step": 71,
+    "complete_updates_observed": 27,
+    "successful_window_microbatches_per_rank": 108,
+    "required_window_microbatches_per_rank": 200,
+    "required_global_tokens_per_rank": 52428800,
+    "primary_throughput": null,
+    "reason": "The timing observer window is incomplete and no per-rank observer output was persisted."
+  },
+  "configuration_evidence": {
+    "all_rank_compiler_options_match_C0a": true,
+    "rank_options": [
+      {
+        "rank": 0,
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "triton.mix_order_reduction": false,
+        "triton.cudagraphs": false,
+        "graph_partition": true
+      },
+      {
+        "rank": 1,
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "triton.mix_order_reduction": false,
+        "triton.cudagraphs": false,
+        "graph_partition": true
+      },
+      {
+        "rank": 2,
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "triton.mix_order_reduction": false,
+        "triton.cudagraphs": false,
+        "graph_partition": true
+      },
+      {
+        "rank": 3,
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "triton.mix_order_reduction": false,
+        "triton.cudagraphs": false,
+        "graph_partition": true
+      },
+      {
+        "rank": 4,
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "triton.mix_order_reduction": false,
+        "triton.cudagraphs": false,
+        "graph_partition": true
+      },
+      {
+        "rank": 5,
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "triton.mix_order_reduction": false,
+        "triton.cudagraphs": false,
+        "graph_partition": true
+      },
+      {
+        "rank": 6,
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "triton.mix_order_reduction": false,
+        "triton.cudagraphs": false,
+        "graph_partition": true
+      },
+      {
+        "rank": 7,
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "triton.mix_order_reduction": false,
+        "triton.cudagraphs": false,
+        "graph_partition": true
+      }
+    ],
+    "resolved_config": "native/config/resolved_config.yaml",
+    "observer_config": "config/observer.yaml",
+    "profiler_enabled": false,
+    "memory_snapshot_enabled": false,
+    "source_manifest_and_overlay_hashes_match_preflight": true
+  },
+  "logging_storage": {
+    "structured_logs_parse_and_sequence_contiguous": true,
+    "actual_nul_bytes": 0,
+    "enospc_or_no_space_message_files": [],
+    "nvidia_smi_stderr_bytes": 0,
+    "finding": "No run-log evidence of ENOSPC or record loss; structured records are intact."
+  },
+  "gpu_release_check": "gpu-release-check.json (RELEASE_CHECK_PASS)",
+  "sampled_device_memory": "gpu-sampled-memory-summary.json",
+  "performance_valid": false,
+  "matrix_action": "Stop after first invalid run; no retry and no launch of attempts 002-004.",
+  "protocol": "preparation/001/protocol.json",
+  "raw_error_artifacts": [
+    "supervisor.log",
+    "torchrun/*/attempt_0/3/error.json",
+    "torchrun/*/attempt_0/3/stderr.log",
+    "native/structured_logs/training.global_rank_3.20261112-030032-1FJADB.jsonl"
+  ]
+}

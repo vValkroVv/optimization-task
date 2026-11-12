@@ -1,0 +1,535 @@
+{
+  "allocator_backend": "native",
+  "allocator_backend_reason": null,
+  "config_id": "config-sha-test",
+  "coverage": {
+    "expected_end_step": 30,
+    "incomplete_reasons": [],
+    "invalid_reasons": [],
+    "known_limits": [
+      "No pre-constructor allocator snapshot was taken; whole-process bootstrap peak is unavailable.",
+      "Native stats are copied after memory_stats returns; the copy bracket does not time the allocator API itself.",
+      "The interval between native stats capture and the native reset is not sampled.",
+      "Only the imported metrics.reset_peak_stats binding is wrapped; unobserved direct torch reset calls are not detected.",
+      "A008 updates 21-23 are replay, not a capture-only phase; steady labels use reset-aligned windows."
+    ],
+    "last_training_metrics_step": 30,
+    "reset_generation_count": 6,
+    "status": "complete"
+  },
+  "device": {
+    "cuda_visible_devices": "GPU-AAA,GPU-BBB",
+    "device_type": "cuda",
+    "device_uuid": "GPU-BBB",
+    "logical_device_index": 1,
+    "logical_index_mapping": "Trainer constructs cuda:LOCAL_RANK and calls device_module.set_device",
+    "physical_mapping_reason": null,
+    "visible_device_selector": "GPU-BBB"
+  },
+  "device_capacity_bytes": 1000,
+  "device_samples": {
+    "boundary_exclusions": null,
+    "expected_sample_period_ms": 500,
+    "first_sample_utc": null,
+    "last_sample_utc": null,
+    "maximum_observed_used_bytes": null,
+    "maximum_sample_gap_ms": null,
+    "phase_exclusions": null,
+    "rank_device_join": null,
+    "reason": "sampler data stays external and must be joined offline using verified device mapping and clock brackets",
+    "sample_count": null,
+    "source": "external nvidia-smi CSV: timestamp,index,memory.used",
+    "status": "pending_external_join",
+    "timestamp_timezone": "UTC"
+  },
+  "events": [
+    {
+      "context": "metrics_processor_constructor",
+      "event_id": "event-00000",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": null,
+      "previous_generation": -1,
+      "reasons": [],
+      "reset_completed_clock": {
+        "monotonic_ns": 2415759164672598,
+        "utc_bracket_width_ns": 830,
+        "utc_ns_bracket": [
+          1794465947989514941,
+          1794465947989515771
+        ]
+      },
+      "reset_generation": 0,
+      "status": "complete",
+      "step": null
+    },
+    {
+      "actual_window": {
+        "first_training_step": 1,
+        "label": "initial_to_1",
+        "last_training_step": 1,
+        "reset_origin": "metrics_processor_constructor_reset"
+      },
+      "allocator_counters_bytes": {
+        "active_bytes.all.current": 5,
+        "active_bytes.all.peak": 90,
+        "allocated_bytes.all.current": 10,
+        "allocated_bytes.all.peak": 900,
+        "num_alloc_retries": 0,
+        "num_ooms": 0,
+        "reserved_bytes.all.current": 950,
+        "reserved_bytes.all.peak": 950
+      },
+      "capture_clock": {
+        "copy_end": {
+          "monotonic_ns": 2415759164690738,
+          "utc_bracket_width_ns": 150,
+          "utc_ns_bracket": [
+            1794465947989533671,
+            1794465947989533821
+          ]
+        },
+        "copy_start": {
+          "monotonic_ns": 2415759164685608,
+          "utc_bracket_width_ns": 330,
+          "utc_ns_bracket": [
+            1794465947989528441,
+            1794465947989528771
+          ]
+        },
+        "semantics": "raw stats were returned by native memory_stats before this Python-copy bracket"
+      },
+      "context": "training",
+      "device_capacity_bytes": 1000,
+      "event_id": "event-00001",
+      "event_kind": "native_snapshot",
+      "missing_optional_keys": [],
+      "paired_reset_event_id": "event-00002",
+      "phase_label": "initial_through_20",
+      "reasons": [],
+      "reset_generation": 0,
+      "reset_origin": {
+        "clock": {
+          "monotonic_ns": 2415759164672598,
+          "utc_bracket_width_ns": 830,
+          "utc_ns_bracket": [
+            1794465947989514941,
+            1794465947989515771
+          ]
+        },
+        "context": "metrics_processor_constructor",
+        "generation": 0,
+        "step": null
+      },
+      "status": "complete",
+      "step": 1
+    },
+    {
+      "context": "training",
+      "event_id": "event-00002",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": "event-00001",
+      "previous_generation": 0,
+      "reasons": [],
+      "reset_completed_clock": {
+        "monotonic_ns": 2415759164704519,
+        "utc_bracket_width_ns": 130,
+        "utc_ns_bracket": [
+          1794465947989547482,
+          1794465947989547612
+        ]
+      },
+      "reset_generation": 1,
+      "status": "complete",
+      "step": 1
+    },
+    {
+      "actual_window": {
+        "first_training_step": 2,
+        "label": "2_to_10",
+        "last_training_step": 10,
+        "reset_origin": "training_reset_after_step_1"
+      },
+      "allocator_counters_bytes": {
+        "active_bytes.all.current": 5,
+        "active_bytes.all.peak": 50,
+        "allocated_bytes.all.current": 10,
+        "allocated_bytes.all.peak": 600,
+        "num_alloc_retries": 0,
+        "num_ooms": 0,
+        "reserved_bytes.all.current": 700,
+        "reserved_bytes.all.peak": 700
+      },
+      "capture_clock": {
+        "copy_end": {
+          "monotonic_ns": 2415759164718809,
+          "utc_bracket_width_ns": 130,
+          "utc_ns_bracket": [
+            1794465947989561762,
+            1794465947989561892
+          ]
+        },
+        "copy_start": {
+          "monotonic_ns": 2415759164716319,
+          "utc_bracket_width_ns": 150,
+          "utc_ns_bracket": [
+            1794465947989559262,
+            1794465947989559412
+          ]
+        },
+        "semantics": "raw stats were returned by native memory_stats before this Python-copy bracket"
+      },
+      "context": "training",
+      "device_capacity_bytes": 1000,
+      "event_id": "event-00003",
+      "event_kind": "native_snapshot",
+      "missing_optional_keys": [],
+      "paired_reset_event_id": "event-00004",
+      "phase_label": "initial_through_20",
+      "reasons": [],
+      "reset_generation": 1,
+      "reset_origin": {
+        "clock": {
+          "monotonic_ns": 2415759164704519,
+          "utc_bracket_width_ns": 130,
+          "utc_ns_bracket": [
+            1794465947989547482,
+            1794465947989547612
+          ]
+        },
+        "context": "training",
+        "generation": 1,
+        "step": 1
+      },
+      "status": "complete",
+      "step": 10
+    },
+    {
+      "context": "training",
+      "event_id": "event-00004",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": "event-00003",
+      "previous_generation": 1,
+      "reasons": [],
+      "reset_completed_clock": {
+        "monotonic_ns": 2415759164729409,
+        "utc_bracket_width_ns": 140,
+        "utc_ns_bracket": [
+          1794465947989572362,
+          1794465947989572502
+        ]
+      },
+      "reset_generation": 2,
+      "status": "complete",
+      "step": 10
+    },
+    {
+      "actual_window": {
+        "first_training_step": null,
+        "label": "validation_at_10",
+        "last_training_step": 10
+      },
+      "allocator_counters_bytes": {
+        "active_bytes.all.current": 5,
+        "active_bytes.all.peak": 999,
+        "allocated_bytes.all.current": 10,
+        "allocated_bytes.all.peak": 999,
+        "num_alloc_retries": 0,
+        "num_ooms": 0,
+        "reserved_bytes.all.current": 1000,
+        "reserved_bytes.all.peak": 1000
+      },
+      "capture_clock": {
+        "copy_end": {
+          "monotonic_ns": 2415759164738939,
+          "utc_bracket_width_ns": 110,
+          "utc_ns_bracket": [
+            1794465947989581912,
+            1794465947989582022
+          ]
+        },
+        "copy_start": {
+          "monotonic_ns": 2415759164736969,
+          "utc_bracket_width_ns": 130,
+          "utc_ns_bracket": [
+            1794465947989579932,
+            1794465947989580062
+          ]
+        },
+        "semantics": "raw stats were returned by native memory_stats before this Python-copy bracket"
+      },
+      "context": "validation",
+      "device_capacity_bytes": 1000,
+      "event_id": "event-00005",
+      "event_kind": "native_snapshot",
+      "missing_optional_keys": [],
+      "paired_reset_event_id": "event-00006",
+      "phase_label": "validation",
+      "reasons": [],
+      "reset_generation": 2,
+      "reset_origin": {
+        "clock": {
+          "monotonic_ns": 2415759164729409,
+          "utc_bracket_width_ns": 140,
+          "utc_ns_bracket": [
+            1794465947989572362,
+            1794465947989572502
+          ]
+        },
+        "context": "training",
+        "generation": 2,
+        "step": 10
+      },
+      "status": "complete",
+      "step": 10
+    },
+    {
+      "context": "validation",
+      "event_id": "event-00006",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": "event-00005",
+      "previous_generation": 2,
+      "reasons": [],
+      "reset_completed_clock": {
+        "monotonic_ns": 2415759164745969,
+        "utc_bracket_width_ns": 120,
+        "utc_ns_bracket": [
+          1794465947989588932,
+          1794465947989589052
+        ]
+      },
+      "reset_generation": 3,
+      "status": "complete",
+      "step": 10
+    },
+    {
+      "actual_window": {
+        "first_training_step": 11,
+        "label": "11_to_20",
+        "last_training_step": 20,
+        "reset_origin": "validation_reset_after_step_10"
+      },
+      "allocator_counters_bytes": {
+        "active_bytes.all.current": 5,
+        "active_bytes.all.peak": 40,
+        "allocated_bytes.all.current": 10,
+        "allocated_bytes.all.peak": 500,
+        "num_alloc_retries": 0,
+        "num_ooms": 0,
+        "reserved_bytes.all.current": 550,
+        "reserved_bytes.all.peak": 550
+      },
+      "capture_clock": {
+        "copy_end": {
+          "monotonic_ns": 2415759164753579,
+          "utc_bracket_width_ns": 140,
+          "utc_ns_bracket": [
+            1794465947989596532,
+            1794465947989596672
+          ]
+        },
+        "copy_start": {
+          "monotonic_ns": 2415759164751849,
+          "utc_bracket_width_ns": 140,
+          "utc_ns_bracket": [
+            1794465947989594792,
+            1794465947989594932
+          ]
+        },
+        "semantics": "raw stats were returned by native memory_stats before this Python-copy bracket"
+      },
+      "context": "training",
+      "device_capacity_bytes": 1000,
+      "event_id": "event-00007",
+      "event_kind": "native_snapshot",
+      "missing_optional_keys": [],
+      "paired_reset_event_id": "event-00008",
+      "phase_label": "initial_through_20",
+      "reasons": [],
+      "reset_generation": 3,
+      "reset_origin": {
+        "clock": {
+          "monotonic_ns": 2415759164745969,
+          "utc_bracket_width_ns": 120,
+          "utc_ns_bracket": [
+            1794465947989588932,
+            1794465947989589052
+          ]
+        },
+        "context": "validation",
+        "generation": 3,
+        "step": 10
+      },
+      "status": "complete",
+      "step": 20
+    },
+    {
+      "context": "training",
+      "event_id": "event-00008",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": "event-00007",
+      "previous_generation": 3,
+      "reasons": [],
+      "reset_completed_clock": {
+        "monotonic_ns": 2415759164759929,
+        "utc_bracket_width_ns": 130,
+        "utc_ns_bracket": [
+          1794465947989602882,
+          1794465947989603012
+        ]
+      },
+      "reset_generation": 4,
+      "status": "complete",
+      "step": 20
+    },
+    {
+      "actual_window": {
+        "first_training_step": 21,
+        "label": "21_to_30",
+        "last_training_step": 30,
+        "reset_origin": "training_reset_after_step_20"
+      },
+      "allocator_counters_bytes": {
+        "active_bytes.all.current": 5,
+        "active_bytes.all.peak": 35,
+        "allocated_bytes.all.current": 10,
+        "allocated_bytes.all.peak": 450,
+        "num_alloc_retries": 0,
+        "num_ooms": 0,
+        "reserved_bytes.all.current": 525,
+        "reserved_bytes.all.peak": 525
+      },
+      "capture_clock": {
+        "copy_end": {
+          "monotonic_ns": 2415759164766109,
+          "utc_bracket_width_ns": 90,
+          "utc_ns_bracket": [
+            1794465947989609092,
+            1794465947989609182
+          ]
+        },
+        "copy_start": {
+          "monotonic_ns": 2415759164764639,
+          "utc_bracket_width_ns": 120,
+          "utc_ns_bracket": [
+            1794465947989607602,
+            1794465947989607722
+          ]
+        },
+        "semantics": "raw stats were returned by native memory_stats before this Python-copy bracket"
+      },
+      "context": "training",
+      "device_capacity_bytes": 1000,
+      "event_id": "event-00009",
+      "event_kind": "native_snapshot",
+      "missing_optional_keys": [],
+      "paired_reset_event_id": "event-00010",
+      "phase_label": "steady_21_to_30",
+      "reasons": [],
+      "reset_generation": 4,
+      "reset_origin": {
+        "clock": {
+          "monotonic_ns": 2415759164759929,
+          "utc_bracket_width_ns": 130,
+          "utc_ns_bracket": [
+            1794465947989602882,
+            1794465947989603012
+          ]
+        },
+        "context": "training",
+        "generation": 4,
+        "step": 20
+      },
+      "status": "complete",
+      "step": 30
+    },
+    {
+      "context": "training",
+      "event_id": "event-00010",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": "event-00009",
+      "previous_generation": 4,
+      "reasons": [],
+      "reset_completed_clock": {
+        "monotonic_ns": 2415759164771549,
+        "utc_bracket_width_ns": 100,
+        "utc_ns_bracket": [
+          1794465947989614532,
+          1794465947989614632
+        ]
+      },
+      "reset_generation": 5,
+      "status": "complete",
+      "step": 30
+    }
+  ],
+  "local_rank": 1,
+  "phase_boundaries": {
+    "expected_end_step": 30,
+    "startup_end_step": 20
+  },
+  "phase_envelopes": [
+    {
+      "actual_windows": [
+        {
+          "first_training_step": 1,
+          "label": "initial_to_1",
+          "last_training_step": 1,
+          "reset_origin": "metrics_processor_constructor_reset"
+        },
+        {
+          "first_training_step": 2,
+          "label": "2_to_10",
+          "last_training_step": 10,
+          "reset_origin": "training_reset_after_step_1"
+        },
+        {
+          "first_training_step": 11,
+          "label": "11_to_20",
+          "last_training_step": 20,
+          "reset_origin": "validation_reset_after_step_10"
+        }
+      ],
+      "max_allocated_peak_bytes": 900,
+      "max_reserved_peak_bytes": 950,
+      "partial_values_only": false,
+      "phase_label": "initial_through_20",
+      "snapshot_steps": [
+        1,
+        10,
+        20
+      ],
+      "status": "complete"
+    },
+    {
+      "actual_windows": [
+        {
+          "first_training_step": 21,
+          "label": "21_to_30",
+          "last_training_step": 30,
+          "reset_origin": "training_reset_after_step_20"
+        }
+      ],
+      "max_allocated_peak_bytes": 450,
+      "max_reserved_peak_bytes": 525,
+      "partial_values_only": false,
+      "phase_label": "steady_21_to_30",
+      "snapshot_steps": [
+        30
+      ],
+      "status": "complete"
+    }
+  ],
+  "rank": 1,
+  "record_type": "phase_memory",
+  "run_id": "run-test",
+  "schema_version": 1,
+  "source_id": "source-007-test",
+  "status": "complete",
+  "timing_observer": {
+    "anchors": {},
+    "existing_memory_samples": {},
+    "memory_samples_are_separate_from_native_intervals": true
+  },
+  "training_log_frequency": 10,
+  "world_size": 8
+}

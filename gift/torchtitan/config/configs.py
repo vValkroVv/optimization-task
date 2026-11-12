@@ -480,6 +480,46 @@ class CompileConfig:
 
     backend: str = "inductor"
 
+    cudagraph_exclude_blocks: list[str] = field(default_factory=list)
+    """Exact model block FQNs compiled without Inductor CUDA Graphs.
+
+    An empty list preserves the default compile call. A nonempty list requires
+    model compilation with the Inductor backend.
+    """
+
+    def __post_init__(self) -> None:
+        if type(self.cudagraph_exclude_blocks) is not list:
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks must be a list of block FQNs"
+            )
+        if not self.cudagraph_exclude_blocks:
+            return
+        if any(
+            type(name) is not str or not name
+            for name in self.cudagraph_exclude_blocks
+        ):
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks must contain nonempty block FQNs"
+            )
+        if len(set(self.cudagraph_exclude_blocks)) != len(
+            self.cudagraph_exclude_blocks
+        ):
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks contains duplicate block FQNs"
+            )
+        if not self.enable:
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks requires compile.enable=true"
+            )
+        if "model" not in self.components:
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks requires 'model' in compile.components"
+            )
+        if self.backend != "inductor":
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks requires compile.backend='inductor'"
+            )
+
 
 @dataclass(kw_only=True, slots=True)
 class CommConfig:

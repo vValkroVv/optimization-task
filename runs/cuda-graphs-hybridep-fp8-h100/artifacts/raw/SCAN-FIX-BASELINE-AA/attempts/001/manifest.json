@@ -1,0 +1,117 @@
+{
+  "source_identity": {
+    "task_repository_head": "446431dfa191ef0300f116257ae918bc85e38c06",
+    "source_snapshot_manifest": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/SOURCE-SNAPSHOT/002/manifest.json",
+    "source_snapshot_manifest_sha256": "3e2077942276bdcdb9f57be12d173aed21aab0d556b16f46e1f1a5d195c1a4b8",
+    "source_snapshot_archive_sha256": "deab8b28b1d0f2fb6c018546662717e3bad3d50988a0ff3c86635b1726b71d7d",
+    "source_snapshot_file_count": 19,
+    "source_snapshot_files_verified_at_preparation": "19/19 listed byte counts and SHA-256 values matched the current task-local gift tree",
+    "tracked_task_patch_sha256": "b7c02e66f19d7ca2558960660dee91e9771b2d06b75a1556416838e27ed05465",
+    "preset_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml",
+    "preset_sha256": "b341701bd1eef7774c110fbf7ed69cf6280ba8691100b05be457dee3e7d50a7b",
+    "entry_module": "torchtitan.experiments.cuda_graph_campaign.train_scan_fix"
+  },
+  "configuration": {
+    "model_preset": "gift_moe_3b_hybridep_fp8_compile",
+    "dataset": "c4_test",
+    "local_batch_size": 8,
+    "global_batch_size": 256,
+    "sequence_length": 4096,
+    "seed": 42,
+    "deterministic_debug": false,
+    "graph_policy": "TORCHINDUCTOR_CUDAGRAPHS=0",
+    "training_updates": 71,
+    "scheduler_total_steps": 30000,
+    "checkpointing": false,
+    "profiling": false,
+    "memory_snapshots": false,
+    "activation_checkpointing": "selective",
+    "compile": {
+      "enabled": true,
+      "backend": "inductor",
+      "components": [
+        "model",
+        "loss"
+      ]
+    },
+    "precision": {
+      "parameter_dtype": "bfloat16",
+      "reduction_dtype": "float32",
+      "training_dtype": "float32",
+      "fp8_recipe": "unchanged exact preset"
+    },
+    "optimizer": {
+      "name": "AdamW",
+      "implementation": "fused"
+    },
+    "parallelism_degrees": {
+      "world_size": 8,
+      "fsdp_backend": "fsdp2",
+      "dp_shard": 8,
+      "ep": 8,
+      "pp": 1,
+      "tp": 1,
+      "cp": 1,
+      "dp_replicate": 1
+    },
+    "debug_moe_load_balance": false,
+    "debug_moe_first_group": false,
+    "observer_overlay_only": true
+  },
+  "observation": {
+    "start_update": 21,
+    "update_count": 50,
+    "measured_updates": "21-70 inclusive",
+    "closing_boundary": "batch_start(71); run must execute update 71 to emit the complete record",
+    "warmup_status": "start_update=21 is fixed by the requested protocol; actual run logs must confirm initialization and compilation have finished before this window is interpreted as stable",
+    "expected_global_tokens_per_update": 1048576,
+    "expected_global_tokens_per_window": 52428800,
+    "timer": "observer's max completed-window elapsed timer across initialized world group; distinct from device-compute time",
+    "timer_scope_note": "Includes native work between batch-start callbacks, including normal metric logging; excludes observer completion reduction and persistence after the stop timestamp",
+    "device_memory_sampler": "nvidia-smi memory.used per GPU at 500 ms polling cadence; sampled values, not exact peaks"
+  },
+  "expected_outcomes": {
+    "valid_pair": "Only if both attempts exit 0, each rank writes a complete valid 21-70 window closed at 71, and source/runtime/activation evidence is consistent; use only as corrected graph-off A/A calibration.",
+    "failure": "Preserve result and logs as invalid or incomplete for throughput/noise; do not start the next pair attempt automatically. Root must review and explicitly authorize any continuation."
+  },
+  "prelaunch_gates": [
+    "Root explicitly releases the GPU lease for this attempt.",
+    "Immediately before launch, root revalidates ownership and idle state for all eight H100s on the intended node; no compute apps may be present.",
+    "Immediately before launch, root confirms the task-local source still matches SOURCE-SNAPSHOT/002 and the preset SHA-256.",
+    "Run attempts serially; start 002 only after 001 has a valid completed window and a fresh root release/preflight."
+  ],
+  "artifact_policy": {
+    "checkpoints": false,
+    "profiler_traces": false,
+    "memory_snapshots": false,
+    "tensor_dumps": false,
+    "output_root": "attempt-local native/ and torchrun/ directories plus 500-ms CSV sampler"
+  },
+  "activation_evidence_limits": "The observer records requested config and constructed/model wrapper metadata. It does not alone prove loss compiled-callable execution or FP8 custom-op execution; inspect native markers/logs and report any unsupported runtime proof as open.",
+  "launch": {
+    "python": "/opt/torchtitan-venv/bin/python3.12",
+    "distributed_runner": "torch.distributed.run",
+    "world_size": 8,
+    "detached_method": "subprocess.Popen(start_new_session=True, stdin=DEVNULL, stdout=supervisor.log, stderr=STDOUT, close_fds=True)",
+    "status": "completed_failed",
+    "job_id": null,
+    "prelaunch_gpu_state": "Verified immediately before launch: all eight intended H100 GPUs idle; compute-app query empty.",
+    "launcher_pid": 493679,
+    "finished_at_utc": "2026-11-11T22:50:12.716568+00:00"
+  },
+  "attempt_id": "SCAN-FIX-BASELINE-AA/001",
+  "pair_id": "SCAN-FIX-BASELINE-AA",
+  "pair_role": "A1",
+  "status": "completed_failed_before_window",
+  "run_identity": "Corrected scan-fix source, graph policy off; same A/A control conditions in both attempts; only attempt-local outputs/runtime staging differ.",
+  "preparation_checks": {
+    "source_snapshot_manifest": "PASS: all 19 listed gift files matched byte counts and SHA-256 values; exact manifest/archive pins recorded above",
+    "preset_sha256": "PASS: exact preset matches b341701bd1eef7774c110fbf7ed69cf6280ba8691100b05be457dee3e7d50a7b",
+    "launch_script_bash_n": "PASS",
+    "observer_yaml_parse_and_values": "PASS: start_step=21, update_count=50",
+    "manifest_json_parse_and_pair_invariants": "PASS",
+    "existing_cache_paths": "PASS: exact existing offline cache directories are present; no copies were made",
+    "gpu_preflight_or_launch": "NOT RUN: preparation only; root release and fresh eight-GPU preflight remain required"
+  },
+  "actual_result": "result.json"
+}

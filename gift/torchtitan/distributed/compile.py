@@ -31,6 +31,46 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
     (after applying DP). Blocks come from ``model.named_segments()``, so every
     container is covered without per-model wiring.
     """
+    excluded_fqns = compile_config.cudagraph_exclude_blocks
+    if type(excluded_fqns) is not list:
+        raise ValueError(
+            "compile.cudagraph_exclude_blocks must be a list of block FQNs"
+        )
+    if excluded_fqns:
+        if any(type(name) is not str or not name for name in excluded_fqns):
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks must contain nonempty block FQNs"
+            )
+        if not compile_config.enable:
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks requires compile.enable=true"
+            )
+        if "model" not in compile_config.components:
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks requires 'model' in compile.components"
+            )
+        if compile_config.backend != "inductor":
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks requires compile.backend='inductor'"
+            )
+        if len(set(excluded_fqns)) != len(excluded_fqns):
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks contains duplicate block FQNs"
+            )
+
+    blocks = None
+    if excluded_fqns:
+        blocks = [segment for segment in model.named_segments() if segment.is_block]
+        available_fqns = {segment.fqn for segment in blocks}
+        unmatched_fqns = [
+            name for name in excluded_fqns if name not in available_fqns
+        ]
+        if unmatched_fqns:
+            raise ValueError(
+                "compile.cudagraph_exclude_blocks contains unmatched block FQNs: "
+                f"{unmatched_fqns}"
+            )
+
     # Needed for torch.compile to handle data-dependent dynamic shapes in
     # token-choice MoE dispatch. Harmless for dense models.
     torch._dynamo.config.capture_scalar_outputs = True
@@ -53,10 +93,18 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
         )
 
     compiled: dict[str, int] = {}
-    for segment in model.named_segments():
+    segments = blocks if blocks is not None else model.named_segments()
+    for segment in segments:
         if not segment.is_block:
             continue
-        segment.module.compile(backend=compile_config.backend, fullgraph=True)
+        if segment.fqn in excluded_fqns:
+            segment.module.compile(
+                backend=compile_config.backend,
+                fullgraph=True,
+                options={"triton.cudagraphs": False},
+            )
+        else:
+            segment.module.compile(backend=compile_config.backend, fullgraph=True)
         compiled[segment.group] = compiled.get(segment.group, 0) + 1
 
     if not compiled:
@@ -69,6 +117,14 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
 
     counts = ", ".join(f"{n} in {group}" for group, n in compiled.items())
     logger.info(f"Compiling each block with torch.compile ({counts})")
+    if excluded_fqns:
+        assert blocks is not None
+        matched = [segment.fqn for segment in blocks if segment.fqn in excluded_fqns]
+        logger.info(
+            "Disabled Inductor CUDA Graphs for "
+            f"{len(matched)} block(s) with options={{'triton.cudagraphs': False}}: "
+            f"{matched}"
+        )
 
 
 class EagerWindow:

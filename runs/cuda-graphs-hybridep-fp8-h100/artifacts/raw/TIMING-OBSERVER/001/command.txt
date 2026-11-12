@@ -1,0 +1,11 @@
+cwd: /workspace-SR008.nfs2/vkropotin/optimization-task/gift
+source_config: /workspace-SR008.nfs2/vkropotin/optimization-task/gift/configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml
+observation_overlay: /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/TIMING-OBSERVER/001/config/observer.yaml
+source_imports_original_preset_by_absolute_path: true
+python: /opt/torchtitan-venv/bin/python3.12
+launcher: python -m torch.distributed.run --standalone --nnodes=1 --nproc_per_node=8 --max-restarts=0
+config_overrides: --training.steps 10 --lr_scheduler.total_steps 30000 --debug.seed 42 --checkpoint.enable false --dump_folder /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/TIMING-OBSERVER/001/native
+observer: type=campaign_timing_observer start_step=3 update_count=5 output_dir=timing_observer
+cache_reuse: /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/NATIVE-SMOKE/001/cache (HF, TorchInductor, Triton); /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/cache/deepgemm_shared (DeepGEMM)
+HOME: inherited unchanged
+network: HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1

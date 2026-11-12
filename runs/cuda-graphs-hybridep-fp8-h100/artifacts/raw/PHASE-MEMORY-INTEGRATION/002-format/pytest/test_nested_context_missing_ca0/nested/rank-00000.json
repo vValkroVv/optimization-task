@@ -1,0 +1,338 @@
+{
+  "allocator_backend": "native",
+  "allocator_backend_reason": null,
+  "config_id": "config-sha-test",
+  "coverage": {
+    "expected_end_step": 10,
+    "incomplete_reasons": [],
+    "invalid_reasons": [
+      "reset occurred outside a recognized native metrics context",
+      "allocator interval has an unknown reset origin",
+      "nested native metrics contexts are unsupported",
+      "allocator generation produced more than one native snapshot",
+      "native reset did not match the captured allocator generation",
+      "nested native metrics contexts are unsupported; native reset did not match the captured allocator generation",
+      "native reset occurred without its expected stats capture",
+      "native reset had no preceding stats capture",
+      "native training metrics call at step 10 had no captured raw stats"
+    ],
+    "known_limits": [
+      "No pre-constructor allocator snapshot was taken; whole-process bootstrap peak is unavailable.",
+      "Native stats are copied after memory_stats returns; the copy bracket does not time the allocator API itself.",
+      "The interval between native stats capture and the native reset is not sampled.",
+      "Only the imported metrics.reset_peak_stats binding is wrapped; unobserved direct torch reset calls are not detected.",
+      "A008 updates 21-23 are replay, not a capture-only phase; steady labels use reset-aligned windows."
+    ],
+    "last_training_metrics_step": 10,
+    "reset_generation_count": 5,
+    "status": "invalid"
+  },
+  "device": {
+    "cuda_visible_devices": "",
+    "device_type": "cuda",
+    "device_uuid": null,
+    "logical_device_index": 0,
+    "logical_index_mapping": "Trainer constructs cuda:LOCAL_RANK and calls device_module.set_device",
+    "physical_mapping_reason": "CUDA_VISIBLE_DEVICES was not set; physical mapping is external",
+    "visible_device_selector": null
+  },
+  "device_capacity_bytes": 1000,
+  "device_samples": {
+    "boundary_exclusions": null,
+    "expected_sample_period_ms": 500,
+    "first_sample_utc": null,
+    "last_sample_utc": null,
+    "maximum_observed_used_bytes": null,
+    "maximum_sample_gap_ms": null,
+    "phase_exclusions": null,
+    "rank_device_join": null,
+    "reason": "sampler data stays external and must be joined offline using verified device mapping and clock brackets",
+    "sample_count": null,
+    "source": "external nvidia-smi CSV: timestamp,index,memory.used",
+    "status": "pending_external_join",
+    "timestamp_timezone": "UTC"
+  },
+  "events": [
+    {
+      "context": "metrics_processor_constructor",
+      "event_id": "event-00000",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": null,
+      "previous_generation": -1,
+      "reasons": [],
+      "reset_completed_clock": {
+        "monotonic_ns": 2417483813107723,
+        "utc_bracket_width_ns": 550,
+        "utc_ns_bracket": [
+          1794467672637950336,
+          1794467672637950886
+        ]
+      },
+      "reset_generation": 0,
+      "status": "complete",
+      "step": null
+    },
+    {
+      "context": "unknown",
+      "event_id": "event-00001",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": null,
+      "previous_generation": 0,
+      "reasons": [
+        "reset occurred outside a recognized native metrics context"
+      ],
+      "reset_completed_clock": {
+        "monotonic_ns": 2417483813115803,
+        "utc_bracket_width_ns": 280,
+        "utc_ns_bracket": [
+          1794467672637958686,
+          1794467672637958966
+        ]
+      },
+      "reset_generation": 1,
+      "status": "invalid",
+      "step": null
+    },
+    {
+      "actual_window": {
+        "first_training_step": null,
+        "label": "unknown_reset_to_1",
+        "last_training_step": 1,
+        "reset_origin": "unknown_reset"
+      },
+      "allocator_counters_bytes": {
+        "active_bytes.all.current": 5,
+        "active_bytes.all.peak": 80,
+        "allocated_bytes.all.current": 10,
+        "allocated_bytes.all.peak": 100,
+        "num_alloc_retries": 0,
+        "num_ooms": 0,
+        "reserved_bytes.all.current": 120,
+        "reserved_bytes.all.peak": 120
+      },
+      "capture_clock": {
+        "copy_end": {
+          "monotonic_ns": 2417483813134004,
+          "utc_bracket_width_ns": 120,
+          "utc_ns_bracket": [
+            1794467672637976967,
+            1794467672637977087
+          ]
+        },
+        "copy_start": {
+          "monotonic_ns": 2417483813129154,
+          "utc_bracket_width_ns": 150,
+          "utc_ns_bracket": [
+            1794467672637972087,
+            1794467672637972237
+          ]
+        },
+        "semantics": "raw stats were returned by native memory_stats before this Python-copy bracket"
+      },
+      "context": "training",
+      "device_capacity_bytes": 1000,
+      "event_id": "event-00002",
+      "event_kind": "native_snapshot",
+      "missing_optional_keys": [],
+      "paired_reset_event_id": "event-00005",
+      "phase_label": "initial_through_1",
+      "reasons": [
+        "allocator interval has an unknown reset origin",
+        "nested native metrics contexts are unsupported",
+        "native reset did not match the captured allocator generation",
+        "nested native metrics contexts are unsupported; native reset did not match the captured allocator generation"
+      ],
+      "reset_generation": 1,
+      "reset_origin": {
+        "clock": {
+          "monotonic_ns": 2417483813115803,
+          "utc_bracket_width_ns": 280,
+          "utc_ns_bracket": [
+            1794467672637958686,
+            1794467672637958966
+          ]
+        },
+        "context": "unknown",
+        "generation": 1,
+        "step": null
+      },
+      "status": "invalid",
+      "step": 1
+    },
+    {
+      "actual_window": {
+        "first_training_step": null,
+        "label": "validation_at_1",
+        "last_training_step": 1
+      },
+      "allocator_counters_bytes": {
+        "active_bytes.all.current": 5,
+        "active_bytes.all.peak": 70,
+        "allocated_bytes.all.current": 10,
+        "allocated_bytes.all.peak": 90,
+        "num_alloc_retries": 0,
+        "num_ooms": 0,
+        "reserved_bytes.all.current": 110,
+        "reserved_bytes.all.peak": 110
+      },
+      "capture_clock": {
+        "copy_end": {
+          "monotonic_ns": 2417483813154924,
+          "utc_bracket_width_ns": 130,
+          "utc_ns_bracket": [
+            1794467672637997877,
+            1794467672637998007
+          ]
+        },
+        "copy_start": {
+          "monotonic_ns": 2417483813151724,
+          "utc_bracket_width_ns": 160,
+          "utc_ns_bracket": [
+            1794467672637994657,
+            1794467672637994817
+          ]
+        },
+        "semantics": "raw stats were returned by native memory_stats before this Python-copy bracket"
+      },
+      "context": "validation",
+      "device_capacity_bytes": 1000,
+      "event_id": "event-00003",
+      "event_kind": "native_snapshot",
+      "missing_optional_keys": [],
+      "paired_reset_event_id": "event-00004",
+      "phase_label": "validation",
+      "reasons": [
+        "allocator interval has an unknown reset origin",
+        "allocator generation produced more than one native snapshot"
+      ],
+      "reset_generation": 1,
+      "reset_origin": {
+        "clock": {
+          "monotonic_ns": 2417483813115803,
+          "utc_bracket_width_ns": 280,
+          "utc_ns_bracket": [
+            1794467672637958686,
+            1794467672637958966
+          ]
+        },
+        "context": "unknown",
+        "generation": 1,
+        "step": null
+      },
+      "status": "invalid",
+      "step": 1
+    },
+    {
+      "context": "validation",
+      "event_id": "event-00004",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": "event-00003",
+      "previous_generation": 1,
+      "reasons": [],
+      "reset_completed_clock": {
+        "monotonic_ns": 2417483813164204,
+        "utc_bracket_width_ns": 130,
+        "utc_ns_bracket": [
+          1794467672638007147,
+          1794467672638007277
+        ]
+      },
+      "reset_generation": 2,
+      "status": "complete",
+      "step": 1
+    },
+    {
+      "context": "training",
+      "event_id": "event-00005",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": null,
+      "previous_generation": 2,
+      "reasons": [
+        "nested native metrics contexts are unsupported",
+        "native reset did not match the captured allocator generation"
+      ],
+      "reset_completed_clock": {
+        "monotonic_ns": 2417483813170074,
+        "utc_bracket_width_ns": 110,
+        "utc_ns_bracket": [
+          1794467672638013047,
+          1794467672638013157
+        ]
+      },
+      "reset_generation": 3,
+      "status": "invalid",
+      "step": 1
+    },
+    {
+      "context": "training",
+      "event_id": "event-00006",
+      "event_kind": "native_reset",
+      "paired_snapshot_event_id": null,
+      "previous_generation": 3,
+      "reasons": [
+        "native reset had no preceding stats capture",
+        "native reset occurred without its expected stats capture"
+      ],
+      "reset_completed_clock": {
+        "monotonic_ns": 2417483813185504,
+        "utc_bracket_width_ns": 110,
+        "utc_ns_bracket": [
+          1794467672638028477,
+          1794467672638028587
+        ]
+      },
+      "reset_generation": 4,
+      "status": "invalid",
+      "step": 10
+    },
+    {
+      "context": "training",
+      "event_id": "event-00007",
+      "event_kind": "missing_capture",
+      "reasons": [
+        "native training metrics call at step 10 had no captured raw stats"
+      ],
+      "reset_generation": 4,
+      "status": "invalid",
+      "step": 10
+    }
+  ],
+  "local_rank": 0,
+  "phase_boundaries": {
+    "expected_end_step": 10,
+    "startup_end_step": 1
+  },
+  "phase_envelopes": [
+    {
+      "actual_windows": [
+        {
+          "first_training_step": null,
+          "label": "unknown_reset_to_1",
+          "last_training_step": 1,
+          "reset_origin": "unknown_reset"
+        }
+      ],
+      "max_allocated_peak_bytes": 100,
+      "max_reserved_peak_bytes": 120,
+      "partial_values_only": true,
+      "phase_label": "initial_through_1",
+      "snapshot_steps": [
+        1
+      ],
+      "status": "invalid"
+    }
+  ],
+  "rank": 0,
+  "record_type": "phase_memory",
+  "run_id": "run-nested",
+  "schema_version": 1,
+  "source_id": "source-007-test",
+  "status": "invalid",
+  "timing_observer": {
+    "anchors": {},
+    "existing_memory_samples": {},
+    "memory_samples_are_separate_from_native_intervals": true
+  },
+  "training_log_frequency": 10,
+  "world_size": 1
+}

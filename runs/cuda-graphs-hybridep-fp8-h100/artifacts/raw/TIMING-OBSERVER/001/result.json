@@ -1,0 +1,134 @@
+{
+  "status": "PASS_WITH_METADATA_FOLLOWUP",
+  "attempt_id": "TIMING-OBSERVER/001",
+  "launch": {
+    "pid": 433664,
+    "exit_code": 0,
+    "started_from_frozen_task_local_gift": true,
+    "offline_data_and_hub": true,
+    "reused_existing_native_smoke_caches": true,
+    "cache_paths": [
+      "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/NATIVE-SMOKE/001/cache",
+      "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/cache/deepgemm_shared"
+    ]
+  },
+  "preflight": {
+    "observer_overlay_decode": "PASS, zero warnings",
+    "absolute_original_preset_import": true,
+    "all_eight_h100_idle_immediately_before_launch": true,
+    "immediate_free_memory_mib": [
+      81090,
+      81090,
+      81090,
+      81090,
+      81090,
+      81090,
+      81090,
+      81090
+    ],
+    "compute_processes_before_launch": 0
+  },
+  "source_identity": {
+    "task_head": "446431dfa191ef0300f116257ae918bc85e38c06",
+    "gift_upstream_revision": "6fd9a3230ab6361f11bbbf0b6ec5a5f125b78fc2",
+    "tracked_patch_sha256": "b7c02e66f19d7ca2558960660dee91e9771b2d06b75a1556416838e27ed05465",
+    "changed_gift_file_count_including_untracked": 15,
+    "changed_file_manifest_sha256": "810e9fe92363058ab07482d0c830449dbbafb69b64163403ce6bf9d8a38306bf",
+    "preset_sha256": "b341701bd1eef7774c110fbf7ed69cf6280ba8691100b05be457dee3e7d50a7b",
+    "overlay_sha256": "e484e6a48516c506143b425721c768efddf4704952b948c6be21695f78632902"
+  },
+  "resolved_config_sha256": "ffa3c57a65144534407d519eaf52a11476008fb2f7bc689a37e3b57210d56f78",
+  "observer_window": {
+    "rank_jsonl_files": 8,
+    "two_records_per_rank": true,
+    "all_rank_window_records_valid_and_complete": true,
+    "measured_steps": [
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "closing_boundary_step": 8,
+    "training_completed_through_step": 10,
+    "global_tokens_per_update_each_rank": 1048576,
+    "global_tokens_total_each_rank": 5242880,
+    "failure_reasons": [],
+    "post_close_behavior": "No callback events are recorded after the one complete window; source closed guards return at batch_start/batch_end. Native training completed updates 9 and 10, then exited 0."
+  },
+  "topology": {
+    "world_size": 8,
+    "ep_group": {
+      "degree": 8,
+      "global_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    "dense_fsdp_group": {
+      "degree": 8,
+      "global_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    "parallelism_degrees": {
+      "cp": 1,
+      "dp_replicate": 1,
+      "dp_shard": 8,
+      "ep": 8,
+      "pp": 1,
+      "tp": 1
+    },
+    "expert_fsdp_degree": 1,
+    "expert_fsdp_evidence": "ParallelDims computes efsdp=fsdp*tp//ep; with fsdp=8, tp=1, ep=8, the singleton expert-FSDP axis has degree 1 and is filtered from get_all_one_dimensional_meshes output."
+  },
+  "activation": {
+    "task_local_torchtitan_import_verified": true,
+    "compiled_model_callables": 18,
+    "dense_fp8_linear_modules": 72,
+    "grouped_expert_modules": 17,
+    "hybridep_dispatchers": 17,
+    "configured_selective_ac": "selective",
+    "native_selective_ac_marker": "Applied selective activation checkpointing to the model at supervisor.log:354",
+    "observer_ac_marker": "Currently reports 0 because exact-type matching misses FSDPCheckpointWrapper; follow-up source fix pending."
+  },
+  "logs": {
+    "rank_stdout_stderr_files": 16,
+    "step10_native_summary_lines": 1,
+    "fatal_error_matches": 0,
+    "fatal_error_scan": "No traceback, runtime exception, unhandled NCCL error, or ERROR line; eight TORCH_NCCL_ASYNC_ERROR_HANDLING matches are warnings only.",
+    "known_warnings": [
+      "TORCH_NCCL_ASYNC_ERROR_HANDLING=1 overridden to 3 by job config",
+      "TorchInductor complex-operator codegen warning",
+      "Profiler record_function under torch.compile ignored",
+      "c4_test dataset re-looped during the ten-update run"
+    ]
+  },
+  "timing_caveat": "Diagnostic startup-window value only; not stable throughput or speed evidence.",
+  "strict_deterministic_aa": "HOLD until root finishes metadata correction and refreezes source.",
+  "artifacts": {
+    "command": "command.txt",
+    "runner": "launch.sh",
+    "source_identity": "source-identity.json",
+    "tracked_source_patch": "gift-tracked-working-tree.patch",
+    "prelaunch_gpu": "immediate-gpu-check.txt",
+    "prelaunch_compute_processes": "immediate-compute-processes.csv",
+    "resolved_config": "native/config/resolved_config.yaml",
+    "supervisor": "supervisor.log",
+    "exit_status": "exit-status.json"
+  },
+  "core_acceptance_pass": true
+}

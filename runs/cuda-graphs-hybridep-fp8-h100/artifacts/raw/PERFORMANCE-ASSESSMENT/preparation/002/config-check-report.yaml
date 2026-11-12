@@ -1,0 +1,21 @@
+config_path: runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/PERFORMANCE-ASSESSMENT/preparation/001/config/observer.yaml
+config_version: 1
+decoded: true
+overrides:
+  training.steps: 41
+  lr_scheduler.total_steps: 30000
+  debug.seed: 42
+  checkpoint.enable: false
+  dump_folder: /workspace-SR008.nfs2/vkropotin/optimization-task/runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/PERFORMANCE-ASSESSMENT/attempts/001/native
+imports:
+  path: runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/PERFORMANCE-ASSESSMENT/preparation/001/config/observer.yaml
+  imports:
+  - path: gift/configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml
+    imports:
+    - path: gift/configs/presets/models/gift_moe/3b.yaml
+      imports:
+      - path: gift/configs/presets/init/gift_base.yaml
+    - path: gift/configs/presets/train/fp8_full.yaml
+stage: pre_submit
+ok: true
+issues: []

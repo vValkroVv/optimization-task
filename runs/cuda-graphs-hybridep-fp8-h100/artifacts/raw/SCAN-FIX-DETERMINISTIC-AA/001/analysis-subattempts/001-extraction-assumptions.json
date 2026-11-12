@@ -1,0 +1,23 @@
+{
+  "scope": "A/001 result-extraction setup subattempts; no training run failed and no GPU/resource ownership changed.",
+  "items": [
+    {
+      "attempt": "TensorBoard directory lookup",
+      "wrong_assumption": "event directory was native/tensorboard",
+      "observed": "event directory is native/tb",
+      "resolution": "found and read the event file in native/tb"
+    },
+    {
+      "attempt": "source-config byte hash check",
+      "wrong_assumption": "serialized config bundle bytes equal original source preset bytes",
+      "observed": "bundle is a merged/serialized config; metadata argv and launch manifest identify the original preset and its prelaunch SHA",
+      "resolution": "recorded preset SHA from frozen source identity/launch manifest and verified metadata argv"
+    },
+    {
+      "attempt": "activation marker count",
+      "wrong_assumption": "combined supervisor log has one activation info line per rank",
+      "observed": "rank logger emits the info marker only on rank0",
+      "resolution": "use per-rank runtime manifests for all-rank patch/runtime/cache identity; keep native optimizer_end counts per rank"
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "attempt": "LANE-A/004",
+  "status": "FAILED_RUNTIME_DURING_CUDAGRAPH_TREES_FORWARD_WARMUP",
+  "purpose": "One graph-on allocation-history diagnostic to capture the original CUDA Graph Trees pool-guard failure frames.",
+  "scope": {
+    "training_source_edits": false,
+    "package_or_environment_edits": false,
+    "workspace_size_or_allocator_guard_changes": false,
+    "private_cuda_graph_manager_access": false,
+    "additional_snapshot_or_gc_harness": false,
+    "instrumentation": "torch._inductor.config.triton.cudagraph_trees_history_recording=True set by attempt-local history_entry.py before importing the unchanged source entrypoint"
+  },
+  "source_snapshot": {
+    "manifest": "runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/SOURCE-SNAPSHOT/003/manifest.json",
+    "manifest_sha256": "eae89a656a0e59efb2248dd921395d418afa2485ab2ae320d1e834a14ce97526",
+    "source_file_count": 22,
+    "archive": "runs/cuda-graphs-hybridep-fp8-h100/artifacts/raw/SOURCE-SNAPSHOT/003/changed-files.zip",
+    "archive_sha256": "ea215abaac14d98a21c36e8684dbd8ce88a1d48f47cec5fe4f85f61be5dd4e27",
+    "entrypoint": "torchtitan.experiments.cuda_graph_campaign.train_scan_fix",
+    "preset": "gift/configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml",
+    "preset_sha256": "b341701bd1eef7774c110fbf7ed69cf6280ba8691100b05be457dee3e7d50a7b"
+  },
+  "workload": {
+    "model": "3B MoE, one dense block and 17 MoE blocks",
+    "parallelism": "EP8/FSDP2 on one eight-H100 NVLink server",
+    "attention": "FlexAttention, unchanged",
+    "precision": "source003 FP8 recipe, unchanged",
+    "activation_checkpointing": "selective, unchanged",
+    "compilation": "model and loss, unchanged",
+    "local_batch_size": 8,
+    "global_batch_size": 256,
+    "sequence_length": 4096,
+    "gradient_accumulation_steps": 4,
+    "training_steps": 25,
+    "scheduler_total_steps": 30000,
+    "seed": 42,
+    "checkpoint_enabled": false,
+    "timing_observer_start_update": 3,
+    "timing_observer_update_count": 5,
+    "step_boundary_marker": "unchanged public native batch_start marker",
+    "profiling": {
+      "enabled": true,
+      "frequency": 4,
+      "warmup": 1,
+      "active": 3,
+      "repeat": 1,
+      "skip_first": 20
+    }
+  },
+  "diagnostic": {
+    "question": "Which live allocation was absent from tracked outputs at the first dense block 0 FORWARD warmup guard?",
+    "expected_evidence": "The unchanged guard error's bad address and built-in allocator-history allocation frames, retained from every rank.",
+    "ownership_proof": "All eight rank histories tie bad address 597168226304 to cuda_gemm::(anonymous namespace)::get_cached_workspace and cuda_gemm::gemm; loaded extension __file__ and binary hash remain unobserved.",
+    "snapshot_or_block_size": "The built-in failure path is not expected to save a standalone snapshot or print block size.",
+    "loaded_gemm_module_provenance": "Record only if an unchanged existing observation/log route exposes it; do not add a harness.",
+    "changed_failure_policy": "A changed failure or unavailable frames is inconclusive; no retry, fallback, or broader audit."
+  },
+  "launch_policy": {
+    "launcher": "torch.distributed.run, eight local ranks, source003 options and output routing",
+    "graph_policy": "TORCHINDUCTOR_CUDAGRAPHS=1; TORCH_LOGS=cudagraphs",
+    "history_setting": "Only the installed built-in Trees history setting above is added.",
+    "memory_sampler_ms": 500,
+    "attempt_local_hybrid_ep_runtime": "Fresh attempts/004/scan-runtime directory",
+    "monitor_deadline_minutes": 15,
+    "monitor_poll_seconds": 120,
+    "retry": false
+  },
+  "acceptance": {
+    "retain_original_error_and_all_rank_allocation_frames": true,
+    "attribute_address_to_producer_for_ownership_claim": true,
+    "performance_or_numerical_claim": false
+  },
+  "launch": {
+    "pid": 515371,
+    "started_at_utc": "2026-11-11T23:50:05.822927Z",
+    "finished_at_utc": "2026-11-11T23:50:35.441029Z",
+    "runner_exit_code": 1,
+    "optimizer_updates_completed": 0
+  },
+  "result": {
+    "summary": "failure-summary.json",
+    "summary_sha256": "1ea2b3c60ac3d0c7b397518f615279a937ebc9067a402a081e61e8f09be37d00",
+    "first_error_region": "dense decoder block 0 compiled FORWARD warmup",
+    "first_error_message": "Detected 1 tensor(s) in the cudagraph pool not tracked as outputs. All live allocations must be tracked for correctness.",
+    "bad_data_pointer": 597168226304,
+    "matching_a003_pointer": true,
+    "workspace_owner": "cuda_gemm::(anonymous namespace)::get_cached_workspace",
+    "owner_confirmation_rank_count": 8,
+    "successful_capture_or_replay": false,
+    "performance_or_numerical_claim": false,
+    "supervisor_log": "supervisor.log",
+    "supervisor_log_sha256": "5ab9d3c1759c832a369e6857aecdf5fddb343bf7add373d2a141434cbba31cb8",
+    "rank_error_files": "torchrun/01a36e84-c7c0-45b8-aa67-bebf178f6694_cpo7bqkf/attempt_0/{0..7}/error.json",
+    "rank_error_json_sha256": {
+      "0": "267e9f7a00801c51882f813828ba4792d6b43d306eee7ea9362100c927681e2b",
+      "1": "38d5d4e72930c33ee615d642496689cb374a8ff6ab6aafbaa348ea6ef613e8fc",
+      "2": "2013d9c00a40cab5bdf764b554c93bc7e2cbfb63fadc8d8e4511ef6d0192c10d",
+      "3": "6b11e22e0d6733d19d80b3f3936820fac9fdeaf39a47a5a514cfb2eb8b15d82b",
+      "4": "a744e105a00ec09c981369c5c30390f0eafd7c69dbbb7c648ee45fbab54cff32",
+      "5": "ddf1745dacb0862da1a152b71de25d30ea39be39c524fc5d670aab438935db81",
+      "6": "abdc40fc0903bfd18aa9a3f212025461b87cb3dbcc178a75f6f9ed96ae06f60a",
+      "7": "db0ec82194b81876041703acb0f820b93522c34eba5e39cd1d08c07a1807400c"
+    },
+    "postrun_cleanup": {
+      "runner_pid": 515371,
+      "memory_sampler_pid": 515384,
+      "worker_pids": [515455, 515456, 515457, 515458, 515459, 515460, 515461, 515462],
+      "all_task_pids_absent": true,
+      "all_eight_h100s_idle": true,
+      "compute_apps_empty": true,
+      "termination_needed": false
+    },
+    "preparation_failures": [
+      "Early A004 wrapper guards would have rejected controller-created supervisor.log and launch.json; caught before launch and replaced by exact A003 script with only attempt path and script target changes.",
+      "One source-guard command doubled a repository-relative path and failed before hashing; corrected source guard passed all 22 files, archive, and preset.",
+      "Two patch-generation commands failed before file changes due to quoting/syntax; one postrun extraction command failed on escaped-newline matching, then direct JSON extraction succeeded.",
+      "Supervisor-only reading initially showed an unsymbolized stack tail; full per-rank error JSON revealed the address-linked CudaCherry producer frames."
+    ]
+  }
+}
