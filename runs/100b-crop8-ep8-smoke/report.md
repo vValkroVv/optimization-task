@@ -1,6 +1,7 @@
 # 100B crop8 EP8 training smoke
 
-Status: source integration reviewed; GPU training smoke pending.
+Status: PASS for the bounded eight-H100 training smoke on 13 November 2026
+(Moscow date). No performance or convergence claim.
 
 ## Scope
 
@@ -88,8 +89,8 @@ No extra copy or allocation is introduced, and k-grouped wgrad is unchanged.
 - A combined local CPU harness had 55 passes, one skip, one deselection and
   12 compiled-router failures inside PyTorch 2.14.1 guard construction after
   fake-Triton preloading. This is not reported as a passing combined suite;
-  the isolated new compiled regressions passed. The real target runtime remains
-  a separate verification gate.
+  the isolated new compiled regressions passed. The target GPU smoke below is
+  separate execution evidence, not a claim that the combined CPU suite passed.
 
 Independent integration and runtime-cost review found no blocking source-level
 issue. It inspected FP8 autograd/storage handling, SAC selection, GFSDP setup,
@@ -117,4 +118,59 @@ launcher exited, the exact task-process scan was empty, and all GPU compute-app
 lists were empty. Original preflight evidence remains under
 `artifacts/raw/20261113-001/` and its sibling launch log.
 
-The final training result and native evidence remain pending.
+### Attempt 20261113-002 — PASS
+
+Executed revision: `31f2b0a759835ffbd234e8c78876225d62ec3b24`; the training-source
+changes are in `383d393360d6451021f5d52f11b4646bd1601b28`, followed only by the
+launcher environment correction. Launch was 2026-11-12 21:25:07 UTC; rank 0
+reported training completion at 21:37:53 UTC (13 November in Moscow).
+
+| Check | Observed result |
+| --- | --- |
+| Exit | `0` |
+| Every rank, 0–7 | Ten completed optimizer updates and ten completed steps |
+| Microbatches | Exactly 32 completed forward/backward spans per update, 320 per rank |
+| Numerical observations | All logged loss and gradient norms finite |
+| Monitoring | Hooks emitted at steps 5 and 10; ordinary and eager-monitoring paths completed |
+| FP8 | Native activation messages report 48 dense and 14 grouped projections |
+| Compile / sharding / SAC | Native model/loss compile, fully-shard/EP8 and the heterogeneous layer policies logged |
+| CuTe | Resolved CuTe norms and generated Inductor code containing both CuTe forward and backward operators |
+| Memory | Maximum native console memory metric across ranks/steps: 72.55 GiB; rank-0 maximum 72.32 GiB |
+| Artifacts | Native configs, structured JSONL logs and TensorBoard events only; no checkpoints, profiler traces or memory snapshots |
+| Release | All ranks completed distributed teardown; owned launcher/torchrun/rank processes absent and GPU compute-app query empty |
+
+The native memory metric is the PyTorch reserved peak since the last reset plus
+non-PyTorch usage sampled at report time. It is not a continuously measured
+device-wide maximum, and must not be added to the separately printed non-Torch
+field again. This smoke used a cold compilation path and more frequent monitoring;
+its console throughput is not a performance baseline.
+
+Monitoring loss chunks are established by the resolved `2`/`32` settings, hook
+events at steps 5/10, and the executed native source path: `Trainer.train_step`
+selects the monitoring value through `MonitoringCallback.is_monitoring_step`,
+`MTPLoss` inherits `ChunkedCELoss`, and the override is restored in `finally`.
+There is no direct runtime chunk-count counter. This is source/output correlation,
+not a claimed counter measurement.
+
+Rank-0 displayed loss values for updates 1–10:
+`15.31904, 15.29531, 15.24754, 15.17967, 15.09524, 15.00440, 14.90702, 14.80481, 14.69808, 14.57506`.
+Displayed gradient norms:
+`9.5409, 9.4775, 9.3872, 8.9090, 8.1253, 7.4433, 7.1236, 7.2134, 7.3938, 7.6756`.
+These rounded logs establish finite training observations, not numerical parity
+or convergence.
+
+The parent independently read exit status, metadata, final step/completion/
+teardown lines from all eight rank logs, native output inventory and empty GPU
+compute-app state after the observer's complete JSONL audit.
+
+Evidence remains on the task server under `artifacts/raw/20261113-002/`:
+`exit-code.txt`, `metadata.txt`, `native/config/resolved_config.yaml`, eight
+`native/structured_logs/*.jsonl`, `logs/torchrun/**/stdout.log`, and `native/tb/`.
+The compact [result receipt](result.json) is versioned; large runtime artifacts
+and caches remain outside Git.
+
+Reproduction uses the reviewed [launcher](smoke.sh), with explicit task root,
+existing Python executable, existing isolated DeepGEMM repair parent and a fresh
+attempt ID. It preserves the canonical workload and applies only the recorded
+ten-update stop and monitoring-cadence validation overrides. Future runs require
+their own compute authorization and fresh ownership preflight.

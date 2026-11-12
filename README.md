@@ -11,7 +11,7 @@ The goal is to improve representative end-to-end training throughput while prese
 3. Use [research lessons](docs/research-lessons.md) as hypotheses and context, not as evidence for a new workload.
 4. Record experiments, including failed and inconclusive results, in [runs/](runs/README.md).
 
-The current default is the agreed eight-layer 100B-dev crop in [the baseline contract](docs/baseline-100b-crop.md). Required runtime ports, configuration checks and source review are complete; the authorized basic training smoke is pending in the [run report](runs/100b-crop8-ep8-smoke/report.md). The current scope excludes checkpoint creation, traces, performance benchmarking, and a broader optimization campaign.
+The current default is the agreed eight-layer 100B-dev crop in [the baseline contract](docs/baseline-100b-crop.md). Required runtime ports, configuration checks and source review are complete. The [eight-H100 smoke passed](runs/100b-crop8-ep8-smoke/report.md): ten optimizer updates and 320 microbatches per rank, including monitoring steps, without checkpoints or profiler traces. This establishes basic execution, not a performance baseline or convergence result.
 
 ## Repository map
 

@@ -6,7 +6,10 @@ The [26 October 2026 exchange](../additional/task-inputs/2026-10-26-initial-scop
 
 The owner later selected the eight-layer 100B-dev crop as the task's default workload. Its architecture, canonical config, source identities, runtime settings, smoke limits, and future study list are in the [baseline contract](baseline-100b-crop.md). That agreement supersedes the open workload choices below for the current baseline.
 
-The task-local GIFT base remains pinned `main`; only the approved required runtime ports are in scope. Their implementation and the resolved configuration are pending. GPU availability preflight passed, but the authorized smoke has not launched. This selection is not a measured performance baseline.
+The task-local GIFT base remains pinned `main` with the approved runtime ports.
+Source/config integration and the authorized eight-H100 smoke are complete; see
+the [run report](../runs/100b-crop8-ep8-smoke/report.md). This establishes basic
+training execution, not a measured performance baseline.
 
 ## Original direction from the 26 October exchange
 

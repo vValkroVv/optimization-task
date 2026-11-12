@@ -1,12 +1,13 @@
 # OPT-001 — Select and measure the representative baseline
 
-**Status:** In progress for the agreed crop configuration and basic smoke; performance baseline work is not authorized in the current scope.
+**Status:** Agreed configuration, runtime ports and eight-H100 smoke complete.
+Performance baseline measurement remains unstarted and requires separate authorization.
 
 **Depends on:** Source import record in [additional/baseline](../../additional/baseline/README.md)
 
 ## Goal
 
-Select the representative training workload and record its identity. The imported upstream source revision is a source identity, not a measured workload baseline. The selected default is the [agreed 100B-dev crop](../../docs/baseline-100b-crop.md). Its required source/config integration, resolved configuration, and authorized basic GPU smoke remain pending.
+Select the representative training workload and record its identity. The imported upstream source revision is a source identity, not a measured workload baseline. The selected default is the [agreed 100B-dev crop](../../docs/baseline-100b-crop.md). Its source/config integration and basic GPU smoke passed; the [run report](../../runs/100b-crop8-ep8-smoke/report.md) records ten updates per rank, monitoring coverage, memory observations and remaining limits.
 
 ## Open selections
 
