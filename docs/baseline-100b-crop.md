@@ -52,7 +52,7 @@ For context, the expected balanced expert GEMM `M` is 16,384 in the production E
 
 The planning calculation is not a measurement: it records `P8=19,006,114,432` and estimates about 56.8 GiB per GPU for model state and GFSDP buffers, before activations, compiler workspaces, NCCL, and FP8-related overhead. This estimate already includes about 8.85 GiB per GPU for EMA. A 12-layer crop with EMA is estimated above 80 GiB per GPU.
 
-The completed smoke's maximum native console memory metric was 72.55 GiB across
+The completed smoke's maximum native console memory metric was 72.61 GiB across
 ranks/steps. That metric combines reserved peak and report-time non-PyTorch
 memory; it is not a simultaneous device-wide maximum or a bound for other data
 and routing distributions.
@@ -70,7 +70,7 @@ The authorized basic smoke passed on eight NV18-connected H100s using PyTorch
 initializes the existing image CUDA compatibility profile. The config uses bundled
 `c4_test` data and the repository tokenizer as smoke inputs, not as a production
 data selection. The [smoke report](../runs/100b-crop8-ep8-smoke/report.md) records the
-initial preflight failure, correction and successful execution.
+verified runtime and successful execution.
 
 The executed smoke completed 10 optimizer updates with 32 microbatches per update,
 preserving the 65,000-step scheduler horizon. Its validation-only monitoring
@@ -81,17 +81,9 @@ profiler trace or memory snapshot was emitted, and all training processes releas
 the GPUs. The canonical interval remains 50. No full performance benchmark,
 convergence study or broader optimization campaign was performed.
 
-The successful smoke reused the existing isolated DeepGEMM descriptor repair and
-pinned HybridEP scan correction on the inspected runtime. The repaired header
-hash was checked during preflight. Shared installed packages were unchanged.
-
-The owner subsequently requested a control without both dependency repairs.
-That control also completed ten updates on all eight GPUs, including monitoring,
-using the original installed libraries and the same configuration. Its displayed
-loss/gradient series differs from the patched run; no numerical equivalence or
-individual repair necessity was established. See the [control result](../runs/100b-crop8-ep8-smoke/result-stock.json).
-The launcher keeps `patched` as its default and exposes the explicit `stock`
-mode for this control; the run request did not change the default policy.
+The baseline uses the installed DeepGEMM `2.3.0+f093a4c` and DeepEP
+`1.2.1+1b8f467`, with the native `torchtitan.train` entrypoint. The launcher verifies
+package paths and source hashes. See the [result receipt](../runs/100b-crop8-ep8-smoke/result.json).
 
 ## Finite future experiments
 

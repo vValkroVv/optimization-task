@@ -1,60 +1,63 @@
 # 100B crop8 EP8 training smoke
 
-Status: PASS for both the patched eight-H100 smoke and the requested control
-without either dependency repair on 13 November 2026 (Moscow date).
-No performance, numerical-parity or convergence claim.
+Status: PASS on eight H100 GPUs, 13 November 2026 (Moscow date).
 
-## Scope
+The default is [the agreed baseline](../../docs/baseline-100b-crop.md), implemented
+in [the canonical experiment](../../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml).
+Training source lives in `optimization-task/gift`. This is a basic execution
+check, not a throughput benchmark or convergence study.
 
-The user authorized the default baseline, the required source ports in the task's
-`gift/` tree, commit/push, pulling that revision on the existing GPU server, and
-one eight-GPU training check. Checkpoints, profiler traces and memory snapshots
-are disabled. This is a startup/training check, not a performance comparison,
-convergence study or checkpoint-continuation claim.
+## Runtime and reproduction
 
-Canonical configuration:
-[`gift_100b_crop8_ep8_fp8_compile_cute.yaml`](../../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml).
-The [baseline contract](../../docs/baseline-100b-crop.md) owns the default and the
-separate future experiments.
+- Entrypoint: `torchtitan.train`.
+- Python: `/opt/torchtitan-venv/bin/python3.12`.
+- PyTorch: `2.15.0.dev20260822+cu130`; CUDA runtime 13.0; NVCC 13.2.51.
+- DeepGEMM: `2.3.0+f093a4c`; DeepEP: `1.2.1+1b8f467`, from the installed environment.
+- CUTLASS DSL: 4.4.1; TVM FFI: 0.1.11.
+- Hardware: eight H100 80GB GPUs, NV18 between every pair.
+- The launcher sources `/etc/profile.d/wm.sh` for CUDA compatibility libraries,
+  verifies installed dependency paths/hashes and checks GPU availability.
 
-## Source and runtime
+[smoke.sh](smoke.sh) takes four arguments: task root, Python executable,
+installed DeepGEMM package parent, and a fresh attempt ID. The installed package
+parent is `/opt/torchtitan-venv/lib/python3.12/site-packages` on the verified server.
+The workload retains microbatch 2, sequence 4096, global batch 512, EP8,
+GFSDP2, FP8, compile, AdamW, CuTe and the agreed SAC policy. Smoke overrides are
+ten updates, monitoring interval 5 and disabled validation; scheduler horizon
+remains 65,000. Checkpoints, profiling and memory snapshots are disabled.
+Data are bundled `c4_test` and the test tokenizer, not a production mixture.
+Future launches require compute authorization and a fresh availability check.
 
-- Task starting revision: `833aa18435f8d06ab143dc6cb837f91ccf8f97bf`.
-- Existing GIFT snapshot: upstream main `6fd9a3230ab6361f11bbbf0b6ec5a5f125b78fc2`
-  plus the task's already recorded runtime corrections.
-- Port donor: `cute_norm_prodrun@ec47fb8e40a9a1e55d3c18dfa704ca104ae773af`, a
-  descendant of `msenikolaev_act_manager_100b@f15d33f3fd9204e5fef2adbd625b3caed2241052`.
-  The task retains the current typed configuration system and ports only the
-  required SAC, adaptive-routing, initialization and monitoring-loss contracts.
-- Read-only preflight found eight idle H100 80GB GPUs, 81,559 MiB reported per
-  device, and NV18 connectivity between every GPU pair. Ownership is checked
-  again immediately before launch.
-- Existing runtime: Python at `/opt/torchtitan-venv/bin/python3.12`, PyTorch
-  `2.15.0.dev20260822+cu130`, CUDA 13.0, CUTLASS DSL 4.4.1, TVM FFI 0.1.11,
-  DeepEP `1.2.1+1b8f467`, DeepGEMM `2.3.0+f093a4c`.
-- Reuse the existing isolated DeepGEMM descriptor repair and the existing pinned
-  HybridEP scan correction; do not modify shared installed packages. The repaired
-  DeepGEMM header SHA-256 is
-  `ed8bfb6a182d6a8a225d36b359287f17dba73e95d5cc50150ca177ea979557d2`.
+## Observed result
 
-## Bounded check
+Executed revision: `af02e60448ba7e2ca1b267c792d13c94205a65cc`.
+Training source revision: `383d393360d6451021f5d52f11b4646bd1601b28`.
+Launch: 2026-11-12 21:59:59 UTC; rank-0 completion: 22:12:10 UTC.
 
-Run ten optimizer updates with the canonical microbatch 2, sequence length 4096,
-global batch 512 and 32 accumulation microbatches. Keep the scheduler horizon at
-65,000 updates. The only monitoring-cadence validation override is interval 5
-instead of the default 50, exercising ordinary two-chunk loss and monitored
-32-chunk loss in the short run. Use existing offline `c4_test` data and the test
-tokenizer; retain the model vocabulary size 128,256. These data are smoke inputs,
-not the production pretraining mixture.
+| Check | Result |
+| --- | --- |
+| Exit code | 0 |
+| Every rank | 10 optimizer updates, 320 microbatches, 32 per update |
+| Monitoring | Completed at steps 5 and 10 |
+| Logged loss and gradient norms | Finite on all ranks |
+| Final rank-0 loss / gradient norm | 14.57517 / 7.6661 |
+| Maximum native console memory | 72.61 GiB |
+| Checkpoints / profiler traces / memory snapshots | None |
+| Teardown | All ranks completed; task processes exited; GPU compute-app list empty |
 
-Acceptance is finite: all eight ranks start with the intended configuration;
-the required FP8, CuTe, compile, GFSDP2/EP8 and per-layer SAC paths are active;
-ten optimizer updates complete with finite logged loss/gradient norm; ordinary
-and monitoring steps execute; no checkpoint, trace or memory snapshot is emitted;
-the owned run exits and releases its GPU processes. An OOM or runtime failure is
-recorded rather than silently changing widths, expert count, microbatch or SAC.
+The memory metric combines the PyTorch reserved peak with report-time non-PyTorch
+usage; it is not a simultaneous device-wide peak. Monitoring produced 34,084
+scalar tags at steps 5 and 10. The ordinary/monitoring 2/32 loss chunks are
+supported by resolved settings and the executed source/hook path, not a direct
+chunk counter. This short run establishes basic training execution only.
 
-## Results
+The [result receipt](result.json) records configuration and dependency hashes,
+step metrics and completion checks. Raw evidence is retained on the task server
+under `runs/100b-crop8-ep8-smoke/artifacts/raw/20261113-003-stock/`: exit status,
+metadata, resolved configuration, eight rank logs, structured logs and TensorBoard
+events, plus the sibling launch log/receipt. Raw logs retain their original names.
+
+## Source verification
 
 ### Source and CPU checks
 
@@ -85,7 +88,7 @@ No extra copy or allocation is introduced, and k-grouped wgrad is unchanged.
   chunks. The two crop snapshots are new.
 - The exact smoke CLI overrides passed the torch-free checker for eight ranks
   with zero warnings. The reviewed launch script passed `bash -n`; ShellCheck
-  is unavailable. The repaired DeepGEMM import path and runtime attributes were
+  is unavailable. The DeepGEMM import path and runtime attributes were
   checked on the target environment.
 - A combined local CPU harness had 55 passes, one skip, one deselection and
   12 compiled-router failures inside PyTorch 2.14.1 guard construction after
@@ -99,153 +102,3 @@ HybridEP dispatch, initialization, monitoring, loss, EMA and optimizer hooks.
 Saving six up/gate outputs adds a balanced-shape estimate of 2.25 GiB per active
 microbatch; layer 5 additionally saves communication outputs. This is not a
 measured peak or speed claim.
-
-### Attempt 20261113-001
-
-Published and pulled revision: `383d393360d6451021f5d52f11b4646bd1601b28`.
-Started at 2026-11-12 21:21:09 UTC (13 November in Moscow). The preflight exited
-with status 1 before torchrun: PyTorch reported an old driver API version 12080
-and no available CUDA devices, while `nvidia-smi` saw all eight H100s.
-
-The noninteractive SSH environment had no `LD_LIBRARY_PATH`. The existing image
-profile `/etc/profile.d/wm.sh` supplies the installed CUDA compatibility libraries
-under `/usr/local/cuda-13.2/compat/lib`; the launcher now sources that profile
-before its first PyTorch import. This uses NVIDIA's established
-[forward-compatibility route](https://docs.nvidia.com/deploy/cuda-compatibility/forward-compatibility.html),
-without installing packages or changing the host driver.
-
-No training rank started; no checkpoint, trace or snapshot was created. The
-launcher exited, the exact task-process scan was empty, and all GPU compute-app
-lists were empty. Original preflight evidence remains under
-`artifacts/raw/20261113-001/` and its sibling launch log.
-
-### Attempt 20261113-002 — PASS
-
-Executed revision: `31f2b0a759835ffbd234e8c78876225d62ec3b24`; the training-source
-changes are in `383d393360d6451021f5d52f11b4646bd1601b28`, followed only by the
-launcher environment correction. Launch was 2026-11-12 21:25:07 UTC; rank 0
-reported training completion at 21:37:53 UTC (13 November in Moscow).
-
-| Check | Observed result |
-| --- | --- |
-| Exit | `0` |
-| Every rank, 0–7 | Ten completed optimizer updates and ten completed steps |
-| Microbatches | Exactly 32 completed forward/backward spans per update, 320 per rank |
-| Numerical observations | All logged loss and gradient norms finite |
-| Monitoring | Hooks emitted at steps 5 and 10; ordinary and eager-monitoring paths completed |
-| FP8 | Native activation messages report 48 dense and 14 grouped projections |
-| Compile / sharding / SAC | Native model/loss compile, fully-shard/EP8 and the heterogeneous layer policies logged |
-| CuTe | Resolved CuTe norms and generated Inductor code containing both CuTe forward and backward operators |
-| Memory | Maximum native console memory metric across ranks/steps: 72.55 GiB; rank-0 maximum 72.32 GiB |
-| Artifacts | Native configs, structured JSONL logs and TensorBoard events only; no checkpoints, profiler traces or memory snapshots |
-| Release | All ranks completed distributed teardown; owned launcher/torchrun/rank processes absent and GPU compute-app query empty |
-
-The native memory metric is the PyTorch reserved peak since the last reset plus
-non-PyTorch usage sampled at report time. It is not a continuously measured
-device-wide maximum, and must not be added to the separately printed non-Torch
-field again. This smoke used a cold compilation path and more frequent monitoring;
-its console throughput is not a performance baseline.
-
-Monitoring loss chunks are established by the resolved `2`/`32` settings, hook
-events at steps 5/10, and the executed native source path: `Trainer.train_step`
-selects the monitoring value through `MonitoringCallback.is_monitoring_step`,
-`MTPLoss` inherits `ChunkedCELoss`, and the override is restored in `finally`.
-There is no direct runtime chunk-count counter. This is source/output correlation,
-not a claimed counter measurement.
-
-Rank-0 displayed loss values for updates 1–10:
-`15.31904, 15.29531, 15.24754, 15.17967, 15.09524, 15.00440, 14.90702, 14.80481, 14.69808, 14.57506`.
-Displayed gradient norms:
-`9.5409, 9.4775, 9.3872, 8.9090, 8.1253, 7.4433, 7.1236, 7.2134, 7.3938, 7.6756`.
-These rounded logs establish finite training observations, not numerical parity
-or convergence.
-
-The parent independently read exit status, metadata, final step/completion/
-teardown lines from all eight rank logs, native output inventory and empty GPU
-compute-app state after the observer's complete JSONL audit.
-
-Evidence remains on the task server under `artifacts/raw/20261113-002/`:
-`exit-code.txt`, `metadata.txt`, `native/config/resolved_config.yaml`, eight
-`native/structured_logs/*.jsonl`, `logs/torchrun/**/stdout.log`, and `native/tb/`.
-The compact [result receipt](result.json) is versioned; large runtime artifacts
-and caches remain outside Git.
-
-Reproduction uses the reviewed [launcher](smoke.sh), with explicit task root,
-existing Python executable, existing isolated DeepGEMM repair parent and a fresh
-attempt ID. It preserves the canonical workload and applies only the recorded
-ten-update stop and monitoring-cadence validation overrides. Future runs require
-their own compute authorization and fresh ownership preflight.
-
-### Requested control: both dependency repairs disabled
-
-The owner requested the same crop without the DeepGEMM descriptor-protocol patch
-and HybridEP scan-bound correction. This is one joint control, not independent
-attribution of either repair. Keep the configuration, seed, ten-update stop,
-monitoring interval 5, scheduler horizon, GIFT source (including the functional
-FP8/SAC correction), CUDA compatibility environment and no-checkpoint/no-profiler
-settings unchanged.
-
-Use the installed DeepGEMM package and the native `torchtitan.train` entrypoint.
-The installed original DeepGEMM header hash is
-`fd8a620440cc31ae7d01010fde1f914aae6998f2dcf6ede2a65e3b5e76001726`.
-The original HybridEP wrapper/header hashes are
-`63e425916b3c6b0c881ad402af35a2b00c4c84203fcde611a6715744b89210cb` and
-`b507f65cfa4580f16342076fc2d00afe81e43f64ddefcc4a3cf43681aef11b4b`.
-
-A fresh attempt-owned HybridEP cache prevents reuse of a corrected scan kernel;
-the native backend adds a process-specific subdirectory. DeepGEMM's installed
-library digest `0015c5c30202d513849b339660066739` differs from the repaired digest
-`a122322508f98be4c07c04c7237e53ab`, and is included in its compiled-kernel key.
-The native warmup still uses its existing node-local `/temp/.cache/rank_N`
-directories; they are not cleared or described as physically isolated. The
-control gets a fresh task-owned DeepGEMM shared cache. No installed dependency
-or shared startup file is edited.
-
-#### Attempt 20261113-003-stock — PASS
-
-Executed revision: `af02e60448ba7e2ca1b267c792d13c94205a65cc`; training source and
-canonical configuration were unchanged from the preceding smoke. The detached
-launcher started at 2026-11-12 21:59:59 UTC. Rank 0 reported update 10 at 22:12:08
-and training completion at 22:12:10 UTC (13 November in Moscow).
-
-- Exit status 0. Every rank completed ten optimizer updates and exactly 32
-  forward/backward microbatches per update, 320 per rank.
-- All 80 displayed rank loss/gradient pairs and the ten TensorBoard global loss,
-  maximum-loss and global-gradient-norm values were finite.
-- Metadata records `mode=stock`, `training_entrypoint=torchtitan.train`, and the
-  original DeepGEMM header hash. Preflight verified actual installed package,
-  extension and HybridEP wrapper paths and original source hashes. No
-  `scan-runtime` directory was created.
-- Source experiment/model preset bytes match the patched attempt. Exact text
-  comparison of native source and resolved configurations found only the output
-  `dump_folder` difference.
-- Monitoring executed at updates 5 and 10: 34,084 scalar tags occurred only on
-  those steps, including activation, activation-gradient and optimizer metrics.
-- Maximum native console memory was 72.61 GiB (rank 3, update 5), using the same
-  reserved-peak plus report-time non-PyTorch definition as above.
-- No checkpoint, profiler trace or memory snapshot files were emitted. Native
-  outputs contain configuration, structured logs, TensorBoard events and an
-  empty communication-trace directory.
-- All ranks completed distributed teardown; recorded task PIDs were absent and
-  GPU compute-app state was empty. The parent independently checked exit status,
-  original dependency paths, final lines from all eight ranks and released GPUs.
-
-Displayed rank-0 loss:
-`15.31903, 15.29536, 15.24759, 15.17939, 15.09555, 15.00458, 14.90697, 14.80463, 14.69788, 14.57517`.
-Displayed gradient norms:
-`9.5406, 9.4795, 9.3805, 8.9004, 8.1353, 7.4484, 7.1285, 7.2032, 7.3883, 7.6661`.
-
-Against the patched run's rounded displayed series, maximum absolute differences
-are 0.00031 for loss and 0.0102 for gradient norm. These two runs are not a
-deterministic numerical comparison or an A/A noise control. The difference is
-not attributed to either repair, and the successful short run does not establish
-that the known defects are absent or harmless. It establishes that this exact
-crop completed the requested smoke without either dependency repair.
-
-Evidence: `artifacts/raw/20261113-003-stock/`, its sibling launch receipt/log,
-and the versioned [stock result receipt](result-stock.json). One reporting-script
-YAML extraction was inconclusive; exact text comparison recovered that check.
-There was no training retry for the stock control. The default launcher mode
-remains `patched`; use its explicit fifth argument `stock` to reproduce this
-control with the installed package parent. No default-dependency policy change
-is inferred from this run request.
