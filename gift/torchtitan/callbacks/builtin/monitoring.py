@@ -77,10 +77,13 @@ class MonitoringCallback(Configurable, Observer):
             source.log_interval = self.config.log_interval
             source.fit_start(state)
 
+    def is_monitoring_step(self, step: int) -> bool:
+        return bool(self.sources) and step % self.config.log_interval == 0
+
     def batch_start(self, state: ObserverState) -> None:
         if not self.sources:
             return
-        active = state.step % self.config.log_interval == 0
+        active = self.is_monitoring_step(state.step)
         if active:
             self._eager_window.open()
         for source in self.sources:

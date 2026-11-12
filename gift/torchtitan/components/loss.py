@@ -560,6 +560,7 @@ class ChunkedCELoss(BaseLoss):
         self.fn: LossFunction = cross_entropy_loss
         self._maybe_compile(compile_config)
         self.num_chunks = config.num_chunks
+        self.num_chunks_on_monitoring_steps = config.num_chunks_on_monitoring_steps
         self.lm_head: nn.Module | None = None
         # set by the trainer; only real PP losses use it (probes stay synced)
         self.is_last_accumulation_step = True

@@ -789,9 +789,15 @@ trainer:
     early_stop: false
     memory_budget: 0.5
     mode: selective
+    module_modes: []
     per_op_sac_force_recompute_mm_shapes_by_fqns:
     - moe.router.gate
     preserve_rng_state: true
+    selective_save:
+    - mm_half
+    - attn
+    - comm
+    - other
     visualize_memory_budget_pareto: false
   callbacks: {}
   checkpoint:
@@ -874,6 +880,7 @@ trainer:
   loss:
     __type__: loss:chunked_cross_entropy
     num_chunks: 8
+    num_chunks_on_monitoring_steps: null
   lr_scheduler:
     __type__: torchtitan.config.schema.components.lr_scheduler.LRSchedulersContainerConfig
     decay_ratio: 0.8

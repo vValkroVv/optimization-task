@@ -4,9 +4,9 @@ Task records define current scope and acceptance. This scaffold uses Markdown on
 
 | ID | Task | Status | Dependency |
 | --- | --- | --- | --- |
-| OPT-001 | Select and measure the representative baseline | Backlog | Source import record |
+| OPT-001 | Select and measure the representative baseline | In progress: config/ports and smoke pending | Agreed baseline contract; source import record |
 | OPT-002 | Profile the baseline and identify a bottleneck | Backlog | OPT-001 |
 | OPT-003 | Evaluate one bottleneck-matched candidate | Backlog | OPT-002 |
-| [OPT-004](tasks/opt-004-cuda-graphs-hybridep-fp8.md) | Test CUDA Graphs for 3B MoE / HybridEP / FP8 on eight H100 GPUs | Backlog | Refreshed GIFT main; execution access |
+| [OPT-004](tasks/opt-004-cuda-graphs-hybridep-fp8.md) | Stabilize the historical 3B HybridEP / FP8 baseline | Complete: bounded stability only | Refreshed GIFT main; prior campaign evidence |
 
-A task is Done only when its acceptance criteria are verified. OPT-004 selects a concrete workload and hardware and includes its own baseline, profiling and candidate stages; it need not wait for the earlier generic tasks. Reuse its evidence in OPT-001 through OPT-003 where applicable, without marking their broader criteria complete automatically. All GPU campaign results remain unmeasured.
+A task is Done only when its acceptance criteria are verified. OPT-001's current agreed workload and smoke scope are described in the [baseline contract](../docs/baseline-100b-crop.md); its source/config integration, resolved configuration, and basic smoke remain pending. The smoke is not a performance measurement and does not complete OPT-001's later baseline measurement criteria. OPT-002 and OPT-003 remain unstarted. OPT-004's recorded stability result remains distinct historical evidence; its graph performance comparison is paused and unmeasured.

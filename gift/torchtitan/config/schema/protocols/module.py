@@ -87,6 +87,12 @@ class XavierUniform(InitSpec):
     pass
 
 
+@component("xavier_normal")
+@dataclass(frozen=True, slots=True)
+class XavierNormal(InitSpec):
+    pass
+
+
 @component("kaiming_uniform")
 @dataclass(frozen=True, slots=True)
 class KaimingUniform(InitSpec):

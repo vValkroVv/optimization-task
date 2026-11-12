@@ -1,0 +1,112 @@
+# Eight-layer 100B development crop. Bundled C4/tokenizer are smoke data only.
+# The architecture and 65k-step schedule retain the production widths/recipe.
+config_version: 1
+
+imports:
+  - ../presets/models/gift_moe/gift_3_5/100b_crop8.yaml
+  - ../presets/callbacks/monitored.yaml
+
+model:
+  config:
+    blocks:
+      gdn_moe:
+        moe: &moe
+          load_balance_strategy: adaptive
+          experts:
+            token_dispatcher:
+              type: hybridep
+              pad_multiple: 128
+              token_drop:
+                strategy: fixed_capacity
+                expert_capacity_tokens: 50000
+                drop_by_group_capacity: true
+      mla_moe:
+        moe: *moe
+
+loss:
+  type: mtp
+  loss_weights: [0.3]
+  num_chunks: 2
+  num_chunks_on_monitoring_steps: 32
+
+hf_assets_path: ./tests/assets/tokenizer
+
+dataloader:
+  type: hf_text
+  dataset: c4_test
+
+optimizer:
+  name: AdamW
+  implementation: fused
+  lr: 0.00102
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-20
+  weight_decay: 0.1
+
+lr_scheduler:
+  total_steps: 65000
+  warmup_steps: 2000
+  decay_ratio: null
+  decay_type: cosine
+  min_lr_factor: 0.0098
+
+training:
+  local_batch_size: 2
+  global_batch_size: 512
+  seq_len: 4096
+  steps: 65000
+  enable_cpu_offload: false
+
+parallelism:
+  data_parallel_replicate_degree: 1
+  data_parallel_shard_degree: 8
+  expert_parallel_degree: 8
+  pipeline_parallel_degree: 1
+  tensor_parallel_degree: 1
+  context_parallel_degree: 1
+  fsdp_backend: gfsdp2
+  gfsdp_match_fsdp2_init: true
+
+fp8:
+  dense_include_linear_layers: '.*\.(w1|w2|w3|wo|o_proj|qkv_proj|z_proj)$'
+  dense_use_shared_quantizer: true
+  sparse_use_grouped_gemm: true
+  sparse_deep_gemm_num_sms: 116
+
+activation_checkpoint:
+  mode: selective
+  selective_save: []
+  module_modes:
+    - 'layers.[01]=selective'
+    - 'layers.[23467]=save:experts_up'
+    - 'layers.5=save:experts_up+comm'
+
+compile:
+  enable: true
+  components: [model, loss]
+
+callbacks:
+  ema:
+    decay: 0.99
+    update_period: 10
+    start_step: 10000
+  monitoring:
+    log_interval: 50
+
+comm:
+  train_timeout_seconds: 1800
+
+metrics:
+  log_freq: 1
+  enable_tensorboard: true
+
+debug:
+  seed: 2048
+
+checkpoint:
+  enable: false
+
+profiler:
+  enable_profiling: false
+  enable_memory_snapshot: false

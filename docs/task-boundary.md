@@ -1,8 +1,14 @@
 # Initial task boundary
 
-The [26 October 2026 exchange](../additional/task-inputs/2026-10-26-initial-scope.md) sets the current research direction. It gives task requirements, not a tested or resolved production configuration.
+The [26 October 2026 exchange](../additional/task-inputs/2026-10-26-initial-scope.md) records the initial research direction. It gives task requirements, not a tested or resolved production configuration.
 
-## Current direction
+## Later agreed baseline
+
+The owner later selected the eight-layer 100B-dev crop as the task's default workload. Its architecture, canonical config, source identities, runtime settings, smoke limits, and future study list are in the [baseline contract](baseline-100b-crop.md). That agreement supersedes the open workload choices below for the current baseline.
+
+The task-local GIFT base remains pinned `main`; only the approved required runtime ports are in scope. Their implementation and the resolved configuration are pending. GPU availability preflight passed, but the authorized smoke has not launched. This selection is not a measured performance baseline.
+
+## Original direction from the 26 October exchange
 
 - Target GFSDP. The source spells this `Gfsdp`; preserve that spelling in the evidence. No canonical config enum or implementation is inferred.
 - Compile both the model and loss.
@@ -14,7 +20,7 @@ The [26 October 2026 exchange](../additional/task-inputs/2026-10-26-initial-scop
 
 The exchange does not select a specific optimization or state whether parallelism-independent opportunities should take priority.
 
-## Unresolved before baseline acceptance
+## Open choices in the original exchange
 
 Record the concrete model and meaning of `gift 4`; dataset, sequence length, packing, batch, optimizer and schedule; GFSDP implementation, degrees, and process groups; GPU and node topology; FP8 recipe and numerical behavior; SAC/full-checkpointing policy; compile settings; evaluation and checkpoint cadence; numerical tolerances and quality gates; performance threshold; and authorized compute. Keep source revision pins unchanged unless separately authorized.
 

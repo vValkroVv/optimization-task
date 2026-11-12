@@ -406,10 +406,46 @@ class ParallelismConfig:
                 )
 
 
+SAC_CATEGORIES = ("mm", "mm_half", "attn", "comm", "experts", "experts_up", "other")
+
+
+def parse_sac_save_spec(spec: str | list[str]) -> frozenset[str]:
+    """Validate a SAC category list or a '+'-separated per-block save set."""
+    cats = spec.split("+") if isinstance(spec, str) else list(spec)
+    cats = [category for category in cats if category]
+    bad = sorted(set(cats) - set(SAC_CATEGORIES))
+    if bad:
+        raise ValueError(f"unknown SAC save categories {bad}; valid: {SAC_CATEGORIES}")
+    for pair in (("mm", "mm_half"), ("experts", "experts_up")):
+        if set(pair).issubset(cats):
+            raise ValueError(
+                f"SAC save categories {pair[0]} and {pair[1]} are mutually exclusive"
+            )
+    return frozenset(cats)
+
+
 @dataclass(kw_only=True, slots=True)
 class ActivationCheckpointConfig:
     mode: Literal["selective", "full", "memory_budget", "none"] = "selective"
     """Type of activation checkpointing to use"""
+
+    selective_save: list[str] = field(
+        default_factory=lambda: ["mm_half", "attn", "comm", "other"]
+    )
+    """Selective AC categories to save; an empty list recomputes all safe ops.
+
+    Categories: mm, mm_half (alternating mm/linear), attn, comm, experts,
+    experts_up (narrower up/gate grouped projections), other. mm/mm_half and
+    experts/experts_up are mutually exclusive. Router choices, FP8 amax,
+    CUDA-to-CPU copies and compiled regions always stay saved.
+    """
+
+    module_modes: list[str] = field(default_factory=list)
+    """Block overrides as '<fnmatch glob>=<mode>'; first matching rule wins.
+
+    Unmatched blocks use mode. Overrides accept full, selective, none, and
+    save:<category>+<category>; e.g. 'layers.5=save:experts_up+comm'.
+    """
 
     per_op_sac_force_recompute_mm_shapes_by_fqns: list[str] = field(
         default_factory=lambda: ["moe.router.gate"]
@@ -469,6 +505,25 @@ class ActivationCheckpointConfig:
     https://docs.pytorch.org/docs/stable/checkpoint.html for details.
     """
 
+    def __post_init__(self) -> None:
+        parse_sac_save_spec(self.selective_save)
+        if self.module_modes and self.mode in ("none", "memory_budget"):
+            raise ValueError(
+                "activation_checkpoint.module_modes requires mode='selective' or 'full'"
+            )
+        for rule in self.module_modes:
+            pattern, sep, mode = rule.partition("=")
+            if not sep or not pattern:
+                raise ValueError(
+                    f"activation_checkpoint.module_modes entry {rule!r} must be '<glob>=<mode>'"
+                )
+            if mode.startswith("save:"):
+                parse_sac_save_spec(mode[len("save:") :])
+            elif mode not in ("full", "selective", "none"):
+                raise ValueError(
+                    f"activation_checkpoint.module_modes has invalid mode {mode!r}"
+                )
+
 
 @dataclass(kw_only=True, slots=True)
 class CompileConfig:
@@ -495,8 +550,7 @@ class CompileConfig:
         if not self.cudagraph_exclude_blocks:
             return
         if any(
-            type(name) is not str or not name
-            for name in self.cudagraph_exclude_blocks
+            type(name) is not str or not name for name in self.cudagraph_exclude_blocks
         ):
             raise ValueError(
                 "compile.cudagraph_exclude_blocks must contain nonempty block FQNs"

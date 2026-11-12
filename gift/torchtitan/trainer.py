@@ -18,6 +18,7 @@ from torch.distributed.tensor import DTensor
 
 from torchtitan.config.schema.trainer import TrainerConfig
 from torchtitan.callbacks import CallbackManager, EMA, Event
+from torchtitan.callbacks.builtin.monitoring import MonitoringCallback
 from torchtitan.distributed.backends import build_sharding_backend
 from torchtitan.components.aux_loss import AuxLossTracker
 from torchtitan.components.checkpoint import CheckpointManager, TRAIN_STATE
@@ -760,35 +761,48 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
 
         # Process each microbatch: move to GPU, forward/backward, then free
         accumulated_losses = []
-        for microbatch_idx, (input_dict, labels) in enumerate(microbatches):
-            self.callbacks.emit(
-                Event.microbatch_start, self, microbatch_idx=microbatch_idx
-            )
-            # Move tensors to GPU
-            for k, v in input_dict.items():
-                if isinstance(v, torch.Tensor):
-                    input_dict[k] = v.to(self.device)
-            labels = labels.to(self.device)
-
-            if isinstance(self.loss_fn, ChunkedCELoss):
-                self.loss_fn.is_last_accumulation_step = (
-                    microbatch_idx == self.gradient_accumulation_steps - 1
+        base_num_chunks = None
+        if isinstance(self.loss_fn, ChunkedCELoss):
+            base_num_chunks = self.loss_fn.num_chunks
+            if self.loss_fn.num_chunks_on_monitoring_steps is not None and any(
+                isinstance(callback, MonitoringCallback)
+                and callback.is_monitoring_step(self.step)
+                for callback in self.callbacks.handler.callbacks
+            ):
+                self.loss_fn.num_chunks = self.loss_fn.num_chunks_on_monitoring_steps
+        try:
+            for microbatch_idx, (input_dict, labels) in enumerate(microbatches):
+                self.callbacks.emit(
+                    Event.microbatch_start, self, microbatch_idx=microbatch_idx
                 )
-            loss = self.forward_backward_step(
-                input_dict=input_dict,
-                labels=labels,
-                global_valid_tokens=global_valid_tokens,
-            )
-            self.callbacks.emit(
-                Event.after_forward,
-                self,
-                input_dict=input_dict,
-                labels=labels,
-                loss=self.loss_this_pp_stage_owns(loss),
-                global_valid_tokens=global_valid_tokens,
-                microbatch_idx=microbatch_idx,
-            )
-            accumulated_losses.append(loss.detach())
+                # Move tensors to GPU
+                for k, v in input_dict.items():
+                    if isinstance(v, torch.Tensor):
+                        input_dict[k] = v.to(self.device)
+                labels = labels.to(self.device)
+
+                if isinstance(self.loss_fn, ChunkedCELoss):
+                    self.loss_fn.is_last_accumulation_step = (
+                        microbatch_idx == self.gradient_accumulation_steps - 1
+                    )
+                loss = self.forward_backward_step(
+                    input_dict=input_dict,
+                    labels=labels,
+                    global_valid_tokens=global_valid_tokens,
+                )
+                self.callbacks.emit(
+                    Event.after_forward,
+                    self,
+                    input_dict=input_dict,
+                    labels=labels,
+                    loss=self.loss_this_pp_stage_owns(loss),
+                    global_valid_tokens=global_valid_tokens,
+                    microbatch_idx=microbatch_idx,
+                )
+                accumulated_losses.append(loss.detach())
+        finally:
+            if base_num_chunks is not None:
+                self.loss_fn.num_chunks = base_num_chunks
 
         with sl.log_trace_span("optim"):
             self.callbacks.emit(

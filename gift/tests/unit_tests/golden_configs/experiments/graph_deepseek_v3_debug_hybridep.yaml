@@ -1,6 +1,6 @@
 materialized_model:
   __type__: model:graph_trainer/deepseek_v3
-  blocks: &mapping_3926a10eddd9cd84
+  blocks: &mapping_bbd51cda39aa83ee
     mla_dense:
       __type__: transformer_block:residual
       attention: &attention_mla_07f1bbf3d327043a
@@ -114,6 +114,7 @@ materialized_model:
         hidden_z_loss: null
         init_role: null
         load_balance_coeff: 0.001
+        load_balance_strategy: baseline
         param_init: null
         router:
           __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
@@ -515,6 +516,7 @@ materialized_model:
       hidden_z_loss: null
       init_role: ''
       load_balance_coeff: 0.001
+      load_balance_strategy: baseline
       param_init: null
       router:
         __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
@@ -718,6 +720,7 @@ materialized_model:
       hidden_z_loss: null
       init_role: ''
       load_balance_coeff: 0.001
+      load_balance_strategy: baseline
       param_init: null
       router:
         __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
@@ -881,6 +884,7 @@ materialized_model:
       hidden_z_loss: null
       init_role: ''
       load_balance_coeff: 0.001
+      load_balance_strategy: baseline
       param_init: null
       router:
         __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
@@ -1044,6 +1048,7 @@ materialized_model:
       hidden_z_loss: null
       init_role: ''
       load_balance_coeff: 0.001
+      load_balance_strategy: baseline
       param_init: null
       router:
         __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
@@ -1207,6 +1212,7 @@ materialized_model:
       hidden_z_loss: null
       init_role: ''
       load_balance_coeff: 0.001
+      load_balance_strategy: baseline
       param_init: null
       router:
         __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
@@ -1318,7 +1324,7 @@ model:
   __type__: torchtitan.config.sections.ModelSection
   config:
     __type__: model:graph_trainer/deepseek_v3
-    blocks: *mapping_3926a10eddd9cd84
+    blocks: *mapping_bbd51cda39aa83ee
     converters: []
     dim: 256
     hidden_z_loss: null
@@ -1363,9 +1369,15 @@ trainer:
     early_stop: false
     memory_budget: 0.5
     mode: selective
+    module_modes: []
     per_op_sac_force_recompute_mm_shapes_by_fqns:
     - moe.router.gate
     preserve_rng_state: true
+    selective_save:
+    - mm_half
+    - attn
+    - comm
+    - other
     visualize_memory_budget_pareto: false
   callbacks: {}
   checkpoint:

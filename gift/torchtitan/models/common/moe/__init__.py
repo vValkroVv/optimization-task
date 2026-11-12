@@ -77,6 +77,7 @@ class MoE(Module):
         self.router_aux_loss_coef = config.router_aux_loss_coef
         self.router_z_loss_coef = config.router_z_loss_coef
         self.load_balance_coeff = config.load_balance_coeff
+        self.load_balance_strategy = config.load_balance_strategy
         if self.load_balance_coeff:
             if not (
                 math.isfinite(self.load_balance_coeff) and self.load_balance_coeff > 0

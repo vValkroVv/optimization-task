@@ -1,6 +1,6 @@
 materialized_model:
   __type__: model:gift_moe
-  blocks: &mapping_99c11d0711ba58b2
+  blocks: &mapping_80fdabd9ff430a34
     mla_dense:
       __type__: transformer_block:residual
       attention: &attention_mla_10172da637949b2f
@@ -120,6 +120,7 @@ materialized_model:
         hidden_z_loss: null
         init_role: null
         load_balance_coeff: 0.001
+        load_balance_strategy: baseline
         param_init: null
         router:
           __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
@@ -400,7 +401,7 @@ materialized_model:
     hidden_z_loss: null
     init_role: ''
     layer_id: 1
-    moe: &moe_token_choice_a99f6fedfbdb4784
+    moe: &moe_token_choice_5af77195dc9d363a
       __type__: moe:token_choice
       experts:
         __type__: torchtitan.config.schema.models.common.moe.experts.gmm.GroupedExpertsConfig
@@ -422,6 +423,7 @@ materialized_model:
       hidden_z_loss: null
       init_role: ''
       load_balance_coeff: 0.001
+      load_balance_strategy: baseline
       param_init: null
       router:
         __type__: torchtitan.config.schema.models.common.moe.router.TokenChoiceTopKRouterConfig
@@ -526,7 +528,7 @@ materialized_model:
     hidden_z_loss: null
     init_role: ''
     layer_id: 2
-    moe: *moe_token_choice_a99f6fedfbdb4784
+    moe: *moe_token_choice_5af77195dc9d363a
     param_init: null
     post_attn_norm: null
     post_ffn_norm: null
@@ -542,7 +544,7 @@ materialized_model:
     hidden_z_loss: null
     init_role: ''
     layer_id: 3
-    moe: *moe_token_choice_a99f6fedfbdb4784
+    moe: *moe_token_choice_5af77195dc9d363a
     param_init: null
     post_attn_norm: null
     post_ffn_norm: null
@@ -558,7 +560,7 @@ materialized_model:
     hidden_z_loss: null
     init_role: ''
     layer_id: 4
-    moe: *moe_token_choice_a99f6fedfbdb4784
+    moe: *moe_token_choice_5af77195dc9d363a
     param_init: null
     post_attn_norm: null
     post_ffn_norm: null
@@ -574,7 +576,7 @@ materialized_model:
     hidden_z_loss: null
     init_role: ''
     layer_id: 5
-    moe: *moe_token_choice_a99f6fedfbdb4784
+    moe: *moe_token_choice_5af77195dc9d363a
     param_init: null
     post_attn_norm: null
     post_ffn_norm: null
@@ -612,7 +614,7 @@ materialized_model:
         hidden_z_loss: null
         init_role: ''
         layer_id: 6
-        moe: *moe_token_choice_a99f6fedfbdb4784
+        moe: *moe_token_choice_5af77195dc9d363a
         param_init: null
         post_attn_norm: null
         post_ffn_norm: null
@@ -653,7 +655,7 @@ materialized_model:
         hidden_z_loss: null
         init_role: ''
         layer_id: 7
-        moe: *moe_token_choice_a99f6fedfbdb4784
+        moe: *moe_token_choice_5af77195dc9d363a
         param_init: null
         post_attn_norm: null
         post_ffn_norm: null
@@ -701,7 +703,7 @@ model:
   __type__: torchtitan.config.sections.ModelSection
   config:
     __type__: model:gift_moe
-    blocks: *mapping_99c11d0711ba58b2
+    blocks: *mapping_80fdabd9ff430a34
     converters: []
     dim: 256
     hidden_z_loss: null
@@ -756,9 +758,15 @@ trainer:
     early_stop: false
     memory_budget: 0.5
     mode: selective
+    module_modes: []
     per_op_sac_force_recompute_mm_shapes_by_fqns:
     - moe.router.gate
     preserve_rng_state: true
+    selective_save:
+    - mm_half
+    - attn
+    - comm
+    - other
     visualize_memory_budget_pareto: false
   callbacks:
     monitoring:
@@ -856,6 +864,7 @@ trainer:
     - 0.3
     - 0.3
     num_chunks: 8
+    num_chunks_on_monitoring_steps: null
   lr_scheduler:
     __type__: torchtitan.config.schema.components.lr_scheduler.LRSchedulersContainerConfig
     decay_ratio: 0.8

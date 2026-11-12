@@ -16,7 +16,27 @@ if TYPE_CHECKING:
     # package to a component that no longer needs to know about MoE.
     from torchtitan.components.optimizer import OptimizersContainer
 
-__all__ = ["register_moe_load_balancing_hook"]
+__all__ = ["expert_bias_delta", "register_moe_load_balancing_hook"]
+
+
+def expert_bias_delta(
+    tokens_per_expert_E: torch.Tensor, *, coeff: float, strategy: str
+) -> torch.Tensor:
+    """The per-step expert-bias update for aux-loss-free load balancing.
+
+    ``baseline`` is the sign rule (not exactly what
+    https://arxiv.org/pdf/2408.15664 proposed): ``coeff * sign(mean - load)``.
+    ``adaptive`` (llm-foundry's ``update_bias``) additionally scales the step by
+    ``clamp(1 + max_vio, 1, 5)`` with ``max_vio = (max - mean) / mean``, so a
+    heavily skewed router receives up to 5x larger updates. Either way the delta is
+    recentered to zero mean, which top-k selection is invariant to.
+    """
+    mean_tokens = tokens_per_expert_E.mean()
+    delta_E = coeff * torch.sign(mean_tokens - tokens_per_expert_E)
+    if strategy == "adaptive":
+        max_vio = (tokens_per_expert_E.max() - mean_tokens) / (mean_tokens + 1e-6)
+        delta_E = delta_E * torch.clamp(1 + max_vio, 1.0, 5.0)
+    return delta_E - delta_E.mean()
 
 
 def register_moe_load_balancing_hook(
@@ -110,12 +130,11 @@ def register_moe_load_balancing_hook(
                     moe_layer_idx
                 ].float()
 
-                # update the expert bias
-                # this is not exactly the same as https://arxiv.org/pdf/2408.15664 proposed
-                expert_bias_delta_E = moe.load_balance_coeff * torch.sign(
-                    tokens_per_expert_E.mean() - tokens_per_expert_E
+                expert_bias_delta_E = expert_bias_delta(
+                    tokens_per_expert_E,
+                    coeff=moe.load_balance_coeff,
+                    strategy=moe.load_balance_strategy,
                 )
-                expert_bias_delta_E = expert_bias_delta_E - expert_bias_delta_E.mean()
                 expert_bias = moe.expert_bias_E
                 assert expert_bias is not None
                 expert_bias.add_(expert_bias_delta_E)

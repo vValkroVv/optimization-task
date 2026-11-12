@@ -4,13 +4,12 @@ These rules make this clone usable on its own. The task record and current user 
 
 ## Current prioritization
 
-- For the selected CUDA Graph campaign, follow [OPT-004](backlog/tasks/opt-004-cuda-graphs-hybridep-fp8.md): the exact 3B MoE/HybridEP/FP8 preset on one eight-H100 NVLink server. Preserve its FSDP2, EP8, selective AC and model/loss compilation. This specific 11 November request overrides the older general priorities below for that campaign; it does not authorize running the plan during its preparation.
-- Target GFSDP, compilation of both model and loss, FP8, and SAC/full activation checkpointing. Keep `gift 4` as supplied until its exact model/preset meaning is clarified.
-- Focus initial optimization research on small models on one or two nodes; exact hardware and configuration remain to be selected.
-- Deprioritize PP for now. It is not excluded or a blocker.
-- Improve training speed without trading away numerical stability or model quality. Preserve the selected production settings when comparing candidates.
+- The current default is the agreed eight-layer crop of the 100B-dev model. Follow [the baseline contract](docs/baseline-100b-crop.md) and its canonical task-local YAML/model preset links. The source base remains task-local GIFT `main`; integrate only the approved required runtime ports from the pinned donor revision. Do not replace the source base with the donor branch.
+- Current validation is limited to the authorized basic GPU training smoke. Source integration and configuration checks are complete; consult the [run report](runs/100b-crop8-ep8-smoke/report.md) for current execution evidence. Do not create checkpoints or traces, or start a performance benchmark or optimization campaign under this scope.
+- [OPT-004](backlog/tasks/opt-004-cuda-graphs-hybridep-fp8.md) is the completed historical 3B HybridEP/FP8 stability campaign. Its CUDA Graph and performance work remains paused; preserve its task record and artifacts without treating it as the active baseline.
+- Improve training speed without trading away numerical stability or model quality. Before candidate comparisons, apply the [optimization contract](docs/optimization-contract.md) to the selected workload and preserve its agreed settings.
 
-See the [task boundary](docs/task-boundary.md) for the original brief and unresolved details.
+See the [task boundary](docs/task-boundary.md) for the original brief and how the later baseline selection supersedes its open workload choices.
 
 ## Objective and invariants
 

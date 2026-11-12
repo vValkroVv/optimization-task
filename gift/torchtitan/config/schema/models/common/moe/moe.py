@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from torchtitan.config.configurable import config
 from torchtitan.config.errors import ConfigFieldError
@@ -24,6 +24,8 @@ class MoEConfig(ModuleConfig):
     router: TokenChoiceTopKRouterConfig
     # 0 disables the expert-bias load balancing (and its bias buffer).
     load_balance_coeff: float = 1e-3
+    load_balance_strategy: Literal["baseline", "adaptive"] = "baseline"
+    """Centered sign update; adaptive scales it by clamp(1 + max_vio, 1, 5)."""
     gate_bias: ClassVar[bool | None] = None
     """Gate bias fixed by the family; ``None`` leaves it to the gate config."""
 
@@ -36,6 +38,10 @@ class MoEConfig(ModuleConfig):
     router_z_loss_coef: float = 0.0
 
     def __post_init__(self) -> None:
+        if self.load_balance_strategy not in ("baseline", "adaptive"):
+            raise ConfigFieldError(
+                "load_balance_strategy", "must be 'baseline' or 'adaptive'"
+            )
         for name in (
             "load_balance_coeff",
             "router_aux_loss_coef",

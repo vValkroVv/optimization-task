@@ -1,0 +1,122 @@
+# Eight-layer crop of GIFT 3.5 100B: preserve widths and the first two periods.
+# LLMF Xavier recipe: packed MLA matrices keep their logical fan dimensions.
+model:
+  label: gift_3_5/100b_crop8
+  config:
+    type: gift_3_5
+    dim: 4096
+    vocab_size: 128256
+    init:
+      norm:
+        weight: {type: ones}
+        bias: {type: zeros}
+      o_norm:
+        weight: {type: norm_unit_scale}
+      gated_delta:
+        A_log: {type: gated_delta_a_log}
+        dt_bias: {type: gated_delta_dt_bias}
+      linear:
+        weight: {type: xavier_normal}
+        bias: {type: zeros}
+      embedding:
+        weight: {type: xavier_normal}
+      router_gate:
+        weight: {type: renorm_keep_std, init: {type: xavier_normal}}
+        bias: {type: zeros}
+      gated_norm:
+        weight: {type: norm_unit_scale}
+        gate_up_weight: {type: xavier_normal}
+        gate_down_weight: {type: xavier_normal}
+      experts:
+        # Logical expert matrices: sqrt(2 / (4096 + 1536)).
+        w13_E2FD: {type: normal, std: 0.018844459036110227}
+        w2_EDF: {type: normal, std: 0.018844459036110227}
+      conv:
+        weight: {type: xavier_uniform}
+        bias: {type: zeros}
+    norm: &norm
+      type: gated_rmsnorm
+      eps: 1.0e-06
+      zero_centered: true
+      gate_rank: 16
+      gating_weight: 2.0
+      norm_backend: cute
+    rope: {type: complex, dim: 64, max_seq_len: 4096, theta: 100000.0}
+    hidden_z_loss_patterns:
+      norm: {coef: 1.0e-07, on: input}
+    blocks:
+      gdn_dense:
+        attention: &gdn
+          type: gdn
+          num_k_heads: 16
+          num_v_heads: 32
+          head_k_dim: 128
+          head_v_dim: 128
+          conv_size: 4
+          o_norm: {activation: sigmoid, eps: 1.0e-06, zero_centered: true}
+          o_norm_output_multiplier: 2.0
+        feed_forward: &dense {hidden_dim: 10944}
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm
+        post_ffn_norm: *norm
+      gdn_moe:
+        attention: *gdn
+        moe: &moe
+          experts:
+            hidden_dim: 1536
+            num_experts: 128
+            score_before_experts: false
+            token_dispatcher: {type: local}
+          router:
+            top_k: 8
+            score_func: sigmoid
+            route_norm: true
+            route_scale: 2.5
+          shared_experts: {hidden_dim: 1536}
+          load_balance_coeff: 0.001
+          router_aux_loss_coef: 0.0001
+          router_z_loss_coef: 0.0
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm
+        post_ffn_norm: *norm
+      mla_moe:
+        attention: &mla
+          type: mla
+          n_heads: 32
+          gate: {}
+          kv_norm: *norm
+          q_lora_rank: 0
+          kv_lora_rank: 512
+          wkv_a:
+            param_init:
+              weight: {type: mla_kv_a, kv_rank: 512}
+          wkv_b:
+            param_init:
+              weight: {type: mla_kv_b, num_heads: 32, key_dim: 128, value_dim: 128}
+          qk_nope_head_dim: 128
+          qk_rope_head_dim: 64
+          v_head_dim: 128
+          use_mla_scaling_factor: true
+          inner_attention: {type: sdpa}
+        moe: *moe
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm
+        post_ffn_norm: *norm
+      mtp:
+        attention: *mla
+        feed_forward: *dense
+        attention_norm: *norm
+        ffn_norm: *norm
+        post_attn_norm: *norm
+        post_ffn_norm: *norm
+    layers:
+      - {block: gdn_dense}
+      - {block: gdn_moe, repeat: 2}
+      - {block: mla_moe}
+      - {cycle: [gdn_moe, gdn_moe, gdn_moe, mla_moe]}
+    mtp:
+      layers:
+        - {block: mtp}

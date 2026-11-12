@@ -182,9 +182,8 @@ def _run(call: tuple, num_groups: int, handle, device: torch.device) -> None:
         else:
             w = quantize_expert_weight(torch.randn(g, n, k, dtype=bf16, device=device))
             w = (w._data, w._scale)
-        out = torch.empty(m, n, dtype=bf16, device=device)
         m_indices = torch.zeros(m, dtype=torch.int32, device=device)
-        handle.m_grouped_fp8_gemm_nt_contiguous(a, w, out, m_indices)
+        handle.m_grouped_fp8_gemm_nt_contiguous(a, w, m_indices)
     else:
         _, m, n, max_k = call
         ks = [max_k] + [_ALIGN] * (g - 1)

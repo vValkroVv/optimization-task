@@ -25,6 +25,7 @@ from torchtitan.config.schema.protocols.module import (
     Ones,
     Skip,
     TruncNormal,
+    XavierNormal,
     XavierUniform,
     Zeros,
 )
@@ -74,6 +75,7 @@ register_param_init(Normal)(lambda s: partial(nn.init.normal_, mean=s.mean, std=
 register_param_init(Zeros)(lambda s: nn.init.zeros_)
 register_param_init(Ones)(lambda s: nn.init.ones_)
 register_param_init(XavierUniform)(lambda s: nn.init.xavier_uniform_)
+register_param_init(XavierNormal)(lambda s: nn.init.xavier_normal_)
 register_param_init(KaimingUniform)(lambda s: partial(nn.init.kaiming_uniform_, a=s.a))
 register_param_init(Skip)(lambda s: lambda param: None)
 

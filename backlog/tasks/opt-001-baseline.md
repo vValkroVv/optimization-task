@@ -1,24 +1,24 @@
 # OPT-001 — Select and measure the representative baseline
 
-**Status:** Backlog
+**Status:** In progress for the agreed crop configuration and basic smoke; performance baseline work is not authorized in the current scope.
 
 **Depends on:** Source import record in [additional/baseline](../../additional/baseline/README.md)
 
 ## Goal
 
-Select the production-representative training workload and record a reproducible baseline. The imported upstream source revision is a source identity, not a measured workload baseline. Follow the [initial task boundary](../../docs/task-boundary.md) when recording the intended setup.
+Select the representative training workload and record its identity. The imported upstream source revision is a source identity, not a measured workload baseline. The selected default is the [agreed 100B-dev crop](../../docs/baseline-100b-crop.md). Its required source/config integration, resolved configuration, and authorized basic GPU smoke remain pending.
 
 ## Open selections
 
-Concrete model and meaning of `gift 4`; dataset, tokenizer and split; sequence and packing rules; optimizer and schedule; global batch; FP8 recipe and accumulation behavior; SAC/full-checkpointing policy; compile settings; GFSDP implementation, degrees, process groups and physical topology; evaluation/checkpoint cadence; quality thresholds; performance threshold; and authorized hardware. The task direction already names GFSDP, model and loss compilation, FP8, and SAC/full checkpointing, and deprioritizes PP for now; see the boundary record for unresolved details.
+The 100B-dev crop and its model, precision, parallelism, compile, SAC, token-drop, and microbatch settings are selected in the baseline contract. Confirm effective settings from the final resolved configuration. Record remaining data identity, software/build, topology, quality, and performance details before any later performance or quality study; do not infer them from this selection.
 
 ## Acceptance
 
 - Record all selections and exact source/dependency pins.
 - Capture the actual rank-zero resolved configuration and prove relevant features are active.
 - Record data identity, split, seed, software/build versions, topology and commands without secrets or private host access details.
-- Measure representative unprofiled baseline steps after startup, compilation, autotuning and warmup; include A/A noise and production lifecycle cadence.
+- For the current authorized scope, run only a basic training smoke without checkpoints or traces. A later performance baseline requires separate authorization, unprofiled stable-step series, A/A noise, and production lifecycle cadence.
 - Define correctness comparisons, exact invariants, tolerances and quality gates before candidate work.
 - Publish a concise linked campaign report with results, uncertainty, exclusions and open gates.
 
-No benchmark or compute allocation is authorized by this task record.
+The owner authorized only the basic smoke. No benchmark or broader campaign is authorized by this task record.

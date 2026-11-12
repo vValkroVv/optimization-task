@@ -110,20 +110,13 @@ class _GroupedGemm(torch.autograd.Function):
             ctx.m_indices = m_indices
 
             with record_fn("grouped_gemm::fwd::m_grouped_fp8_gemm"):
-                _, int_dim, _ = weights_quantized[0].shape
-                out = torch.empty(
-                    [tensor_groups.shape[0], int_dim],
-                    dtype=torch.bfloat16,
-                    device=ctx.device,
-                )
-
                 tensor_groups_quantized = (
                     tensor_groups_quantized[0].view(torch.float8_e4m3fn).contiguous(),
                     tensor_groups_quantized[1],
                 )
 
-                _get_deep_gemm_handle().m_grouped_fp8_gemm_nt_contiguous(
-                    tensor_groups_quantized, weights_quantized, out, m_indices
+                out = _get_deep_gemm_handle().m_grouped_fp8_gemm_nt_contiguous(
+                    tensor_groups_quantized, weights_quantized, m_indices
                 )
 
         ctx.needs_wgrad = weights.requires_grad
@@ -189,14 +182,8 @@ class _GroupedGemm(torch.autograd.Function):
 
             # dgrad = grad_output x weights
             with record_fn("grouped_gemm::bwd::dgrad_m_grouped_fp8_gemm"):
-                dgrad = torch.empty(
-                    [grad_output_quantized[0].shape[0], w_data.shape[-1]],
-                    dtype=torch.bfloat16,
-                    device=ctx.device,
-                )
-
-                _get_deep_gemm_handle().m_grouped_fp8_gemm_nt_contiguous(
-                    grad_output_quantized, weights_quantized, dgrad, ctx.m_indices
+                dgrad = _get_deep_gemm_handle().m_grouped_fp8_gemm_nt_contiguous(
+                    grad_output_quantized, weights_quantized, ctx.m_indices
                 )
 
                 clear_tensor_data(*weights_quantized)

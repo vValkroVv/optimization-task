@@ -4,9 +4,9 @@
 
 Increase throughput on the selected representative end-to-end workload while preserving the objective, data, precision, distributed behavior, checkpoint continuation, and agreed quality. “End-to-end” includes recurring input, evaluation, checkpoint, and other job phases at their production cadence.
 
-The [initial task boundary](task-boundary.md) specifies GFSDP, model and loss compilation, FP8, and SAC/full-checkpointing directions, with PP deprioritized for now. These are task requirements, not a tested or resolved production configuration. Record the concrete model, preset, data, topology, precision recipe, thresholds, and authorized compute before using this contract to accept a candidate.
+The original [task boundary](task-boundary.md) records the initial requirements. The later [agreed 100B-dev crop baseline](baseline-100b-crop.md) now defines the default model and configuration. Its source ports, resolved configuration, and basic GPU smoke are still pending; no throughput result is established. Before accepting a future candidate, also record any workload, data, numerical thresholds, and authorized compute details that remain open.
 
-For [OPT-004](../backlog/tasks/opt-004-cuda-graphs-hybridep-fp8.md), the owner's later selection of the exact 3B HybridEP FP8 preset takes precedence: preserve its inherited FSDP2 and selective AC rather than substituting GFSDP or full AC. All behavior, evidence and numerical requirements below still apply.
+The completed [OPT-004](../backlog/tasks/opt-004-cuda-graphs-hybridep-fp8.md) record covers a separate 3B HybridEP/FP8 stability scope. Its CUDA Graph and performance work remains paused. It is historical evidence and does not select the current default workload. All behavior, evidence, and numerical requirements below still apply to future candidates on the agreed baseline.
 
 ## Behavior to preserve
 

@@ -25,6 +25,17 @@ class ChunkedCELossConfig(BaseLossConfig):
     num_chunks: int = 8
     """Number of chunks to split the sequence into."""
 
+    num_chunks_on_monitoring_steps: int | None = None
+    """Chunk count on active monitoring steps; None keeps num_chunks."""
+
+    def __post_init__(self) -> None:
+        for name in ("num_chunks", "num_chunks_on_monitoring_steps"):
+            value = getattr(self, name)
+            if value is None and name != "num_chunks":
+                continue
+            if type(value) is not int or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+
 
 @config(type="mtp")
 class MTPLossConfig(ChunkedCELossConfig):
@@ -35,6 +46,7 @@ class MTPLossConfig(ChunkedCELossConfig):
     loss_weights: list[float]
 
     def __post_init__(self):
+        ChunkedCELossConfig.__post_init__(self)
         if not self.loss_weights:
             raise ValueError(
                 "loss_weights is empty; use ChunkedCELoss without MTP heads"

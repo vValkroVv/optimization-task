@@ -123,7 +123,7 @@ def _(
 
 @torch.library.custom_op(
     "torchtitan::m_grouped_fp8_gemm_nt_contiguous",
-    mutates_args={"d"},
+    mutates_args=(),
     device_types="cuda",
 )
 def _m_grouped_fp8_gemm_nt_contiguous(
@@ -131,24 +131,21 @@ def _m_grouped_fp8_gemm_nt_contiguous(
     a_scale: torch.Tensor,
     b_data: torch.Tensor,
     b_scale: torch.Tensor,
-    d: torch.Tensor,
     m_indices: torch.Tensor,
-) -> None:
-    """DeepGEMM's m-grouped contiguous fp8 GEMM, writing into ``d``."""
+) -> torch.Tensor:
+    """Return a fresh bf16 result so selective AC can cache the GEMM output."""
     assert (
         a_data.is_cuda
         and a_scale.is_cuda
         and b_data.is_cuda
         and b_scale.is_cuda
-        and d.is_cuda
         and m_indices.is_cuda
     )
     assert a_data.dtype == b_data.dtype == torch.float8_e4m3fn, (
         f"{a_data.dtype=} {b_data.dtype=}"
     )
     assert a_scale.dtype == b_scale.dtype == torch.float32
-    assert d.dtype == torch.bfloat16
-    assert a_data.is_contiguous() and b_data.is_contiguous() and d.is_contiguous()
+    assert a_data.is_contiguous() and b_data.is_contiguous()
     assert a_data.shape[0] == m_indices.numel(), (
         f"{a_data.shape[0]=} {m_indices.numel()=}"
     )
@@ -158,16 +155,14 @@ def _m_grouped_fp8_gemm_nt_contiguous(
     assert seq_len_a0 == seq_len_a1
     assert hid_dim_a0 // 128 == hid_dim_a1
 
-    num_groups, int_dim, _ = b_data.shape
-    assert int_dim == d.shape[1]
-
-    # Empty batch: ``d`` has no rows either, so there is nothing to write.
-    if seq_len_a0 == 0:
-        return
-
-    _load_deep_gemm().m_grouped_fp8_gemm_nt_contiguous(
-        (a_data, a_scale), (b_data, b_scale), d, m_indices
+    out = torch.empty(
+        (seq_len_a0, b_data.shape[1]), dtype=torch.bfloat16, device=a_data.device
     )
+    if seq_len_a0:
+        _load_deep_gemm().m_grouped_fp8_gemm_nt_contiguous(
+            (a_data, a_scale), (b_data, b_scale), out, m_indices
+        )
+    return out
 
 
 @_m_grouped_fp8_gemm_nt_contiguous.register_fake
@@ -176,11 +171,11 @@ def _(
     a_scale: torch.Tensor,
     b_data: torch.Tensor,
     b_scale: torch.Tensor,
-    d: torch.Tensor,
     m_indices: torch.Tensor,
-) -> None:
-    """Fake m-grouped GEMM: writes ``d`` in place and returns nothing."""
-    return None
+) -> torch.Tensor:
+    return torch.empty(
+        (a_data.shape[0], b_data.shape[1]), dtype=torch.bfloat16, device=a_data.device
+    )
 
 
 class _DeepGemmHandle:
@@ -210,9 +205,8 @@ class _DeepGemmHandle:
         self,
         a: tuple[torch.Tensor, torch.Tensor],
         b: tuple[torch.Tensor, torch.Tensor],
-        d: torch.Tensor,
         m_indices: torch.Tensor,
-    ) -> None:
-        torch.ops.torchtitan.m_grouped_fp8_gemm_nt_contiguous(
-            a[0], a[1], b[0], b[1], d, m_indices
+    ) -> torch.Tensor:
+        return torch.ops.torchtitan.m_grouped_fp8_gemm_nt_contiguous(
+            a[0], a[1], b[0], b[1], m_indices
         )
