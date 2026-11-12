@@ -90,7 +90,7 @@ timestamps; on resume check recorded processes before relaunching anything.
 | Gate | Status | Evidence / next action |
 | --- | --- | --- |
 | G0 Environment, ownership, disk and Perfetto route | PASS | Existing master sees eight idle H100s; NFS has 2.5 TiB free and 2.9 billion free inodes. Verified Python/torch/CUDA/NCCL and installed streaming. Perfetto MCP loaded and queried a task-owned synthetic Chrome JSON via the actual absolute NFS path. |
-| G1 Full-length MDS, data contract and streaming smoke | RUNNING | Existing packer and data path inspected; 896 original full rows selected. Actual eight-rank/two-worker epoch-wrap helper is being implemented; native smoke remains open. |
+| G1 Full-length MDS, data contract and streaming smoke | RUNNING | 896 full rows in 29 shards prepared. Two actual eight-rank/two-worker Gloo passes validated 58 batches/rank, exact partitions, positions, labels and epoch replay with persistent workers. [Data receipt](../runs/overnight-streaming-perf/mds-data.json). Native ten-update monitoring smoke remains open. |
 | G2 Warmed baseline A/A TPS and memory | NOT_STARTED | Fix measurement window after calibration; collect two controls |
 | G3 Baseline trace pair and Perfetto bottleneck analysis | NOT_STARTED | Ranks0/1, same one complete ordinary update, two files total |
 | G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 have applicable missing pieces; trace ordering and final outcomes remain open. |
@@ -105,8 +105,16 @@ torch `2.15.0.dev20260822+cu130`, CUDA 13.0, NCCL 2.30.7, streaming 0.13.0;
 source `/etc/profile.d/wm.sh`. Default image import resolves `/home/user/torchtitan`,
 so runners must explicitly set task `gift/` in `PYTHONPATH`. No new allocation needed.
 MDS, profiler/timer and reference inspections have separate bounded owners.
-Next action: generate 896 full 4096-token rows from the original local C4 corpus,
-verify the actual streaming contract, and launch native integration. G0 synthetic
+Next action: review the task runner/measurement adapter and launch native
+ten-update integration. Prepared MDS index SHA256 is
+`7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2`.
+Data checks used installed streaming0.13, not the bundled snapshot. Persistent
+workers are selected and validated across the epoch boundary; pinning stays off.
+The first data pass exited0 with 16 multiprocessing finalizer warnings because
+provider TMPDIR is NFS; the fresh second pass used tmpfs and had no such warnings.
+Future native runs use a unique owned local temp directory, with persistent
+data/compiler caches still on task NFS. `/dev/shm` has 256GiB free.
+G0 synthetic
 route trace is not training evidence (`artifacts/raw/g0/mcp-route.json`, MCP handle
 `trace_f8655236b978288d`; SELECT returned the expected 100000 ns slice).
 

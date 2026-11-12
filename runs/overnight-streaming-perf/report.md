@@ -30,7 +30,34 @@ multi-node or production-scale performance conclusion is implied.
 
 ## Results
 
-No training measurements yet. Candidate applicability is under source inspection.
+No training measurements yet. Source applicability is recorded in the
+[reference evidence](reference-coverage.md); candidate runtime gates remain open.
+
+## MDS fixture and real loader contract
+
+The [data receipt](mds-data.json) owns corpus/tokenizer, installed streaming
+implementation, row and shard hashes and exact check commands. The fixture is
+896 full 4096-token uint32 rows in 29 uncompressed shards, made from the first
+3,670,016 BOS/text/EOS tokens of the same local C4/tokenizer as the HF smoke.
+Index SHA256: `7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2`.
+The [helper](prepare_mds.py) refuses existing output before calling the destructive
+packer. The [loader fragment](mds-dataloader.yaml) selects installed streaming0.13,
+two persistent workers/rank, shuffle/FIM off, canonical nodes1, infinite iteration
+and no pinning. Canonical training data are not promoted before native smoke.
+
+Two fresh actual eight-rank Gloo runs each validated 58 batches/rank, including
+the 56-batch epoch wrap. Both passed exact row hashes/IDs, all16 worker partitions,
+global coverage, stable worker PIDs, shapes/dtypes, EOS-derived positions, label
+shift and final ignored labels. Each microbatch has 8190 valid main targets;
+global per-update numerators are 2,097,152 input and 2,096,640 valid main targets.
+No MTP token multiplier is applied. Native GPU training remains a separate gate.
+
+Pass1 exited0 but retained 16 Python multiprocessing finalizer Errno16 warnings
+from the provider's NFS TMPDIR. Pass2 used local tmpfs and had none. The runner
+will create and remove only its uniquely owned local temp directory; all data,
+compiler caches and persistent logs stay in the task NFS area. No shared temp
+cleanup was performed. Final helper, packer, data-world, loader-fragment and index
+hashes were checked against the receipt after worker handoff.
 
 ## Native profiler controls
 
