@@ -1,1 +1,0 @@
-../../../composer/algorithms/selective_backprop/README.md

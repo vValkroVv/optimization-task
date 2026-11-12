@@ -1,1 +1,0 @@
-../../../composer/algorithms/ghost_batchnorm/README.md

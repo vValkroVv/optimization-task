@@ -1,1 +1,0 @@
-../../../composer/algorithms/gated_linear_units/README.md

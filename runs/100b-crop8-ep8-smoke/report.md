@@ -2,7 +2,7 @@
 
 Status: PASS on eight H100 GPUs, 13 November 2026 (Moscow date).
 
-The default is [the agreed baseline](../../docs/baseline-100b-crop.md), implemented
+The default is [the agreed baseline](../../docs/baseline.md), implemented
 in [the canonical experiment](../../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml).
 Training source lives in `optimization-task/gift`. This is a basic execution
 check, not a throughput benchmark or convergence study.

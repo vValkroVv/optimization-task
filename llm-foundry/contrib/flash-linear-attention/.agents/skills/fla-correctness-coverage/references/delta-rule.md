@@ -1,1 +1,0 @@
-../../../../fla/ops/delta_rule/README.md

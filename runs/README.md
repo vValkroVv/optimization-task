@@ -1,10 +1,11 @@
 # Run evidence
 
-Each coherent campaign owns one concise report under `runs/<campaign>/`. The report links reviewed, safe artifacts and records:
+- [Current crop smoke](100b-crop8-ep8-smoke/report.md): maintained launcher,
+  source/config identities, all-rank execution result and limits.
+- [Historical CUDA Graph evidence](cuda-graphs-evidence/README.md): retained
+  numerical summaries and trace assessment; full history has a Git archive locator.
 
-- source revision, dependency pins, dirty diff, and resolved configuration;
-- model/preset, data identity and split, seed, software/build versions, topology, and process groups;
-- exact commands with secrets removed, active-feature proof, job lifecycle, measurement windows, and exclusions;
-- A/A noise, alternating baseline/candidate step series, timer scopes, paired memory, uncertainty, result, and remaining gates.
-
-Keep large traces, profiles, datasets, checkpoints, and raw logs outside Git. Record a non-secret restricted evidence reference and content hash in the report. Do not commit private paths, host access details, or credentials. A trace explains a mechanism; repeated unprofiled runs establish magnitude. A single campaign does not support claims beyond its tested configuration.
+For new experiments use [the planning template](../planning/README.md) and
+[validation protocol](../planning/validation.md). Keep one report and a compact
+machine result per experiment. Store large raw data outside Git with hashes and
+explicit evidence locations. Do not create a document chain for every command.

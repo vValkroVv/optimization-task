@@ -1,1 +1,0 @@
-../../../composer/algorithms/blurpool/README.md

@@ -1,11 +1,26 @@
-# Task workflow
+# Experiment workflow
 
-Tasks are plain Markdown in [backlog/tasks/](../backlog/README.md). No external tracker or Backlog CLI is configured or required.
+1. Read [current state](../docs/status.md) and [baseline](../docs/baseline.md).
+   Reuse completed evidence; do not repeat a smoke to answer a different property.
+2. Choose one question from [the plan](README.md). Define finite acceptance,
+   constraints and what each outcome changes. Inspect existing implementations
+   and their fit before creating a new workaround.
+3. Freeze config/data/source and establish the measurement controls described in
+   [validation](validation.md). Inspect actual bottleneck evidence before choosing
+   a substantial optimization. Configuration requests alone are not activation proof.
+4. Work only within authorized source, dependency and compute scope. Review
+   correctness and runtime costs of the affected path before implementation and
+   once against the final result. Preserve other contributors' work.
+5. Verify the affected behavior, then measure performance only after the required
+   correctness gates pass. If a control fails, record it and do not treat the
+   remaining candidate timing as a valid comparison.
+6. Keep one report and compact result per experiment. Record source identities,
+   commands and evidence needed to reproduce conclusions. Put large raw traces,
+   checkpoints and logs outside Git with explicit locations and hashes.
+7. Promote a candidate only after its stated gates pass. Update the baseline
+   only by an explicit decision; update [current state](../docs/status.md) and
+   [the plan](README.md) without duplicating the run history.
 
-1. **Select the baseline.** Complete OPT-001 before claiming that a configuration represents production. The imported source revision alone is not a workload baseline.
-2. **Profile the baseline.** Complete OPT-002 with resolved configuration, active-feature proof, topology, A/A noise, representative unprofiled steps, traces for mechanism, and paired memory.
-3. **Choose a candidate.** OPT-003 starts only after a measured bottleneck and a pinned reference implementation are reviewed for fit and runtime cost.
-4. **Implement only within authorization.** Source edits, dependency changes, compute, and publication each follow their explicit scope.
-5. **Review once against acceptance.** Record material findings, fixes, executed checks, and remaining gates in the task and linked campaign report.
-
-Keep task status, dependencies, acceptance, and next action in the task record. Use `Backlog`, `Ready`, `In Progress`, `In Review`, `Blocked`, and `Done` only when the state is evidenced. Do not mark a task Done until every criterion is supported by evidence. A timeout or CPU-only result does not close a GPU gate.
+Stop when the bounded question is answered. Before an extra test, name the
+remaining uncertainty and decision it changes. CPU checks do not close GPU/NCCL
+or performance gates. Keep failures and unavailable checks explicit.

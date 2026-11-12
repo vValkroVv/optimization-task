@@ -1,1 +1,0 @@
-../../../composer/algorithms/squeeze_excite/README.md

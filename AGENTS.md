@@ -1,60 +1,82 @@
-# Operating rules
+# Repository operating rules
 
-These rules make this clone usable on its own. The task record and current user authorization define the permitted scope.
+## Read and maintain
 
-## Current prioritization
+Read [current state](docs/status.md), [baseline](docs/baseline.md) and the active
+item in [planning](planning/README.md). The baseline is selected and its basic
+smoke passed; performance and candidate acceptance are separate gates.
 
-- The current default is the agreed eight-layer crop of the 100B-dev model. Follow [the baseline contract](docs/baseline-100b-crop.md) and its canonical task-local YAML/model preset links. The source base remains task-local GIFT `main`; integrate only the approved required runtime ports from the pinned donor revision. Do not replace the source base with the donor branch.
-- Current validation is limited to the authorized basic GPU training smoke. Source integration and configuration checks are complete; consult the [run report](runs/100b-crop8-ep8-smoke/report.md) for current execution evidence. Do not create checkpoints or traces, or start a performance benchmark or optimization campaign under this scope.
-- [OPT-004](backlog/tasks/opt-004-cuda-graphs-hybridep-fp8.md) is the completed historical 3B HybridEP/FP8 stability campaign. Its CUDA Graph and performance work remains paused; preserve its task record and artifacts without treating it as the active baseline.
-- Improve training speed without trading away numerical stability or model quality. Before candidate comparisons, apply the [optimization contract](docs/optimization-contract.md) to the selected workload and preserve its agreed settings.
+Each fact has one owner: defaults in `docs/baseline.md`, integrated results and
+unknowns in `docs/status.md`, mechanisms/source pointers in `docs/candidates.md`,
+graph conclusions in `docs/cuda-graphs.md`, future work in `planning/README.md`,
+methods in `planning/validation.md`, run evidence in `runs/`. Update the owner
+and link to it instead of creating duplicate status documents or handoff chains.
+Historical full records are recoverable through [references](references/README.md).
 
-See the [task boundary](docs/task-boundary.md) for the original brief and how the later baseline selection supersedes its open workload choices.
+## Source and authorization
 
-## Objective and invariants
+- `gift/` is a flattened source snapshot, not a nested repository or submodule.
+  Run Git at this root; do not initialize repositories or refresh submodules
+  inside it. `references/` contains inert upstream source, not active imports.
+- Training-source writes require authorization for the named tree and scope.
+  Preserve the agreed config; do not disable FP8, compile, SAC, monitoring,
+  MTP or change dimensions to make a check pass without an explicit decision.
+- Package installation, data/model downloads, GPU allocation/training and shared
+  environment changes require authorization. Never kill unrelated processes or
+  modify shared packages/startup configuration as routine cleanup.
+- Commit, push and other publication require authorization; reuse existing scope.
+  Preserve contributor edits and use repository-local user identity. No assistant
+  attribution. Do not rewrite published history as routine cleanup.
+- Keep credentials, keys and `.env` contents out of outputs and tracked files.
+  Record reproducible runtime paths without exposing access secrets.
+- Before GIFT source changes, read [GIFT rules](gift/AGENTS.md),
+  [contributing](gift/CONTRIBUTING.md), [review](gift/REVIEW.md) and applicable
+  [scoped rules](gift/.claude/rules/). Preserve precision, safe integer widths,
+  autograd, communication, checkpoint and evaluation contracts.
 
-Improve representative end-to-end training throughput while preserving the training objective, data, precision, distributed behavior, checkpoint continuation, and agreed model quality.
+Workspace-only skills are outside a standalone clone: `../.agents/skills/`
+contains `code-rules`, `perf-experiments`, `git-gitlab`, `titan-train-job`,
+`mlspace-gpu-job` and trace-analysis tools. Read the relevant skill before that
+work where available. Their examples do not grant authorization or establish a
+working remote environment. Verify current paths, all-node ownership and launch
+cleanup behavior before GPU work.
 
-Before implementation, record the production workload and resolved configuration: model and preset, data identity and split, sequence and packing behavior, optimizer and schedule, precision, activation checkpointing, compilation, parallel groups and physical topology, evaluation and checkpoint cadence, and quality thresholds.
+## Correctness and evidence
 
-Preserve target shifting, masks, packed-document boundaries, attention context, convolution and scan resets, loss weights and denominators, and valid-token counts. Preserve loader position and RNG ownership, validation state, routing side effects, optimizer state, and checkpoint semantics. Distinguish exact continuation from weights-only initialization.
+Follow [validation](planning/validation.md). Preserve data ordering, shifting,
+masks and packed boundaries, attention/scan state, loss weights/denominators,
+routing, precision, optimizer, schedule and accumulation. Preserve loader/RNG,
+validation and persisted state; distinguish exact continuation from weights-only
+loading. Any deliberate computation change needs an agreed quality criterion.
 
-Use FP8 in the intended target baseline after its recipe is resolved. Preserve the selected precision recipe, activation checkpointing, compilation, monitoring, and required checkpoint behavior in optimization candidates. Changes to the FP8 recipe or objective need explicit agreement, an updated contract, and appropriate quality validation.
+Compare elementwise loss/gradients and relevant state for numerical claims;
+rounded norms are insufficient. Use matched inputs and stated tolerances. Verify
+actual resolved configuration and activation, not only requested settings.
+CPU checks do not establish GPU/NCCL behavior; a smoke does not establish speed,
+convergence, long-run stability or continuation. Retain failed/skipped checks.
 
-For computation-preserving changes, compare loss and elementwise gradients before clipping, then the clipping norm and scale, clipped gradients, optimizer moments, and parameter updates. Equal norms do not establish equal gradients. Separate exact structural invariants from floating-point values with agreed tolerances and stated nondeterminism. Compare eager and compiled paths where both are supported.
+Review affected correctness and runtime costs before a training change and once
+against its final implementation: computation, memory, synchronization, copies,
+communication, compilation, lifetime and scale, including inherited active code.
+Run relevant tests and integration checks. Documentation-only changes have no
+runtime effect when source/config/runner bytes remain unchanged.
 
-## Source manuals and workspace guides
+For performance use A/A noise and alternating unprofiled A/B after warmup; pair
+memory by lifecycle phase. Use traces for mechanism, not speed magnitude. Keep
+host/device/communication scopes explicit; overlapping sums are not elapsed time.
+Include recurring input, metrics, evaluation and checkpoint costs at real cadence.
+Never promote an incomplete or failed control comparison.
 
-Before an authorized GIFT source change, read [gift/AGENTS.md](gift/AGENTS.md), [gift/CONTRIBUTING.md](gift/CONTRIBUTING.md), [gift/REVIEW.md](gift/REVIEW.md), and the applicable scoped rules: [config](gift/.claude/rules/config.md), [distributed](gift/.claude/rules/distributed.md), [models](gift/.claude/rules/models.md), [integer overflow](gift/.claude/rules/integer_overflow.md), and [experiments](gift/.claude/rules/experiments.md). Before an authorized Foundry source change, read [llm-foundry/.agent/agentic.md](llm-foundry/.agent/agentic.md). These manuals govern their source trees. Verify environment-specific paths and launch assumptions before applying them; their examples do not authorize source edits, package installation, remote access, or compute.
+## Bounded work and artifacts
 
-Optional workspace-only skill guides live outside a standalone clone. In the original workspace, consult `../.agents/skills/code-rules/SKILL.md`, `../.agents/skills/perf-experiments/SKILL.md`, and `../.agents/skills/git-gitlab/SKILL.md` for source changes, performance review, and repository operations. For authorized execution, the relevant guides are `../.agents/skills/llmf-train-job/SKILL.md`, `../.agents/skills/titan-train-job/SKILL.md`, and `../.agents/skills/mlspace-gpu-job/SKILL.md`. For trace or bounded no-GPU analysis, use `../.agents/skills/trace-analysis/SKILL.md`, `../.agents/skills/trace-timeline/SKILL.md`, `../.agents/skills/comm-interactions/SKILL.md`, `../.agents/skills/pp-trace/SKILL.md`, and `../.agents/skills/no-gpu-checks/SKILL.md`. These paths are workspace-only routing hints, not dependencies of this clone or authorization for any action. The rules in this file remain available when those guides are absent.
+Define finite acceptance before execution. Reuse completed evidence. Repeat a
+check only after a relevant change, inconclusive result or contradictory evidence.
+Before extra work identify the unresolved question and decision it changes.
+Keep one report/result per experiment and a clear next action. No benchmark or
+optimization campaign is authorized by a planning entry alone.
 
-## Source, compute, and Git boundaries
-
-- `gift/` and `llm-foundry/` are flattened source snapshots, not nested repositories or submodules. Run Git operations from this repository root. Preserve upstream metadata; do not initialize submodules or add remotes inside snapshots.
-- A source import or baseline pin does not authorize later source edits. Change training source only after explicit authorization naming the target tree and scope.
-- Do not install packages, fetch data or models, allocate compute, launch training, benchmark, or mutate shared resources without authorization for that action.
-- Keep credentials, private keys, `.env` contents, private host details, and access instructions out of tracked files. Use non-secret identifiers for hardware and restricted data.
-- Preserve other contributors' edits. Do not commit or publish unless the active user instruction authorizes that action.
-
-## Evidence and performance claims
-
-Verify the actual rank-zero resolved configuration and prove each relevant feature is active. Record process-group membership and physical topology, not just mesh degrees.
-
-Separate startup, compilation, autotuning, warmup, stable steps, validation, checkpointing, and shutdown. Estimate noise with an identical A/A pair; alternate baseline and candidate in unprofiled runs; compare stable-step series. Use traces to explain mechanisms, not to estimate speed. Measure paired memory at the same lifecycle window.
-
-Report host submission, device work, waits, copies, communication, and integrated elapsed time with their timer definitions. These intervals can overlap; do not sum overlapping kernel or communication durations as elapsed time. Include job lifecycle costs at their real cadence. Report uncertainty and all exclusions. Do not claim a speedup from one run, one trace, an isolated kernel, or a component-only fixture.
-
-Keep raw large traces, checkpoints, datasets, and profiles outside Git. Track concise, reviewed reports with source pins, configuration, commands, seed, data identity, topology, activation proof, step series, memory, noise, conclusions, and open gates. Never omit a failed or skipped check.
-
-## Task and document hygiene
-
-Use the Markdown task files directly. Do not add tracker configuration or install a task tool for this scaffold. Keep each task's scope, acceptance, dependencies, and next action in its record. Keep technical conclusions in `docs/`, reusable process in `planning/`, source provenance in `additional/`, and campaign evidence in `runs/`.
-
-## Bounded work and review
-
-Before acting, define a finite acceptance checklist from the task. Do not add requirements without an explicit request, affected contract, or concrete failure. Before an additional experiment, test, or review, name the unresolved question, possible outcomes, and decision each outcome would change; skip work that cannot change the next action or verdict.
-
-For an authorized training change, review runtime cost before coding and against the final implementation. Cover the affected inherited path, computation, memory, host/device synchronization, transfers, communication, compilation, lifecycle frequency, and scale. Record expected costs, evidence, and unresolved risks. Documentation-only work may state why it has no production-runtime impact. Review the scoped result once, fix material findings, and verify the affected behavior; do not expand into an unrelated audit or omit required gates.
-
-After a documentation change, check local links and whitespace. For a training change, inspect its full affected path and perform the scoped correctness and runtime-cost review before handoff.
+Store large raw traces, logs, checkpoints and caches outside tracked files;
+retain precise locations/hashes and compact supporting evidence. Source snapshots
+must retain provenance and license; do not silently edit imported reference bytes.
+Check maintained local links, JSON and checksums after document/source moves.
+Do not repair historical upstream documentation links by modifying preserved code.

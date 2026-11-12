@@ -1,1 +1,0 @@
-../../../../fla/ops/simple_gla/README.md

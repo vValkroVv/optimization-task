@@ -1,1 +1,0 @@
-../../../composer/algorithms/low_precision_groupnorm/README.md
