@@ -1,8 +1,8 @@
 # 100B crop8 EP8 training smoke
 
-Status: PASS for the patched bounded eight-H100 smoke on 13 November 2026
-(Moscow date). The requested stock-dependency control below is pending.
-No performance or convergence claim.
+Status: PASS for both the patched eight-H100 smoke and the requested control
+without either dependency repair on 13 November 2026 (Moscow date).
+No performance, numerical-parity or convergence claim.
 
 ## Scope
 
@@ -201,5 +201,51 @@ directories; they are not cleared or described as physically isolated. The
 control gets a fresh task-owned DeepGEMM shared cache. No installed dependency
 or shared startup file is edited.
 
-Result: pending execution. A successful short run would not prove the defects
-absent, numerical parity with the patched run, or general reliability.
+#### Attempt 20261113-003-stock — PASS
+
+Executed revision: `af02e60448ba7e2ca1b267c792d13c94205a65cc`; training source and
+canonical configuration were unchanged from the preceding smoke. The detached
+launcher started at 2026-11-12 21:59:59 UTC. Rank 0 reported update 10 at 22:12:08
+and training completion at 22:12:10 UTC (13 November in Moscow).
+
+- Exit status 0. Every rank completed ten optimizer updates and exactly 32
+  forward/backward microbatches per update, 320 per rank.
+- All 80 displayed rank loss/gradient pairs and the ten TensorBoard global loss,
+  maximum-loss and global-gradient-norm values were finite.
+- Metadata records `mode=stock`, `training_entrypoint=torchtitan.train`, and the
+  original DeepGEMM header hash. Preflight verified actual installed package,
+  extension and HybridEP wrapper paths and original source hashes. No
+  `scan-runtime` directory was created.
+- Source experiment/model preset bytes match the patched attempt. Exact text
+  comparison of native source and resolved configurations found only the output
+  `dump_folder` difference.
+- Monitoring executed at updates 5 and 10: 34,084 scalar tags occurred only on
+  those steps, including activation, activation-gradient and optimizer metrics.
+- Maximum native console memory was 72.61 GiB (rank 3, update 5), using the same
+  reserved-peak plus report-time non-PyTorch definition as above.
+- No checkpoint, profiler trace or memory snapshot files were emitted. Native
+  outputs contain configuration, structured logs, TensorBoard events and an
+  empty communication-trace directory.
+- All ranks completed distributed teardown; recorded task PIDs were absent and
+  GPU compute-app state was empty. The parent independently checked exit status,
+  original dependency paths, final lines from all eight ranks and released GPUs.
+
+Displayed rank-0 loss:
+`15.31903, 15.29536, 15.24759, 15.17939, 15.09555, 15.00458, 14.90697, 14.80463, 14.69788, 14.57517`.
+Displayed gradient norms:
+`9.5406, 9.4795, 9.3805, 8.9004, 8.1353, 7.4484, 7.1285, 7.2032, 7.3883, 7.6661`.
+
+Against the patched run's rounded displayed series, maximum absolute differences
+are 0.00031 for loss and 0.0102 for gradient norm. These two runs are not a
+deterministic numerical comparison or an A/A noise control. The difference is
+not attributed to either repair, and the successful short run does not establish
+that the known defects are absent or harmless. It establishes that this exact
+crop completed the requested smoke without either dependency repair.
+
+Evidence: `artifacts/raw/20261113-003-stock/`, its sibling launch receipt/log,
+and the versioned [stock result receipt](result-stock.json). One reporting-script
+YAML extraction was inconclusive; exact text comparison recovered that check.
+There was no training retry for the stock control. The default launcher mode
+remains `patched`; use its explicit fifth argument `stock` to reproduce this
+control with the installed package parent. No default-dependency policy change
+is inferred from this run request.

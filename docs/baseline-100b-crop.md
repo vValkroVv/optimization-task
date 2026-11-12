@@ -85,6 +85,14 @@ The successful smoke reused the existing isolated DeepGEMM descriptor repair and
 pinned HybridEP scan correction on the inspected runtime. The repaired header
 hash was checked during preflight. Shared installed packages were unchanged.
 
+The owner subsequently requested a control without both dependency repairs.
+That control also completed ten updates on all eight GPUs, including monitoring,
+using the original installed libraries and the same configuration. Its displayed
+loss/gradient series differs from the patched run; no numerical equivalence or
+individual repair necessity was established. See the [control result](../runs/100b-crop8-ep8-smoke/result-stock.json).
+The launcher keeps `patched` as its default and exposes the explicit `stock`
+mode for this control; the run request did not change the default policy.
+
 ## Finite future experiments
 
 These are research candidates for later authorization, not current work:
