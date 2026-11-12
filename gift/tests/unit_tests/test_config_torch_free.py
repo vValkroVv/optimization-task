@@ -32,6 +32,22 @@ def test_config_package_imports_torch_free():
     assert int(result.stdout.strip()) == schema_modules
 
 
+def test_profiler_rank_and_shape_controls_decode_torch_free():
+    code = (
+        "import json, sys\n"
+        "from torchtitan.config.decode import decode\n"
+        "from torchtitan.config.schema.tools.profiler import ProfilerConfig\n"
+        'cfg = decode(ProfilerConfig, {"profile_ranks": [0, 2], '
+        '"record_shapes": False}, path="profiler")\n'
+        "assert cfg.profile_ranks == [0, 2]\n"
+        "assert cfg.record_shapes is False\n"
+        'assert "torch" not in sys.modules\n'
+        "print(json.dumps([cfg.profile_ranks, cfg.record_shapes]))\n"
+    )
+    result = run_blocked(code)
+    assert result.stdout.strip() == "[[0, 2], false]"
+
+
 # family name -> (default type, every registered type). The names are a public
 # API: renaming or removing one breaks experiment configs in flight.
 COMPONENT_TYPES: dict[str, tuple[str | None, list[str]]] = {

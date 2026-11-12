@@ -199,6 +199,24 @@ class Profiler(Configurable):
         if not cfg.enable_profiling:
             return None
 
+        if torch.distributed.is_initialized():
+            rank = torch.distributed.get_rank()
+            world_size = torch.distributed.get_world_size()
+        else:
+            rank, world_size = 0, 1
+
+        if cfg.profile_ranks is not None:
+            invalid_ranks = [
+                rank_id for rank_id in cfg.profile_ranks if rank_id >= world_size
+            ]
+            if invalid_ranks:
+                raise ValueError(
+                    "profiler.profile_ranks contains ranks outside the initialized "
+                    f"world size {world_size}: {invalid_ranks}"
+                )
+            if rank not in cfg.profile_ranks:
+                return None
+
         trace_dir = os.path.join(base_folder, cfg.save_traces_folder)
         profile_freq, warmup, active = (
             cfg.profile_freq,
@@ -206,7 +224,6 @@ class Profiler(Configurable):
             cfg.profiler_active,
         )
 
-        rank = torch.distributed.get_rank()
         post_processor = (
             cfg.trace_post_processor.build() if cfg.trace_post_processor else None
         )
@@ -261,7 +278,9 @@ class Profiler(Configurable):
                 wait=wait, warmup=warmup, active=active, **additional_params
             ),
             on_trace_ready=trace_handler,
-            record_shapes=True,
+            record_shapes=cfg.record_shapes,
+            with_stack=False,
+            profile_memory=False,
         )
         torch_profiler.__enter__()
         torch_profiler.step_num = global_step

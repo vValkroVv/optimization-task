@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 from torchtitan.config.configurable import config, Configurable
+from torchtitan.config.errors import ConfigFieldError
 from torchtitan.config.function import Function
 
 PROFILE_DIR = "profiling/traces"  # Profiler.Config.save_traces_folder default
@@ -13,9 +14,29 @@ MEMORY_DIR = (
 class ProfilerConfig(Configurable.Config):
     _owner_spec: ClassVar[str] = "torchtitan.tools.profiler:Profiler"
 
+    def __post_init__(self) -> None:
+        if self.profile_ranks is None:
+            return
+        if not isinstance(self.profile_ranks, list):
+            raise ConfigFieldError("profile_ranks", "must be a list or None")
+        if not self.profile_ranks:
+            raise ConfigFieldError("profile_ranks", "must not be empty")
+        if any(type(rank) is not int or rank < 0 for rank in self.profile_ranks):
+            raise ConfigFieldError(
+                "profile_ranks", "must contain nonnegative integer global ranks"
+            )
+        if len(self.profile_ranks) != len(set(self.profile_ranks)):
+            raise ConfigFieldError("profile_ranks", "must not contain duplicate ranks")
+
     enable_profiling: bool = False
 
     save_traces_folder: str = PROFILE_DIR
+
+    profile_ranks: list[int] | None = None
+    """Global ranks that collect traces; ``None`` enables profiling on every rank."""
+
+    record_shapes: bool = True
+    """Whether to include tensor shape metadata in profiler traces."""
 
     profile_freq: int = 10
     """In iterations."""

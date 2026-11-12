@@ -96,7 +96,7 @@ timestamps; on resume check recorded processes before relaunching anything.
 | G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 have applicable missing pieces; trace ordering and final outcomes remain open. |
 | G5 Sequential applicable experiments | NOT_STARTED | Correctness, A/B/A/B, one trace pair per executed candidate |
 | G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
-| G7 Report, state, Git publication and cleanup | NOT_STARTED | Reconcile every row, publish source/results and release owned resources |
+| G7 Report, state, Git publication and cleanup | RUNNING | Initial G0/source-applicability milestone committed and pushed as `d5e3d717`; final source/results, state reconciliation and cleanup remain. |
 
 Active execution: no training PID yet. Entry revision `a2a59e14545b55ca777f94a28e332759e7c06087`,
 branch `main`, initially clean. Node `lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0`;

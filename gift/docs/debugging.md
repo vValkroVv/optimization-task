@@ -1,3 +1,27 @@
+## Enable CPU/GPU Profiling
+
+The native profiler can capture traces on every rank or only on selected global
+ranks. Shape capture remains enabled by default; disable it when shape metadata
+is not needed.
+
+| Profiler field | Default | Effect |
+| --- | --- | --- |
+| `profile_ranks` | `null` | Global ranks that write traces. `null` selects every rank; a list must be nonempty, unique, and within the launched world. |
+| `record_shapes` | `true` | Include tensor shape metadata in the trace. |
+
+```yaml
+profiler:
+  enable_profiling: true
+  profile_freq: 100
+  profile_ranks: [0, 1]
+  record_shapes: false
+  enable_memory_snapshot: false
+```
+
+Ranks outside `profile_ranks` continue training without constructing a trace
+profiler. Memory snapshots are controlled independently by
+`enable_memory_snapshot`.
+
 ## Enable Memory Profiling
 
 Launch training job with the following command (or alternatively set the `profiler:` section in your experiment YAML)
