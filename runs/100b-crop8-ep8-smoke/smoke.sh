@@ -15,6 +15,10 @@ ATTEMPT_ID=$4
 [[ $ATTEMPT_ID =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "invalid attempt ID"
 [[ $PYTHON == /* ]] || die "PYTHON must be an absolute executable path"
 [[ -x $PYTHON ]] || die "Python executable not found: $PYTHON"
+# The job image exposes its CUDA forward-compatibility libraries through this
+# profile; a noninteractive SSH command otherwise loads the older host driver.
+[[ -r /etc/profile.d/wm.sh ]] || die "job image runtime profile is unavailable"
+source /etc/profile.d/wm.sh
 CUDA_HOME_DIR=${CUDA_HOME:-/usr/local/cuda}
 [[ -x $CUDA_HOME_DIR/bin/nvcc ]] || die "CUDA nvcc is unavailable under $CUDA_HOME_DIR"
 

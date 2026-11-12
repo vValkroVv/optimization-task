@@ -98,5 +98,23 @@ Saving six up/gate outputs adds a balanced-shape estimate of 2.25 GiB per active
 microbatch; layer 5 additionally saves communication outputs. This is not a
 measured peak or speed claim.
 
-The published source revision, exact launch command, native logs, activation
-evidence and final GPU result will be recorded after execution.
+### Attempt 20261113-001
+
+Published and pulled revision: `383d393360d6451021f5d52f11b4646bd1601b28`.
+Started at 2026-11-12 21:21:09 UTC (13 November in Moscow). The preflight exited
+with status 1 before torchrun: PyTorch reported an old driver API version 12080
+and no available CUDA devices, while `nvidia-smi` saw all eight H100s.
+
+The noninteractive SSH environment had no `LD_LIBRARY_PATH`. The existing image
+profile `/etc/profile.d/wm.sh` supplies the installed CUDA compatibility libraries
+under `/usr/local/cuda-13.2/compat/lib`; the launcher now sources that profile
+before its first PyTorch import. This uses NVIDIA's established
+[forward-compatibility route](https://docs.nvidia.com/deploy/cuda-compatibility/forward-compatibility.html),
+without installing packages or changing the host driver.
+
+No training rank started; no checkpoint, trace or snapshot was created. The
+launcher exited, the exact task-process scan was empty, and all GPU compute-app
+lists were empty. Original preflight evidence remains under
+`artifacts/raw/20261113-001/` and its sibling launch log.
+
+The final training result and native evidence remain pending.
