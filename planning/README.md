@@ -5,12 +5,25 @@ owns completed results; [candidates](../docs/candidates.md) owns mechanisms and
 source links. Follow [workflow](workflow.md) and [validation](validation.md).
 A planned item does not itself authorize GPU work or a change to the baseline.
 
+## Authorized overnight campaign
+
+The user has authorized the [streaming/performance campaign](overnight-streaming-perf.md)
+for unattended execution, including task-source edits, existing eight-GPU runs,
+private dependency installation and owned-artifact cleanup. Its progress ledger
+owns execution status; the [English launch prompt](overnight-agent-prompt.md)
+is ready to paste into the remote agent. Writing these files did not start a run.
+
+The campaign supersedes the earlier unstarted single-candidate plan for its
+listed reference mechanisms. It preserves the fixed model and creates a validated
+MDS data baseline before measuring performance. Follow its concrete scope and
+permissions rather than interpreting this generic table as a second authorization gate.
+
 | Item | Status | Question / finite output | Next action |
 | --- | --- | --- | --- |
 | Default crop and basic smoke | Complete | Canonical config and all-rank training execution | Reuse [receipt](../runs/100b-crop8-ep8-smoke/result.json); rerun only after a relevant change or for a new required property |
-| Representative performance baseline | Planned; not run | Stable throughput/memory and A/A noise on agreed data and cadence | Agree data, warmup, window, repetitions, resource budget and quality gates |
-| Crop bottleneck trace | Planned; not run | Identify actual critical path, overlap and active kernels | Capture a representative warmed step; pair with unprofiled controls |
-| One optimization candidate | Awaiting bottleneck | Correctness plus repeated integrated cost comparison | Select one mechanism from [candidates](../docs/candidates.md) |
+| Representative performance baseline | Authorized in overnight plan; not started | Stable throughput/memory and A/A noise on agreed data and cadence | Execute G1–G2 of the overnight plan |
+| Crop bottleneck trace | Authorized in overnight plan; not started | Identify actual critical path, overlap and active kernels | Capture a representative warmed step; pair with unprofiled controls |
+| Reference optimization candidates | Covered by overnight plan | Correctness plus repeated integrated cost comparison | Complete the overnight reference coverage table, then evaluate applicable mechanisms sequentially |
 | Source gaps | Open | Exact vision list; pinned external CudaCherry source; production MR/trace identities | Obtain source evidence before claiming complete implementation coverage |
 | Token-drop pressure | Future diagnostic | Routing/dropped-token distribution at production capacity 50,000; compare 12,500 only as a separately agreed diagnostic | Keep default unchanged |
 | Shape proxies | Future diagnostics | E32/EP8/B2 gives four experts/rank and balanced M16384; E128/EP8/B8 increases token work fourfold | Separate model/shape changes from computation-preserving speed comparisons; review memory first |

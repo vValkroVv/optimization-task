@@ -82,10 +82,12 @@ Revisit only with a concrete crop bottleneck and a finite comparison plan.
 
 ## Next decisions and working layout
 
-No GPU experiment is running as part of this documentation cleanup. Further
-runs require their own authorized scope. First settle representative measurement
-data/cadence and collect a valid performance control before ranking candidates.
-Use [the work plan](../planning/README.md) and [validation protocol](../planning/validation.md).
+The user has now authorized an unattended [overnight MDS/performance campaign](../planning/overnight-streaming-perf.md), including existing eight-GPU execution,
+reference-based source changes, private dependency setup and owned-heavy-artifact
+cleanup. Its English launch prompt is prepared; no campaign run has been started
+by the planning agent. The execution ledger owns progress. First establish the
+MDS data contract and warmed performance control, then analyze two-rank traces
+and evaluate applicable references under [validation](../planning/validation.md).
 
 The working tree now keeps four current documents, an editable planning area,
 the active GIFT source, candidate references and compact run evidence. Duplicate
@@ -103,5 +105,6 @@ match their manifests; the baseline config hashes match the successful receipt;
 `bash -n` and staged whitespace checks pass. Git confirms no change under `gift/`
 or to the smoke launcher/result. No GPU rerun was needed for document moves.
 Tracked files decreased from 57,849 to 27,768; task Markdown outside training and
-reference snapshots decreased from 150 to 13. Git history is retained, so this
+reference snapshots decreased from 150 to 13 at that consolidation commit (before
+the later overnight plan and prompt were added). Git history is retained, so this
 reduces the working tree, not the size of already published historical objects.
