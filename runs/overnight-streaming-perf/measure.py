@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import socket
 import sys
 import time
@@ -14,6 +15,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 SCHEMA_VERSION = 1
+TASK_ROOT = Path(__file__).resolve().parents[2]
+RAW_ROOT = TASK_ROOT / "runs/overnight-streaming-perf/artifacts/raw"
+TASK_TMPDIR_NAME_RE = re.compile(r"run-[a-z0-9_]{8}\Z")
 PEAK_STAT_KEYS = (
     "allocated_bytes.all.peak",
     "active_bytes.all.peak",
@@ -841,6 +845,121 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     return args, train_argv
 
 
+def _has_symlink_component(path: Path, root: Path) -> bool:
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return True
+    current = root
+    if current.is_symlink():
+        return True
+    for component in relative.parts:
+        current = current / component
+        if current.is_symlink():
+            return True
+    return False
+
+
+def _task_path(path: Path, label: str) -> Path:
+    if not path.is_absolute() or ".." in path.parts:
+        raise RuntimeError(f"{label} must be an absolute task-owned path: {path}")
+    if _has_symlink_component(path, TASK_ROOT):
+        raise RuntimeError(f"{label} must not contain symlinks: {path}")
+    resolved = path.resolve(strict=True)
+    try:
+        resolved.relative_to(TASK_ROOT)
+    except ValueError as exc:
+        raise RuntimeError(f"{label} must remain inside the task root: {path}") from exc
+    return resolved
+
+
+def _route_rank_triton_cache(measurement_dir: Path) -> tuple[int, Path]:
+    rank_text = os.environ.get("RANK")
+    if rank_text is None:
+        raise RuntimeError("RANK must be set for native training workers")
+    try:
+        rank = int(rank_text)
+    except ValueError as exc:
+        raise RuntimeError(f"RANK must be an integer in [0, 7], got {rank_text!r}") from exc
+    if not 0 <= rank < 8:
+        raise RuntimeError(f"RANK must be an integer in [0, 7], got {rank_text!r}")
+
+    measurement = _task_path(Path(measurement_dir), "measurement directory")
+    try:
+        measurement.relative_to(RAW_ROOT.resolve(strict=True))
+    except ValueError as exc:
+        raise RuntimeError(
+            f"measurement directory must remain under task raw artifacts: {measurement}"
+        ) from exc
+    if measurement.name != "measurement" or not measurement.is_dir():
+        raise RuntimeError(f"measurement directory has an unexpected path: {measurement}")
+
+    attempt = measurement.parent
+    cache_base = _task_path(attempt / "cache" / "triton", "Triton cache root")
+    rank_dir = _task_path(cache_base / f"rank_{rank}", "rank Triton cache directory")
+    if not cache_base.is_dir() or not rank_dir.is_dir():
+        raise RuntimeError(f"precreated Triton cache directories are missing under {cache_base}")
+
+    inherited = os.environ.get("TRITON_CACHE_DIR")
+    if not inherited:
+        raise RuntimeError("TRITON_CACHE_DIR must name this run's task-owned cache root")
+    inherited_path = Path(inherited)
+    if not inherited_path.is_absolute() or ".." in inherited_path.parts:
+        raise RuntimeError(f"TRITON_CACHE_DIR must be an absolute run cache path: {inherited}")
+    inherited_resolved = _task_path(inherited_path, "TRITON_CACHE_DIR")
+    if inherited_resolved == cache_base:
+        selected = rank_dir
+    elif inherited_resolved == rank_dir:
+        selected = rank_dir  # Re-entry must not append rank_<RANK> again.
+    else:
+        raise RuntimeError(
+            f"TRITON_CACHE_DIR is outside this run's Triton cache root: {inherited_resolved}"
+        )
+
+    os.environ["TRITON_CACHE_DIR"] = str(selected)
+    return rank, selected
+
+
+def _task_tmpdir_from_environment() -> Path:
+    task_tmp_root = TASK_ROOT / ".tmp"
+    if task_tmp_root.is_symlink():
+        raise RuntimeError(f"task temporary root must not be a symlink: {task_tmp_root}")
+    local_tmpdir = os.environ.get("TASK_LOCAL_TMPDIR")
+    if not local_tmpdir:
+        raise RuntimeError("TASK_LOCAL_TMPDIR must name the task-owned temporary directory")
+    if any(os.environ.get(name) != local_tmpdir for name in ("TMPDIR", "TMP", "TEMP")):
+        raise RuntimeError("TMPDIR, TMP and TEMP must match TASK_LOCAL_TMPDIR")
+
+    path = Path(local_tmpdir)
+    resolved_root = task_tmp_root.resolve(strict=True)
+    resolved = _task_path(path, "task temporary directory")
+    if resolved.parent != resolved_root or not TASK_TMPDIR_NAME_RE.fullmatch(resolved.name):
+        raise RuntimeError(f"task temporary directory must be one short .tmp/run-* child: {path}")
+    if not resolved.is_dir():
+        raise RuntimeError(f"task temporary directory is not a directory: {resolved}")
+    return resolved
+
+
+def _write_triton_startup_receipt(
+    args: argparse.Namespace, rank: int, triton_cache_dir: Path, task_tmpdir: Path
+) -> None:
+    measurement_dir = Path(args.measurement_dir).resolve(strict=True)
+    receipt_path = measurement_dir / f"triton-startup-rank-{rank:02d}.json"
+    receipt = {
+        "schema_version": 1,
+        "run_id": args.run_id,
+        "rank": rank,
+        "triton_cache_dir": str(triton_cache_dir),
+        "task_tmpdir": str(task_tmpdir),
+        "TMPDIR": os.environ["TMPDIR"],
+        "TMP": os.environ["TMP"],
+        "TEMP": os.environ["TEMP"],
+    }
+    with receipt_path.open("x", encoding="utf-8") as handle:
+        json.dump(receipt, handle, sort_keys=True, indent=2)
+        handle.write("\n")
+
+
 def _run_native_main(train_argv: list[str], adapter: NativeAdapter) -> None:
     with adapter:
         from torchtitan.train import main as native_main
@@ -851,6 +970,10 @@ def _run_native_main(train_argv: list[str], adapter: NativeAdapter) -> None:
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     args, train_argv = _parse_args(argv)
+
+    rank, triton_cache_dir = _route_rank_triton_cache(args.measurement_dir)
+    task_tmpdir = _task_tmpdir_from_environment()
+    _write_triton_startup_receipt(args, rank, triton_cache_dir, task_tmpdir)
 
     import torch
     import torchtitan.components.metrics as metrics_module

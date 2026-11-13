@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import builtins
 import json
+import os
+import socket
+import subprocess
 import sys
 from copy import deepcopy
 from contextlib import contextmanager
@@ -17,6 +21,417 @@ import run as runner
 
 LOCAL_PHYSICAL_PER_UPDATE = 262_144
 GLOBAL_SUPERVISED_PER_UPDATE = 2_096_640
+
+
+def _measure_cache_layout(tmp_path: Path) -> tuple[Path, Path]:
+    measurement_dir = tmp_path / "attempt" / "measurement"
+    cache_root = measurement_dir.parent / "cache" / "triton"
+    measurement_dir.mkdir(parents=True)
+    for rank in range(8):
+        (cache_root / f"rank_{rank}").mkdir(parents=True)
+    return measurement_dir, cache_root
+
+
+def _measure_main_args(measurement_dir: Path) -> list[str]:
+    return [
+        "--measurement-dir",
+        str(measurement_dir),
+        "--run-id",
+        "task-directory-test",
+        "--steps",
+        "1",
+        "--warmup",
+        "0",
+        "--window",
+        "0",
+        "--",
+        "experiment.yaml",
+    ]
+
+
+def _set_task_tmp_environment(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
+    monkeypatch.setenv("TASK_LOCAL_TMPDIR", str(path))
+    for name in ("TMPDIR", "TMP", "TEMP"):
+        monkeypatch.setenv(name, str(path))
+
+
+def test_task_tmpdir_is_short_and_created_only_under_task_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_mkdtemp = runner.tempfile.mkdtemp
+    observed: dict[str, str] = {}
+
+    def task_root_only_mkdtemp(*, prefix: str, dir: str | Path) -> str:
+        candidate = Path(dir).resolve()
+        candidate.relative_to(runner.TASK_ROOT.resolve())
+        assert prefix == "run-"
+        observed["dir"] = str(candidate)
+        return original_mkdtemp(prefix=prefix, dir=dir)
+
+    monkeypatch.setattr(runner.tempfile, "mkdtemp", task_root_only_mkdtemp)
+    path, capacity = runner._make_task_tmpdir()
+    try:
+        assert path.parent == (runner.TASK_ROOT / ".tmp").resolve()
+        assert runner.TASK_TMPDIR_NAME_RE.fullmatch(path.name)
+        assert observed["dir"] == str(path.parent)
+        assert capacity["available_bytes_before_create"] >= runner.MIN_TASK_TMP_FREE_BYTES
+        assert capacity["available_inodes_before_create"] > 0
+    finally:
+        runner._cleanup_task_tmpdir(path)
+
+
+def test_task_tmpdir_creation_rejects_a_symlink_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task_root = tmp_path / "task-root"
+    task_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (task_root / ".tmp").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(runner, "TASK_ROOT", task_root)
+
+    with pytest.raises(RuntimeError, match="must not be a symlink"):
+        runner._make_task_tmpdir()
+    assert not any(outside.iterdir())
+
+
+def test_task_tmpdir_cleanup_removes_only_the_owned_directory(
+    tmp_path: Path,
+) -> None:
+    task_tmpdir, _ = runner._make_task_tmpdir()
+    namespace = task_tmpdir.parent / "other-namespace"
+    namespace.mkdir()
+    (namespace / "keep.txt").write_text("preserve", encoding="utf-8")
+    cache_entry = tmp_path / "attempt/cache/triton/rank_0/cache-entry"
+    cache_entry.parent.mkdir(parents=True)
+    cache_entry.write_text("keep cache", encoding="utf-8")
+    (task_tmpdir / "child-cache").mkdir()
+
+    try:
+        with pytest.raises(RuntimeError, match="non-task temporary path"):
+            runner._cleanup_task_tmpdir(namespace)
+        runner._cleanup_task_tmpdir(task_tmpdir)
+        assert not task_tmpdir.exists()
+        assert (namespace / "keep.txt").read_text(encoding="utf-8") == "preserve"
+        assert cache_entry.read_text(encoding="utf-8") == "keep cache"
+    finally:
+        if task_tmpdir.exists():
+            runner._cleanup_task_tmpdir(task_tmpdir)
+        if namespace.exists():
+            namespace.joinpath("keep.txt").unlink()
+            namespace.rmdir()
+
+
+def test_task_tmpdir_supports_short_multiprocessing_socket_path() -> None:
+    task_tmpdir, _ = runner._make_task_tmpdir()
+    socket_path = task_tmpdir / "pymp-abcdefgh" / "listener-abcdefgh"
+    socket_path.parent.mkdir()
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        assert len(os.fsencode(socket_path)) < 108
+        server.bind(str(socket_path))
+        assert socket_path.exists()
+    finally:
+        server.close()
+        socket_path.unlink(missing_ok=True)
+        socket_path.parent.rmdir()
+        runner._cleanup_task_tmpdir(task_tmpdir)
+
+
+def test_run_dirs_keep_preflight_on_base_and_precreate_rank_caches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw_root = tmp_path / "artifacts/raw"
+    monkeypatch.setattr(runner, "RAW_ROOT", raw_root)
+    monkeypatch.setattr(runner, "SHARED_HF_CACHE", tmp_path / "shared-cache/huggingface")
+    monkeypatch.delenv("RANK", raising=False)
+    paths = runner._make_run_dirs("cache-layout-test")
+    task_tmpdir, _ = runner._make_task_tmpdir()
+    paths["tmp_dir"] = task_tmpdir
+    try:
+        env = runner._run_environment(paths)
+        assert env["TRITON_CACHE_DIR"] == str(paths["cache_triton"].resolve())
+        assert Path(env["TRITON_CACHE_DIR"]).is_relative_to(paths["attempt"].resolve())
+        for rank in range(8):
+            assert (paths["cache_triton"] / f"rank_{rank}").is_dir()
+        assert env["TORCHINDUCTOR_CACHE_DIR"] == str(
+            paths["cache_torchinductor"].resolve()
+        )
+        assert env["DG_JIT_SHARED_CACHE_DIR"] == str(paths["cache_deep_gemm"].resolve())
+        assert env["HYBRID_EP_CACHE_DIR"] == str(paths["cache_hybridep"].resolve())
+        assert Path(env["HF_HOME"]) == paths["shared_hf_cache"].resolve()
+    finally:
+        runner._cleanup_task_tmpdir(task_tmpdir)
+
+
+@pytest.mark.parametrize("rank", [0, 7])
+def test_measure_main_routes_rank_cache_before_first_torch_import(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rank: int
+) -> None:
+    measurement_dir, cache_root = _measure_cache_layout(tmp_path)
+    task_tmpdir, _ = runner._make_task_tmpdir()
+    cache_variables = (
+        "TORCHINDUCTOR_CACHE_DIR",
+        "DG_JIT_SHARED_CACHE_DIR",
+        "TASK_DEEP_GEMM_RANK_CACHE_ROOT",
+        "HYBRID_EP_CACHE_DIR",
+        "HF_HOME",
+        "HF_HUB_CACHE",
+        "HF_DATASETS_CACHE",
+    )
+    environment_names = (
+        "RANK",
+        "TRITON_CACHE_DIR",
+        "TASK_LOCAL_TMPDIR",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        *cache_variables,
+    )
+    original_environment = {name: os.environ.get(name) for name in environment_names}
+    real_import = builtins.__import__
+    reached_torch: list[dict[str, str | None]] = []
+
+    class ReachedTorchImport(Exception):
+        pass
+
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setenv("RANK", str(rank))
+            scoped.setenv("TRITON_CACHE_DIR", str(cache_root))
+            _set_task_tmp_environment(scoped, task_tmpdir)
+            for index, name in enumerate(cache_variables):
+                scoped.setenv(name, f"preserved-cache-{index}")
+
+            def intercept_torch(name, globals=None, locals=None, fromlist=(), level=0):
+                if name == "torch":
+                    reached_torch.append(
+                        {
+                            key: os.environ.get(key)
+                            for key in ("RANK", "TRITON_CACHE_DIR", *cache_variables)
+                        }
+                    )
+                    raise ReachedTorchImport
+                return real_import(name, globals, locals, fromlist, level)
+
+            scoped.setattr(builtins, "__import__", intercept_torch)
+            with pytest.raises(ReachedTorchImport):
+                measure.main(_measure_main_args(measurement_dir))
+
+            assert len(reached_torch) == 1
+            assert reached_torch[0]["TRITON_CACHE_DIR"] == str(
+                cache_root / f"rank_{rank}"
+            )
+            for name in cache_variables:
+                assert reached_torch[0][name] == f"preserved-cache-{cache_variables.index(name)}"
+            receipt = json.loads(
+                (measurement_dir / f"triton-startup-rank-{rank:02d}.json").read_text()
+            )
+            assert receipt["triton_cache_dir"] == str(cache_root / f"rank_{rank}")
+            assert receipt["task_tmpdir"] == str(task_tmpdir)
+            assert all(receipt[name] == str(task_tmpdir) for name in ("TMPDIR", "TMP", "TEMP"))
+    finally:
+        runner._cleanup_task_tmpdir(task_tmpdir)
+    assert {name: os.environ.get(name) for name in environment_names} == original_environment
+
+
+@pytest.mark.parametrize("rank_text", [None, "invalid", "8"])
+def test_measure_main_rejects_missing_or_invalid_rank_before_torch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rank_text: str | None
+) -> None:
+    measurement_dir, cache_root = _measure_cache_layout(tmp_path)
+    task_tmpdir, _ = runner._make_task_tmpdir()
+    imported: list[str] = []
+    real_import = builtins.__import__
+    try:
+        with monkeypatch.context() as scoped:
+            if rank_text is None:
+                scoped.delenv("RANK", raising=False)
+            else:
+                scoped.setenv("RANK", rank_text)
+            scoped.setenv("TRITON_CACHE_DIR", str(cache_root))
+            _set_task_tmp_environment(scoped, task_tmpdir)
+
+            def intercept_torch(name, globals=None, locals=None, fromlist=(), level=0):
+                if name == "torch":
+                    imported.append(name)
+                return real_import(name, globals, locals, fromlist, level)
+
+            scoped.setattr(builtins, "__import__", intercept_torch)
+            with pytest.raises(RuntimeError, match="RANK"):
+                measure.main(_measure_main_args(measurement_dir))
+    finally:
+        runner._cleanup_task_tmpdir(task_tmpdir)
+    assert imported == []
+
+
+@pytest.mark.parametrize("bad_root", ["outside", "symlink"])
+def test_measure_main_rejects_out_of_attempt_or_symlink_triton_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bad_root: str,
+) -> None:
+    measurement_dir, cache_root = _measure_cache_layout(tmp_path)
+    task_tmpdir, _ = runner._make_task_tmpdir()
+    outside = tmp_path / "outside-triton"
+    outside.mkdir()
+    if bad_root == "outside":
+        bad_path = outside
+    else:
+        bad_path = cache_root.parent / "triton-link"
+        bad_path.symlink_to(outside, target_is_directory=True)
+    imported: list[str] = []
+    real_import = builtins.__import__
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setenv("RANK", "0")
+            scoped.setenv("TRITON_CACHE_DIR", str(bad_path))
+            _set_task_tmp_environment(scoped, task_tmpdir)
+
+            def intercept_torch(name, globals=None, locals=None, fromlist=(), level=0):
+                if name == "torch":
+                    imported.append(name)
+                return real_import(name, globals, locals, fromlist, level)
+
+            scoped.setattr(builtins, "__import__", intercept_torch)
+            with pytest.raises(RuntimeError, match="TRITON_CACHE_DIR"):
+                measure.main(_measure_main_args(measurement_dir))
+    finally:
+        runner._cleanup_task_tmpdir(task_tmpdir)
+    assert imported == []
+
+
+def test_measure_rank_cache_routing_is_idempotent_and_rank_specific(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    measurement_dir, cache_root = _measure_cache_layout(tmp_path)
+    with monkeypatch.context() as scoped:
+        scoped.setenv("RANK", "0")
+        scoped.setenv("TRITON_CACHE_DIR", str(cache_root))
+        rank, rank_zero = measure._route_rank_triton_cache(measurement_dir)
+        assert rank == 0
+        assert rank_zero == cache_root / "rank_0"
+        assert measure._route_rank_triton_cache(measurement_dir) == (0, rank_zero)
+
+        scoped.setenv("RANK", "1")
+        scoped.setenv("TRITON_CACHE_DIR", str(cache_root))
+        rank, rank_one = measure._route_rank_triton_cache(measurement_dir)
+        assert rank == 1
+        assert rank_one == cache_root / "rank_1"
+        assert rank_zero != rank_one
+
+
+def test_real_triton_file_and_group_cache_use_distinct_task_rank_roots(
+    tmp_path: Path,
+) -> None:
+    measurement_dir, cache_root = _measure_cache_layout(tmp_path)
+    task_tmpdir, _ = runner._make_task_tmpdir()
+    script = r"""
+import json
+import os
+from pathlib import Path
+import triton
+from triton import knobs
+from triton.runtime.cache import get_cache_manager
+
+triton_root = Path(triton.__file__).resolve().parent
+expected_root = Path("/opt/torchtitan-venv/lib/python3.12/site-packages/triton").resolve()
+assert triton_root == expected_root, triton_root
+cache_module = Path(__import__("triton.runtime.cache", fromlist=["__file__"]).__file__).resolve()
+expected_cache_module = expected_root / "runtime/cache.py"
+assert cache_module == expected_cache_module, cache_module
+cache_root = Path(os.environ["TRITON_CACHE_DIR"]).resolve()
+assert Path(knobs.cache.dir).resolve() == cache_root
+rank = int(os.environ["RANK"])
+manager = get_cache_manager("ab" * 32)
+payload = f"payload-rank-{rank}".encode()
+payload_path = manager.put(payload, "payload.bin")
+assert Path(manager.get_file("payload.bin")).read_bytes() == payload
+manager.put_group("payload-group", {"payload": payload_path})
+assert manager.get_group("payload-group") == {"payload": payload_path}
+print(json.dumps({
+    "triton_root": str(triton_root),
+    "cache_module": str(cache_module),
+    "cache_root": str(cache_root),
+    "cache_dir": manager.cache_dir,
+    "payload_path": payload_path,
+    "group_path": manager.get_file("__grp__payload-group"),
+    "payload": payload.decode(),
+}))
+"""
+    results: list[dict[str, str]] = []
+    try:
+        for rank in (0, 1):
+            env = os.environ.copy()
+            env.update(
+                {
+                    "RANK": str(rank),
+                    "TRITON_CACHE_DIR": str(cache_root / f"rank_{rank}"),
+                    "TASK_LOCAL_TMPDIR": str(task_tmpdir),
+                    "TMPDIR": str(task_tmpdir),
+                    "TMP": str(task_tmpdir),
+                    "TEMP": str(task_tmpdir),
+                    "PYTHONPATH": str(runner.GIFT_ROOT),
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                }
+            )
+            completed = subprocess.run(
+                [str(runner.PYTHON), "-c", script],
+                text=True,
+                capture_output=True,
+                cwd=runner.TASK_ROOT,
+                env=env,
+            )
+            assert completed.returncode == 0, completed.stderr
+            results.append(json.loads(completed.stdout))
+
+        rank_roots = [str(cache_root / f"rank_{rank}") for rank in (0, 1)]
+        assert [result["cache_root"] for result in results] == rank_roots
+        assert results[0]["cache_dir"] != results[1]["cache_dir"]
+        assert results[0]["payload"] == "payload-rank-0"
+        assert results[1]["payload"] == "payload-rank-1"
+        assert Path(results[0]["payload_path"]).read_bytes() == b"payload-rank-0"
+        assert Path(results[1]["payload_path"]).read_bytes() == b"payload-rank-1"
+        assert Path(results[0]["group_path"]).is_file()
+        assert Path(results[1]["group_path"]).is_file()
+    finally:
+        runner._cleanup_task_tmpdir(task_tmpdir)
+
+
+def test_runner_accepts_only_eight_matching_triton_startup_receipts(
+    tmp_path: Path,
+) -> None:
+    measurement_dir, cache_root = _measure_cache_layout(tmp_path)
+    tmpdir = str(runner.TASK_ROOT / ".tmp" / "run-abcdefgh")
+    paths = {"measurement": measurement_dir}
+    metadata = {
+        "run_id": "receipt-test",
+        "task_tmpdir": {"path": tmpdir},
+        "triton_cache_rank_directories": {
+            str(rank): str(cache_root / f"rank_{rank}") for rank in range(8)
+        },
+    }
+    for rank in range(8):
+        receipt = {
+            "run_id": metadata["run_id"],
+            "rank": rank,
+            "triton_cache_dir": metadata["triton_cache_rank_directories"][str(rank)],
+            "task_tmpdir": tmpdir,
+            "TMPDIR": tmpdir,
+            "TMP": tmpdir,
+            "TEMP": tmpdir,
+        }
+        (measurement_dir / f"triton-startup-rank-{rank:02d}.json").write_text(
+            json.dumps(receipt), encoding="utf-8"
+        )
+
+    runner._verify_triton_startup_receipts(paths, metadata)
+    receipt_path = measurement_dir / "triton-startup-rank-07.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["triton_cache_dir"] = str(cache_root)
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="rank 7"):
+        runner._verify_triton_startup_receipts(paths, metadata)
 
 
 class FakeParameter:

@@ -4,7 +4,9 @@ Status: RUNNING. The 13 November 2026 user request authorizes this bounded
 baseline measurement and fresh trace capture on the existing eight-H100
 `sr008-gpu` allocation. Starting source is
 `eadcc6ac2ca5e7a24389e03416327fa8712e44da`; the exact execution revision will be
-recorded after the necessary timing-receipt repair below. The original candidate campaign remains
+recorded in the run receipts. The necessary timing-receipt serialization repair
+was committed as `162ad63a` before launch; 81 affected CPU tests passed against
+task-local GIFT, including the old-fail/new-pass default-output regression. The original candidate campaign remains
 cancelled. The completed cleanup record below describes the previous assignment.
 
 ## Current scope and acceptance
@@ -33,6 +35,12 @@ cancelled. The completed cleanup record below describes the previous assignment.
    files and obsolete caches. Verify process exit and released GPUs, then commit
    and push results/documentation using the existing identity. Stop there.
 
+All task-owned files, caches and temporary directories must remain inside
+`/workspace-SR008.nfs2/vkropotin/optimization-task`. The user explicitly rejected
+external `/dev/shm` storage; its proposed cache route was stopped before source
+changes or another launch. The next attempt must use an inside-directory
+temporary path and a bounded cache mitigation that preserves the workload.
+
 No candidate experiments, full-model numerical comparisons, new allocation or
 unrelated implementation work is authorized. Use the reviewed runner and existing
 runtime; record a concrete failure before any repair needed for this measurement.
@@ -42,7 +50,8 @@ runtime; record a concrete failure before any repair needed for this measurement
 | Item | Current evidence / next action |
 | --- | --- |
 | Initial checkout/process inspection | HEAD `eadcc6ac`; only the existing untracked V2 helper; no training process at initial inspection |
-| Unprofiled measurement | Held before launch: the default observer-off receipt omitted wall timestamps required by the parser; `window_wall_receipt_fix` owns the minimal serialization repair and actual-output regression |
+| Unprofiled measurement | Attempt `monitorfree-baseline-w10-m10-001` failed in the first forward with Triton binary-read `ESTALE`; no TPS/window. Controller 448155 / child PG 448324 stopped and GPUs released; failure receipt retained |
+| Inside-directory path/cache repair | PASS: short `TASK_ROOT/.tmp/run-*` scratch; rank Triton caches selected before Torch import; eight startup receipts checked after exit. 94 scoped checks passed initially; two fixture errors corrected and both rechecks passed (96 covered); real AF_UNIX and pinned Triton cache checks pass. See raw `monitorfree-task-directory-fix/CHECKS.md` |
 | Profile schedule | Source contract verified: for observed warmup W, capture update W+1 with one Kineto warmup update W; only ranks 0/1 construct profilers; all eight train |
 | Results, cleanup and publication | Pending the two run receipts; coordinating owner integrates and publishes |
 

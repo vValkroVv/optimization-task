@@ -29,8 +29,9 @@ TOKENIZER = GIFT_ROOT / "tests/assets/tokenizer"
 RAW_ROOT = HELPER_DIR / "artifacts/raw"
 SHARED_HF_CACHE = RAW_ROOT / "shared-cache/huggingface"
 DEFAULT_TIMEOUT_SECONDS = 4 * 60 * 60
-MIN_SHM_FREE_BYTES = 512 * 1024 * 1024
+MIN_TASK_TMP_FREE_BYTES = 512 * 1024 * 1024
 PROFILE_RANKS = [0, 1]
+TASK_TMPDIR_NAME_RE = re.compile(r"run-[a-z0-9_]{8}\Z")
 
 EXPECTED = {
     "python": "3.12.3",
@@ -330,30 +331,38 @@ def _make_run_dirs(run_id: str) -> dict[str, Path]:
         cache = paths["cache"] / name
         cache.mkdir(exist_ok=False)
         paths[f"cache_{name}"] = cache
+        if name == "triton":
+            for rank in range(8):
+                (cache / f"rank_{rank}").mkdir(exist_ok=False)
     rank_cache = paths["cache_deep_gemm"] / "rank-cache"
     rank_cache.mkdir(exist_ok=False)
     paths["cache_deep_gemm_ranks"] = rank_cache
     return paths
 
 
-def _make_local_tmpdir(run_id: str) -> tuple[Path, dict[str, int]]:
-    local_root = Path("/dev/shm")
+def _make_task_tmpdir() -> tuple[Path, dict[str, int]]:
+    task_tmp_root = TASK_ROOT / ".tmp"
+    if task_tmp_root.is_symlink():
+        raise RuntimeError(f"task temporary root must not be a symlink: {task_tmp_root}")
+    task_tmp_root.mkdir(mode=0o700, exist_ok=True)
+    local_root = _inside(TASK_ROOT, task_tmp_root, "task temporary root")
     if not local_root.is_dir():
-        raise RuntimeError("local /dev/shm is unavailable for task-owned TMPDIR")
+        raise RuntimeError(f"task temporary root is not a directory: {local_root}")
+
     stats = os.statvfs(local_root)
     free_bytes = stats.f_bavail * stats.f_frsize
     free_inodes = stats.f_favail
-    if free_bytes < MIN_SHM_FREE_BYTES or free_inodes <= 0:
+    if free_bytes < MIN_TASK_TMP_FREE_BYTES or free_inodes <= 0:
         raise RuntimeError(
-            f"/dev/shm has insufficient free capacity: {free_bytes} bytes, "
+            f"task temporary root has insufficient free capacity: {free_bytes} bytes, "
             f"{free_inodes} inodes"
         )
-    path = Path(
-        tempfile.mkdtemp(
-            prefix=f"vkropotin-overnight-{run_id}-",
-            dir=local_root,
-        )
-    )
+    path = Path(tempfile.mkdtemp(prefix="run-", dir=local_root))
+    resolved_path = _inside(TASK_ROOT, path, "task temporary directory")
+    if path.is_symlink() or resolved_path.parent != local_root.resolve():
+        raise RuntimeError(f"created temporary directory escaped its task root: {path}")
+    if not TASK_TMPDIR_NAME_RE.fullmatch(resolved_path.name):
+        raise RuntimeError(f"created temporary directory has an unexpected name: {path}")
     return path, {
         "total_bytes": stats.f_blocks * stats.f_frsize,
         "available_bytes_before_create": free_bytes,
@@ -361,15 +370,46 @@ def _make_local_tmpdir(run_id: str) -> tuple[Path, dict[str, int]]:
     }
 
 
-def _cleanup_local_tmpdir(path: Path) -> None:
+def _cleanup_task_tmpdir(path: Path) -> None:
+    task_tmp_root = TASK_ROOT / ".tmp"
+    if task_tmp_root.is_symlink():
+        raise RuntimeError(f"refusing to clean a symlink task temporary root: {task_tmp_root}")
+    resolved_root = _inside(TASK_ROOT, task_tmp_root, "task temporary root")
     if path.is_symlink():
         raise RuntimeError(f"refusing to remove a symlink temporary path: {path}")
-    resolved = path.resolve()
-    if resolved.parent != Path("/dev/shm").resolve():
-        raise RuntimeError(f"refusing to remove temporary path outside /dev/shm: {path}")
-    if not resolved.name.startswith("vkropotin-overnight-"):
+    resolved = path.resolve(strict=True)
+    if resolved.parent != resolved_root:
+        raise RuntimeError(f"refusing to remove temporary path outside {resolved_root}: {path}")
+    if not TASK_TMPDIR_NAME_RE.fullmatch(resolved.name):
         raise RuntimeError(f"refusing to remove a non-task temporary path: {path}")
+    if not resolved.is_dir():
+        raise RuntimeError(f"refusing to remove a non-directory temporary path: {path}")
     shutil.rmtree(resolved)
+
+
+def _verify_triton_startup_receipts(
+    paths: dict[str, Path], metadata: dict[str, Any]
+) -> None:
+    expected_dirs = metadata.get("triton_cache_rank_directories")
+    tmpdir = metadata.get("task_tmpdir", {}).get("path")
+    if not isinstance(expected_dirs, dict) or not isinstance(tmpdir, str):
+        raise RuntimeError("run metadata lacks Triton rank directories or task TMPDIR")
+
+    for rank in range(8):
+        receipt_path = paths["measurement"] / f"triton-startup-rank-{rank:02d}.json"
+        if not receipt_path.is_file():
+            raise RuntimeError(f"rank {rank} did not write its Triton startup receipt")
+        receipt = _load_json(receipt_path)
+        expected = expected_dirs.get(str(rank))
+        if (
+            receipt.get("run_id") != metadata.get("run_id")
+            or receipt.get("rank") != rank
+            or receipt.get("triton_cache_dir") != expected
+        ):
+            raise RuntimeError(f"rank {rank} Triton startup path differs from run metadata")
+        for key in ("task_tmpdir", "TMPDIR", "TMP", "TEMP"):
+            if receipt.get(key) != tmpdir:
+                raise RuntimeError(f"rank {rank} {key} differs from run task TMPDIR")
 
 
 def _filesystem_status(paths: dict[str, Path], mds_root: Path) -> dict[str, Any]:
@@ -852,11 +892,11 @@ def main(argv: list[str] | None = None) -> int:
         paths = _make_run_dirs(args.run_id)
         mds_root = _data_root(TASK_ROOT)
         filesystem = _filesystem_status(paths, mds_root)
-        tmp_dir, tmp_capacity = _make_local_tmpdir(args.run_id)
+        tmp_dir, tmp_capacity = _make_task_tmpdir()
         paths["tmp_dir"] = tmp_dir
         _write_new_json(
-            paths["preflight"] / "local-tmpdir.json",
-            {"path": str(tmp_dir), "capacity": tmp_capacity},
+            paths["preflight"] / "task-tmpdir.json",
+            {"run_id": args.run_id, "path": str(tmp_dir), "capacity": tmp_capacity},
         )
 
         experiment_config = paths["config"] / "experiment.yaml"
@@ -883,10 +923,12 @@ def main(argv: list[str] | None = None) -> int:
             "seed": 2048,
             "mds_data_root": str(mds_root),
             "filesystem": filesystem,
-            "local_tmpdir": {
+            "task_tmpdir": {
                 "path": str(tmp_dir),
                 "capacity": tmp_capacity,
-                "cleanup": "remove this exact directory after the owned process group stops",
+                "filesystem": "task-root NFS",
+                "environment_variables": ["TMPDIR", "TMP", "TEMP"],
+                "cleanup": "remove this exact .tmp/run-<8 random characters> directory after the owned process group stops; preserve it if children survive",
             },
             "runtime": runtime,
             "profiler": (
@@ -898,6 +940,14 @@ def main(argv: list[str] | None = None) -> int:
             "validation": "disabled",
             "memory_snapshots": "disabled",
             "compiler_cache_policy": "fresh task-owned TorchInductor, Triton, DeepGEMM shared-kernel and rank-cache directories per run",
+            "triton_cache_policy": "distinct per-global-rank directories under the task-owned NFS attempt cache; isolates rank writers but does not establish the cause of or immunity to ESTALE",
+            "triton_cache_rank_directories": {
+                str(rank): str(
+                    (paths["cache_triton"] / f"rank_{rank}").resolve()
+                )
+                for rank in range(8)
+            },
+            "triton_cache_cost": "rank isolation can duplicate identical compiler artifacts up to eight times and reduce cross-rank cache reuse; incremental cold-start cost is unknown",
             "deep_gemm_rank_cache_root": str(paths["cache_deep_gemm_ranks"].resolve()),
             "deep_gemm_warmup": "enabled; adapter redirects rank cache; PROPAGATE_DG_CACHE unset",
             "observe_compiler_cache": args.observe_compiler_cache,
@@ -943,6 +993,7 @@ def main(argv: list[str] | None = None) -> int:
 
         resolved_hash = None
         if child_code == 0 and not timed_out:
+            _verify_triton_startup_receipts(paths, metadata)
             resolved_hash = _verify_resolved_config(paths, args)
             parser = _load_parser()
             summary = parser.summarize_run(paths["attempt"])
@@ -969,8 +1020,8 @@ def main(argv: list[str] | None = None) -> int:
                 "resolved_config_sha256": resolved_hash,
                 "source_unchanged": source_unchanged,
                 "config_unchanged": config_unchanged,
-                "local_tmpdir": str(tmp_dir),
-                "local_tmpdir_removed": False,
+                "task_tmpdir": str(tmp_dir),
+                "task_tmpdir_removed": False,
                 "finished_at_utc": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -1036,9 +1087,9 @@ def main(argv: list[str] | None = None) -> int:
             tmp_dir = paths.get("tmp_dir")
             if tmp_dir is not None and tmp_dir.exists() and process_group_stopped:
                 try:
-                    _cleanup_local_tmpdir(tmp_dir)
+                    _cleanup_task_tmpdir(tmp_dir)
                     _write_atomic_json(
-                        paths["attempt"] / "local-tmpdir-cleanup.json",
+                        paths["attempt"] / "task-tmpdir-cleanup.json",
                         {"path": str(tmp_dir), "removed": True},
                     )
                 except Exception as cleanup_error:
@@ -1050,7 +1101,7 @@ def main(argv: list[str] | None = None) -> int:
                 completion_path = paths["attempt"] / "completion.json"
                 if completion_path.is_file():
                     completion = _load_json(completion_path)
-                    completion["local_tmpdir_removed"] = not tmp_dir.exists() if tmp_dir else True
+                    completion["task_tmpdir_removed"] = not tmp_dir.exists() if tmp_dir else True
                     _write_replace_json(completion_path, completion)
             elif tmp_dir is not None and tmp_dir.exists() and not process_group_stopped:
                 print(
@@ -1063,7 +1114,7 @@ def main(argv: list[str] | None = None) -> int:
                     completion = _load_json(completion_path)
                     completion["status"] = status
                     completion["failure"] = error or "temporary-directory cleanup or launch failed"
-                    completion["local_tmpdir_removed"] = (
+                    completion["task_tmpdir_removed"] = (
                         not tmp_dir.exists() if tmp_dir else True
                     )
                     _write_replace_json(completion_path, completion)
