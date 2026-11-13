@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import statistics
+import struct
 from pathlib import Path
 from typing import Any
 
@@ -105,6 +107,421 @@ def _sha256_file(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _native_int64_digest(value: int) -> str:
+    return hashlib.sha256(struct.pack("=q", value)).hexdigest()
+
+
+def _has_nonfinite_float(value: Any) -> bool:
+    if isinstance(value, float):
+        return not math.isfinite(value)
+    if isinstance(value, dict):
+        encoded_float = value.get("float")
+        if isinstance(encoded_float, str):
+            try:
+                if not math.isfinite(float(encoded_float)):
+                    return True
+            except ValueError:
+                pass
+        return any(_has_nonfinite_float(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_has_nonfinite_float(item) for item in value)
+    return False
+
+
+def _exact_mismatches(left: Any, right: Any, *, limit: int = 20) -> list[str]:
+    """Return bounded paths where two same-rank receipts differ exactly."""
+    differences: list[str] = []
+
+    def visit(a: Any, b: Any, path: str) -> None:
+        if len(differences) >= limit:
+            return
+        if type(a) is not type(b):
+            differences.append(path)
+        elif isinstance(a, dict):
+            for key in sorted(set(a) | set(b)):
+                child = f"{path}.{key}"
+                if key not in a or key not in b:
+                    differences.append(child)
+                else:
+                    visit(a[key], b[key], child)
+                if len(differences) >= limit:
+                    return
+        elif isinstance(a, list):
+            if len(a) != len(b):
+                differences.append(f"{path}.length")
+            for index, (item_a, item_b) in enumerate(zip(a, b)):
+                visit(item_a, item_b, f"{path}[{index}]")
+                if len(differences) >= limit:
+                    return
+        elif a != b:
+            differences.append(path)
+
+    visit(left, right, "$receipt")
+    return differences
+
+
+def compare_native_numerical_receipts(
+    left_path: Path, right_path: Path
+) -> dict[str, Any]:
+    """Compare every emitted field of two receipts for the same rank exactly."""
+    left = _load_json(Path(left_path))
+    right = _load_json(Path(right_path))
+    differences = _exact_mismatches(left, right)
+    if len(differences) == 20:
+        differences.append("additional mismatch paths omitted")
+    return {"equal": not differences, "mismatch_paths": differences}
+
+
+def _native_numerics_summary(run_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
+    errors: list[str] = []
+    manifest = {
+        "schema": "native-numerical-receipt-v1",
+        "capture_updates": [1, 2, 50],
+        "expected_microbatches": 32,
+        "scope": "diagnostic only; no TPS",
+    }
+    if metadata.get("native_numerics") != manifest:
+        errors.append("run metadata native_numerics manifest is missing or differs")
+    if (
+        metadata.get("steps") != 50
+        or metadata.get("warmup_updates") != 0
+        or metadata.get("window_updates") != 0
+        or metadata.get("monitor_interval") != 50
+        or metadata.get("profile_capture") is not None
+    ):
+        errors.append("run metadata does not match the exclusive native-numerics mode")
+
+    before_hashes = metadata.get("config_hashes_before", {})
+    before_hash = before_hashes.get("native_numerics_sha256") if isinstance(before_hashes, dict) else None
+    after_path = run_dir / "config-hashes-final.json"
+    try:
+        after_hashes = _load_json(after_path)
+    except ValueError as exc:
+        after_hashes = {}
+        errors.append(f"native-numerics final config hashes: {exc}")
+    after_hash = after_hashes.get("native_numerics_sha256")
+    if (
+        not isinstance(before_hash, str)
+        or len(before_hash) != 64
+        or not isinstance(after_hash, str)
+        or len(after_hash) != 64
+        or before_hash != after_hash
+    ):
+        errors.append("native-numerics module hash is missing or changed during the run")
+
+    measurement_dir = run_dir / "measurement"
+    paths = sorted(measurement_dir.glob("native-numerics-rank*.json"))
+    expected_names = {f"native-numerics-rank{rank}.json" for rank in range(WORLD_SIZE)}
+    if {path.name for path in paths} != expected_names or len(paths) != WORLD_SIZE:
+        errors.append(
+            f"expected exactly eight native-numerics receipts rank0..rank7; found {[p.name for p in paths]}"
+        )
+
+    receipts: dict[int, dict[str, Any]] = {}
+    for path in paths:
+        try:
+            receipt = _load_json(path)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        rank = receipt.get("rank")
+        if type(rank) is not int or not 0 <= rank < WORLD_SIZE:
+            errors.append(f"{path.name} has an invalid rank")
+            continue
+        if rank in receipts:
+            errors.append(f"duplicate native-numerics receipt for rank {rank}")
+        receipts[rank] = receipt
+
+    expected_coverage = {
+        "input_batches": 32,
+        "microbatches": 32,
+        "summary_calls": 1,
+        "clip_calls": 1,
+        "optimizer_calls": 1,
+        "batch_end_calls": 1,
+    }
+    expected_denominator = 2_096_640.0
+    updates = (1, 2, 50)
+    def only(records: list[dict[str, Any]], *, update: int, phase: str, name: str, microbatch: int | None = None) -> list[dict[str, Any]]:
+        return [
+            item for item in records
+            if item.get("update") == update
+            and item.get("phase") == phase
+            and item.get("name") == name
+            and item.get("microbatch") == microbatch
+        ]
+
+    for rank, receipt in sorted(receipts.items()):
+        expected_receipt_keys = {
+            "schema", "complete", "rank", "capture_updates", "expected_microbatches",
+            "hash_semantics", "clip_norm_semantics", "ema_state", "callback_state_scope",
+            "training_metadata", "positions_semantics", "microbatch_capture", "scope",
+            "coverage", "observations",
+        }
+        if set(receipt) != expected_receipt_keys:
+            errors.append(f"rank {rank} receipt fields differ from schema v1")
+        if receipt.get("schema") != "native-numerical-receipt-v1" or receipt.get("complete") is not True:
+            errors.append(f"rank {rank} receipt schema or completion marker is invalid")
+        if receipt.get("scope") != (
+            "Parameter, gradient, optimizer-state and update-summary copies to CPU "
+            "synchronize and are diagnostic instrumentation, not TPS."
+        ):
+            errors.append(f"rank {rank} receipt scope differs from the diagnostic contract")
+        if receipt.get("capture_updates") != list(updates) or receipt.get("expected_microbatches") != 32:
+            errors.append(f"rank {rank} receipt capture contract differs")
+        training = receipt.get("training_metadata")
+        if not isinstance(training, dict) or (
+            type(training.get("initial_step")) is not int or training.get("initial_step") != 0
+            or training.get("mtp_loss_weights") != [0.3]
+            or type(training.get("initial_num_chunks")) is not int or training.get("initial_num_chunks") != 2
+        ):
+            errors.append(f"rank {rank} initial step, MTP weight, or initial chunk count differs")
+
+        coverage = receipt.get("coverage")
+        observations = receipt.get("observations")
+        if not isinstance(coverage, dict) or not isinstance(observations, list):
+            errors.append(f"rank {rank} coverage or observations have the wrong type")
+            continue
+        if set(coverage) != {str(step) for step in updates}:
+            errors.append(f"rank {rank} coverage does not contain exactly updates 1, 2, and 50")
+        for update in updates:
+            counts = coverage.get(str(update))
+            if not isinstance(counts, dict) or counts != expected_coverage or any(
+                type(value) is not int for value in counts.values()
+            ):
+                errors.append(f"rank {rank} update {update} call counts differ from the contract")
+
+        identities: set[tuple[int, str, str, int | None]] = set()
+        valid_observations = True
+        for item in observations:
+            if not isinstance(item, dict):
+                valid_observations = False
+                break
+            update = item.get("update")
+            phase = item.get("phase")
+            name = item.get("name")
+            microbatch = item.get("microbatch")
+            if (
+                type(update) is not int or update not in {0, *updates}
+                or not isinstance(phase, str) or not phase
+                or not isinstance(name, str) or not name
+                or (microbatch is not None and (type(microbatch) is not int or not 0 <= microbatch < 32))
+            ):
+                valid_observations = False
+                break
+            key = (update, phase, name, microbatch)
+            if key in identities:
+                errors.append(f"rank {rank} has duplicate observation {key!r}")
+            identities.add(key)
+            required_tensor_phases = {
+                "dataloader_input", "microbatch_output", "clip_result",
+                "post_optimizer_parameter",
+            }
+            optional_gradient_phases = {"grad_preclip", "grad_postclip"}
+            if phase in required_tensor_phases | optional_gradient_phases:
+                present = item.get("present")
+                dtype = item.get("dtype")
+                if "present" not in item or type(present) is not bool:
+                    valid_observations = False
+                    break
+                if phase in required_tensor_phases and present is not True:
+                    valid_observations = False
+                    break
+                if present and (not isinstance(dtype, str) or not dtype.startswith("torch.")):
+                    valid_observations = False
+                    break
+                if not present and phase in optional_gradient_phases and item.get("shape") is not None:
+                    valid_observations = False
+                    break
+            if "present" in item:
+                present = item.get("present")
+                digest = item.get("sha256")
+                finite = item.get("is_finite")
+                dtype = item.get("dtype")
+                if type(present) is not bool or (finite is not None and type(finite) is not bool):
+                    valid_observations = False
+                    break
+                if present and (not isinstance(dtype, str) or not dtype):
+                    valid_observations = False
+                    break
+                if present and dtype.startswith("torch.") and (
+                    not isinstance(digest, str)
+                    or len(digest) != 64
+                    or any(char not in "0123456789abcdef" for char in digest)
+                    or finite is False
+                ):
+                    valid_observations = False
+                    break
+                if present and dtype.startswith("torch."):
+                    floating_dtype = dtype.startswith(
+                        ("torch.float", "torch.bfloat", "torch.complex")
+                    )
+                    if (floating_dtype and finite is not True) or (
+                        not floating_dtype and finite is not None
+                    ):
+                        valid_observations = False
+                        break
+                if present and dtype.startswith("torch.") and (
+                    type(item.get("rank")) is not int
+                    or not isinstance(item.get("source_device_type"), str)
+                    or not isinstance(item.get("global_shape"), list)
+                    or not isinstance(item.get("local_shape"), list)
+                    or not isinstance(item.get("local_stride"), list)
+                    or type(item.get("local_numel")) is not int
+                    or "mesh" not in item
+                    or not isinstance(item.get("placements"), list)
+                ):
+                    valid_observations = False
+                    break
+                if present and dtype.startswith("python.float") and (
+                    type(item.get("value")) is not float
+                    or not math.isfinite(item["value"])
+                    or finite is not True
+                ):
+                    valid_observations = False
+                    break
+                if not present and any(item.get(key) is not None for key in ("dtype", "sha256", "is_finite")):
+                    valid_observations = False
+                    break
+                if type(item.get("rank")) is int and item["rank"] != rank:
+                    valid_observations = False
+                    break
+                for shape_key in ("global_shape", "local_shape", "local_stride"):
+                    shape = item.get(shape_key)
+                    if shape is not None and (
+                        not isinstance(shape, list)
+                        or any(type(dim) is not int for dim in shape)
+                    ):
+                        valid_observations = False
+                        break
+                if not valid_observations:
+                    break
+            if any(isinstance(value, float) and not math.isfinite(value) for value in item.values()):
+                valid_observations = False
+                break
+        if not valid_observations:
+            errors.append(f"rank {rank} observations contain malformed or non-finite records")
+            continue
+        after_step = [
+            item for item in observations
+            if item.get("update") == 0
+            and item.get("phase") == "after_load"
+            and item.get("name") == "trainer.step"
+        ]
+        if (
+            len(after_step) != 1
+            or after_step[0].get("microbatch") is not None
+            or type(after_step[0].get("value")) is not int
+            or after_step[0].get("value") != 0
+        ):
+            errors.append(f"rank {rank} after-load step is not zero")
+        for update in updates:
+            step_rows = [
+                item for item in observations
+                if item.get("update") == update
+                and item.get("phase") == "batch_end"
+                and item.get("name") == "trainer.step"
+            ]
+            if (
+                len(step_rows) != 1
+                or step_rows[0].get("microbatch") is not None
+                or type(step_rows[0].get("value")) is not int
+                or step_rows[0].get("value") != update
+            ):
+                errors.append(f"rank {rank} captured trainer.step does not match update {update}")
+        expected_counter_values = {0: 0, 1: 2_096_640, 2: 4_193_280, 50: 104_832_000}
+        for step, value in expected_counter_values.items():
+            phase = "after_load" if step == 0 else "batch_end"
+            counter = only(observations, update=step, phase=phase, name="trainer.ntokens_seen")
+            if len(counter) != 1:
+                errors.append(f"rank {rank} counter receipt missing at update {step}")
+                continue
+            item = counter[0]
+            if (
+                item.get("dtype") != "torch.int64"
+                or item.get("source_device_type") != "cuda"
+                or item.get("global_shape") != []
+                or item.get("local_shape") != []
+                or item.get("local_numel") != 1
+                or item.get("sha256") != _native_int64_digest(value)
+                or item.get("is_finite") is not None
+            ):
+                errors.append(f"rank {rank} int64 ntokens_seen receipt differs at update {step}")
+
+        for update, chunks in ((1, 2), (2, 2), (50, 32)):
+            metadata_rows = [
+                item for item in observations
+                if item.get("update") == update and item.get("phase") == "microbatch_metadata"
+            ]
+            if len(metadata_rows) != 32 or {item.get("microbatch") for item in metadata_rows} != set(range(32)):
+                errors.append(f"rank {rank} update {update} lacks 32 unique forward metadata rows")
+            if any(type(item.get("active_num_chunks")) is not int or item.get("active_num_chunks") != chunks for item in metadata_rows):
+                errors.append(f"rank {rank} update {update} active chunk count differs")
+            if any(
+                not isinstance(item.get("global_valid_tokens"), dict)
+                or item["global_valid_tokens"].get("dtype") != "python.float"
+                or type(item["global_valid_tokens"].get("value")) is not float
+                or item["global_valid_tokens"].get("value") != expected_denominator
+                for item in metadata_rows
+            ):
+                errors.append(f"rank {rank} update {update} microbatch denominator differs")
+            labels = [
+                item for item in observations
+                if item.get("update") == update and item.get("phase") == "dataloader_input"
+                and item.get("name") == "labels"
+            ]
+            inputs = [
+                item for item in observations
+                if item.get("update") == update and item.get("phase") == "dataloader_input"
+                and item.get("name", "").startswith("input.")
+            ]
+            outputs = [
+                item for item in observations
+                if item.get("update") == update and item.get("phase") == "microbatch_output"
+                and item.get("name") == "loss.local_normalized"
+            ]
+            if len(labels) != 32 or {item.get("microbatch") for item in labels} != set(range(32)):
+                errors.append(f"rank {rank} update {update} lacks 32 unique input-label receipts")
+            if len(inputs) < 32 or {item.get("microbatch") for item in inputs} != set(range(32)):
+                errors.append(f"rank {rank} update {update} lacks input receipts for all microbatches")
+            if len(outputs) != 32 or {item.get("microbatch") for item in outputs} != set(range(32)):
+                errors.append(f"rank {rank} update {update} lacks 32 unique forward-loss receipts")
+            summary_denominator = only(
+                observations, update=update, phase="update_summary", name="global_valid_tokens"
+            )
+            if len(summary_denominator) != 1 or (
+                summary_denominator[0].get("dtype") != "python.float"
+                or summary_denominator[0].get("value") != expected_denominator
+            ):
+                errors.append(f"rank {rank} update {update} summary denominator differs")
+            if len(only(observations, update=update, phase="clip_result", name="clip.total_norm")) != 1:
+                errors.append(f"rank {rank} update {update} gradient clipping receipt is missing")
+            if len(only(observations, update=update, phase="callback_state", name="callbacks.batch_end")) != 1:
+                errors.append(f"rank {rank} update {update} batch-end receipt is missing")
+            if not any(item.get("update") == update and item.get("phase") == "optimizer_group" for item in observations):
+                errors.append(f"rank {rank} update {update} optimizer receipt is missing")
+            if not any(item.get("update") == update and item.get("phase") == "post_optimizer_parameter" for item in observations):
+                errors.append(f"rank {rank} update {update} optimizer parameter receipt is missing")
+            if not any(item.get("update") == update and item.get("phase") == "grad_preclip" for item in observations):
+                errors.append(f"rank {rank} update {update} preclip gradient receipts are missing")
+            if not any(item.get("update") == update and item.get("phase") == "grad_postclip" for item in observations):
+                errors.append(f"rank {rank} update {update} postclip gradient receipts are missing")
+        if any(_has_nonfinite_float(item) for item in observations):
+            errors.append(f"rank {rank} observations contain non-finite JSON numbers")
+    return {
+        "schema_version": 1,
+        "status": "complete" if not errors else "incomplete",
+        "run_id": metadata.get("run_id"),
+        "mode": "native_numerics",
+        "scope": "diagnostic only; no TPS",
+        "interpretation": "receipt validation only; not A/A equivalence, convergence, or EMA-state evidence",
+        "rank_count": len(receipts),
+        "capture_updates": list(updates),
+        "expected_microbatches": 32,
+        "errors": errors,
+    }
 
 
 def _profile_update_summary(
@@ -712,6 +1129,10 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         metadata = _load_json(run_dir / "metadata.json")
     except ValueError:
         metadata = {}
+    if "native_numerics" in metadata or any(
+        (run_dir / "measurement").glob("native-numerics-rank*.json")
+    ):
+        return _native_numerics_summary(run_dir, metadata)
     records: list[dict[str, Any]] = []
     measurement_dir = run_dir / "measurement"
     if measurement_dir.is_dir():

@@ -813,6 +813,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--monitor-interval", type=int, required=True)
     parser.add_argument("--capture-microbatches", action="store_true")
     parser.add_argument("--profile-update", type=int)
+    parser.add_argument("--native-numerics", action="store_true")
     args = parser.parse_args(helper_argv)
     if not train_argv:
         parser.error("a native experiment config and overrides must follow `--`")
@@ -839,7 +840,49 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
             parser.error("profile-update must not be a monitoring update")
         if args.steps != args.profile_update:
             parser.error("profile-update requires steps == profile-update")
+    if args.native_numerics and (
+        args.steps != 50
+        or args.warmup != 0
+        or args.window != 0
+        or args.monitor_interval != 50
+        or args.profile_update is not None
+        or args.capture_microbatches
+    ):
+        parser.error(
+            "native-numerics requires steps=50, warmup=0, window=0, "
+            "monitor interval 50, no profile-update, and no capture-microbatches"
+        )
     return args, train_argv
+
+
+def _run_native_main(
+    args: argparse.Namespace,
+    train_argv: list[str],
+    adapter: NativeAdapter,
+    trainer_module: Any,
+) -> None:
+    with adapter:
+        if args.native_numerics:
+            from numerics import NativeNumericalReceipt
+
+            observer = NativeNumericalReceipt(
+                trainer_class=trainer_module.Trainer,
+                optimizer_container_class=trainer_module.OptimizersContainer,
+                callback_manager_class=trainer_module.CallbackManager,
+                dist_utils_module=trainer_module.dist_utils,
+                output_dir=args.measurement_dir,
+                rank=int(os.environ["RANK"]),
+                capture_updates=(1, 2, 50),
+                expected_microbatches=32,
+            )
+            with observer:
+                from torchtitan.train import main as native_main
+
+                native_main(train_argv)
+        else:
+            from torchtitan.train import main as native_main
+
+            native_main(train_argv)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -888,10 +931,7 @@ def main(argv: list[str] | None = None) -> None:
             Path(os.environ["TASK_DEEP_GEMM_RANK_CACHE_ROOT"]),
         ),
     )
-    with adapter:
-        from torchtitan.train import main as native_main
-
-        native_main(train_argv)
+    _run_native_main(args, train_argv, adapter, trainer_module)
 
 
 if __name__ == "__main__":

@@ -260,6 +260,17 @@ def validate_args(args: argparse.Namespace) -> None:
             raise ValueError("profile-update must not be a monitoring update")
         if args.steps != args.profile_update:
             raise ValueError("profile-update requires steps == profile-update")
+    if args.native_numerics and (
+        args.steps != 50
+        or args.warmup != 0
+        or args.window != 0
+        or args.monitor_interval != 50
+        or args.profile_update is not None
+    ):
+        raise ValueError(
+            "native-numerics requires steps=50, warmup=0, window=0, "
+            "monitor-interval=50, and no profile-update"
+        )
     if args.monitor_interval == 5 and args.steps > 10:
         raise ValueError("monitoring interval 5 is reserved for the ten-update smoke")
     if args.timeout_seconds <= 0:
@@ -277,6 +288,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--profile-update",
         type=int,
         help="capture one native profiler update on global ranks 0 and 1",
+    )
+    parser.add_argument(
+        "--native-numerics",
+        action="store_true",
+        help="capture exact diagnostic receipts at updates 1, 2, and 50",
     )
     parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     args = parser.parse_args(argv)
@@ -683,6 +699,8 @@ def _command(args: argparse.Namespace, paths: dict[str, Path]) -> list[str]:
         helper_args.append("--capture-microbatches")
     if args.profile_update is not None:
         helper_args.extend(("--profile-update", str(args.profile_update)))
+    if args.native_numerics:
+        helper_args.append("--native-numerics")
     return [
         str(PYTHON),
         "-m",
@@ -777,8 +795,8 @@ def _launch(
             raise RunInterrupted(process.pid, group_stopped) from None
 
 
-def _config_hashes() -> dict[str, str]:
-    return {
+def _config_hashes(*, native_numerics: bool = False) -> dict[str, str]:
+    hashes = {
         "canonical_experiment_sha256": sha256_file(BASE_CONFIG),
         "mds_fragment_sha256": sha256_file(DATA_FRAGMENT),
         "runner_sha256": sha256_file(HELPER_DIR / "run.py"),
@@ -786,6 +804,9 @@ def _config_hashes() -> dict[str, str]:
         "parser_sha256": sha256_file(HELPER_DIR / "parse_results.py"),
         "compiler_observer_sha256": sha256_file(HELPER_DIR / "compiler_stats.py"),
     }
+    if native_numerics:
+        hashes["native_numerics_sha256"] = sha256_file(HELPER_DIR / "numerics.py")
+    return hashes
 
 
 def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) -> str:
@@ -872,7 +893,7 @@ def main(argv: list[str] | None = None) -> int:
         _write_experiment_config(experiment_config)
         env = _run_environment(paths)
         source_before = source_snapshot(TASK_ROOT)
-        config_before = _config_hashes()
+        config_before = _config_hashes(native_numerics=args.native_numerics)
         config_before["generated_experiment_sha256"] = sha256_file(experiment_config)
         runtime = _runtime_preflight(env, paths)
 
@@ -922,6 +943,13 @@ def main(argv: list[str] | None = None) -> int:
             "huggingface_cache_policy": "persistent task-owned cache with offline mode",
             "started_at_utc": datetime.now(timezone.utc).isoformat(),
         }
+        if args.native_numerics:
+            metadata["native_numerics"] = {
+                "schema": "native-numerical-receipt-v1",
+                "capture_updates": [1, 2, 50],
+                "expected_microbatches": 32,
+                "scope": "diagnostic only; no TPS",
+            }
         if args.profile_update is not None:
             metadata["profile_capture"] = _profile_capture_spec(args)
         command = _command(args, paths)
@@ -949,7 +977,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         source_after = source_snapshot(TASK_ROOT)
-        config_after = _config_hashes()
+        config_after = _config_hashes(native_numerics=args.native_numerics)
         config_after["generated_experiment_sha256"] = sha256_file(experiment_config)
         source_unchanged = (
             source_after["tracked_and_untracked_sha256"]
@@ -1036,7 +1064,7 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 try:
                     source_after = source_snapshot(TASK_ROOT)
-                    config_after = _config_hashes()
+                    config_after = _config_hashes(native_numerics=args.native_numerics)
                     experiment_path = paths["config"] / "experiment.yaml"
                     if experiment_path.is_file():
                         config_after["generated_experiment_sha256"] = sha256_file(
