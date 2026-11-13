@@ -1,6 +1,6 @@
 # Streaming performance campaign: cancellation and cleanup
 
-Status: ORIGINAL_CAMPAIGN_CANCELLED_INCOMPLETE; current assignment CLEANUP_ONLY.
+Status: ORIGINAL_CAMPAIGN_CANCELLED_INCOMPLETE; cleanup assignment COMPLETE.
 The [active plan](../../planning/overnight-streaming-perf.md) owns the finite
 cleanup checklist. No candidate is accepted. Do not resume G0–G7 or launch any
 training, benchmark, trace or local numerical block check during cleanup.
@@ -47,7 +47,7 @@ completed. Its source/CPU handoff is not runtime acceptance.
 | Short window/disabled monitoring/preserved config checks | PASS: 100 scoped CPU/config tests plus 1 canonical golden; one unrelated native-DCP test deselected; independent integration/runtime-cost review passed |
 | Exact stopped jobs/heavy numerical payload removal | PASS: [receipt](cancellation-cleanup.json); zero owned numerical processes and reference blobs; 40,650 files / 381,915,112,855 logical bytes removed, plus two obsolete clean worktrees; no NFS reclaimed-byte claim |
 | Affected document links | PASS: 176 local links across 20 affected documents resolve; 2 fragment links pass; 3 unchanged upstream root-relative links are excluded and recorded in results; no new broken link; JSON/whitespace checks pass |
-| Commit/push | Coordinating owner records resulting commit after integrated review |
+| Commit/push | Cleanup commit `aa45e3cd8d0c8856d383e72a9ad5f5d60c0530ae` pushed to `origin/main`; this receipt update records completion |
 
 Verification commands, intermediate failed checks and their resolutions are retained
 in `artifacts/raw/cleanup-verification/runner/CHECKS.md`; the independent review is

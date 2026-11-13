@@ -85,7 +85,7 @@ Revisit only with a concrete crop bottleneck and a finite comparison plan.
 The original [overnight campaign](../planning/overnight-streaming-perf.md) is
 cancelled and incomplete. The current assignment removes full-model numerical
 machinery, disables detailed performance monitoring and records the revised
-short-run/local-block protocol. Do not resume candidate experiments, training,
+short-run/local-block protocol. Cleanup is complete. Do not resume candidate experiments, training,
 benchmarks, new traces or numerical block comparisons. The active plan owns the
 finite cleanup checklist. Numerical machinery is removed. Canonical/generated
 configuration and short-run behavior passed 101 scoped CPU/config checks and an
@@ -146,7 +146,9 @@ The source execution pin before cleanup is `e9048f65`. The
 [results](../runs/overnight-streaming-perf/results.json) retain the original
 measurements, failures and cancellation status. Original G4–G7 incompleteness is
 not an instruction to continue the campaign. Source/config/protocol and cleanup
-acceptance are verified; the publication revision will be recorded after push.
+acceptance are verified; cleanup commit `aa45e3cd8d0c8856d383e72a9ad5f5d60c0530ae`
+was pushed to `origin/main`. Stop after recording completion; no experiments
+are authorized by this completed assignment.
 
 ## Working layout and historical consolidation
 

@@ -1,6 +1,6 @@
 # Streaming performance tooling: cleanup and revised protocol
 
-Status: CLEANUP_ONLY. The original G0–G7 overnight optimization campaign is
+Status: CLEANUP_COMPLETE. The original G0–G7 overnight optimization campaign is
 cancelled and incomplete. This assignment changes tooling and instructions;
 it does not resume experiments. All new communication and deliverables use English.
 
@@ -46,10 +46,10 @@ install packages or continue the former campaign.
 | Numerical source removal and runner/config verification | PASS: 101 scoped CPU/config checks; independent integration/runtime-cost review; see [results](../runs/overnight-streaming-perf/results.json) |
 | Exact owned-job stop and heavy-payload cleanup | PASS: no owned numerical processes or reference blobs remain; 40,650 files / 381,915,112,855 logical bytes removed; [receipt](../runs/overnight-streaming-perf/cancellation-cleanup.json) |
 | Revised instructions and historical reconciliation | PASS: this plan, [launch prompt](overnight-agent-prompt.md), [validation](validation.md), [current state](../docs/status.md); 156 local links/16 documents and results JSON checks pass |
-| Commit/push | Coordinating owner records resulting commit after integration |
+| Commit/push | Cleanup commit `aa45e3cd8d0c8856d383e72a9ad5f5d60c0530ae` pushed to `origin/main`; this receipt update records completion |
 
-Source, configuration, protocol and cleanup checks passed. Publication is the
-remaining step; it does not authorize training or reopen the original G0–G7 gates.
+All cleanup acceptance items passed and the cleanup commit was pushed. Stop here;
+publication does not authorize training or reopen the original G0–G7 gates.
 
 ## Fixed workload for future authorized comparisons
 

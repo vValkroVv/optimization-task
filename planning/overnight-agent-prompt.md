@@ -1,5 +1,8 @@
 # Cleanup-only agent launch prompt
 
+Status: completed; reuse the verified receipts in `planning/overnight-streaming-perf.md`.
+Do not restart the cancelled campaign or run the future measurement examples.
+
 Work in `/workspace-SR008.nfs2/vkropotin/optimization-task` and complete only the
 cleanup and protocol revision in [the active plan](overnight-streaming-perf.md).
 Use English. Read [current state](../docs/status.md), [baseline](../docs/baseline.md),
