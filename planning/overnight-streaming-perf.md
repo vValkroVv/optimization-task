@@ -98,23 +98,44 @@ timestamps; on resume check recorded processes before relaunching anything.
 | G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
 | G7 Report, state, Git publication and cleanup | RUNNING | Initial G0/source-applicability milestone committed and pushed as `d5e3d717`; final source/results, state reconciliation and cleanup remain. |
 
-Active execution: no training PID yet. Entry revision `a2a59e14545b55ca777f94a28e332759e7c06087`,
+Active execution: first native smoke attempt `g1-streaming-smoke-001` FAILED,
+exit1 before any model update; controller PID `158532` exited. Launched
+13 November 2026 about 03:05 Europe/Moscow (00:05 UTC), source `dd3c0682`. Command:
+`/opt/torchtitan-venv/bin/python3.12 runs/overnight-streaming-perf/run.py --run-id g1-streaming-smoke-001 --steps 10 --monitor-interval 5`.
+Controller log/PID: `runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001.controller.{log,pid}`;
+attempt payload/logs/exit marker are under sibling `g1-streaming-smoke-001/`.
+The independent [runtime receipt](../runs/overnight-streaming-perf/g1-runtime-receipt.json)
+verified resolved settings and all-rank initialization, but census called
+`RaggedShardDTensor.to_local()` with grad enabled and hit its explicit guard.
+Zero updates/microbatches executed. This is the first actual harness failure;
+it is not a streaming/model feature verdict. Native group stopped, local temp
+directory removed, GPUs released (local nvidia-smi empty), and source/config
+hashes unchanged. All source/data/dependencies stay fixed; only the task census
+and its regression test are released for a scoped no_grad repair. Entry revision `a2a59e14545b55ca777f94a28e332759e7c06087`,
 branch `main`, initially clean. Node `lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0`;
 task root is on verified SR008 NFS. Interpreter `/opt/torchtitan-venv/bin/python3.12`,
 torch `2.15.0.dev20260822+cu130`, CUDA 13.0, NCCL 2.30.7, streaming 0.13.0;
 source `/etc/profile.d/wm.sh`. Default image import resolves `/home/user/torchtitan`,
 so runners must explicitly set task `gift/` in `PYTHONPATH`. No new allocation needed.
 MDS, profiler/timer and reference inspections have separate bounded owners.
-Next action: finish and verify the task-only native cache redirect, freeze the
-reviewed runner/adapter/parser, then launch native ten-update integration.
+Next action: commit the accepted census correction and retry native smoke once.
+The scoped metadata loop now uses no_grad, preserving original trainability and
+restoring caller grad mode on success/error. Two affected tests pass. An
+in-memory run of the exact old census from Git reproduces the guarded failure;
+the fixed version counts the existing local shard correctly. Independent
+targeted review accepted this delta. All unchanged data/source/cache evidence
+is reused. The first failed attempt's obsolete compiler-cache tree was removed
+after release and compact evidence extraction (23,453,549 logical file bytes).
+After a second pre-measurement harness failure reassess the adapter/native route
+instead of expanding diagnostics. Complete all-rank smoke before data promotion.
 Independent runner review found that inherited DeepGEMM warmup overrides the
-requested private cache with `/temp/.cache/rank_N/deepgemm`; launch is held until
-the adapter redirects the actual helper before Trainer construction and guards
-the alternate shared-cache path. Preserve native warmup. No GPU launch has
-occurred and no shared cache is being cleaned. The review also caught a missing
-measured-window attribute before execution; its fix/regression is in progress.
-Child core dumps must be disabled before launch after discovering an unlimited
-host core limit.
+requested private cache with `/temp/.cache/rank_N/deepgemm`. The task-only fix
+now redirects the actual helper before Trainer construction and guards the
+alternate shared-cache path while preserving warmup. The real setup/share-path
+test covers ranks0–7 and patch restoration; five focused tests pass. The missing
+measured-window attribute is fixed and covered by complete/incomplete-window
+tests. Reviewed child-only core limits and inherited diagnostic cleanup are
+active. No shared cache was cleaned.
 See [runner review](../runs/overnight-streaming-perf/runner-review.md) for the
 consolidated findings and verification. Prepared MDS index SHA256 is
 `7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2`.

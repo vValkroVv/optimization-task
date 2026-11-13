@@ -30,7 +30,8 @@ multi-node or production-scale performance conclusion is implied.
 
 ## Results
 
-No training measurements yet. Source applicability is recorded in the
+First native smoke attempt `g1-streaming-smoke-001` failed at source `dd3c0682`
+before any model update. No performance measurements yet. Source applicability is recorded in the
 [reference evidence](reference-coverage.md); candidate runtime gates remain open.
 
 ## MDS fixture and real loader contract
@@ -58,6 +59,17 @@ will create and remove only its uniquely owned local temp directory; all data,
 compiler caches and persistent logs stay in the task NFS area. No shared temp
 cleanup was performed. Final helper, packer, data-world, loader-fragment and index
 hashes were checked against the receipt after worker handoff.
+
+Native resolved/source correlation identifies an important position distinction:
+the fixed SDPA attention selects causal, non-varlen behavior and propagates that
+mask type to GDN. `Trainer.prepare_inputs` replaces the collator's EOS-derived
+positions with int32 per-row `arange` for this configuration. Thus the data check
+proves the collator contract, while actual model attention/scan state spans
+documents within each packed row. It is causal within rows, without EOS document
+isolation. Keep this existing model behavior; switching to block-causal/varlen
+would change the identified baseline. Exact native per-batch partition counters
+are unavailable; the prior actual eight-rank Gloo loader check plus native mesh
+and source correlation support rank partitioning.
 
 ## Native profiler controls
 
@@ -96,14 +108,43 @@ its byte-preserved reference and contrib snapshots; changed-file lint was used.
 No GPU run was started before review. The independent reviewer found two
 material integration defects: a missing measured-window completion attribute,
 and inherited DeepGEMM startup overriding private cache variables with hardcoded
-`/temp/.cache/rank_N/deepgemm` paths. The task adapter will redirect the actual
-warmup helper before Trainer construction and fail closed on alternate shared
-cache paths, retaining native warmup and source/package bytes. Focused real
-setup/share-path checks and boundary regressions are required before handoff.
-The host CPU core limit was unlimited; task child processes will set it to zero
+`/temp/.cache/rank_N/deepgemm` paths. The task adapter now redirects the actual
+warmup helper before Trainer construction and fails closed on alternate shared
+cache paths, retaining native warmup and source/package bytes. Five focused
+tests passed, including actual setup/share-path sentinels for ranks0–7 and patch
+restoration, full W..W+50/two-sync timing, incomplete-window rejection and smoke
+cadence/microbatch counting. The parser passed a synthetic eight-rank global
+envelope/counter check; actual measured-window acceptance remains at G2.
+The host CPU core limit was unlimited; task child processes set it to zero
 and clear inherited diagnostic/core-dump flags. The
 [review](runner-review.md) owns findings and their final resolution. These are
 prelaunch harness/inherited-path repairs, not failed candidate measurements.
+
+### First native attempt: census failure
+
+The [runtime receipt](g1-runtime-receipt.json) records exit1 on all eight ranks:
+`parameter_census` calls `RaggedShardDTensor.to_local()` with grad enabled,
+which this wrapper explicitly rejects. Its same method returns the local shard
+under no_grad. Zero native updates or microbatch calls occurred; finite loss,
+monitoring and execution gates remain open. The scoped repair is to run metadata
+census under no_grad, retaining original trainability and restoring caller grad
+mode, then test that real method guard before retrying.
+
+The correction is implemented and accepted by targeted independent review.
+Two affected tests pass, including the actual ragged-shard method guard and
+success/error grad-mode restoration. The exact historical census loaded from
+Git into memory reproduces the old exception; the fixed implementation counts
+the existing local shard. No model arithmetic or training-source bytes changed.
+After owned resources were released, the obsolete failed-run compiler cache was
+removed (23,453,549 logical file bytes); logs and compact evidence are retained.
+
+Initialization did verify the resolved fixed contract, all-rank FP8/SAC/compile/
+GFSDP/streaming/MTP/EMA builds and native DeepGEMM warmup (39 kernels/node),
+with all rank caches under the attempt's private tree and child core limits0.
+These are initialization observations, not executed CuTe/model kernels or
+training correctness. Source/config/helper hashes stayed unchanged; the owned
+group stopped, local temp directory was removed, GPUs were released, and no
+checkpoint/trace/snapshot was emitted. Logs and compact failure evidence remain.
 
 ## Reused validation interfaces and limits
 

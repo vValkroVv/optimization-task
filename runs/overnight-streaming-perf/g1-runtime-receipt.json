@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "run_id": "g1-streaming-smoke-001",
+  "reviewed_at_utc": "2026-11-13T00:11:16.580592+00:00",
+  "verdict": "FAIL",
+  "failed_gate": "measurement adapter initialization before native Trainer.train; G1 execution unvalidated",
+  "source_revision": "dd3c06821c5ad5b8781b9ef3ce9bbb572fcaa68d",
+  "attempt": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001",
+  "acceptance": {
+    "resolved_config_and_initialization": "PASS within initialization scope",
+    "ten_updates_320_microbatches_each_rank": "FAIL: zero calls before adapter constructor failure",
+    "finite_logged_loss_gradient_norms": "NOT_EXECUTED: no training metrics",
+    "monitoring_steps_5_10": "NOT_EXECUTED",
+    "ordinary_monitoring_loss_chunks": "resolved 2/32 and source correlation only; no direct runtime chunk counter",
+    "no_checkpoint_trace_snapshot": "PASS: native file inventory has none",
+    "distributed_training_teardown": "NOT_EXECUTED: native train never entered; owned process group stopped after failure",
+    "gpu_allocations_released": "PASS: parent independently executed local nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader after controller exit; empty output"
+  },
+  "failure": {
+    "category": "harness",
+    "all_ranks": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "exception": "NotImplementedError",
+    "call_chain": [
+      "measure.py:453 NativeAdapter.tracked_train constructs WindowMeasurement before original_train",
+      "measure.py:165 WindowMeasurement.__init__ calls parameter_census",
+      "measure.py:112 parameter_census calls callable parameter.to_local() with grad enabled",
+      "gift/torchtitan/distributed/gfsdp/_tensor.py:674 RaggedShardDTensor.to_local raises if torch.is_grad_enabled()"
+    ],
+    "cause": "Census assumes callable to_local is safe under grad enabled; its _local_tensor fallback is bypassed. The native ragged-shard method works under no_grad and exposes _local_tensor. No model/streaming execution or parser failure is established.",
+    "measurement_files": []
+  },
+  "resolved_contract": {
+    "architecture": "8 trunk blocks; D4096; E128/H1536/top8/shared1; one MTP head weight0.3; vocab128256",
+    "parallelism": "GFSDP2 EP8 denseFSDP8 expertFSDP1 PP/TP/CP1",
+    "precision_compile": "dense and sparse FP8; CuTe norm backend requested; model and loss compile enabled",
+    "batch": "B2 S4096 global512 accumulation32",
+    "SAC": [
+      "layers.0/1 selective",
+      "layers.2/3/4/6/7 save:experts_up",
+      "layers.5 save:experts_up+comm"
+    ],
+    "EMA": true,
+    "capacity": 50000,
+    "seed": 2048,
+    "scheduler": "65000 steps, 2000 warmup",
+    "streaming": "two persistent workers/rank; FIM/shuffle off; canonical nodes1; infinite; pin_memory false",
+    "data_index_sha256": "7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2",
+    "smoke_overrides": "10 updates; monitoring5; metrics1; validation/saves/profiler/memory snapshots off"
+  },
+  "activation_scope": {
+    "all_rank_observed": [
+      "dense FP8Linear and FP8GroupedLinear initialization",
+      "MTPConfig build",
+      "EMAConfig build",
+      "SAC exact layer mapping and selective checkpoint application",
+      "model and loss torch.compile wrapping",
+      "fully_shard and GFSDP2 init marker",
+      "StreamingTextDataLoaderConfig build",
+      "Trainer local2/global512/accum32/seq4096/steps10 initialization"
+    ],
+    "not_executed": [
+      "model forward/backward",
+      "optimizer update",
+      "CuTe norm GPU execution",
+      "monitoring batch hooks",
+      "native streaming batches"
+    ]
+  },
+  "attention_and_data_path": {
+    "resolved_backend": "MLA/MTP inner_attention sdpa; no varlen configured",
+    "source_correlation": [
+      "gift/torchtitan/config/schema/models/common/attention/softmax/kernels/base.py:18 defaults mask_kind NONE, supported CAUSAL",
+      "gift/torchtitan/config/schema/models/common/attention/softmax/kernels/sdpa.py:16 SDPA supports is_causal only",
+      "gift/torchtitan/config/schema/models/common/decoder_blocks/decoder.py:316 _fill_shared_mask_type propagates causal to linear attention",
+      "gift/torchtitan/models/common/decoder_blocks/decoder.py:85 stores attention_config and _needs_varlen_masks",
+      "gift/torchtitan/trainer.py:578 prepare_inputs replaces loader EOS positions with int32 arange for non-BLOCK_CAUSAL",
+      "gift/torchtitan/models/common/attention/linear/gated_delta.py:36 varlen derives from BLOCK_CAUSAL and is false here"
+    ],
+    "semantics": "Fixed full-row causal GDN/MLA state. Prior Gloo checks validate collator EOS positions; source-correlated actual Trainer path replaces positions with arange. No cross-document attention/state isolation claim. This run stopped before prepare_inputs.",
+    "data_world": "Trainer.py:408 constructs DataWorld.from_parallel_dims; data_world.py:88 uses data mesh and cp*tp replication; actual mesh pp1/dp_replicate1/dp_shard8/cp1/tp1/ep8 yields eight data ranks, local_world8, replication1; source-correlated, no direct native partition capture",
+    "partition_evidence": "Prior two actual 8-rank/2-worker Gloo passes in runs/overnight-streaming-perf/mds-data.json; native loader initialized but yielded no batches"
+  },
+  "monitoring_source": [
+    "gift/torchtitan/trainer.py:765 switches ChunkedCELoss.num_chunks to num_chunks_on_monitoring_steps only when MonitoringCallback.is_monitoring_step",
+    "gift/torchtitan/callbacks/builtin/monitoring.py:80 uses configured log interval with sources",
+    "resolved config num_chunks2/num_chunks_on_monitoring_steps32 and log_interval5; hook execution unavailable"
+  ],
+  "cache_and_core": {
+    "core_limit_preflight": [
+      0,
+      0
+    ],
+    "cache_rank_directories": [
+      "rank_0",
+      "rank_1",
+      "rank_2",
+      "rank_3",
+      "rank_4",
+      "rank_5",
+      "rank_6",
+      "rank_7"
+    ],
+    "cache_payload_files": 1008,
+    "warmup": "39 kernels/node compiled; warmup output and fresh private cache payloads correlate redirect activation; no direct rank environment receipt",
+    "cache_path": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/cache/deep_gemm/rank-cache"
+  },
+  "lifecycle": {
+    "child_exit_code": 1,
+    "orphaned_process_group": false,
+    "pid": 158953,
+    "process_group_id": 158953,
+    "process_group_stopped": true,
+    "timeout": false,
+    "gpu_release_evidence": {
+      "observer": "parent /root",
+      "command": "nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader",
+      "result": "empty",
+      "route": "tools.exec_command runs directly on authorized allocation master lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0"
+    }
+  },
+  "local_tmpdir_cleanup": {
+    "path": "/dev/shm/vkropotin-overnight-g1-streaming-smoke-001-i57c9rib",
+    "removed": true
+  },
+  "source_snapshot_unchanged": true,
+  "config_runner_adapter_parser_hashes_unchanged": true,
+  "ranks": {
+    "0": {
+      "stderr": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/logs/torchrun/d794e5a0-7397-4297-a5ce-0593fadd0bf1_5lph3zo2/attempt_0/0/stderr.log",
+      "stderr_sha256": "c1b8b9b60c751996258063549bb2e8eb90d5f20b945ac9cd2f4c32ad5db5502a",
+      "structured_log": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/native/structured_logs/training.global_rank_0.20261113-000625-I4UAMM.jsonl",
+      "structured_event_count": 441,
+      "last_event": "TrainerConfig.build_end",
+      "completed_optimizer_updates": 0,
+      "completed_forward_backward_calls": 0,
+      "first_fatal": "NotImplementedError from RaggedShardDTensor.to_local with grad enabled"
+    },
+    "1": {
+      "stderr": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/logs/torchrun/d794e5a0-7397-4297-a5ce-0593fadd0bf1_5lph3zo2/attempt_0/1/stderr.log",
+      "stderr_sha256": "efba40a92a89ad84a33c20dbd4c9cd31b8dea119e054292bd062e591357d2052",
+      "structured_log": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/native/structured_logs/training.global_rank_1.20261113-000626-QGUEAX.jsonl",
+      "structured_event_count": 441,
+      "last_event": "TrainerConfig.build_end",
+      "completed_optimizer_updates": 0,
+      "completed_forward_backward_calls": 0,
+      "first_fatal": "NotImplementedError from RaggedShardDTensor.to_local with grad enabled"
+    },
+    "2": {
+      "stderr": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/logs/torchrun/d794e5a0-7397-4297-a5ce-0593fadd0bf1_5lph3zo2/attempt_0/2/stderr.log",
+      "stderr_sha256": "8f21fcb3b7754348d52dc4dd36a1fed77381ac5ec3624bedb429cad3efeb0be8",
+      "structured_log": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/native/structured_logs/training.global_rank_2.20261113-000626-X1MRN0.jsonl",
+      "structured_event_count": 441,
+      "last_event": "TrainerConfig.build_end",
+      "completed_optimizer_updates": 0,
+      "completed_forward_backward_calls": 0,
+      "first_fatal": "NotImplementedError from RaggedShardDTensor.to_local with grad enabled"
+    },
+    "3": {
+      "stderr": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/logs/torchrun/d794e5a0-7397-4297-a5ce-0593fadd0bf1_5lph3zo2/attempt_0/3/stderr.log",
+      "stderr_sha256": "c4ce8c9ce6e39102323c77fc441649867723461c6c2893b181243bd674904392",
+      "structured_log": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/native/structured_logs/training.global_rank_3.20261113-000626-OGBZXY.jsonl",
+      "structured_event_count": 441,
+      "last_event": "TrainerConfig.build_end",
+      "completed_optimizer_updates": 0,
+      "completed_forward_backward_calls": 0,
+      "first_fatal": "NotImplementedError from RaggedShardDTensor.to_local with grad enabled"
+    },
+    "4": {
+      "stderr": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/logs/torchrun/d794e5a0-7397-4297-a5ce-0593fadd0bf1_5lph3zo2/attempt_0/4/stderr.log",
+      "stderr_sha256": "de3ae1153aca322ffa4e60ef9570e4e73ff2dde4dcb09d9a1800423c54041a1f",
+      "structured_log": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/native/structured_logs/training.global_rank_4.20261113-000626-ILMLDS.jsonl",
+      "structured_event_count": 441,
+      "last_event": "TrainerConfig.build_end",
+      "completed_optimizer_updates": 0,
+      "completed_forward_backward_calls": 0,
+      "first_fatal": "NotImplementedError from RaggedShardDTensor.to_local with grad enabled"
+    },
+    "5": {
+      "stderr": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/logs/torchrun/d794e5a0-7397-4297-a5ce-0593fadd0bf1_5lph3zo2/attempt_0/5/stderr.log",
+      "stderr_sha256": "8b9472ff84cb70af648eb476e2b97118b0e9dc54ba6192876a4ac427d956cec6",
+      "structured_log": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/native/structured_logs/training.global_rank_5.20261113-000625-OGK7FL.jsonl",
+      "structured_event_count": 441,
+      "last_event": "TrainerConfig.build_end",
+      "completed_optimizer_updates": 0,
+      "completed_forward_backward_calls": 0,
+      "first_fatal": "NotImplementedError from RaggedShardDTensor.to_local with grad enabled"
+    },
+    "6": {
+      "stderr": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/logs/torchrun/d794e5a0-7397-4297-a5ce-0593fadd0bf1_5lph3zo2/attempt_0/6/stderr.log",
+      "stderr_sha256": "53dcac98b095177d654f2a121519a481f50660f7e475925497e80769800bc720",
+      "structured_log": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/native/structured_logs/training.global_rank_6.20261113-000626-HXLRK6.jsonl",
+      "structured_event_count": 441,
+      "last_event": "TrainerConfig.build_end",
+      "completed_optimizer_updates": 0,
+      "completed_forward_backward_calls": 0,
+      "first_fatal": "NotImplementedError from RaggedShardDTensor.to_local with grad enabled"
+    },
+    "7": {
+      "stderr": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/logs/torchrun/d794e5a0-7397-4297-a5ce-0593fadd0bf1_5lph3zo2/attempt_0/7/stderr.log",
+      "stderr_sha256": "a4b20287f9284d23d99922ed8f153ca46656a4bae38a723a20ef226df3cc808c",
+      "structured_log": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001/native/structured_logs/training.global_rank_7.20261113-000626-59I19Y.jsonl",
+      "structured_event_count": 441,
+      "last_event": "TrainerConfig.build_end",
+      "completed_optimizer_updates": 0,
+      "completed_forward_backward_calls": 0,
+      "first_fatal": "NotImplementedError from RaggedShardDTensor.to_local with grad enabled"
+    }
+  },
+  "limits": [
+    "No training loss/gradient, performance, convergence, parity, checkpoint continuation, full distributed runtime or production-scale claim",
+    "No source/runner/config changes, rerun, process termination or GPU allocation performed by this reviewer",
+    "GPU release independently observed by parent; this review reused that evidence"
+  ],
+  "tool_route_limitation": "Attempted ssh sr008-gpu failed local DNS; tools.exec_command is already on the allocation master, so SSH was unnecessary. This was not a GPU failure. No alternate hosts probed."
+}

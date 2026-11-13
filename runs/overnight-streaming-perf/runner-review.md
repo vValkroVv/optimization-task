@@ -5,6 +5,8 @@ their actual native trainer, metrics, profiler, configuration and cache consumer
 No GPU execution by this reviewer. Final targeted fixes were reviewed after the
 implementation owner froze scripts. **G1 launch approved**; executed GPU smoke
 acceptance and final measured-parser verification remain separate gates.
+The first G1 attempt subsequently failed before training; the targeted census
+correction below is accepted for a retry. No G1 execution pass is implied.
 
 Finite acceptance: safe single owned launch and teardown; fixed workload and
 native CLI/configuration; complete all-rank G1 receipts; W..W+50 timing and token
@@ -39,6 +41,21 @@ denominators; memory resets and failure handling; final targeted owner tests.
    Owner added the missing property; complete W..W+50 and incomplete-window
    lifecycle tests now pass.
    Disabled-window G1 was unaffected.
+3. **RESOLVED after failed G1 attempt001:** the census called actual
+   `RaggedShardDTensor.to_local` with grad enabled. Its native guard at
+   `gift/torchtitan/distributed/gfsdp/_tensor.py:674` rejects this. All ranks
+   failed before any update; the [runtime receipt](g1-runtime-receipt.json)
+   retains the failure and parent-observed GPU release. `parameter_census` now
+   wraps local metadata iteration in `torch.no_grad()`. Trainability is still
+   read from each original parameter. Native `to_local` returns its existing
+   `_local_tensor`; subsequent dtype/numel reads add no copy, collective or
+   tensor-value read. The context restores incoming grad mode on success/error.
+   The regression binds the real native guard, reproduces the old enabled-grad
+   direct-call failure, validates trainable/frozen counts and dtypes, and verifies
+   grad-mode restoration after both success and an injected shard exception.
+   Owner executed targeted census and adapter-smoke tests: **2 passed**, one
+   third-party pynvml deprecation warning; selective Ruff and `git diff --check`
+   passed. No additional reviewer execution or broad re-audit was needed.
 
 ## Integration and runtime-cost conclusions
 
@@ -108,6 +125,9 @@ Final helper SHA256 values:
 | File | SHA256 |
 | --- | --- |
 | `run.py` | `b48a52a78149799c3159cad0fadaccef40a4ef9cafb954ad4376547ed414a2a8` |
-| `measure.py` | `03d69be7aacd8e4d39990a0d71972ffd763c3141747672f4c6d793e51aaf8d05` |
+| `measure.py` after census correction | `269e04fd570b745bfb59b96e8bbf7bf2b8593870aee9df9825d2e20dbfee6c83` |
 | `parse_results.py` | `c26b2780a3d2b638be2a8ddc3573895f4ffcd22546a34c106606f517e6d5253c` |
 | `mds-dataloader.yaml` | `9aa85c4e17d0fd813ab50e95ee14d5b6caba1b5c3e4ae9654fb28b8a047d49cc` |
+
+Census regression test SHA256:
+`4c0df5c0e49abcc95330bd43c59ede243a36ebdc4f46d37b20b13eaa392c293b`.

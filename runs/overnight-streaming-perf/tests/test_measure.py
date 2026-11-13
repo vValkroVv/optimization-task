@@ -165,6 +165,62 @@ def _adapter(
     return trainer_class, adapter, runtime, sync_calls
 
 
+def test_parameter_census_uses_ragged_local_guard_and_restores_grad_mode() -> None:
+    import torch
+    from torchtitan.distributed.gfsdp._tensor import RaggedShardDTensor
+
+    class RaggedParameterProbe:
+        # Bind the real wrapper method to metadata-only probes. Constructing a
+        # distributed mesh for this guard regression would add no coverage.
+        to_local = RaggedShardDTensor.to_local
+
+        def __init__(self, *, local_tensor: torch.Tensor, requires_grad: bool) -> None:
+            self._local_tensor = local_tensor
+            self.requires_grad = requires_grad
+            self.dtype = local_tensor.dtype
+
+    class BrokenRaggedParameterProbe:
+        to_local = RaggedShardDTensor.to_local
+        requires_grad = True
+        dtype = torch.float32
+
+        @property
+        def _local_tensor(self) -> torch.Tensor:
+            assert not torch.is_grad_enabled()
+            raise RuntimeError("sentinel local-shard failure")
+
+    previous_grad_mode = torch.is_grad_enabled()
+    torch.set_grad_enabled(True)
+    try:
+        trainable = RaggedParameterProbe(
+            local_tensor=torch.empty(7, dtype=torch.float32), requires_grad=True
+        )
+        frozen = RaggedParameterProbe(
+            local_tensor=torch.empty(5, dtype=torch.bfloat16), requires_grad=False
+        )
+
+        # This reproduces the old census's direct to_local() call and failure.
+        def old_census(parameters: list[RaggedParameterProbe]) -> list[int]:
+            return [int(parameter.to_local().numel()) for parameter in parameters]
+
+        with pytest.raises(NotImplementedError):
+            old_census([trainable])
+        assert torch.is_grad_enabled()
+
+        census = measure.parameter_census([FakePart([trainable, frozen])])
+        assert census["trainable"]["local_numel"] == 7
+        assert census["trainable"]["by_dtype"] == {"torch.float32": 7}
+        assert census["frozen"]["local_numel"] == 5
+        assert census["frozen"]["by_dtype"] == {"torch.bfloat16": 5}
+        assert torch.is_grad_enabled()
+
+        with pytest.raises(RuntimeError, match="sentinel local-shard failure"):
+            measure.parameter_census([FakePart([BrokenRaggedParameterProbe()])])
+        assert torch.is_grad_enabled()
+    finally:
+        torch.set_grad_enabled(previous_grad_mode)
+
+
 def test_smoke_mode_captures_native_updates_without_adapter_syncs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

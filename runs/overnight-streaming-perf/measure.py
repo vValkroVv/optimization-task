@@ -89,6 +89,8 @@ class DeepGemmCacheRedirect:
 
 def parameter_census(model_parts: Any) -> dict[str, Any]:
     """Count local parameter shards by trainability and dtype without reading values."""
+    import torch
+
     totals: dict[str, dict[str, Any]] = {
         key: {"tensor_count": 0, "local_numel": 0, "by_dtype": {}}
         for key in ("trainable", "frozen")
@@ -99,30 +101,34 @@ def parameter_census(model_parts: Any) -> dict[str, Any]:
         raise RuntimeError("trainer.model_parts is unavailable for the parameter census")
 
     parts = model_parts if isinstance(model_parts, (list, tuple)) else [model_parts]
-    for part in parts:
-        for parameter in part.parameters():
-            identity = id(parameter)
-            if identity in seen:
-                continue
-            seen.add(identity)
+    # RaggedShardDTensor.to_local() intentionally rejects calls with grad enabled.
+    # This metadata-only census must inspect its local shard without changing the
+    # caller's grad mode or materializing a full distributed tensor.
+    with torch.no_grad():
+        for part in parts:
+            for parameter in part.parameters():
+                identity = id(parameter)
+                if identity in seen:
+                    continue
+                seen.add(identity)
 
-            local_parameter = parameter
-            to_local = getattr(parameter, "to_local", None)
-            if callable(to_local):
-                local_parameter = to_local()
-            elif hasattr(parameter, "_local_tensor"):
-                # GIFT's RaggedShardDTensor exposes its already-local shard here.
-                local_parameter = parameter._local_tensor
+                local_parameter = parameter
+                to_local = getattr(parameter, "to_local", None)
+                if callable(to_local):
+                    local_parameter = to_local()
+                elif hasattr(parameter, "_local_tensor"):
+                    # GIFT's RaggedShardDTensor exposes its already-local shard here.
+                    local_parameter = parameter._local_tensor
 
-            category = "trainable" if parameter.requires_grad else "frozen"
-            dtype = str(parameter.dtype)
-            category_totals = totals[category]
-            category_totals["tensor_count"] += 1
-            local_numel = int(local_parameter.numel())
-            category_totals["local_numel"] += local_numel
-            category_totals["by_dtype"][dtype] = (
-                category_totals["by_dtype"].get(dtype, 0) + local_numel
-            )
+                category = "trainable" if parameter.requires_grad else "frozen"
+                dtype = str(parameter.dtype)
+                category_totals = totals[category]
+                category_totals["tensor_count"] += 1
+                local_numel = int(local_parameter.numel())
+                category_totals["local_numel"] += local_numel
+                category_totals["by_dtype"][dtype] = (
+                    category_totals["by_dtype"].get(dtype, 0) + local_numel
+                )
 
     return totals
 
