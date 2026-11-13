@@ -35,8 +35,9 @@ ten optimizer updates and 320 successful forward/backward calls on each rank,
 finite metrics and native monitoring at 5/10. Final loss was 14.57432 and
 gradient norm 7.6163; maximum native composite memory was 72.57 GiB.
 The [separate receipt](g1-smoke-002-receipt.json) verifies unchanged source/config,
-clean teardown, no diagnostic outputs and released GPUs. No performance
-measurements yet. First attempt001 remains a failed harness attempt, not a
+clean teardown, no diagnostic outputs and released GPUs. That smoke has no
+performance measurement; the G2 A/A TPS baseline is reported below. First
+attempt001 remains a failed harness attempt, not a
 candidate verdict. Source applicability is recorded in the
 [reference evidence](reference-coverage.md); candidate runtime gates remain open.
 
@@ -271,7 +272,7 @@ A2 rank0 ordinary-bin medians111–120/121–130/131–140/141–149/151–160 a
 guard coverage; asynchronous compiler-worker completion and native JIT paths
 outside the probed grouped APIs remain unverified. Both process groups stopped,
 owned temporary directories were removed and GPUs released; private run caches
-and raw receipts remain pending final storage cleanup.
+were subsequently removed with verified receipts; raw run evidence remains.
 
 ## Native profiler controls
 
@@ -300,8 +301,9 @@ missing from the expected callback set); no registry files changed.
 
 The [independent review](profiler-review.md) accepted the source handoff and
 verified all 56 golden files contain only the two expected default additions.
-Eight-GPU selected-rank trace integrity, numerical observation and lifecycle
-acceptance remain open at G3. Full-tree autofixing hooks were not run across
+The selected-rank baseline trace integrity and Perfetto analysis are now accepted
+at G3. Numerical equivalence and candidate/lifecycle acceptance remain open at
+later gates. Full-tree autofixing hooks were not run across
 the flattened task tree because their source-root path filters do not protect
 its byte-preserved reference and contrib snapshots; changed-file lint was used.
 
@@ -362,28 +364,61 @@ The active CuTe JIT exports a function pointer to TVM-FFI rather than invoking
 is not the norm path. This qualifies the cache policy without changing kernels
 or introducing another experiment. Shared/personal unrelated caches are intact.
 
-### G3 capture adapter: source checks accepted; GPU gate open
+### G3 baseline capture and Perfetto analysis
 
-The native rank/shape controls and task runner's opt-in target-update mode are
-implemented, with native scheduling, actual-call markers and two-trace checks.
-The owner reports22 focused checks passed. Independent review's profile-only
-parser false acceptance for extra wrong-update/rank markers is resolved by exact
-marker-map equality. Both new regressions failed against `02cfb427` and all9
-affected parser cases pass on the fix; scoped/default Ruff and compile checks
-pass. Root inspected the targeted delta. No unprofiled regression was found.
-The actual local `structured_logging.log_trace_span` emits JSONL logging events,
-not Kineto `record_function` scopes. Its native `fwd_bwd` events attest calls in
-structured logs; manual markers from the profiler CPU test do not establish
-native Kineto microbatch/optimizer coverage. The task adapter must add those
-scopes around delegated calls on ranks0/1 at the one selected ordinary update,
-without wrapping the outer structured step context across its in-scope export.
-G1 has exited, and the task helpers are frozen for unprofiled calibration.
-Profile timing cannot enter primary TPS.
-This is a known remaining integration item, not a passed G3. Profile mode installs
-temporary delegated-call counters/checks on all eight ranks; only selected ranks
-enter scopes at the one selected update (32 successful microbatch calls, one
-train_step and one optimizer call). Unprofiled runs install no new wrappers.
-All eight ranks still train, without extra synchronizations.
+Run `g3-baseline-update111-001` completed111 native updates on all eight ranks
+with finite metrics, all guard values0, source/helpers frozen and clean teardown;
+all GPUs were idle afterward. The profiler was constructed only on ranks0/1.
+Sidecars on all ranks attest one target train step,32 microbatches and one
+optimizer call. No throughput measurement or numerical diagnostic mode was
+active. Source revision was `6123a24f`; the runtime training code matches the
+G2 control pin `87230b5b`.
+
+The original runner result is still recorded as exit1: its strict parser counted
+CPU logical annotations and GPU projections by name alone, reporting2/64/1 on
+each trace instead of the sidecar's1/32/1. This parser failure is immutable
+history; no retraining or trace recapture was done. The category-aware post-hoc
+reparse passed: CPU `user_annotation` contains exactly1 train step,32 microbatches
+and1 optimizer step per selected rank; separate `gpu_user_annotation` projections
+contain1 train step,32 microbatches and no optimizer projection. Neither trace
+has incomplete slices or a microbatch outside its CPU train frame. The original
+summary/failure and the corrected [reparse summary](artifacts/raw/g3-baseline-update111-001/summary.reparsed.json)
+and [receipt](artifacts/raw/g3-baseline-update111-001/reparse-receipt.json) remain.
+
+Actual Perfetto MCP loaded both traces and completed the accepted analyses. The
+[canonical result](g3-baseline-perfetto.json) preserves the original loaded paths
+and trace IDs; its current artifact map points to the two gzip files after full
+stream roundtrip size/hash checks. The pair was reduced from602,500,095 raw bytes
+to45,573,265 compressed bytes, with556,926,830 logical bytes removed. The
+compression receipt records identical pre/post hashes for all other raw-run
+artifacts and zero immediately observed NFS available-byte/inode change. The
+approximately604,978,569-byte,9217-file profile run cache was preserved when
+the compression receipt was written. The four minimal compiled CE wrapper
+sources are now preserved for the K1a contract. Separate [cache cleanup](artifacts/raw/g3-baseline-update111-001/obsolete-cache-cleanup.json)
+completed:9217 files/604,978,569 logical bytes removed; the four exact wrappers
+retain73,504 bytes plus their manifest. Raw evidence and canonical traces stayed
+unchanged; observed shared NFS capacity/inode deltas were0.
+
+The trace scopes are rank-local. Every kernel, memcpy and memset event falls
+inside the exact CPU train-step frame; GPU busy unions were13,044.218/12,996.754ms
+on ranks0/1. Optimizer flow analysis links17 fused AdamW kernels per rank.
+A607.371/643.908ms interior gap precedes the input H2D copy and
+overlaps host loading. Update111 crosses the 56-batch local epoch after8 old
+batches; 33 underlying loader calls are consistent with32 deliveries plus the
+epoch restart. This makes safe streaming prefetch the first candidate to inspect,
+but does not confirm a gain or show that the full gap is removable. Strict
+NCCL-exclusive union is714.427/694.566ms after excluding memset overlap; the
+historical broad result remains in the JSON. There is no cross-rank clock mapping
+or complete stream-dependency DAG, so neither union proves critical-path time.
+
+The compiled CE already avoids full-vocabulary FP32 intermediates. Its ordinary
+baseline kernels total about201/198ms per rank in overlapping kernel-duration
+sums. Removing the baseline's one-hot-gradient reduction remains an independent
+applicable donor algorithm candidate; no port or gain is established. See the
+[compiled CE contract](k1a-compiled-contract.md). Candidate order and remaining
+checks are recorded in the canonical JSON and reference table. One profiled
+update provides mechanism evidence only, not TPS, monitoring cadence cost,
+convergence or candidate acceptance.
 
 ## Reused validation interfaces and limits
 
@@ -449,159 +484,165 @@ are justified; native FP8/HybridEP floating-point repeatability is not yet
 established. Calibrate unchanged numerical A/A before setting native tolerances;
 timing A/A and rounded norms do not establish numerical equivalence.
 
-### Native numerical receipt: isolated module, integration open
+### Native numerical receipt: integration verified, calibration open
 
-The smallest identified production-path route is a separate task-only numerical
-run, with no instrumentation in TPS runs. Wrappers can observe native
-`after_dataloader` callback-mutated CPU inputs/labels, `forward_backward_step`
-metadata/denominator and loss, project
-`dist_utils.clip_grad_norm_` before/after gradients, `OptimizersContainer.step`
-after actual AdamW, and callback `after_load`/`batch_end` state. Preserve all
-arguments, returns, hooks and wrapper restoration. Adaptive load balancing is
-an optimizer-container **pre-hook**: capture incoming counts/bias before clipping
-and updated bias/reset counts after step. Its counts are currently FP32,
-nonpersistent; `ntokens_seen` is int64. Do not silently change either dtype.
+#### Observation path and limits
 
-Optimizer param groups own the sharded parameters actually consumed by fused
-AdamW; RaggedShardDTensor local access under no_grad returns its exact shard.
-Map identities/FQNs/aliases at sharded boundaries and capture logical local
-elements without padding, gathering or casting. One-tensor-at-a-time CPU hashes
-plus dtype/shape/shard metadata can establish elementwise byte equality only
-when unchanged native A/A repeats exactly. Hash mismatches need bounded temporary
-payloads and calibrated elementwise error comparisons, not a tolerance inferred
-from hashes. Include actual pre/postclip gradients, params, moments/steps,
-loss/components, normalization and routing/counter state. The clipping return is
-the norm; an independently computed clip coefficient is derived, not an observed
-native coefficient. Actual postclip tensors attest the applied result.
+The opt-in receipt observes native `after_dataloader` callback-mutated CPU
+inputs and labels; `forward_backward_step` metadata, denominator and loss;
+`dist_utils.clip_grad_norm_` before and after clipping; the optimizer after
+actual AdamW; and `after_load`/`batch_end` state. Preserve arguments, returns,
+hooks and wrapper restoration. Adaptive load balancing is an optimizer-container
+pre-hook: capture incoming counts/bias before clipping, then updated bias/reset
+counts after the step. Its counts are FP32 and nonpersistent; `ntokens_seen` is
+int64. Neither dtype is changed.
 
-The first isolated observer copied every microbatch to CPU, which would serialize
-the next microbatch and could mask asynchronous buffer-lifetime faults. The
-source-grounded correction hashes CPU batches after `after_dataloader` (all32
-are fetched before GPU compute), retains only detached native scalar losses and
-one immutable denominator reference during forward/backward, then hashes those
-at preclip. Native loss component totals and mutable aux totals/current scale
-are sampled once at preclip, before next-update reset. No per-microbatch D2H,
-aux clones or graph-bearing references are needed. The native loss provides one
-normalized scalar per microbatch; component tests own elementwise CE evidence.
-This preserves microbatch overlap but still perturbs update boundaries. Hash
-runs alone cannot validate V3 asynchronous ownership: uninstrumented native
-integration and the separate representative trace remain required.
+Optimizer parameter groups own the sharded tensors consumed by fused AdamW.
+Capture each RaggedShardDTensor local shard under `no_grad`, without padding,
+gathering or casting; retain identity/FQN/alias, shape, dtype and shard metadata.
+One-tensor-at-a-time CPU hashes establish exact equality only when unchanged
+native A/A repeats exactly. A mismatch requires bounded temporary payloads and
+elementwise error metrics, not a tolerance inferred from hashes. The receipt
+covers pre/post-clip gradients, parameters, optimizer moments/steps, losses and
+components, normalization, and routing/counter state. The clipping return is the
+norm; a separately computed clip coefficient is derived rather than observed.
+Post-clip tensors attest the applied result.
 
-Independent module review found one native integration blocker: `dist_sum`
-returns a Python float denominator, while the first observer required a tensor.
-A CPU probe through the actual helper reproduced the TypeError; scalar support
-without tensor conversion is now corrected and11 CPU tests pass. Root inspected
-all three affected boundaries and the native-helper regression. This also corrects the earlier
-V5b source premise: `int(global_valid_tokens)` at the counter update is a CPU
-conversion, not a new GPU read. Donor reconciliation identifies an applicable
-retained-device producer/consumer port: remove the producer `.item()` while
-preserving baseline local clamp, normalization precision and callback/counter
-order. No V5 speedup is established. The observer's
-post-flush callback record count cannot attest monitoring payload equality, and
-actual EMA shadow buffers are uncaptured. Keep those relevant acceptance limits
-separate from the mathematical gradient/state receipt.
+The first isolated observer copied each microbatch to CPU and could serialize
+the next microbatch, masking asynchronous buffer-lifetime faults. The corrected
+path hashes CPU batches after `after_dataloader` (all 32 are fetched before GPU
+compute), retains detached native scalar losses and one immutable denominator
+reference through forward/backward, then hashes those at preclip. It samples
+native loss-component totals and mutable auxiliary totals/current scale once at
+preclip, before the next-update reset. It needs no per-microbatch D2H, auxiliary
+clones or graph-bearing references. Native loss provides one normalized scalar
+per microbatch; component tests own elementwise CE evidence. This preserves
+microbatch overlap but still perturbs update boundaries, so hash runs alone do
+not validate V3 asynchronous ownership. The uninstrumented native integration
+and separate representative trace remain required.
 
-All-parameter captures are expensive: five full FP32 parameter-sized families
-are about47.5 GB/rank/update of D2H traffic (about1.14 TB across8 ranks for three
-updates), plus roughly76 GB initialization traffic. Copies synchronize and can alter
-scheduling; these are numerical diagnostics, never TPS. Preserve monitor50 and
-capture updates1,2,50 to cover chunks2/32 rather than treating first-two-update
-checks as monitoring coverage. A tiny real CPU AdamW test must verify observation
-neutrality, exact counts/dtypes/None, mutation detection, and exception cleanup;
-it cannot close native repeatability. The isolated [numerics.py](numerics.py)
-module implements this corrected route. Independent review's native-denominator
-blocker is resolved; all11 CPU tests, scoped/default Ruff and compile checks pass.
-Main runner integration and native numerical A/A remain open. It is not active
-in calibration or TPS runs and is not accepted production numerical evidence yet.
+The mode is default-off and separate from TPS runs. With it disabled, the runner
+does not import or install the observer, add native flags or hashes, or perform
+receipt work. Enabling it bounds captures to selected updates; tensor snapshots
+copy local values to CPU and exported references can create substantial I/O.
+These are numerical diagnostics, never throughput measurements.
 
-Read-only integration review selected an exclusive default-off
-`--native-numerics` mode:50 native updates, monitor50, no timing/profile window,
-observer context inside the existing adapter and before `native_main` builds the
-trainer/optimizer. Parsing must require complete unique receipts from ranks0–7,
-32 inputs/backwards per captured update, chunks2/2/32 and one clip/optimizer/state
-capture each. Capture success and exact A/A comparison are separate verdicts;
-neither produces TPS. Source/runtime/config/data identities and CPU input order
-must match before comparing logical tensor hashes. Seed2048 alone does not prove
-deterministic execution. The helper integration is now committed only in isolated
-branch `vkropotin-native-numerics` at `84b72524`; main and the controls remain
-unchanged. It passed61 affected CPU tests, then2 targeted hash/failure-path tests
-after the final freeze correction, Ruff, compilation and staged whitespace checks.
-Independent review reproduced malformed tensor payloads, missing finite markers
-and missing batch-end steps passing the first parser; targeted fixes now reject
-all three and preserve valid absent gradients. Root verified the before/after/
-failure hash call sites. The exact comparator is not a tolerance test. Apply this
-default-off mode after baseline capture; no native numerical A/A has run yet.
+#### Integration and parser status
 
-Worktree CPU commands were `python -m pytest -q` on
-`test_native_numerics_mode.py test_numerics.py test_measure.py` (61 passed), then
-`python -m pytest -q .../test_native_numerics_mode.py -k 'config_hashes or runner_failure'`
-(2 passed). Full/scoped Ruff and `py_compile` covered the final changed runner/test.
-Exact executable and ambient `PYTHONPATH` were not captured; Torch's warning path
-was the campaign `/opt/torchtitan-venv/lib/python3.12/site-packages`, and the tests
-prepend their own worktree helper/GIFT paths before native imports. On main
-integration, verify the affected suite with the explicit campaign interpreter and
-task `PYTHONPATH`; do not treat an image-default import as equivalent. No raw CPU
-test log files were retained. Native runs still require persistent logs/receipts.
+The original helper review found that `dist_sum` can return a Python-float
+denominator while the first observer required a tensor. A CPU probe reproduced
+the TypeError; support for the scalar without tensor conversion fixed it, and
+the original 11 CPU tests remain valid. The earlier isolated runs (61 affected
+tests plus two targeted tests) are historical evidence: their executable and
+ambient `PYTHONPATH` were not captured. Main integration now closes that check
+with an explicit campaign interpreter and task `PYTHONPATH`.
 
-The normal W110 controls already print different first-update values:
-A1 loss15.31946/norm9.5378 versus A2 loss15.31943/norm9.5374. These rounded
-metrics do not establish elementwise errors or their cause, and native input/init
-hashes are not yet attested. They do prevent assuming exact native repeatability
-for later candidates. Native numerical calibration remains open. No tolerance is
-inferred from these rounded metrics or from hashes.
+Main integration is at `f29581c4dcae78928cb940313b13893826f4e10`. It applies
+the accepted helper revisions `84b72524fd274830c0bcb8b49afd3c196eabd118`
+(hash mode) and `be8d75ad6d90cc3de9175993be638d2f8bdd3fa4` (payload
+extension). Independent review accepted the source changes. The combined main
+suite passed 110 tests, including CPUAdamW observation-neutrality checks; scoped
+Ruff and `git diff --check` passed. The exact command, interpreter and package
+versions, outputs and integration details are recorded in
+[the main integration evidence](artifacts/raw/native-numerics-integration-evidence/INTEGRATION.md).
+The prior worktree test counts do not replace this main-checkout result.
 
-The selected extension exports temporary exact local reference bytes and compares
-one current tensor at a time in bounded CPU blocks. Use three fresh matched prefix
-pairs: stop/capture1, stop/capture2, and stop/capture50. This is106 native updates
-and six cold starts, versus100 updates/two starts for the hash-only route; four
-extra cold starts are a real cost. Only one update's five large tensor families
-remain on disk at once: approximately380.122 GB across eight ranks. Across the
-three reference runs, writes and comparison reads are approximately1.140 TB each;
-both sides transfer approximately2.281 TB to CPU, plus approximately456 GB of
-initial-parameter traffic across six starts. Verify free bytes/inodes, host RAM and
-largest local shard before execution. This is diagnostic cost, never throughput.
+The G3 category-aware parser fix is preserved in the combined main source:
+CPU logical `user_annotation` markers and GPU projections are counted
+separately, and unsupported categories fail validation. The G3 assertions still
+pass. GIFT source and canonical config bytes are unchanged.
 
-Existing API research supports a thin task adapter: PyTorch's
-[assert_close](https://docs.pytorch.org/docs/main/testing.html) specifies tolerance
-and metadata checks but does not calibrate the error floor or manage streamed
-payload lifetimes; [frombuffer](https://docs.pytorch.org/docs/stable/generated/torch.frombuffer)
-interprets owned CPU bytes using an explicit dtype. Reuse PyTorch block arithmetic
-and simple rank-local byte I/O. [Distributed Checkpoint](https://docs.pytorch.org/docs/main/distributed/checkpoint.html)
-adds state-dictionary/resharding machinery and possible collectives that this
-comparison does not require. No new dependency or checkpoint path is selected.
-Current official documentation informs this choice; the campaign's pinned runtime
-source and executed checks still own API compatibility evidence.
+The four parser gaps found in independent review are resolved. Receipts bind the
+selected metric files, counts and digests to the A/B identities. Only selected
+mathematical float fields are whitelisted; learning rate, scheduler state,
+optimizer step and counters remain exact, and any nonfinite value invalidates a
+receipt. Selected FP32 `tokens_per_expert_E` and `expert_bias_E` are compared
+numerically at three router phases; initial routing and integer counters remain
+exact. Original post-flush record-count handling was also corrected by wrapping
+the actual `MetricEmitter.emit` publication callback.
 
-Require matching source/runtime/configuration, initialization, ownership,
-optimizer/scheduler/counter state, and hashes for all prefix CPU input batches.
-Capture RNG hashes after native `fit_start`, without advancing or changing RNG or
-determinism settings. Initial state mismatches fail the comparison gate; do not
-fold them into a numerical tolerance. Heavy captures remain at the selected update
-and preserve original precision, local shards and native update order. Report
-per-tensor maximum absolute error/index, RMS error and reference/current RMS,
-relative L2 with explicit zero-reference behavior, nonfinite counts and exact
-agreement. Post-optimizer parameter values are not parameter deltas. One A/A pair
-per capture measures an observed error floor, not a statistical upper bound. Freeze
-any later family-specific acceptance budgets from valid precision references and
-A/A evidence before comparing candidates; unsupported tolerances stay open.
+#### Calibration state and acceptance gates
 
-For monitor50, wrap the actual `MetricEmitter.emit` publication callback and retain
-the native already-reduced CPU scalar mappings plus record order/multiplicity and
-metadata before clearing. Do not add a reduction, GPU copy or per-microbatch drain.
-The active crop selects online scalar records; require the actual inventory to
-confirm no uncovered non-scalar/offline records. Keep timing, throughput and memory
-publications as resource observations, separate from mathematical values. The
-crop does not configure `MtpAccLenMonitor`; MTP coverage is its actual0.3-weighted
-loss/state and32-chunk monitoring path. EMA shadows are inactive through50.
+C1A's one-update export completed on all eight ranks, covering32 microbatches
+per rank and approximately47.5 GB per rank of numerical payloads. C1B failed before
+update 1: all eight ranks raised
+`ValueError('initial parameter, optimizer, scheduler, buffer, RNG, or counter gate differs')`
+at [numerics_payload.py](numerics_payload.py) line 580. The runner exited, owned
+cleanup completed, and all GPUs are idle. Native A is complete, but the A/B
+initial-state gate did not pass because live tuple mesh coordinates differed
+from their serialized list representation. The original B live hashes were not
+persisted, so fresh exact-state verification is still required. This failed
+control supplies no candidate numerical verdict or error-floor measurement. No tensors were
+compared elementwise and no tolerance was calibrated. C2 and monitor50 remain
+open. The monitor wrapper now observes
+actual `MetricEmitter.emit` publications, but native monitor50 inventory/equality is still
+pending. EMA is inactive through update 50, so this evidence makes no EMA claim.
+The selected online scalar records retain native reduced CPU mappings, order,
+multiplicity and metadata before clearing, without another reduction, GPU copy
+or per-microbatch drain. The actual inventory must still establish whether any
+non-scalar or offline records are uncovered. The campaign does not configure
+`MtpAccLenMonitor`; MTP coverage is its actual 0.3-weighted loss/state and the
+32-chunk monitoring path.
+
+The normal W110 controls already differ in rounded first-update values:
+A1 loss 15.31946/norm 9.5378 versus A2 loss 15.31943/norm 9.5374. These values
+do not establish elementwise errors or their cause, but exact native
+repeatability cannot be assumed. No tolerance is inferred from them or from
+hashes.
+
+The selected extension exports temporary exact local reference bytes and
+compares one tensor at a time in bounded CPU blocks. Acceptance uses three fresh
+matched prefix pairs, stopping and capturing at updates 1, 2 and 50. That is
+106 native updates and six cold starts (four extra starts over the hash-only
+route). One update's five large tensor families occupy about 380.122 GB across
+eight ranks. Across the three reference runs, writes and comparison reads are
+about 1.140 TB each; both sides transfer about 2.281 TB to CPU, plus about
+456 GB of initial-parameter traffic across six starts. Check free bytes/inodes,
+host RAM and the largest local shard before execution. Copies synchronize and
+can change scheduling; these costs are diagnostic, never TPS.
+
+The thin task adapter uses PyTorch
+[`assert_close`](https://docs.pytorch.org/docs/main/testing.html) for tolerance
+and metadata checks, while recognizing that it does not calibrate an error floor
+or manage streamed payload lifetimes. PyTorch
+[`frombuffer`](https://docs.pytorch.org/docs/stable/generated/torch.frombuffer)
+interprets owned CPU bytes with an explicit dtype. Distributed
+[Checkpoint](https://docs.pytorch.org/docs/main/distributed/checkpoint.html)
+adds state-dictionary/resharding machinery and possible collectives this
+comparison does not require. No dependency or checkpoint path is added.
+
+Before comparison, require matching source/runtime/config/data, initialization,
+ownership, optimizer/scheduler/counter state, and hashes for every prefix CPU
+input batch. Capture RNG hashes after native `fit_start` without advancing or
+changing RNG or determinism settings. Initial-state mismatches fail the gate;
+they are not numerical error. Report per-tensor maximum absolute error and
+index, RMS error and reference/current RMS, relative L2 with explicit
+zero-reference behavior, nonfinite counts and exact agreement. Post-optimizer
+parameters are values, not parameter deltas. One A/A pair per capture measures
+an observed error floor, not a statistical upper bound. Freeze family-specific
+acceptance budgets from valid precision references and A/A evidence before
+candidate comparison; unsupported tolerances stay open.
 
 Reference namespaces must be immutable and complete. Verify byte hashes,
-identity/shape/dtype/shard metadata and complete observation coverage; write each
-compact comparison result durably before removing its temporary reference payload.
-Keep bounded failure evidence if comparison or evidence writing fails. This
-default-off extension is being implemented only in an isolated helper worktree;
-main baseline/profile source stays frozen. Source review and native execution
-remain open, and numerical diagnostics do not establish asynchronous lifetime,
-checkpoint continuation or convergence correctness.
+identity/shape/dtype/shard metadata and observation coverage; durably write each
+compact comparison result before removing its temporary payload. Retain bounded
+failure evidence when comparison or evidence writing fails.
+
+Earlier V5b source review corrected one premise: `int(global_valid_tokens)`
+at the counter update is a CPU conversion, not a new GPU read. Removing the
+producer `.item()` while preserving the baseline clamp, normalization precision
+and callback/counter order remains an unmeasured retained-device hypothesis; no
+V5 speedup is established. Numerical receipts also do not establish checkpoint
+continuation or convergence correctness.
+
+The [C1 diagnosis](native-c1-initial-gate-diagnosis.md) isolates tuple/list mesh
+coordinate serialization. The two-line producer fix keeps the exact comparator
+and all value/metadata gates intact. Its regression failed on the old producer;
+14 observer,12 payload and2 default-path checks pass. Root approved reusing the
+immutable A bytes with explicit old/new adapter hashes in `results.json` because
+serialized metadata, training mathematics and payload format are unchanged.
+Fresh B must still pass every exact initial/input gate and verify unchanged
+GIFT/config/runtime/data; the original failed B remains failed.
 
 ## Runtime applicability: V4
 
@@ -618,3 +659,16 @@ snapshot was produced. Attempt001's obsolete compiler cache was removed as
 recorded above. Attempt002's obsolete compiler cache was removed after smoke
 acceptance (604,228,268 logical file bytes); calibration/controls use fresh
 per-process caches. Compact native/cache-path evidence remains.
+
+After G2 acceptance, the rejected W60 and both accepted W110 caches were removed:
+27,651 files /1,806,310,969 logical bytes. Each run retains an
+`obsolete-cache-cleanup.json` receipt; stop/ownership/path/symlink/reference gates
+passed, non-cache artifacts matched their pre-cleanup hashes, and active G3 used
+an independent cache. Immediate `statvfs` available-byte/inode deltas were zero;
+logical deletion is not reported as a measured free-capacity increase.
+The rejected run retains six SwiGLU specializations/48 exact artifacts
+(2,161,925 bytes) under
+`artifacts/raw/g2-baseline-a1/rejected-w60-fused-fp8-swiglu-evidence/`.
+Its manifest SHA256 is
+`2f29bf1bb64b926bda95e4c0eda464b5a0b7f5785d17a25ec90858727496a2b3`;
+original paths, mtimes and content hashes preserve the pre-window cache evidence.

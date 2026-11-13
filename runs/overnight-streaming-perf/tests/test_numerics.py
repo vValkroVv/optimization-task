@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from numerics import NativeNumericalReceipt, _tensor_digest  # noqa: E402
 import numerics  # noqa: E402
+import numerics_payload  # noqa: E402
 from torchtitan.callbacks.base import Event  # noqa: E402
 from torchtitan.callbacks.manager import CallbackManager  # noqa: E402
 from torchtitan.callbacks.metrics import emitters as metric_emitters  # noqa: E402
@@ -952,6 +953,65 @@ def test_ragged_shard_receipt_hashes_local_elements_without_gather(tmp_path: Pat
         assert metadata["placements"][0]["shard_numels"] == [2]
         assert digest == expected
         assert finite is True
+
+        # Reference metadata passes through JSON, while current metadata is
+        # compared in memory. DeviceMesh returns a tuple for participating
+        # coordinates, so the producer must make this field JSON-native.
+        assert mesh.get_coordinate() == (0,)
+        record = {
+            "update": 0,
+            "phase": "initial_parameter",
+            "name": "tiny.weight",
+            "microbatch": None,
+            "present": True,
+            **metadata,
+            "owner": None,
+            "aliases": [],
+        }
+        reference_record = json.loads(json.dumps(record))
+        assert reference_record["mesh"]["coordinate"] == [0]
+
+        def initial_comparison(reference: dict[str, object], name: str):
+            comparison = object.__new__(numerics_payload.NativeNumericalPayload)
+            _, key_id = numerics_payload._record_id(reference)
+            comparison.mode = "compare"
+            comparison.rank = 0
+            comparison.capture_update = 1
+            comparison.items = {key_id: {"metadata": reference}}
+            comparison._reference_manifest = {"training_metadata": {}}
+            comparison.failure_path = None
+            comparison._initial_gates_complete = False
+            comparison._processed = set()
+            comparison.comparison_dir = tmp_path / name
+            comparison.comparison_dir.mkdir()
+            return comparison
+
+        comparison = initial_comparison(reference_record, "initial-match")
+        comparison.verify_initial_gates([record], {})
+        assert comparison._initial_gates_complete is True
+
+        mismatched_coordinate = json.loads(json.dumps(record))
+        mismatched_coordinate["mesh"]["coordinate"] = [1]
+        comparison = initial_comparison(reference_record, "coordinate-mismatch")
+        with pytest.raises(ValueError, match="initial parameter.*gate differs"):
+            comparison.verify_initial_gates([mismatched_coordinate], {})
+
+        mismatched_scalar = json.loads(json.dumps(record))
+        mismatched_scalar["local_numel"] = float(record["local_numel"])
+        comparison = initial_comparison(reference_record, "scalar-mismatch")
+        with pytest.raises(ValueError, match="initial parameter.*gate differs"):
+            comparison.verify_initial_gates([mismatched_scalar], {})
+
+        nonparticipant = SimpleNamespace(
+            device_mesh=SimpleNamespace(
+                device_type="cpu",
+                shape=(2,),
+                mesh_dim_names=("shard",),
+                get_coordinate=lambda: None,
+            ),
+            placements=(),
+        )
+        assert numerics._mesh_metadata(nonparticipant)["mesh"]["coordinate"] is None
     finally:
         dist.destroy_process_group()
 

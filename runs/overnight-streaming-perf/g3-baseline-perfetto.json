@@ -1,0 +1,6245 @@
+{
+  "schema_version": 1,
+  "strict_nccl_scope_correction": {
+    "status": "PASS after one load_trace reload of the same immutable pair",
+    "tool_reload": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Traces loaded successfully: 2\nLoaded traces: [{\"path\":\"/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json\",\"display\":\"/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json\",\"trace_id\":\"trace_d9e7ae24dd735c55\",\"summary\":{\"available\":true,\"capabilities\":[\"slices\"],\"duration_ms\":14492.322,\"end_ts\":3693433621447624,\"file_size_bytes\":301241287,\"process_count\":21,\"recommended_next_tools\":[\"list_tables\",\"list_table_structure\",\"list_processes\",\"execute_sql\"],\"redaction_policy\":{\"chrome_tool_string_cells\":true,\"env_var\":\"PERFETTO_MCP_REDACT_STRINGS_DEFAULT\",\"execute_sql_string_cells\":true,\"note\":\"execute_sql and Chrome dedicated-tool string cells may contain <redacted>; this is server-side policy, not a tool parameter.\"},\"start_ts\":3693419129125341,\"thread_count\":29,\"trace_profile\":\"generic\",\"trace_type\":\"json\"}},{\"path\":\"/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json\",\"display\":\"/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json\",\"trace_id\":\"trace_40a5092f8f0c7a38\",\"summary\":{\"available\":true,\"capabilities\":[\"slices\"],\"duration_ms\":14483.029,\"end_ts\":3693433611507270,\"file_size_bytes\":301258808,\"process_count\":21,\"recommended_next_tools\":[\"list_tables\",\"list_table_structure\",\"list_processes\",\"execute_sql\"],\"redaction_policy\":{\"chrome_tool_string_cells\":true,\"env_var\":\"PERFETTO_MCP_REDACT_STRINGS_DEFAULT\",\"execute_sql_string_cells\":true,\"note\":\"execute_sql and Chrome dedicated-tool string cells may contain <redacted>; this is server-side policy, not a tool parameter.\"},\"start_ts\":3693419128477973,\"thread_count\":29,\"trace_profile\":\"generic\",\"trace_type\":\"json\"}}]\nRouting hint: pass the returned `trace_id` to analysis tools when comparing loaded traces."
+        }
+      ],
+      "isError": false
+    },
+    "scope": "Strict NCCL-exclusive interval union excludes every other device operation, including gpu_memset; all events remain within the previously proven CPU frame bounds.",
+    "original_scope": "interval_scopes.nccl_only_ms excluded non-NCCL kernels and memcpy, but allowed overlapping gpu_memset. Preserve its 717.518006/697.751366ms as historical broad-scope output.",
+    "corrected_ms_by_rank": [
+      714.426955,
+      694.566447
+    ],
+    "memset_union_ms_by_rank": [
+      10.261135,
+      10.086202
+    ],
+    "removed_memset_overlap_ms_by_rank": [
+      3.091051,
+      3.184919
+    ],
+    "results": [
+      {
+        "rank": 0,
+        "trace_id": "trace_d9e7ae24dd735c55",
+        "sql": "WITH e AS (SELECT ts,ts+dur AS en,CASE WHEN category='kernel' AND name GLOB 'ncclDevKernel*' THEN 'nccl' WHEN category='gpu_memset' THEN 'memset' ELSE 'other' END AS fam FROM slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset') AND dur>0),\np AS (SELECT ts AS t,fam,1 AS d FROM e UNION ALL SELECT en AS t,fam,-1 AS d FROM e),\na AS (SELECT t,sum(CASE WHEN fam='nccl' THEN d ELSE 0 END) AS nd,sum(CASE WHEN fam='memset' THEN d ELSE 0 END) AS md,sum(CASE WHEN fam='other' THEN d ELSE 0 END) AS od FROM p GROUP BY t),\nz AS (SELECT t,lead(t)OVER(ORDER BY t)-t AS dt,sum(nd)OVER(ORDER BY t) AS n,sum(md)OVER(ORDER BY t) AS m,sum(od)OVER(ORDER BY t) AS o FROM a)\nSELECT sum(CASE WHEN n>0 AND m=0 AND o=0 THEN dt ELSE 0 END)/1e6 AS strict_nccl_exclusive_ms,sum(CASE WHEN m>0 THEN dt ELSE 0 END)/1e6 AS memset_union_ms,sum(CASE WHEN n>0 AND o=0 THEN dt ELSE 0 END)/1e6 AS original_nccl_excluding_other_but_allowing_memset_ms,sum(CASE WHEN n>0 AND o=0 AND m>0 THEN dt ELSE 0 END)/1e6 AS removed_memset_overlap_ms FROM z",
+        "result": {
+          "columns": [
+            "strict_nccl_exclusive_ms",
+            "memset_union_ms",
+            "original_nccl_excluding_other_but_allowing_memset_ms",
+            "removed_memset_overlap_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              714.426955,
+              10.261135,
+              717.518006,
+              3.091051
+            ]
+          ]
+        }
+      },
+      {
+        "rank": 1,
+        "trace_id": "trace_40a5092f8f0c7a38",
+        "sql": "WITH e AS (SELECT ts,ts+dur AS en,CASE WHEN category='kernel' AND name GLOB 'ncclDevKernel*' THEN 'nccl' WHEN category='gpu_memset' THEN 'memset' ELSE 'other' END AS fam FROM slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset') AND dur>0),\np AS (SELECT ts AS t,fam,1 AS d FROM e UNION ALL SELECT en AS t,fam,-1 AS d FROM e),\na AS (SELECT t,sum(CASE WHEN fam='nccl' THEN d ELSE 0 END) AS nd,sum(CASE WHEN fam='memset' THEN d ELSE 0 END) AS md,sum(CASE WHEN fam='other' THEN d ELSE 0 END) AS od FROM p GROUP BY t),\nz AS (SELECT t,lead(t)OVER(ORDER BY t)-t AS dt,sum(nd)OVER(ORDER BY t) AS n,sum(md)OVER(ORDER BY t) AS m,sum(od)OVER(ORDER BY t) AS o FROM a)\nSELECT sum(CASE WHEN n>0 AND m=0 AND o=0 THEN dt ELSE 0 END)/1e6 AS strict_nccl_exclusive_ms,sum(CASE WHEN m>0 THEN dt ELSE 0 END)/1e6 AS memset_union_ms,sum(CASE WHEN n>0 AND o=0 THEN dt ELSE 0 END)/1e6 AS original_nccl_excluding_other_but_allowing_memset_ms,sum(CASE WHEN n>0 AND o=0 AND m>0 THEN dt ELSE 0 END)/1e6 AS removed_memset_overlap_ms FROM z",
+        "result": {
+          "columns": [
+            "strict_nccl_exclusive_ms",
+            "memset_union_ms",
+            "original_nccl_excluding_other_but_allowing_memset_ms",
+            "removed_memset_overlap_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              694.566447,
+              10.086202,
+              697.751366,
+              3.184919
+            ]
+          ]
+        }
+      }
+    ],
+    "effect": "Strict communication-only figure corrected; mixed HybridEP metric retains its qualified nonexclusive definition. Existing failed RPC attempts remain in scope_containment_clarification."
+  },
+  "scope_containment_clarification": {
+    "status": "targeted_actual_MCP_query_unavailable; existing_actual_MCP_census_proves_containment",
+    "attempts": [
+      {
+        "rank": 0,
+        "trace_id": "trace_d9e7ae24dd735c55",
+        "sql": "WITH f AS (SELECT ts AS a, ts+dur AS b FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.*'),\nd AS (SELECT * FROM slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset'))\nSELECT f.a AS cpu_frame_start_ns,f.b AS cpu_frame_end_ns,min(d.ts) AS all_device_min_start_ns,max(d.ts+d.dur) AS all_device_max_end_ns,count(*) AS full_trace_device_event_count,sum(CASE WHEN d.ts>=f.a AND d.ts+d.dur<=f.b THEN 1 ELSE 0 END) AS fully_contained_device_event_count,sum(CASE WHEN d.ts<f.b AND d.ts+d.dur>f.a THEN 1 ELSE 0 END) AS overlapping_frame_device_event_count,sum(CASE WHEN d.ts<f.a THEN 1 ELSE 0 END) AS starting_before_frame_count,sum(CASE WHEN d.ts+d.dur>f.b THEN 1 ELSE 0 END) AS ending_after_frame_count FROM d CROSS JOIN f",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Query failed: RPC error: error decoding response body"
+            }
+          ],
+          "isError": true
+        }
+      },
+      {
+        "rank": 1,
+        "trace_id": "trace_40a5092f8f0c7a38",
+        "sql": "WITH f AS (SELECT ts AS a, ts+dur AS b FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.*'),\nd AS (SELECT * FROM slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset'))\nSELECT f.a AS cpu_frame_start_ns,f.b AS cpu_frame_end_ns,min(d.ts) AS all_device_min_start_ns,max(d.ts+d.dur) AS all_device_max_end_ns,count(*) AS full_trace_device_event_count,sum(CASE WHEN d.ts>=f.a AND d.ts+d.dur<=f.b THEN 1 ELSE 0 END) AS fully_contained_device_event_count,sum(CASE WHEN d.ts<f.b AND d.ts+d.dur>f.a THEN 1 ELSE 0 END) AS overlapping_frame_device_event_count,sum(CASE WHEN d.ts<f.a THEN 1 ELSE 0 END) AS starting_before_frame_count,sum(CASE WHEN d.ts+d.dur>f.b THEN 1 ELSE 0 END) AS ending_after_frame_count FROM d CROSS JOIN f",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Query failed: RPC error: error decoding response body"
+            }
+          ],
+          "isError": true
+        }
+      },
+      {
+        "rank": 0,
+        "trace_id": "trace_d9e7ae24dd735c55",
+        "sql": "SELECT (SELECT ts FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.*') AS cpu_frame_start_ns,(SELECT ts+dur FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.*') AS cpu_frame_end_ns,min(ts) AS all_device_min_start_ns,max(ts+dur) AS all_device_max_end_ns,count(*) AS full_trace_device_event_count,sum(CASE WHEN ts>=3693419130056914 AND ts+dur<=3693433259854297 THEN 1 ELSE 0 END) AS fully_contained_device_event_count,sum(CASE WHEN ts<3693433259854297 AND ts+dur>3693419130056914 THEN 1 ELSE 0 END) AS overlapping_frame_device_event_count,sum(CASE WHEN ts<3693419130056914 THEN 1 ELSE 0 END) AS starting_before_frame_count,sum(CASE WHEN ts+dur>3693433259854297 THEN 1 ELSE 0 END) AS ending_after_frame_count FROM slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset')",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Query failed: RPC error: error sending request for url (http://127.0.0.1:9002/query)"
+            }
+          ],
+          "isError": true
+        }
+      },
+      {
+        "rank": 1,
+        "trace_id": "trace_40a5092f8f0c7a38",
+        "sql": "SELECT (SELECT ts FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.*') AS cpu_frame_start_ns,(SELECT ts+dur FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.*') AS cpu_frame_end_ns,min(ts) AS all_device_min_start_ns,max(ts+dur) AS all_device_max_end_ns,count(*) AS full_trace_device_event_count,sum(CASE WHEN ts>=3693419129364432 AND ts+dur<=3693433259196156 THEN 1 ELSE 0 END) AS fully_contained_device_event_count,sum(CASE WHEN ts<3693433259196156 AND ts+dur>3693419129364432 THEN 1 ELSE 0 END) AS overlapping_frame_device_event_count,sum(CASE WHEN ts<3693419129364432 THEN 1 ELSE 0 END) AS starting_before_frame_count,sum(CASE WHEN ts+dur>3693433259196156 THEN 1 ELSE 0 END) AS ending_after_frame_count FROM slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset')",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Query failed: RPC error: error sending request for url (http://127.0.0.1:9003/query)"
+            }
+          ],
+          "isError": true
+        }
+      }
+    ],
+    "previous_actual_query": "categories",
+    "proof": [
+      {
+        "rank": 0,
+        "cpu_a": 3693419130056914,
+        "cpu_b": 3693433259854297,
+        "all_device_min_start": 3693419130171332,
+        "all_device_max_end": 3693433257887662,
+        "full_trace_count": 108129,
+        "contained_count_derived": 108129,
+        "before_count_derived": 0,
+        "after_count_derived": 0
+      },
+      {
+        "rank": 1,
+        "cpu_a": 3693419129364432,
+        "cpu_b": 3693433259196156,
+        "all_device_min_start": 3693419129455675,
+        "all_device_max_end": 3693433257792298,
+        "full_trace_count": 108195,
+        "contained_count_derived": 108195,
+        "before_count_derived": 0,
+        "after_count_derived": 0
+      }
+    ],
+    "method": "Each category census row supplies count/min(ts)/max(ts+dur). All kernel/gpu_memcpy/gpu_memset minima are >= CPUa and maxima <= CPUb. Their counts sum to fulltrace totals. Therefore every device event is contained and the un-clipped unions/fulltrace copy and gap summaries are valid for this frame. Counts marked derived are logical consequences of earlier actual MCP output, not successful output from the new targeted query.",
+    "effect": "No existing metrics change."
+  },
+  "status": "analysis_complete; numerical/candidate acceptance not established",
+  "source_revision": "6123a24f",
+  "source_runtime_code_equivalent_pin": "87230b5b",
+  "tool": "actual Perfetto MCP load_trace/list_tables/list_table_structure/list_stdlib_modules/execute_sql",
+  "traces": [
+    {
+      "rank": 0,
+      "path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json",
+      "bytes": 301241287,
+      "sha256": "49a58c1f6df639b9fdb26e40e2ba079f0a5e4f37d2e9d592233750664e2aac01",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "historical_mcp_input_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json",
+      "historical_input_status": "original file removed only after verified lossless gzip roundtrip",
+      "current_canonical_gzip_artifact": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json.gz",
+        "sha256": "6d40b5fd51d22ab084075ade2daa99009dd84c48076817277f8e4fd6bc1cb5fb",
+        "size_bytes": 22782123
+      }
+    },
+    {
+      "rank": 1,
+      "path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json",
+      "bytes": 301258808,
+      "sha256": "f7a0c61a4fc8893b0d703419ca453f00d2264f1a4d53225cdf4af5964df146cf",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "historical_mcp_input_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json",
+      "historical_input_status": "original file removed only after verified lossless gzip roundtrip",
+      "current_canonical_gzip_artifact": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json.gz",
+        "sha256": "f258f36648ecac43d0c10e08a345a63d4c66fb89ee5c63b9899642bafc4c5488",
+        "size_bytes": 22791142
+      }
+    }
+  ],
+  "capture_integrity": {
+    "verdict": "CPU logical target complete on both ranks",
+    "cpu_category": "user_annotation",
+    "counts_per_rank": {
+      "train_step": 1,
+      "microbatch": 32,
+      "optimizer_step": 1
+    },
+    "gpu_category": "gpu_user_annotation",
+    "gpu_projection_counts_per_rank": {
+      "train_step": 1,
+      "microbatch": 32,
+      "optimizer_step": 0
+    },
+    "incomplete_slices": 0,
+    "microbatches_outside_cpu_train_frame": 0,
+    "original_runner_result": "FAIL from name-only double counting; retain original failure and corrected reparse separately",
+    "required_parser_contract": "Count and validate CPU user_annotation logical events; distinguish projected GPU annotations and reject unexpected categories/incomplete CPU events."
+  },
+  "scopes": {
+    "frame": "Exact CPU task.profile_update.111.train_step.rank{r} interval. All actual kernel/memcpy/memset events lie inside it; last GPU event precedes CPU end by1.967/1.404ms. Thus max(CPU end,GPU tail)=CPU end.",
+    "device_busy": "Interval union across every kernel/gpu_memcpy/gpu_memset track; GPU annotations excluded.",
+    "pure_communication": "Only ncclDevKernel* classified NCCL. HybridEP dispatch/combine/other kept separately as mixed transfer/layout/wait kernels. Remaining kernels include compute and unknown; no assumption all are pure compute.",
+    "nccl_only": "Historical interval_scopes.nccl_only_ms excludes all other kernels, HybridEP and memcpy but permits memset overlap. The corrected strict_nccl_scope_correction excludes every other device operation, including memset. Neither scope proves data-dependency critical path.",
+    "host": "Inclusive CPU operator/annotation timings and sync waits overlap each other and GPU execution; never add them to device time.",
+    "clock": "Within each handle timestamp nanoseconds. Empty clock_snapshot on both ranks; no verified cross-rank clock mapping. Compare rank-relative durations/counts, not absolute launch skew.",
+    "performance": "One profiled ordinary update; ~14.130s versus G2 ordinary~13.79s is descriptive scope context with profiler overhead, not a speed result. G2 complete cadence owns monitor150 cost.",
+    "optimizer_cuda_flows": "Distinct CUDA flow links identify 17 fused AdamW kernels per rank."
+  },
+  "summary": [
+    "GPU busy union r0/r1=13044.218/12996.754ms; full-frame idle=1085.579/1133.078ms. Largest interior hole607.371/643.908ms occurs before input H2D; matching host memcpy starts607.336/643.868ms after gap start.",
+    "DataLoader33 underlying next calls total591.856/631.059ms beforefirstMB at659.616/660.192ms. Trainer gathers32 delivered batches before compute. G1 established56localbatches/epoch; update111 begins at3520mod56=48 and consumes8old+24new batches. Thus33underlying calls are consistent with32deliveries plus exhaustion/epoch restart. One long loader call355.851/346.223ms overlaps the expected wrap phase; exact worker wait/epoch attribution remains unavailable without worker stacks/logs. The safe finite-one-epoch V2 producer and queue2 cannot be assumed to hide distributed epoch-transition cost.",
+    "Pure NCCL busy union2183.009/2203.998ms; corrected strict NCCL-exclusive union714.427/694.566ms. The original717.518/697.751ms permitted3.091/3.185ms of memset overlap and remains preserved as historical query output. NCCL-or-HybridEP without remaining compute2068.531/2075.815ms remains a qualified mixed-kernel metric that permits copy/memset overlap. These are unions, not summed kernels or proven removable time.",
+    "Kernel sums: nvjet4322.666/4360.351ms; DeepGEMM1790.761/1728.668ms; NCCL AllGather990.223/1023.491ms; ReduceScatter1057.425/1044.157ms. Top host correlation confirms fp8_dense_gemm/cudacherry GEMM, head-related eager mm, grouped FP8, NCCL collectives and HybridEP. Exact projection shape attribution remains limited.",
+    "Ordinary compiled CE uses three kernels per logical CE: two forward and one backward. Kernel-duration sums are about201/198ms per rank and overlap other work. The compiled baseline already avoids full-vocabulary FP32 CE intermediates. The donor one-hot-gradient reduction remains a distinct independent algorithm candidate; neither elapsed cost nor benefit is established.",
+    "Distinct CUDA flow links cover all96013/96079kernels, including46152driver launches/rank.87717/87757 kernels were submitted before previous same-track device event ended (~91.36/91.34%);7885/7905 launches start after prior end. Many events remain queued; small kernels alone do not establish launch-bound execution. Some kernels have multiple launch flows, deduplicated in distinct_queue.",
+    "448aten::is_nonzero reads/rank are inside conditional_capacity_mask;224under CompiledFunction and224under CompiledFunctionBackward. Inclusive host wait6550.508/6590.304ms exposes the predicate host read and SAC replay, but largely overlaps outstanding work. V5 early token-count item is separate50.916/14.948ms, including rank arrival and collective wait.",
+    "GFSDP all_gather annotations count32forlm_head and64for eachotherunit; root_post_backward_callback96/rank. These do not show abnormal extra regathers beyond forward/backward. Missing partial-backward guard remains source-relevant; no proof of its speed gain.",
+    "No compile_inner/GraphLowering/compile_fx/recompile markers found;416TorchDynamoCacheLookup and compiled graphs active. This supports warmed compiled execution, not an exhaustive compiler-state proof. SAC backward replay is directly visible.",
+    "Copies:1898DtoD/rank281327769632bytes and190.043/190.321ms; H2D~5.82MB and~0.97/0.91ms; D2H560bytes/rank~1ms. Host waits on tiny reads dominate copy payload. No CPU offload traffic claim; tensor/storage lifetimes and actual peak allocation ownership unproven."
+  ],
+  "source_pointers": [
+    {
+      "path": "gift/torchtitan/trainer.py",
+      "lines": "733\u2013758,777\u2013795,807\u2013830",
+      "symbols": "Trainer.train_step; eager32batch collection, global token count, transfers, optimizer and counters"
+    },
+    {
+      "path": "gift/torchtitan/distributed/utils.py",
+      "lines": "68\u201372,87\u201395",
+      "symbols": "_dist_reduce/dist_sum returns Python float through item"
+    },
+    {
+      "path": "gift/torchtitan/components/loss.py",
+      "lines": "703\u2013712,719\u2013778",
+      "symbols": "ChunkedCELoss chunk lifetime, FP32 accumulator, inner backwards and restored flags"
+    },
+    {
+      "path": "gift/torchtitan/models/common/moe/dispatch/capacity.py",
+      "lines": "59\u201383,130\u2013164",
+      "symbols": "conditional_capacity_mask host predicate; group-capacity collective; existing branchless route not authorized as candidate change"
+    },
+    {
+      "path": "gift/torchtitan/distributed/activation_checkpoint.py",
+      "lines": "175\u2013215",
+      "symbols": "SAC PREFER_RECOMPUTE vs MUST_SAVE decisions"
+    },
+    {
+      "path": "gift/torchtitan/distributed/gfsdp/_state.py",
+      "lines": "555\u2013572",
+      "symbols": "root post-backward callback resets every group"
+    },
+    {
+      "path": "gift/torchtitan/datasets/streaming/core/dataloader.py",
+      "lines": "113\u2013135",
+      "symbols": "finite loader iterated inside infinite epoch loop"
+    },
+    {
+      "path": "runs/overnight-streaming-perf/measure.py",
+      "lines": "674\u2013733",
+      "symbols": "record_function CPU target wrappers"
+    },
+    {
+      "path": "runs/overnight-streaming-perf/reference-coverage.md",
+      "lines": "candidate table and independent mechanism sections",
+      "symbols": "Canonical donor pins, applicability, required contracts and gates"
+    }
+  ],
+  "candidate_order": [
+    {
+      "id": "V2",
+      "priority": 1,
+      "reason": "Measured precompute input hole~0.6s gives strongest listed exposed-time motivation; existing worker prefetch does not overlap main iterator with previous update. Update111 crosses the56batch local epoch after8batches; safe finite-epoch producer plus queue2 may leave transition/barrier wait exposed, so full0.6s is not an expected saving.",
+      "gate": "Exact committed-cursor/next_epoch/RNG/finite-epoch/error/shutdown/resume and8rank continuation checks; repeated unprofiled50update A/B covering all epoch phase positions and phase-matched host/device memory. Keep fixed update111 profile policy; no extra trace campaign."
+    },
+    {
+      "id": "K1b",
+      "priority": 2,
+      "reason": "Small independent source-proven completed-logits lifetime fix; this shapes-off/history-off trace cannot prove peak ownership or benefit.",
+      "gate": "Preserve hooks/argmax/h_chunk.grad=None/FP32 accumulation; actual allocated/reserved phase comparison plus parity and A/B."
+    },
+    {
+      "id": "K1a",
+      "priority": 3,
+      "reason": "Compiled baseline already avoids full-vocabulary FP32 CE intermediates. The donor one-hot-gradient reduction remains an independent candidate; overlapping kernel-duration sums do not establish elapsed cost or achievable gain.",
+      "gate": "Compiled/eager elementwise parity, supported donor integration, saved-value/lifetime review and repeated A/B; no port or gain is established."
+    },
+    {
+      "id": "V3 partial-backward guard",
+      "priority": 4,
+      "reason": "Source-relevant to chunked inner backwards; no abnormal regather demonstrated by baseline counts.",
+      "gate": "Targeted guard regression then ordinary/monitoring updates and observed gather/lifetime comparison; do not assume96callbacks means96errors."
+    },
+    {
+      "id": "V3 coherent arena/tail retention",
+      "priority": 5,
+      "reason": "~0.7s NCCL-only union motivates investigation, but no allocation-bank ownership or dependency-safe removal established.",
+      "gate": "Enumerate actual EP8 groups/banks and safe release events; preserve allgather ordering/EMA/head/accumulation; actual peak and exposed wait comparison."
+    },
+    {
+      "id": "V5b",
+      "priority": 6,
+      "reason": "Early producer read real but50.916/14.948ms includes collective/rank arrival and is small versus repeated capacity predicates; consumer int CPU-only.",
+      "gate": "Retain int64 device count through producer and consumers; unchanged clamp/global denominator/MTP/optimizer/callback/persisted counters; parity/resume/A/B."
+    },
+    {
+      "id": "K2",
+      "priority": 7,
+      "reason": "Fixed SAC visibly replays forward operators in backward; no incremental removable activation lifetime proven and possible864extraGEMMs/update.",
+      "gate": "Targeted saved-tensor/lifetime and replay-count evidence before port; quantizer metadata/count mutations, dense/shared/MTP, nestedSAC compiled and monitoring parity; full A/B."
+    }
+  ],
+  "excluded_or_separate": {
+    "K3": "Reference rejects routed FP8; keepFP8.",
+    "Z1": "Inactive gate/up objective and missing external source; no objective change.",
+    "V1": "Reference incompatibleMTP.",
+    "V4": "Zero frozen parameters per G1 census.",
+    "V3_startup": "Startup slicing applicable separately, cannot improve warmed TPS.",
+    "capacity_predicate": "New trace-grounded future hypothesis outside independent reference-port list; do not remove capacity/group gate or switch policy implicitly."
+  },
+  "limitations": [
+    "Onlytwo ranks profiled on single-node EP8; no full8rank skew/inter-node/PP claim.",
+    "Shapes, stacks and memory history disabled: actual tensor lifetimes/storage peak ownership and full Python caller attribution unavailable.",
+    "CUDA event waits visible as host APIs; dependency IDs/complete cross-stream dependency DAG unavailable, so pure communication exposure is not proof of blocking/removability.",
+    "No cross-rank clock calibration; same raw timestamp scale and near-coincidence do not prove alignment.",
+    "One ordinary profiled update cannot establish monitoring cadence cost, performance magnitude, convergence or candidate acceptance."
+  ],
+  "schema_discovery": {
+    "list_tables": [
+      {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"names\":[\"actual_frame_timeline_slice\",\"ancestor_slice\",\"android_dumpstate\",\"android_game_intervention_list\",\"android_logs\",\"args\",\"clock_snapshot\",\"counter\",\"counter_track\",\"counters\",\"cpu\",\"cpu_available_frequencies\",\"cpu_counter_track\",\"cpu_profile_stack_sample\",\"cpu_track\",\"descendant_slice\",\"directly_connected_flow\",\"expected_frame_timeline_slice\",\"experimental_ancestor_stack_profile_callsite\",\"experimental_annotated_callstack\",\"experimental_flamegraph\",\"experimental_flat_slice\",\"experimental_missing_chrome_processes\",\"experimental_proto_content\",\"experimental_proto_path\",\"experimental_slice_layout\",\"filedescriptor\",\"flow\",\"following_flow\",\"frame_slice\",\"ftrace_event\",\"gpu_counter_group\",\"gpu_counter_track\",\"gpu_slice\",\"gpu_track\",\"heap_graph_class\",\"heap_graph_object\",\"heap_graph_reference\",\"heap_profile_allocation\",\"instant\",\"instruments_sample\",\"machine\",\"memory_snapshot\",\"memory_snapshot_edge\",\"memory_snapshot_node\",\"metadata\",\"package_list\",\"perf_counter_track\",\"perf_sample\",\"perf_session\",\"perfetto_table_info\",\"perfetto_tables\",\"preceding_flow\",\"process\",\"process_counter_track\",\"process_memory_snapshot\",\"process_track\",\"profiler_smaps\",\"protolog\",\"raw\",\"sched\",\"sched_slice\",\"slice\",\"slices\",\"spurious_sched_wakeup\",\"stack_profile_callsite\",\"stack_profile_frame\",\"stack_profile_mapping\",\"stack_profile_symbol\",\"surfaceflinger_layer\",\"surfaceflinger_layers_snapshot\",\"surfaceflinger_transactions\",\"thread\",\"thread_counter_track\",\"thread_state\",\"thread_track\",\"trace_bounds\",\"trace_metrics\",\"track\",\"vulkan_memory_allocations\",\"window_manager_shell_transition_handlers\",\"window_manager_shell_transitions\"]}"
+          }
+        ],
+        "isError": false
+      },
+      {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"names\":[\"actual_frame_timeline_slice\",\"ancestor_slice\",\"android_dumpstate\",\"android_game_intervention_list\",\"android_logs\",\"args\",\"clock_snapshot\",\"counter\",\"counter_track\",\"counters\",\"cpu\",\"cpu_available_frequencies\",\"cpu_counter_track\",\"cpu_profile_stack_sample\",\"cpu_track\",\"descendant_slice\",\"directly_connected_flow\",\"expected_frame_timeline_slice\",\"experimental_ancestor_stack_profile_callsite\",\"experimental_annotated_callstack\",\"experimental_flamegraph\",\"experimental_flat_slice\",\"experimental_missing_chrome_processes\",\"experimental_proto_content\",\"experimental_proto_path\",\"experimental_slice_layout\",\"filedescriptor\",\"flow\",\"following_flow\",\"frame_slice\",\"ftrace_event\",\"gpu_counter_group\",\"gpu_counter_track\",\"gpu_slice\",\"gpu_track\",\"heap_graph_class\",\"heap_graph_object\",\"heap_graph_reference\",\"heap_profile_allocation\",\"instant\",\"instruments_sample\",\"machine\",\"memory_snapshot\",\"memory_snapshot_edge\",\"memory_snapshot_node\",\"metadata\",\"package_list\",\"perf_counter_track\",\"perf_sample\",\"perf_session\",\"perfetto_table_info\",\"perfetto_tables\",\"preceding_flow\",\"process\",\"process_counter_track\",\"process_memory_snapshot\",\"process_track\",\"profiler_smaps\",\"protolog\",\"raw\",\"sched\",\"sched_slice\",\"slice\",\"slices\",\"spurious_sched_wakeup\",\"stack_profile_callsite\",\"stack_profile_frame\",\"stack_profile_mapping\",\"stack_profile_symbol\",\"surfaceflinger_layer\",\"surfaceflinger_layers_snapshot\",\"surfaceflinger_transactions\",\"thread\",\"thread_counter_track\",\"thread_state\",\"thread_track\",\"trace_bounds\",\"trace_metrics\",\"track\",\"vulkan_memory_allocations\",\"window_manager_shell_transition_handlers\",\"window_manager_shell_transitions\"]}"
+          }
+        ],
+        "isError": false
+      }
+    ],
+    "list_table_structure": [
+      {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"table\":\"slice\",\"columns\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"ts\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"dur\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"track_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"category\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"name\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"depth\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"parent_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"arg_set_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"thread_ts\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"thread_dur\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"thread_instruction_count\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"thread_instruction_delta\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"cat\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"slice_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false}]}"
+          }
+        ],
+        "isError": false
+      },
+      {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"table\":\"track\",\"columns\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"name\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"type\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"dimension_arg_set_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"parent_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"source_arg_set_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"machine_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"track_group_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false}]}"
+          }
+        ],
+        "isError": false
+      },
+      {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"table\":\"args\",\"columns\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"arg_set_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"flat_key\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"key\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"int_value\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"string_value\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"real_value\",\"type\":\"DOUBLE\",\"nullable\":true,\"primary_key\":false},{\"name\":\"value_type\",\"type\":\"TEXT\",\"nullable\":true,\"primary_key\":false},{\"name\":\"display_value\",\"type\":\"\",\"nullable\":true,\"primary_key\":false}]}"
+          }
+        ],
+        "isError": false
+      },
+      {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"table\":\"flow\",\"columns\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"slice_out\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"slice_in\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"trace_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false},{\"name\":\"arg_set_id\",\"type\":\"INTEGER\",\"nullable\":true,\"primary_key\":false}]}"
+          }
+        ],
+        "isError": false
+      }
+    ],
+    "stdlib_used": "slices.with_context",
+    "stdlib_discovery": "list_stdlib_modules(domain=generic) returned slices.with_context and linux.cpu.frequency; no PyTorch-specific GPU module"
+  },
+  "query_results": [
+    {
+      "query_id": "q0",
+      "rank": 0,
+      "label": "marker_multiplicity",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "category",
+        "name",
+        "track_name",
+        "n",
+        "start_ns",
+        "end_ns",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "gpu_user_annotation",
+          "task.profile_update.111.microbatch.rank0",
+          null,
+          32,
+          3693419790000922,
+          3693432971165093,
+          5467.155969
+        ],
+        [
+          "user_annotation",
+          "task.profile_update.111.microbatch.rank0",
+          null,
+          32,
+          3693419789672815,
+          3693433190385362,
+          12516.016429
+        ],
+        [
+          "user_annotation",
+          "task.profile_update.111.optimizer_step.rank0",
+          null,
+          1,
+          3693433202959436,
+          3693433204775966,
+          1.81653
+        ],
+        [
+          "gpu_user_annotation",
+          "task.profile_update.111.train_step.rank0",
+          null,
+          1,
+          3693419130171331,
+          3693433257887663,
+          14127.716332
+        ],
+        [
+          "user_annotation",
+          "task.profile_update.111.train_step.rank0",
+          null,
+          1,
+          3693419130056914,
+          3693433259854297,
+          14129.797383
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q1",
+      "rank": 1,
+      "label": "marker_multiplicity",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "category",
+        "name",
+        "track_name",
+        "n",
+        "start_ns",
+        "end_ns",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "gpu_user_annotation",
+          "task.profile_update.111.microbatch.rank1",
+          null,
+          32,
+          3693419789807318,
+          3693432973138973,
+          5492.527553
+        ],
+        [
+          "user_annotation",
+          "task.profile_update.111.microbatch.rank1",
+          null,
+          32,
+          3693419789556199,
+          3693433190610750,
+          12506.850762
+        ],
+        [
+          "user_annotation",
+          "task.profile_update.111.optimizer_step.rank1",
+          null,
+          1,
+          3693433202810850,
+          3693433204501129,
+          1.690279
+        ],
+        [
+          "gpu_user_annotation",
+          "task.profile_update.111.train_step.rank1",
+          null,
+          1,
+          3693419129455674,
+          3693433257792299,
+          14128.336625
+        ],
+        [
+          "user_annotation",
+          "task.profile_update.111.train_step.rank1",
+          null,
+          1,
+          3693419129364432,
+          3693433259196156,
+          14129.831724
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q2",
+      "rank": 0,
+      "label": "categories",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "category",
+        "n",
+        "sum_ms",
+        "start",
+        "end"
+      ],
+      "rows": [
+        [
+          "cpu_op",
+          413744,
+          69072.453445,
+          3693419130137205,
+          3693433257892634
+        ],
+        [
+          "cuda_runtime",
+          127583,
+          8031.386087,
+          3693419129673400,
+          3693433289676358
+        ],
+        [
+          "kernel",
+          96013,
+          14580.812705,
+          3693419130171332,
+          3693433257751533
+        ],
+        [
+          "cuda_driver",
+          46152,
+          271.042663,
+          3693419738200226,
+          3693433257742303
+        ],
+        [
+          "user_annotation",
+          11120,
+          42385.063274,
+          3693419129571119,
+          3693433260136110
+        ],
+        [
+          "gpu_memset",
+          9184,
+          10.261135,
+          3693419795091821,
+          3693433210374530
+        ],
+        [
+          "gpu_user_annotation",
+          3871,
+          22927.564052,
+          3693419130171331,
+          3693433257887663
+        ],
+        [
+          "gpu_memcpy",
+          2932,
+          192.011748,
+          3693419737813438,
+          3693433257887662
+        ],
+        [
+          "overhead",
+          28,
+          27.02454,
+          3693420162700085,
+          3693432836718443
+        ],
+        [
+          null,
+          2,
+          0,
+          3693419129125341,
+          3693433621447624
+        ],
+        [
+          "Trace",
+          1,
+          14131.138298,
+          3693419129125341,
+          3693433260263639
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q3",
+      "rank": 0,
+      "label": "argskeys",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "key",
+        "n"
+      ],
+      "rows": [
+        [
+          "args.External id",
+          684429
+        ],
+        [
+          "args.Record function id",
+          424864
+        ],
+        [
+          "args.Ev Idx",
+          424864
+        ],
+        [
+          "args.correlation",
+          281864
+        ],
+        [
+          "args.cbid",
+          173735
+        ],
+        [
+          "args.stream",
+          108129
+        ],
+        [
+          "args.graph node id",
+          108129
+        ],
+        [
+          "args.graph id",
+          108129
+        ],
+        [
+          "args.device",
+          108129
+        ],
+        [
+          "args.context",
+          108129
+        ],
+        [
+          "args.channel_type",
+          108129
+        ],
+        [
+          "args.channel",
+          108129
+        ],
+        [
+          "args.warps per SM",
+          96013
+        ],
+        [
+          "args.shared memory",
+          96013
+        ],
+        [
+          "args.registers per thread",
+          96013
+        ],
+        [
+          "args.queued",
+          96013
+        ],
+        [
+          "args.occupancy.limitingFactors",
+          96013
+        ],
+        [
+          "args.occupancy.blockLimitWarps",
+          96013
+        ],
+        [
+          "args.occupancy.blockLimitSharedMem",
+          96013
+        ],
+        [
+          "args.occupancy.blockLimitRegs",
+          96013
+        ],
+        [
+          "args.occupancy.blockLimitBlocks",
+          96013
+        ],
+        [
+          "args.occupancy.blockLimitBarriers",
+          96013
+        ],
+        [
+          "args.occupancy.allocatedSharedMemPerBlock",
+          96013
+        ],
+        [
+          "args.occupancy.allocatedRegistersPerBlock",
+          96013
+        ],
+        [
+          "args.occupancy.activeBlocksPerMultiprocessor",
+          96013
+        ],
+        [
+          "args.grid[2]",
+          96013
+        ],
+        [
+          "args.grid[1]",
+          96013
+        ],
+        [
+          "args.grid[0]",
+          96013
+        ],
+        [
+          "args.est. achieved occupancy %",
+          96013
+        ],
+        [
+          "args.blocks per SM",
+          96013
+        ],
+        [
+          "args.block[2]",
+          96013
+        ],
+        [
+          "args.block[1]",
+          96013
+        ],
+        [
+          "args.block[0]",
+          96013
+        ],
+        [
+          "args.Sequence number",
+          14076
+        ],
+        [
+          "args.Fwd thread id",
+          14076
+        ],
+        [
+          "args.memory bandwidth (GB/s)",
+          12116
+        ],
+        [
+          "args.bytes",
+          12116
+        ],
+        [
+          "args.dtype",
+          4183
+        ],
+        [
+          "args.Seq",
+          4183
+        ],
+        [
+          "args.Process Group Ranks",
+          4183
+        ],
+        [
+          "args.Process Group Name",
+          4183
+        ],
+        [
+          "args.Process Group Description",
+          4183
+        ],
+        [
+          "args.Out split size",
+          4183
+        ],
+        [
+          "args.Out msg nelems",
+          4183
+        ],
+        [
+          "args.In split size",
+          4183
+        ],
+        [
+          "args.In msg nelems",
+          4183
+        ],
+        [
+          "args.Group size",
+          4183
+        ],
+        [
+          "args.Comms Id",
+          4183
+        ],
+        [
+          "args.Collective name",
+          4183
+        ],
+        [
+          "args.Rank",
+          2639
+        ],
+        [
+          "args.Is asynchronized op",
+          2639
+        ],
+        [
+          "args.Global rank start",
+          2216
+        ],
+        [
+          "args.Global rank stride",
+          1544
+        ],
+        [
+          "process_sort_index_hint",
+          18
+        ],
+        [
+          "utid",
+          9
+        ],
+        [
+          "thread_sort_index_hint",
+          5
+        ],
+        [
+          "name",
+          2
+        ],
+        [
+          "cat",
+          2
+        ],
+        [
+          "source",
+          1
+        ],
+        [
+          "args.Op count",
+          1
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q4",
+      "rank": 0,
+      "label": "topkernels",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "n",
+        "sum_ms",
+        "avg_us"
+      ],
+      "rows": [
+        [
+          "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+          4608,
+          1134.678349,
+          246.24096115451388
+        ],
+        [
+          "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+          384,
+          1057.424596,
+          2753.7098854166666
+        ],
+        [
+          "ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+          736,
+          990.222893,
+          1345.4115394021737
+        ],
+        [
+          "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+          256,
+          848.853983,
+          3315.83587109375
+        ],
+        [
+          "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+          640,
+          822.024421,
+          1284.4131578125
+        ],
+        [
+          "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+          64,
+          719.008002,
+          11234.50003125
+        ],
+        [
+          "void hybrid_ep::combine_kernel<hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<4, 0>, hybrid_ep::warp_group<0, 4>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<0, 6>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<4, 0>, 2, 10, 2, 2, 2, 4, 64, 4096, 8192, 16, 8, 1, 16, 108, 1, 1, false>(hybrid_ep::combine_kernel_param_t)",
+          416,
+          540.857963,
+          1300.1393341346154
+        ],
+        [
+          "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          1536,
+          446.509041,
+          290.695990234375
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d1d_impl<3072u, 4096u, 0u, 16u, 128u, 152u, 128u, 128u, 128u, 5u, 128u, 256u, 1u, false, 116u, (deep_gemm::GemmType)3, true, cutlass::bfloat16_t>(__nv_fp8_e4m3*, __nv_fp8_e4m3*, int*, CUtensorMap_st*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          224,
+          434.672222,
+          1940.5009910714286
+        ],
+        [
+          "void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)",
+          1312,
+          419.528141,
+          319.7623025914634
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 3072u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          256,
+          339.543856,
+          1326.3431875
+        ],
+        [
+          "void hybrid_ep::combine_kernel<hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<4, 0>, hybrid_ep::warp_group<0, 4>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<0, 6>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<4, 0>, 2, 10, 2, 2, 2, 4, 64, 4096, 8192, 16, 8, 1, 16, 108, 1, 1, true>(hybrid_ep::combine_kernel_param_t)",
+          224,
+          331.453263,
+          1479.7020669642857
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 1536u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          416,
+          312.619659,
+          751.4895649038461
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 3072u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          224,
+          311.550831,
+          1390.8519241071428
+        ],
+        [
+          "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, false>(int, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>)",
+          1146,
+          296.864823,
+          259.0443481675392
+        ],
+        [
+          "void hybrid_ep::dispatch_kernel<unsigned char, hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, 10, 10, 8, 8, 128, 6, 64, 4096, 8192, 16, 8, 1, 16, 108, true>(hybrid_ep::dispatch_kernel_param_t<unsigned char>)",
+          416,
+          278.757645,
+          670.0904927884615
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d1d_impl<4096u, 1536u, 0u, 16u, 128u, 152u, 128u, 128u, 128u, 5u, 128u, 256u, 1u, false, 116u, (deep_gemm::GemmType)3, true, cutlass::bfloat16_t>(__nv_fp8_e4m3*, __nv_fp8_e4m3*, int*, CUtensorMap_st*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          224,
+          233.058949,
+          1040.4417366071427
+        ],
+        [
+          "cudnn_generated_fort_native_sdpa_sm90_flash_bprop_wgmma_f16_knob_2_64x64x192_1x4x1_cga1x1x1_kernel0_0",
+          96,
+          189.014339,
+          1968.8993645833332
+        ],
+        [
+          "_qkv_conv1d_unpack_kernel",
+          576,
+          184.019858,
+          319.4789201388889
+        ],
+        [
+          "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+          2528,
+          178.849542,
+          70.7474454113924
+        ],
+        [
+          "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT",
+          448,
+          167.405613,
+          373.67324330357144
+        ],
+        [
+          "requantize_grouped_kernel(unsigned char const*, float const*, int const*, int const*, unsigned char*, float*, int, int, long, long)",
+          896,
+          159.026252,
+          177.48465625
+        ],
+        [
+          "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+          1664,
+          157.194226,
+          94.46768389423076
+        ],
+        [
+          "void hybrid_ep::dispatch_kernel<unsigned char, hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, 10, 10, 8, 8, 128, 6, 64, 4096, 8192, 16, 8, 1, 16, 108, false>(hybrid_ep::dispatch_kernel_param_t<unsigned char>)",
+          224,
+          155.20079,
+          692.8606696428571
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 1536u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          224,
+          151.053038,
+          674.3439196428571
+        ],
+        [
+          "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+          417,
+          135.153618,
+          324.1093956834533
+        ],
+        [
+          "_block_quantization_kernel",
+          832,
+          133.244386,
+          160.14950240384616
+        ],
+        [
+          "cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0_0",
+          192,
+          132.120158,
+          688.1258229166666
+        ],
+        [
+          "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+          768,
+          131.145382,
+          170.76221614583335
+        ],
+        [
+          "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT",
+          320,
+          118.109164,
+          369.0911375
+        ],
+        [
+          "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+          1280,
+          110.39722,
+          86.247828125
+        ],
+        [
+          "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+          1274,
+          108.567696,
+          85.21797174254317
+        ],
+        [
+          "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+          2496,
+          107.135883,
+          42.923030048076924
+        ],
+        [
+          "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+          128,
+          105.827615,
+          826.7782421875
+        ],
+        [
+          "chunk_fwd_kernel_o",
+          576,
+          98.547715,
+          171.08978298611112
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q5",
+      "rank": 0,
+      "label": "flows",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "n"
+      ],
+      "rows": [
+        [
+          111359
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q6",
+      "rank": 0,
+      "label": "clock",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "id",
+        "ts",
+        "clock_id",
+        "clock_name",
+        "clock_value",
+        "snapshot_id",
+        "machine_id"
+      ],
+      "rows": [],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q7",
+      "rank": 0,
+      "label": "markers",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "category",
+        "name",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "cpu_op",
+          "autograd::engine::evaluate_function: CompiledFunctionBackward",
+          416,
+          9239.950467
+        ],
+        [
+          "cpu_op",
+          "CompiledFunctionBackward",
+          416,
+          9114.651167
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph ftssdzy5nxe6udan44qxmirn3ixq6nmimw7br4ptpi4vie7uaby4 ##",
+          64,
+          4405.572742
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph f5duhvijewcbgcwe5aoeujr52fyt3n77angb6fg2za3hpswyunhx ##",
+          96,
+          2383.193929
+        ],
+        [
+          "cpu_op",
+          "CompiledFunction",
+          416,
+          2244.322916
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fcfkjz6dt6m4vdkq4dd6xyahlm6yaltpp6lyolkybio4ah66ehmc ##",
+          32,
+          894.50411
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/2",
+          96,
+          830.949253
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fllxrtjpt7osllusyuaqrnwtsms6ad2c2h24qj666co2ynmhp7mq ##",
+          32,
+          820.16453
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph f7yn4pmcjbyeifjgv6fefogdj3epoq4bjmqtdgipn53xnzk6bpc5 ##",
+          96,
+          818.26883
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/3",
+          64,
+          557.753723
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph f4xrsztxia3igefvbmbwc6amwzj36ok7e6v4xy4umejwh5xjtx7v ##",
+          64,
+          548.620702
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/1",
+          32,
+          331.113334
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph f2sngysrzkk6aszcqswwgfqyr4o7komd2tm5z4bkov236a52fw7m ##",
+          32,
+          326.236257
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/4",
+          32,
+          292.7559
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fod7fcc52jten2ohnncdypnfx2mkal7cshrmsa74y6s4e3l6acid ##",
+          32,
+          287.351133
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fixdg5b7q5vp2qvfiggoiq2zmnh5pe3y4bu5xmcj6mjrn5dkd3rh ##",
+          32,
+          285.359584
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph faszywbeqlhy6l74pfngzucsxp75jfn6se4rf4riafwci3mbacwy ##",
+          32,
+          266.890076
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/0",
+          32,
+          124.07146
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fb7xs3fuixvjhyddomuwu77hudgczwb72cwwhkmyboaeitidzxwd ##",
+          32,
+          118.98032
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/5",
+          32,
+          112.317345
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fpvarvdtf353ysfwm5ixoiztsfwevhd7tjdgeeikou6mabglmvdq ##",
+          32,
+          108.419888
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 1/0",
+          128,
+          18.677098
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fmmz2yat46nvtdpi27y57myqjwgi6dccjvzftomkclltgymw66xd ##",
+          128,
+          10.669671
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fjd33u2s7vt5jlsqtj44uhc33km6y24qkiikmjozrsgg53yfgm3b ##",
+          128,
+          10.328226
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for mtp.layers.0",
+          64,
+          8.63654
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.7[efsdp]",
+          32,
+          8.046111
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.3[fsdp]",
+          32,
+          7.176251
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for mtp.layers.0",
+          32,
+          7.041254
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.5[fsdp]",
+          32,
+          6.997217
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.2[fsdp]",
+          32,
+          6.950637
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.6[fsdp]",
+          32,
+          6.942987
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.7[fsdp]",
+          32,
+          6.859948
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.4[fsdp]",
+          32,
+          6.823668
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.1[fsdp]",
+          32,
+          6.764726
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.0",
+          32,
+          6.657056
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for norm",
+          32,
+          6.36553
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.6[efsdp]",
+          32,
+          6.361901
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.1[efsdp]",
+          32,
+          6.327653
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for lm_head",
+          32,
+          6.058792
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.2[efsdp]",
+          32,
+          6.02713
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.4[efsdp]",
+          32,
+          6.000427
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.3[efsdp]",
+          32,
+          5.971569
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.5[efsdp]",
+          32,
+          5.826199
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.5[fsdp]",
+          32,
+          5.35103
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.7[efsdp]",
+          32,
+          5.259362
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for norm",
+          32,
+          5.233691
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.5[efsdp]",
+          32,
+          5.14462
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.1[efsdp]",
+          32,
+          5.039643
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.7[fsdp]",
+          32,
+          5.015407
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.4[efsdp]",
+          32,
+          4.990928
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q8",
+      "rank": 1,
+      "label": "categories",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "category",
+        "n",
+        "sum_ms",
+        "start",
+        "end"
+      ],
+      "rows": [
+        [
+          "cpu_op",
+          413758,
+          68968.898782,
+          3693419129420082,
+          3693433257796920
+        ],
+        [
+          "cuda_runtime",
+          127597,
+          8023.999547,
+          3693419128993057,
+          3693433354003771
+        ],
+        [
+          "kernel",
+          96079,
+          14587.006,
+          3693419129455675,
+          3693433257752425
+        ],
+        [
+          "cuda_driver",
+          46152,
+          255.840624,
+          3693419774133213,
+          3693433257618587
+        ],
+        [
+          "user_annotation",
+          11120,
+          42427.4094,
+          3693419128892156,
+          3693433259451538
+        ],
+        [
+          "gpu_memset",
+          9184,
+          10.086202,
+          3693419795089192,
+          3693433210097489
+        ],
+        [
+          "gpu_user_annotation",
+          3871,
+          22987.858829,
+          3693419129455674,
+          3693433257792299
+        ],
+        [
+          "gpu_memcpy",
+          2932,
+          192.235353,
+          3693419773629379,
+          3693433257792298
+        ],
+        [
+          "overhead",
+          28,
+          25.704749,
+          3693420162253426,
+          3693432836213043
+        ],
+        [
+          null,
+          2,
+          0,
+          3693419128477973,
+          3693433611507270
+        ],
+        [
+          "Trace",
+          1,
+          14131.062798,
+          3693419128477973,
+          3693433259540771
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q9",
+      "rank": 1,
+      "label": "argskeys",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "key",
+        "n"
+      ],
+      "rows": [
+        [
+          "args.External id",
+          684511
+        ],
+        [
+          "args.Record function id",
+          424878
+        ],
+        [
+          "args.Ev Idx",
+          424878
+        ],
+        [
+          "args.correlation",
+          281944
+        ],
+        [
+          "args.cbid",
+          173749
+        ],
+        [
+          "args.stream",
+          108195
+        ],
+        [
+          "args.graph node id",
+          108195
+        ],
+        [
+          "args.graph id",
+          108195
+        ],
+        [
+          "args.device",
+          108195
+        ],
+        [
+          "args.context",
+          108195
+        ],
+        [
+          "args.channel_type",
+          108195
+        ],
+        [
+          "args.channel",
+          108195
+        ],
+        [
+          "args.warps per SM",
+          96079
+        ],
+        [
+          "args.shared memory",
+          96079
+        ],
+        [
+          "args.registers per thread",
+          96079
+        ],
+        [
+          "args.queued",
+          96079
+        ],
+        [
+          "args.occupancy.limitingFactors",
+          96079
+        ],
+        [
+          "args.occupancy.blockLimitWarps",
+          96079
+        ],
+        [
+          "args.occupancy.blockLimitSharedMem",
+          96079
+        ],
+        [
+          "args.occupancy.blockLimitRegs",
+          96079
+        ],
+        [
+          "args.occupancy.blockLimitBlocks",
+          96079
+        ],
+        [
+          "args.occupancy.blockLimitBarriers",
+          96079
+        ],
+        [
+          "args.occupancy.allocatedSharedMemPerBlock",
+          96079
+        ],
+        [
+          "args.occupancy.allocatedRegistersPerBlock",
+          96079
+        ],
+        [
+          "args.occupancy.activeBlocksPerMultiprocessor",
+          96079
+        ],
+        [
+          "args.grid[2]",
+          96079
+        ],
+        [
+          "args.grid[1]",
+          96079
+        ],
+        [
+          "args.grid[0]",
+          96079
+        ],
+        [
+          "args.est. achieved occupancy %",
+          96079
+        ],
+        [
+          "args.blocks per SM",
+          96079
+        ],
+        [
+          "args.block[2]",
+          96079
+        ],
+        [
+          "args.block[1]",
+          96079
+        ],
+        [
+          "args.block[0]",
+          96079
+        ],
+        [
+          "args.Sequence number",
+          14079
+        ],
+        [
+          "args.Fwd thread id",
+          14079
+        ],
+        [
+          "args.memory bandwidth (GB/s)",
+          12116
+        ],
+        [
+          "args.bytes",
+          12116
+        ],
+        [
+          "args.dtype",
+          4183
+        ],
+        [
+          "args.Seq",
+          4183
+        ],
+        [
+          "args.Process Group Ranks",
+          4183
+        ],
+        [
+          "args.Process Group Name",
+          4183
+        ],
+        [
+          "args.Process Group Description",
+          4183
+        ],
+        [
+          "args.Out split size",
+          4183
+        ],
+        [
+          "args.Out msg nelems",
+          4183
+        ],
+        [
+          "args.In split size",
+          4183
+        ],
+        [
+          "args.In msg nelems",
+          4183
+        ],
+        [
+          "args.Group size",
+          4183
+        ],
+        [
+          "args.Comms Id",
+          4183
+        ],
+        [
+          "args.Collective name",
+          4183
+        ],
+        [
+          "args.Rank",
+          2639
+        ],
+        [
+          "args.Is asynchronized op",
+          2639
+        ],
+        [
+          "args.Global rank start",
+          2216
+        ],
+        [
+          "args.Global rank stride",
+          1544
+        ],
+        [
+          "process_sort_index_hint",
+          18
+        ],
+        [
+          "utid",
+          9
+        ],
+        [
+          "thread_sort_index_hint",
+          5
+        ],
+        [
+          "name",
+          2
+        ],
+        [
+          "cat",
+          2
+        ],
+        [
+          "source",
+          1
+        ],
+        [
+          "args.Op count",
+          1
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q10",
+      "rank": 1,
+      "label": "topkernels",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "n",
+        "sum_ms",
+        "avg_us"
+      ],
+      "rows": [
+        [
+          "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+          4608,
+          1144.182164,
+          248.30342100694443
+        ],
+        [
+          "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+          384,
+          1044.157386,
+          2719.159859375
+        ],
+        [
+          "ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+          736,
+          1023.490955,
+          1390.6127105978262
+        ],
+        [
+          "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+          256,
+          868.448548,
+          3392.377140625
+        ],
+        [
+          "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+          640,
+          823.496678,
+          1286.713559375
+        ],
+        [
+          "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+          64,
+          724.733985,
+          11323.968515625
+        ],
+        [
+          "void hybrid_ep::combine_kernel<hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<4, 0>, hybrid_ep::warp_group<0, 4>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<0, 6>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<4, 0>, 2, 10, 2, 2, 2, 4, 64, 4096, 8192, 16, 8, 1, 16, 108, 1, 1, false>(hybrid_ep::combine_kernel_param_t)",
+          416,
+          569.982,
+          1370.1490384615386
+        ],
+        [
+          "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          1536,
+          448.828884,
+          292.2063046875
+        ],
+        [
+          "void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)",
+          1312,
+          431.814407,
+          329.12683460365855
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d1d_impl<3072u, 4096u, 0u, 16u, 128u, 152u, 128u, 128u, 128u, 5u, 128u, 256u, 1u, false, 116u, (deep_gemm::GemmType)3, true, cutlass::bfloat16_t>(__nv_fp8_e4m3*, __nv_fp8_e4m3*, int*, CUtensorMap_st*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          224,
+          419.372801,
+          1872.2000044642857
+        ],
+        [
+          "void hybrid_ep::combine_kernel<hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<4, 0>, hybrid_ep::warp_group<0, 4>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<0, 6>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<4, 0>, 2, 10, 2, 2, 2, 4, 64, 4096, 8192, 16, 8, 1, 16, 108, 1, 1, true>(hybrid_ep::combine_kernel_param_t)",
+          224,
+          351.017052,
+          1567.0404107142856
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 3072u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          256,
+          328.042241,
+          1281.41500390625
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 1536u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          416,
+          301.719427,
+          725.2870841346154
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 3072u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          224,
+          301.238908,
+          1344.8165535714286
+        ],
+        [
+          "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, false>(int, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>)",
+          1146,
+          297.03101,
+          259.1893630017452
+        ],
+        [
+          "void hybrid_ep::dispatch_kernel<unsigned char, hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, 10, 10, 8, 8, 128, 6, 64, 4096, 8192, 16, 8, 1, 16, 108, true>(hybrid_ep::dispatch_kernel_param_t<unsigned char>)",
+          416,
+          277.297492,
+          666.5805096153846
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d1d_impl<4096u, 1536u, 0u, 16u, 128u, 152u, 128u, 128u, 128u, 5u, 128u, 256u, 1u, false, 116u, (deep_gemm::GemmType)3, true, cutlass::bfloat16_t>(__nv_fp8_e4m3*, __nv_fp8_e4m3*, int*, CUtensorMap_st*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          224,
+          224.268454,
+          1001.1984553571428
+        ],
+        [
+          "cudnn_generated_fort_native_sdpa_sm90_flash_bprop_wgmma_f16_knob_2_64x64x192_1x4x1_cga1x1x1_kernel0_0",
+          96,
+          188.721534,
+          1965.8493125
+        ],
+        [
+          "_qkv_conv1d_unpack_kernel",
+          576,
+          182.465054,
+          316.7796076388889
+        ],
+        [
+          "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+          2528,
+          179.048442,
+          70.82612420886075
+        ],
+        [
+          "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT",
+          448,
+          166.32531,
+          371.2618526785714
+        ],
+        [
+          "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+          1664,
+          157.393132,
+          94.58721875
+        ],
+        [
+          "requantize_grouped_kernel(unsigned char const*, float const*, int const*, int const*, unsigned char*, float*, int, int, long, long)",
+          896,
+          152.790188,
+          170.52476339285712
+        ],
+        [
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 1536u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          224,
+          145.963565,
+          651.6230580357143
+        ],
+        [
+          "cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0_0",
+          192,
+          136.22632,
+          709.5120833333334
+        ],
+        [
+          "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+          417,
+          134.981544,
+          323.6967482014389
+        ],
+        [
+          "void hybrid_ep::dispatch_kernel<unsigned char, hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, 10, 10, 8, 8, 128, 6, 64, 4096, 8192, 16, 8, 1, 16, 108, false>(hybrid_ep::dispatch_kernel_param_t<unsigned char>)",
+          224,
+          134.59592,
+          600.8746428571428
+        ],
+        [
+          "_block_quantization_kernel",
+          832,
+          133.031616,
+          159.8937692307692
+        ],
+        [
+          "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+          768,
+          129.450884,
+          168.55583854166665
+        ],
+        [
+          "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT",
+          320,
+          118.258181,
+          369.556815625
+        ],
+        [
+          "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+          1280,
+          109.565086,
+          85.5977234375
+        ],
+        [
+          "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+          1265,
+          107.453732,
+          84.94366166007906
+        ],
+        [
+          "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+          2496,
+          106.946079,
+          42.84698677884616
+        ],
+        [
+          "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+          128,
+          103.728454,
+          810.378546875
+        ],
+        [
+          "chunk_fwd_kernel_o",
+          576,
+          99.852537,
+          173.35509895833334
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q11",
+      "rank": 1,
+      "label": "flows",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "n"
+      ],
+      "rows": [
+        [
+          111361
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q12",
+      "rank": 1,
+      "label": "clock",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "id",
+        "ts",
+        "clock_id",
+        "clock_name",
+        "clock_value",
+        "snapshot_id",
+        "machine_id"
+      ],
+      "rows": [],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q13",
+      "rank": 1,
+      "label": "markers",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "category",
+        "name",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "cpu_op",
+          "autograd::engine::evaluate_function: CompiledFunctionBackward",
+          416,
+          9215.96945
+        ],
+        [
+          "cpu_op",
+          "CompiledFunctionBackward",
+          416,
+          9090.09961
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fymwlzaftqyx6pktp3sofbki4zm3k7ryvu3wyuu5x6zo6ef4m7lh ##",
+          64,
+          4398.245651
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fntma6yt3xbacyeamqxrgoq5mhhxq7sbsixbw6cbuttmgqino37t ##",
+          96,
+          2375.320411
+        ],
+        [
+          "cpu_op",
+          "CompiledFunction",
+          416,
+          2241.108178
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph f5ujlnnjo6gdxqzcg5rzygnqhkh6h5l2sxvyupvv7xlkx2ay6yk3 ##",
+          32,
+          897.040753
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/2",
+          96,
+          837.551906
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph f7ornfkswu6yss2g4oehlzwtlw3yts347s6mg4avr5l6jfqtbxmk ##",
+          96,
+          824.993535
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph frhkumejt5qlf7gshto6yl534xa4i22ygbeigpttgktzevffklry ##",
+          32,
+          818.637373
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/3",
+          64,
+          555.519497
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fmc66nvpp4axflaaltmqsckgqqeouyok2jr2ho4mkoy4753yace3 ##",
+          64,
+          546.570758
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/1",
+          32,
+          326.004933
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph ffykc3lvexzzgbwlgsn4yt27q7oqnxebc46nlkjwbszmcggakzop ##",
+          32,
+          321.411549
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/4",
+          32,
+          291.522878
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph f5ewr462dgyi76xawmsaxa7zrcuiwmvaut2ar7r7lf254mufairb ##",
+          32,
+          286.318559
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fmvyk2rhdmz6x5wymzbywktuvcha4f3yprakz7ko3hfy2y4a5ju2 ##",
+          32,
+          280.415925
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fyjqcezhfng2dwwfovyszr7vy6ydu73jxfftkaekddzvhaumpc7v ##",
+          32,
+          261.0212
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/0",
+          32,
+          124.816951
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph fxnbhlyuwahj2tojxrv6aqg7exutqc7tclroll7vdapuzriujyaw ##",
+          32,
+          119.872783
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 0/5",
+          32,
+          110.147099
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph ffcvzy2xysyatepegckedx7r6saakkmlufaojxg5bgo2a6oyvhq3 ##",
+          32,
+          106.391655
+        ],
+        [
+          "cpu_op",
+          "Torch-Compiled Region: 1/0",
+          128,
+          18.442212
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for mtp.layers.0",
+          64,
+          10.972982
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph feknixa4jsyhozdf362xf2eesnclhbeogfytrbgufjmz7hnrcym2 ##",
+          128,
+          10.797621
+        ],
+        [
+          "cpu_op",
+          "## Call CompiledFxGraph frot2dx7qvbckxhna6tsz5qrhjf5j3zyv4u5fstnd2jivqjafsje ##",
+          128,
+          10.263977
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for mtp.layers.0",
+          32,
+          7.268732
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.3[fsdp]",
+          32,
+          7.242221
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.6[fsdp]",
+          32,
+          7.033062
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.5[fsdp]",
+          32,
+          7.01272
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.7[fsdp]",
+          32,
+          6.975503
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.2[fsdp]",
+          32,
+          6.932078
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.4[fsdp]",
+          32,
+          6.904476
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.1[fsdp]",
+          32,
+          6.666218
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for norm",
+          32,
+          6.465923
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.0",
+          32,
+          6.452871
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.1[efsdp]",
+          32,
+          6.392533
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.2[efsdp]",
+          32,
+          5.99797
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for lm_head",
+          32,
+          5.916696
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.4[efsdp]",
+          32,
+          5.85295
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.7[efsdp]",
+          32,
+          5.757978
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.5[efsdp]",
+          32,
+          5.738816
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.6[efsdp]",
+          32,
+          5.725584
+        ],
+        [
+          "user_annotation",
+          "GFSDP::forward_prefetch for layers.3[efsdp]",
+          32,
+          5.698454
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.7[efsdp]",
+          32,
+          5.428113
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.5[fsdp]",
+          32,
+          5.342102
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for norm",
+          32,
+          5.20076
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.5[efsdp]",
+          32,
+          5.1318
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.4[efsdp]",
+          32,
+          4.976688
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.1[efsdp]",
+          32,
+          4.958621
+        ],
+        [
+          "user_annotation",
+          "GFSDP::backward_prefetch for layers.0",
+          32,
+          4.925364
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q14",
+      "rank": 0,
+      "label": "interval_scopes",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "frame_ms",
+        "busy_union_ms",
+        "nccl_union_ms",
+        "ep_mixed_union_ms",
+        "compute_other_union_ms",
+        "copy_union_ms",
+        "nccl_only_ms",
+        "comm_or_ep_without_compute_ms",
+        "gpu_tail_beyond_cpu_ns"
+      ],
+      "rows": [
+        [
+          14129.797383,
+          13044.218228,
+          2183.008723,
+          1350.957821,
+          10891.403948,
+          192.011748,
+          717.518006,
+          2068.530804,
+          -1966635
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q15",
+      "rank": 0,
+      "label": "copies",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "n",
+        "summed_ms",
+        "bytes"
+      ],
+      "rows": [
+        [
+          "Memcpy DtoD (Device -> Device)",
+          1898,
+          190.043049,
+          281327769632
+        ],
+        [
+          "Memcpy DtoH (Device -> Pinned)",
+          455,
+          0.995852,
+          492
+        ],
+        [
+          "Memcpy HtoD (Pageable -> Device)",
+          161,
+          0.490951,
+          5767176
+        ],
+        [
+          "Memcpy HtoD (Pinned -> Device)",
+          416,
+          0.477192,
+          53248
+        ],
+        [
+          "Memcpy DtoH (Device -> Pageable)",
+          2,
+          0.004704,
+          68
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q16",
+      "rank": 0,
+      "label": "hostwaits",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "category",
+        "name",
+        "n",
+        "sum_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          "cuda_runtime",
+          "cudaStreamSynchronize",
+          1034,
+          7601.832925,
+          103.96716
+        ],
+        [
+          "cpu_op",
+          "aten::_local_scalar_dense",
+          458,
+          6699.40213,
+          104.010551
+        ],
+        [
+          "cpu_op",
+          "aten::item",
+          455,
+          6649.896986,
+          104.017241
+        ],
+        [
+          "cuda_runtime",
+          "cudaStreamWaitEvent",
+          9310,
+          8.277653,
+          0.010551
+        ],
+        [
+          "cuda_runtime",
+          "cudaDeviceSynchronize",
+          2,
+          0.117921,
+          0.070821
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q17",
+      "rank": 0,
+      "label": "flowtypes",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "source_cat",
+        "dest_cat",
+        "n"
+      ],
+      "rows": [
+        [
+          "cpu_op",
+          "cpu_op",
+          2784
+        ],
+        [
+          "cuda_driver",
+          "kernel",
+          46152
+        ],
+        [
+          "cuda_runtime",
+          "gpu_memcpy",
+          2932
+        ],
+        [
+          "cuda_runtime",
+          "gpu_memset",
+          9184
+        ],
+        [
+          "cuda_runtime",
+          "kernel",
+          50307
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q18",
+      "rank": 0,
+      "label": "smallkernels",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "n",
+        "under15us",
+        "under15us_sum_ms"
+      ],
+      "rows": [
+        [
+          96013,
+          43701,
+          170.854217
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q19",
+      "rank": 0,
+      "label": "compile_census",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "n"
+      ],
+      "rows": [
+        [
+          "TorchDynamo Cache Lookup",
+          416
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q20",
+      "rank": 1,
+      "label": "interval_scopes",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "frame_ms",
+        "busy_union_ms",
+        "nccl_union_ms",
+        "ep_mixed_union_ms",
+        "compute_other_union_ms",
+        "copy_union_ms",
+        "nccl_only_ms",
+        "comm_or_ep_without_compute_ms",
+        "gpu_tail_beyond_cpu_ns"
+      ],
+      "rows": [
+        [
+          14129.831724,
+          12996.754033,
+          2203.9976,
+          1377.99968,
+          10837.481945,
+          192.235353,
+          697.751366,
+          2075.815016,
+          -1403858
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q21",
+      "rank": 1,
+      "label": "copies",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "n",
+        "summed_ms",
+        "bytes"
+      ],
+      "rows": [
+        [
+          "Memcpy DtoD (Device -> Device)",
+          1898,
+          190.321158,
+          281327769632
+        ],
+        [
+          "Memcpy DtoH (Device -> Pinned)",
+          455,
+          0.998713,
+          492
+        ],
+        [
+          "Memcpy HtoD (Pageable -> Device)",
+          161,
+          0.458921,
+          5767176
+        ],
+        [
+          "Memcpy HtoD (Pinned -> Device)",
+          416,
+          0.451922,
+          53248
+        ],
+        [
+          "Memcpy DtoH (Device -> Pageable)",
+          2,
+          0.004639,
+          68
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q22",
+      "rank": 1,
+      "label": "hostwaits",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "category",
+        "name",
+        "n",
+        "sum_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          "cuda_runtime",
+          "cudaStreamSynchronize",
+          1034,
+          7608.175622,
+          103.497355
+        ],
+        [
+          "cpu_op",
+          "aten::_local_scalar_dense",
+          458,
+          6668.43905,
+          103.551605
+        ],
+        [
+          "cpu_op",
+          "aten::item",
+          455,
+          6654.628534,
+          103.560535
+        ],
+        [
+          "cuda_runtime",
+          "cudaStreamWaitEvent",
+          9310,
+          8.646998,
+          0.014131
+        ],
+        [
+          "cuda_runtime",
+          "cudaDeviceSynchronize",
+          2,
+          0.088101,
+          0.057881
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q23",
+      "rank": 1,
+      "label": "flowtypes",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "source_cat",
+        "dest_cat",
+        "n"
+      ],
+      "rows": [
+        [
+          "cpu_op",
+          "cpu_op",
+          2784
+        ],
+        [
+          "cuda_driver",
+          "kernel",
+          46152
+        ],
+        [
+          "cuda_runtime",
+          "gpu_memcpy",
+          2932
+        ],
+        [
+          "cuda_runtime",
+          "gpu_memset",
+          9184
+        ],
+        [
+          "cuda_runtime",
+          "kernel",
+          50309
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q24",
+      "rank": 1,
+      "label": "smallkernels",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "n",
+        "under15us",
+        "under15us_sum_ms"
+      ],
+      "rows": [
+        [
+          96079,
+          44032,
+          172.975546
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q25",
+      "rank": 1,
+      "label": "compile_census",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "n"
+      ],
+      "rows": [
+        [
+          "TorchDynamo Cache Lookup",
+          416
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q26",
+      "rank": 0,
+      "label": "context_module",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "thread_name",
+        "process_name",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          33,
+          591.855584
+        ],
+        [
+          "GFSDP::backward_prefetch for mtp.layers.0",
+          "thread 324094 (pt_autograd_0)",
+          "python3.12",
+          64,
+          8.63654
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.7[efsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          8.046111
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.3[fsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          7.176251
+        ],
+        [
+          "GFSDP::forward_prefetch for mtp.layers.0",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          7.041254
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.5[fsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.997217
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.2[fsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.950637
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.6[fsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.942987
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.7[fsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.859948
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.4[fsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.823668
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.1[fsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.764726
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.0",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.657056
+        ],
+        [
+          "GFSDP::forward_prefetch for norm",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.36553
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.6[efsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.361901
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.1[efsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.327653
+        ],
+        [
+          "GFSDP::forward_prefetch for lm_head",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.058792
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.2[efsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.02713
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.4[efsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          6.000427
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.3[efsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          5.971569
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.5[efsdp]",
+          "thread 320681 (python3.12)",
+          "python3.12",
+          32,
+          5.826199
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q27",
+      "rank": 0,
+      "label": "stream_queue",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "category",
+        "linked_n",
+        "queued_before_prior_same_track_end",
+        "launch_after_prior_same_track_end",
+        "avg_launch_end_to_gpu_us",
+        "max_launch_end_to_gpu_us"
+      ],
+      "rows": [
+        [
+          "gpu_memcpy",
+          2932,
+          1857,
+          1075,
+          7235.832505457026,
+          104659.381
+        ],
+        [
+          "gpu_memset",
+          9184,
+          9183,
+          1,
+          15792.623182817943,
+          103901.581
+        ],
+        [
+          "kernel",
+          96459,
+          88163,
+          7885,
+          13589.663793352616,
+          104504.745
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q28",
+      "rank": 0,
+      "label": "gpu_idle_gaps",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "gap_start_ns",
+        "gap_end_ns",
+        "gap_ms",
+        "next_device_name",
+        "host_launch",
+        "launch_start_after_gap_ms",
+        "launch_end_after_gap_ms",
+        "launch_parent"
+      ],
+      "rows": [
+        [
+          3693419130442726,
+          3693419737813438,
+          607.370712,
+          "Memcpy HtoD (Pageable -> Device)",
+          "cudaMemcpyAsync",
+          607.335555,
+          607.372026,
+          "aten::copy_"
+        ],
+        [
+          3693420522066303,
+          3693420524966986,
+          2.900683,
+          "_rowwise_1d_quantize_kernel",
+          "cuLaunchKernelEx",
+          2.885749,
+          2.90212,
+          "hybridep::dispatch"
+        ],
+        [
+          3693429859056505,
+          3693429861121537,
+          2.065032,
+          "Memcpy HtoD (Pageable -> Device)",
+          "cudaMemcpyAsync",
+          2.037924,
+          2.063104,
+          "aten::copy_"
+        ],
+        [
+          3693420282619764,
+          3693420284371337,
+          1.751573,
+          "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 3072u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          "cuLaunchKernelEx",
+          1.742294,
+          1.750534,
+          "## Call CompiledFxGraph f4xrsztxia3igefvbmbwc6amwzj36ok7e6v4xy4umejwh5xjtx7v ##"
+        ],
+        [
+          3693432834854000,
+          3693432836564575,
+          1.710575,
+          "triton_poi_fused__to_copy_bitwise_and_clone_expand_index_select_remainder_view_23",
+          "cuLaunchKernel",
+          1.697631,
+          1.709621,
+          "triton_poi_fused__to_copy_bitwise_and_clone_expand_index_select_remainder_view_23"
+        ],
+        [
+          3693433253994016,
+          3693433255563013,
+          1.568997,
+          "Memcpy DtoH (Device -> Pinned)",
+          "cudaMemcpyAsync",
+          1.553772,
+          1.567752,
+          "aten::_local_scalar_dense"
+        ],
+        [
+          3693429861332929,
+          3693429862275621,
+          0.942692,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.912113,
+          0.943844,
+          "aten::arange"
+        ],
+        [
+          3693429862457093,
+          3693429863059175,
+          0.602082,
+          "void at::native::vectorized_elementwise_kernel<8, at::native::AUnaryFunctor<long, long, bool, at::native::(anonymous namespace)::CompareEqFunctor<long> >, std::array<char*, 2ul>, false>(int, at::native::AUnaryFunctor<long, long, bool, at::native::(anonymous namespace)::CompareEqFunctor<long> >, std::array<char*, 2ul>)",
+          "cudaLaunchKernel",
+          0.586308,
+          0.600409,
+          "aten::ne"
+        ],
+        [
+          3693432425447909,
+          3693432426021928,
+          0.574019,
+          "void deep_gemm::transpose_fp32<512u, 64u, 32u, 33u>(float const*, float*, unsigned int)",
+          "cuLaunchKernelEx",
+          0.563042,
+          0.572422,
+          "## Call CompiledFxGraph f7yn4pmcjbyeifjgv6fefogdj3epoq4bjmqtdgipn53xnzk6bpc5 ##"
+        ],
+        [
+          3693421471118225,
+          3693421471621587,
+          0.503362,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.475494,
+          0.504545,
+          "aten::arange"
+        ],
+        [
+          3693425246838972,
+          3693425247309182,
+          0.47021,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.4417,
+          0.47159,
+          "aten::arange"
+        ],
+        [
+          3693423985886052,
+          3693423986345414,
+          0.459362,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.429315,
+          0.460825,
+          "aten::arange"
+        ],
+        [
+          3693420205815582,
+          3693420206243167,
+          0.427585,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.399262,
+          0.428522,
+          "aten::arange"
+        ],
+        [
+          3693428181055741,
+          3693428181466591,
+          0.41085,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.38218,
+          0.41226,
+          "aten::arange"
+        ],
+        [
+          3693426503741862,
+          3693426504150311,
+          0.408449,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.380048,
+          0.409588,
+          "aten::arange"
+        ],
+        [
+          3693432798183851,
+          3693432798588749,
+          0.404898,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.376745,
+          0.406045,
+          "aten::arange"
+        ],
+        [
+          3693421051405933,
+          3693421051810319,
+          0.404386,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.37692,
+          0.405541,
+          "aten::arange"
+        ],
+        [
+          3693424826539081,
+          3693424826942475,
+          0.403394,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.376189,
+          0.404889,
+          "aten::arange"
+        ],
+        [
+          3693420630239684,
+          3693420630641510,
+          0.401826,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.373968,
+          0.403368,
+          "aten::arange"
+        ],
+        [
+          3693423567188124,
+          3693423567589822,
+          0.401698,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.373519,
+          0.402529,
+          "aten::arange"
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q29",
+      "rank": 0,
+      "label": "item_context",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "parent",
+        "n",
+        "sum_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          "aten::is_nonzero",
+          448,
+          6550.507838,
+          104.017241
+        ],
+        [
+          "task.profile_update.111.train_step.rank0",
+          7,
+          99.389148,
+          50.915963
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q30",
+      "rank": 0,
+      "label": "prefix_host",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "id",
+        "name",
+        "rel_ms",
+        "dur_ms"
+      ],
+      "rows": [
+        [
+          4,
+          "task.profile_update.111.train_step.rank0",
+          0,
+          14129.797383
+        ],
+        [
+          48,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          1.237504,
+          1.843131
+        ],
+        [
+          114,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          4.590583,
+          21.617067
+        ],
+        [
+          213,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          27.988781,
+          8.502167
+        ],
+        [
+          235,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          36.999114,
+          12.576734
+        ],
+        [
+          258,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          50.414017,
+          355.850654
+        ],
+        [
+          302,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          408.223033,
+          17.509261
+        ],
+        [
+          324,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          426.29259,
+          10.221517
+        ],
+        [
+          346,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          436.827721,
+          15.155133
+        ],
+        [
+          368,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          452.298308,
+          9.003953
+        ],
+        [
+          390,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          461.797187,
+          15.008681
+        ],
+        [
+          412,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          477.357255,
+          3.316818
+        ],
+        [
+          456,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          481.442942,
+          33.792566
+        ],
+        [
+          506,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          516.367061,
+          6.277502
+        ],
+        [
+          544,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          523.591344,
+          1.028692
+        ],
+        [
+          566,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          525.124012,
+          5.864807
+        ],
+        [
+          610,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          531.601966,
+          20.859129
+        ],
+        [
+          660,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          553.386535,
+          11.255409
+        ],
+        [
+          698,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          565.582665,
+          19.098378
+        ],
+        [
+          742,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          585.634364,
+          20.705387
+        ],
+        [
+          902,
+          "aten::item",
+          608.277283,
+          50.915963
+        ],
+        [
+          903,
+          "aten::_local_scalar_dense",
+          608.280864,
+          50.910332
+        ],
+        [
+          904,
+          "PythonSubclass",
+          608.283144,
+          50.904342
+        ],
+        [
+          909,
+          "aten::_local_scalar_dense",
+          608.418615,
+          50.749841
+        ],
+        [
+          954,
+          "task.profile_update.111.microbatch.rank0",
+          659.615901,
+          393.288642
+        ],
+        [
+          1156,
+          "Torch-Compiled Region: 0/0",
+          662.397213,
+          4.586843
+        ],
+        [
+          1159,
+          "CompiledFunction",
+          662.535205,
+          4.44244
+        ],
+        [
+          1160,
+          "## Call CompiledFxGraph fb7xs3fuixvjhyddomuwu77hudgczwb72cwwhkmyboaeitidzxwd ##",
+          662.559165,
+          4.329729
+        ],
+        [
+          1542,
+          "Torch-Compiled Region: 0/1",
+          668.24425,
+          9.196425
+        ],
+        [
+          1547,
+          "CompiledFunction",
+          668.320981,
+          9.111884
+        ],
+        [
+          1548,
+          "## Call CompiledFxGraph f2sngysrzkk6aszcqswwgfqyr4o7komd2tm5z4bkov236a52fw7m ##",
+          668.337701,
+          9.006853
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q31",
+      "rank": 0,
+      "label": "ce",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+          128,
+          105.827615
+        ],
+        [
+          "triton_red_fused__log_softmax__to_copy_prepare_softmax_online_view_0",
+          128,
+          94.848091
+        ],
+        [
+          "triton_red_fused__log_softmax__to_copy_nll_loss_forward_view_1",
+          128,
+          0.768925
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q32",
+      "rank": 0,
+      "label": "gfsdp",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "GFSDP::root_post_backward_callback",
+          96,
+          79.156377
+        ],
+        [
+          "GFSDP::all_gather (mtp.layers.0)",
+          64,
+          13.947347
+        ],
+        [
+          "GFSDP::all_gather (tok_embeddings)",
+          64,
+          13.391094
+        ],
+        [
+          "GFSDP::all_gather (layers.7[efsdp])",
+          64,
+          12.054142
+        ],
+        [
+          "GFSDP::pre_forward (tok_embeddings)",
+          32,
+          11.317302
+        ],
+        [
+          "GFSDP::all_gather (layers.5[fsdp])",
+          64,
+          11.133783
+        ],
+        [
+          "GFSDP::all_gather (layers.3[fsdp])",
+          64,
+          10.857504
+        ],
+        [
+          "GFSDP::all_gather (layers.7[fsdp])",
+          64,
+          10.692482
+        ],
+        [
+          "GFSDP::all_gather (layers.2[fsdp])",
+          64,
+          10.593184
+        ],
+        [
+          "GFSDP::all_gather (layers.1[fsdp])",
+          64,
+          10.537867
+        ],
+        [
+          "GFSDP::all_gather (layers.4[fsdp])",
+          64,
+          10.498204
+        ],
+        [
+          "GFSDP::all_gather (layers.6[fsdp])",
+          64,
+          10.406382
+        ],
+        [
+          "GFSDP::all_gather (norm)",
+          64,
+          10.390815
+        ],
+        [
+          "GFSDP::all_gather (layers.0)",
+          64,
+          10.312888
+        ],
+        [
+          "GFSDP::post_backward_reduce (lm_head)",
+          32,
+          10.302476
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.0)",
+          32,
+          10.238758
+        ],
+        [
+          "GFSDP::all_gather (layers.1[efsdp])",
+          64,
+          10.007382
+        ],
+        [
+          "GFSDP::all_gather (layers.6[efsdp])",
+          64,
+          9.803945
+        ],
+        [
+          "GFSDP::all_gather (layers.5[efsdp])",
+          64,
+          9.716947
+        ],
+        [
+          "GFSDP::all_gather (layers.4[efsdp])",
+          64,
+          9.669131
+        ],
+        [
+          "GFSDP::all_gather (layers.2[efsdp])",
+          64,
+          9.55769
+        ],
+        [
+          "GFSDP::all_gather (layers.3[efsdp])",
+          64,
+          9.532764
+        ],
+        [
+          "GFSDP::post_backward_reduce (norm)",
+          32,
+          8.820675
+        ],
+        [
+          "GFSDP::backward_prefetch for mtp.layers.0",
+          64,
+          8.63654
+        ],
+        [
+          "GFSDP::root_pre_forward",
+          96,
+          8.332511
+        ],
+        [
+          "GFSDP::post_backward_reduce (mtp.layers.0)",
+          32,
+          8.287425
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.7[efsdp])",
+          32,
+          8.150441
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.7[fsdp])",
+          32,
+          8.128599
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.7[efsdp]",
+          32,
+          8.046111
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.2[fsdp])",
+          32,
+          7.723666
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.6[fsdp])",
+          32,
+          7.573329
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.4[fsdp])",
+          32,
+          7.535027
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.1[fsdp])",
+          32,
+          7.515544
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.5[fsdp])",
+          32,
+          7.511636
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.3[fsdp])",
+          32,
+          7.460357
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.3[fsdp]",
+          32,
+          7.176251
+        ],
+        [
+          "GFSDP::forward_prefetch for mtp.layers.0",
+          32,
+          7.041254
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.5[fsdp]",
+          32,
+          6.997217
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.2[fsdp]",
+          32,
+          6.950637
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.6[fsdp]",
+          32,
+          6.942987
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.7[fsdp]",
+          32,
+          6.859948
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.4[fsdp]",
+          32,
+          6.823668
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.1[fsdp]",
+          32,
+          6.764726
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.0",
+          32,
+          6.657056
+        ],
+        [
+          "GFSDP::post_backward_reduce (tok_embeddings)",
+          32,
+          6.441163
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.5[efsdp])",
+          32,
+          6.403886
+        ],
+        [
+          "GFSDP::forward_prefetch for norm",
+          32,
+          6.36553
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.6[efsdp]",
+          32,
+          6.361901
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.1[efsdp]",
+          32,
+          6.327653
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.6[efsdp])",
+          32,
+          6.286912
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q33",
+      "rank": 1,
+      "label": "context_module",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "thread_name",
+        "process_name",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          33,
+          631.059163
+        ],
+        [
+          "GFSDP::backward_prefetch for mtp.layers.0",
+          "thread 324047 (python3.12)",
+          "python3.12",
+          64,
+          10.972982
+        ],
+        [
+          "GFSDP::forward_prefetch for mtp.layers.0",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          7.268732
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.3[fsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          7.242221
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.6[fsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          7.033062
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.5[fsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          7.01272
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.7[fsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          6.975503
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.2[fsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          6.932078
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.4[fsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          6.904476
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.1[fsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          6.666218
+        ],
+        [
+          "GFSDP::forward_prefetch for norm",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          6.465923
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.0",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          6.452871
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.1[efsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          6.392533
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.2[efsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          5.99797
+        ],
+        [
+          "GFSDP::forward_prefetch for lm_head",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          5.916696
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.4[efsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          5.85295
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.7[efsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          5.757978
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.5[efsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          5.738816
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.6[efsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          5.725584
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.3[efsdp]",
+          "thread 320682 (python3.12)",
+          "python3.12",
+          32,
+          5.698454
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q34",
+      "rank": 1,
+      "label": "stream_queue",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "category",
+        "linked_n",
+        "queued_before_prior_same_track_end",
+        "launch_after_prior_same_track_end",
+        "avg_launch_end_to_gpu_us",
+        "max_launch_end_to_gpu_us"
+      ],
+      "rows": [
+        [
+          "gpu_memcpy",
+          2932,
+          1858,
+          1074,
+          7252.909925648021,
+          104411.647
+        ],
+        [
+          "gpu_memset",
+          9184,
+          9182,
+          2,
+          15895.198226371953,
+          103503.763
+        ],
+        [
+          "kernel",
+          96461,
+          88139,
+          7905,
+          13676.249942287557,
+          104244.776
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q35",
+      "rank": 1,
+      "label": "gpu_idle_gaps",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "gap_start_ns",
+        "gap_end_ns",
+        "gap_ms",
+        "next_device_name",
+        "host_launch",
+        "launch_start_after_gap_ms",
+        "launch_end_after_gap_ms",
+        "launch_parent"
+      ],
+      "rows": [
+        [
+          3693419129720956,
+          3693419773629379,
+          643.908423,
+          "Memcpy HtoD (Pageable -> Device)",
+          "cudaMemcpyAsync",
+          643.867951,
+          643.909251,
+          "aten::copy_"
+        ],
+        [
+          3693420282600571,
+          3693420284104966,
+          1.504395,
+          "_build_m_indices_kernel",
+          "cuLaunchKernelEx",
+          1.49596,
+          1.50405,
+          "_build_m_indices_kernel_0"
+        ],
+        [
+          3693432834851765,
+          3693432836231495,
+          1.37973,
+          "triton_poi_fused_ones_like_scatter_add_zeros_17",
+          "cuLaunchKernel",
+          1.370098,
+          1.378329,
+          "triton_poi_fused_ones_like_scatter_add_zeros_17"
+        ],
+        [
+          3693429859225597,
+          3693429860156768,
+          0.931171,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.894867,
+          0.932817,
+          "aten::arange"
+        ],
+        [
+          3693433254086014,
+          3693433254929761,
+          0.843747,
+          "Memcpy DtoH (Device -> Pinned)",
+          "cudaMemcpyAsync",
+          0.825632,
+          0.842383,
+          "aten::_local_scalar_dense"
+        ],
+        [
+          3693432425440058,
+          3693432426033916,
+          0.593858,
+          "void deep_gemm::transpose_fp32<512u, 64u, 32u, 33u>(float const*, float*, unsigned int)",
+          "cuLaunchKernelEx",
+          0.58243,
+          0.59202,
+          "## Call CompiledFxGraph f7ornfkswu6yss2g4oehlzwtlw3yts347s6mg4avr5l6jfqtbxmk ##"
+        ],
+        [
+          3693424826586120,
+          3693424827073801,
+          0.487681,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.458017,
+          0.489187,
+          "aten::arange"
+        ],
+        [
+          3693429440638053,
+          3693429441101062,
+          0.463009,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.416094,
+          0.465484,
+          "aten::arange"
+        ],
+        [
+          3693423147052090,
+          3693423147509947,
+          0.457857,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.42594,
+          0.45944,
+          "aten::arange"
+        ],
+        [
+          3693423567172334,
+          3693423567619247,
+          0.446913,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.417265,
+          0.448275,
+          "aten::arange"
+        ],
+        [
+          3693431538054122,
+          3693431538497580,
+          0.443458,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.405465,
+          0.445316,
+          "aten::arange"
+        ],
+        [
+          3693432378888294,
+          3693432379322727,
+          0.434433,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.397379,
+          0.436619,
+          "aten::arange"
+        ],
+        [
+          3693427341852571,
+          3693427342285980,
+          0.433409,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.395629,
+          0.43569,
+          "aten::arange"
+        ],
+        [
+          3693421471139865,
+          3693421471572859,
+          0.432994,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.404109,
+          0.43467,
+          "aten::arange"
+        ],
+        [
+          3693428600077002,
+          3693428600509835,
+          0.432833,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.396422,
+          0.434752,
+          "aten::arange"
+        ],
+        [
+          3693428181090321,
+          3693428181519666,
+          0.429345,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.391566,
+          0.430877,
+          "aten::arange"
+        ],
+        [
+          3693430699531446,
+          3693430699955544,
+          0.424098,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.385892,
+          0.425962,
+          "aten::arange"
+        ],
+        [
+          3693431537378824,
+          3693431537802633,
+          0.423809,
+          "Memcpy HtoD (Pageable -> Device)",
+          "cudaMemcpyAsync",
+          0.408845,
+          0.423696,
+          "aten::copy_"
+        ],
+        [
+          3693431118926737,
+          3693431119349298,
+          0.422561,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.384762,
+          0.424442,
+          "aten::arange"
+        ],
+        [
+          3693424405961678,
+          3693424406381327,
+          0.419649,
+          "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+          "cudaLaunchKernel",
+          0.388093,
+          0.421283,
+          "aten::arange"
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q36",
+      "rank": 1,
+      "label": "item_context",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "parent",
+        "n",
+        "sum_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          "aten::is_nonzero",
+          448,
+          6590.304455,
+          103.560535
+        ],
+        [
+          "task.profile_update.111.train_step.rank1",
+          7,
+          64.324079,
+          48.492655
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q37",
+      "rank": 1,
+      "label": "prefix_host",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "id",
+        "name",
+        "rel_ms",
+        "dur_ms"
+      ],
+      "rows": [
+        [
+          4,
+          "task.profile_update.111.train_step.rank1",
+          0,
+          14129.831724
+        ],
+        [
+          32,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          0.589016,
+          1.070393
+        ],
+        [
+          54,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          2.129534,
+          1.416796
+        ],
+        [
+          120,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          5.011677,
+          11.953097
+        ],
+        [
+          142,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          17.438919,
+          11.042167
+        ],
+        [
+          169,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          28.84024,
+          10.570621
+        ],
+        [
+          191,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          39.806475,
+          10.581981
+        ],
+        [
+          214,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          51.076084,
+          346.222994
+        ],
+        [
+          256,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          398.104297,
+          9.060044
+        ],
+        [
+          300,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          408.00232,
+          14.310694
+        ],
+        [
+          344,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          423.294225,
+          4.31674
+        ],
+        [
+          366,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          427.900398,
+          7.572017
+        ],
+        [
+          410,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          436.157533,
+          17.208467
+        ],
+        [
+          460,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          453.948866,
+          26.481863
+        ],
+        [
+          498,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          481.050167,
+          28.439635
+        ],
+        [
+          548,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          510.317702,
+          36.224484
+        ],
+        [
+          592,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          547.392526,
+          34.04035
+        ],
+        [
+          630,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          582.106903,
+          20.151971
+        ],
+        [
+          680,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          602.881881,
+          25.701444
+        ],
+        [
+          724,
+          "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+          629.489716,
+          13.671956
+        ],
+        [
+          878,
+          "aten::item",
+          644.917032,
+          14.948252
+        ],
+        [
+          879,
+          "aten::_local_scalar_dense",
+          644.921722,
+          14.942382
+        ],
+        [
+          880,
+          "PythonSubclass",
+          644.925143,
+          14.934961
+        ],
+        [
+          885,
+          "aten::_local_scalar_dense",
+          645.056264,
+          14.790239
+        ],
+        [
+          927,
+          "task.profile_update.111.microbatch.rank1",
+          660.191767,
+          391.791415
+        ],
+        [
+          1129,
+          "Torch-Compiled Region: 0/0",
+          662.666466,
+          4.132017
+        ],
+        [
+          1132,
+          "CompiledFunction",
+          662.794547,
+          3.998166
+        ],
+        [
+          1133,
+          "## Call CompiledFxGraph fxnbhlyuwahj2tojxrv6aqg7exutqc7tclroll7vdapuzriujyaw ##",
+          662.818147,
+          3.902715
+        ],
+        [
+          1493,
+          "Torch-Compiled Region: 0/1",
+          667.975906,
+          9.999495
+        ],
+        [
+          1497,
+          "CompiledFunction",
+          668.045227,
+          9.922544
+        ],
+        [
+          1498,
+          "## Call CompiledFxGraph ffykc3lvexzzgbwlgsn4yt27q7oqnxebc46nlkjwbszmcggakzop ##",
+          668.060897,
+          9.838053
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q38",
+      "rank": 1,
+      "label": "ce",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+          128,
+          103.728454
+        ],
+        [
+          "triton_red_fused__log_softmax__to_copy_prepare_softmax_online_view_0",
+          128,
+          93.319884
+        ],
+        [
+          "triton_red_fused__log_softmax__to_copy_nll_loss_forward_view_1",
+          128,
+          0.75904
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q39",
+      "rank": 1,
+      "label": "gfsdp",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "GFSDP::root_post_backward_callback",
+          96,
+          79.378515
+        ],
+        [
+          "GFSDP::all_gather (mtp.layers.0)",
+          64,
+          16.505171
+        ],
+        [
+          "GFSDP::all_gather (tok_embeddings)",
+          64,
+          14.950411
+        ],
+        [
+          "GFSDP::pre_forward (tok_embeddings)",
+          32,
+          12.907312
+        ],
+        [
+          "GFSDP::all_gather (layers.5[fsdp])",
+          64,
+          11.168359
+        ],
+        [
+          "GFSDP::backward_prefetch for mtp.layers.0",
+          64,
+          10.972982
+        ],
+        [
+          "GFSDP::all_gather (layers.3[fsdp])",
+          64,
+          10.94361
+        ],
+        [
+          "GFSDP::post_backward_reduce (lm_head)",
+          32,
+          10.916404
+        ],
+        [
+          "GFSDP::all_gather (layers.7[fsdp])",
+          64,
+          10.654516
+        ],
+        [
+          "GFSDP::all_gather (layers.4[fsdp])",
+          64,
+          10.654283
+        ],
+        [
+          "GFSDP::all_gather (layers.2[fsdp])",
+          64,
+          10.530511
+        ],
+        [
+          "GFSDP::all_gather (norm)",
+          64,
+          10.520361
+        ],
+        [
+          "GFSDP::all_gather (layers.1[fsdp])",
+          64,
+          10.454762
+        ],
+        [
+          "GFSDP::all_gather (layers.6[fsdp])",
+          64,
+          10.448426
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.0)",
+          32,
+          10.120277
+        ],
+        [
+          "GFSDP::all_gather (layers.0)",
+          64,
+          10.117743
+        ],
+        [
+          "GFSDP::all_gather (layers.1[efsdp])",
+          64,
+          10.001519
+        ],
+        [
+          "GFSDP::all_gather (layers.7[efsdp])",
+          64,
+          9.954646
+        ],
+        [
+          "GFSDP::all_gather (layers.5[efsdp])",
+          64,
+          9.630765
+        ],
+        [
+          "GFSDP::all_gather (layers.2[efsdp])",
+          64,
+          9.599789
+        ],
+        [
+          "GFSDP::all_gather (layers.4[efsdp])",
+          64,
+          9.564453
+        ],
+        [
+          "GFSDP::all_gather (layers.3[efsdp])",
+          64,
+          9.373305
+        ],
+        [
+          "GFSDP::all_gather (layers.6[efsdp])",
+          64,
+          9.192711
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.7[efsdp])",
+          32,
+          9.067714
+        ],
+        [
+          "GFSDP::post_backward_reduce (norm)",
+          32,
+          8.75015
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.7[fsdp])",
+          32,
+          8.636661
+        ],
+        [
+          "GFSDP::root_pre_forward",
+          96,
+          8.533556
+        ],
+        [
+          "GFSDP::post_backward_reduce (mtp.layers.0)",
+          32,
+          8.464096
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.2[fsdp])",
+          32,
+          7.801711
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.5[fsdp])",
+          32,
+          7.74329
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.6[fsdp])",
+          32,
+          7.735139
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.1[fsdp])",
+          32,
+          7.548889
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.3[fsdp])",
+          32,
+          7.527436
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.4[fsdp])",
+          32,
+          7.497398
+        ],
+        [
+          "GFSDP::forward_prefetch for mtp.layers.0",
+          32,
+          7.268732
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.3[fsdp]",
+          32,
+          7.242221
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.6[fsdp]",
+          32,
+          7.033062
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.5[fsdp]",
+          32,
+          7.01272
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.7[fsdp]",
+          32,
+          6.975503
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.2[fsdp]",
+          32,
+          6.932078
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.4[fsdp]",
+          32,
+          6.904476
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.6[efsdp])",
+          32,
+          6.825257
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.5[efsdp])",
+          32,
+          6.816447
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.3[efsdp])",
+          32,
+          6.687381
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.1[fsdp]",
+          32,
+          6.666218
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.2[efsdp])",
+          32,
+          6.656955
+        ],
+        [
+          "GFSDP::post_backward_reduce (layers.1[efsdp])",
+          32,
+          6.515995
+        ],
+        [
+          "GFSDP::forward_prefetch for norm",
+          32,
+          6.465923
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.0",
+          32,
+          6.452871
+        ],
+        [
+          "GFSDP::forward_prefetch for layers.1[efsdp]",
+          32,
+          6.392533
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q40",
+      "rank": 0,
+      "label": "loader_frame",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "n",
+        "sum_ms",
+        "first_rel_ms",
+        "last_end_rel_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          33,
+          591.855584,
+          0.622187,
+          607.1169,
+          355.850654
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q41",
+      "rank": 0,
+      "label": "scalar_ancestors",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "parent",
+        "grandparent",
+        "ancestor",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph ftssdzy5nxe6udan44qxmirn3ixq6nmimw7br4ptpi4vie7uaby4 ##",
+          "CompiledFunctionBackward",
+          64,
+          3712.430166
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph f5duhvijewcbgcwe5aoeujr52fyt3n77angb6fg2za3hpswyunhx ##",
+          "CompiledFunctionBackward",
+          96,
+          1150.367261
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph fcfkjz6dt6m4vdkq4dd6xyahlm6yaltpp6lyolkybio4ah66ehmc ##",
+          "CompiledFunctionBackward",
+          32,
+          537.427804
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph fllxrtjpt7osllusyuaqrnwtsms6ad2c2h24qj666co2ynmhp7mq ##",
+          "CompiledFunctionBackward",
+          32,
+          403.837275
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph f7yn4pmcjbyeifjgv6fefogdj3epoq4bjmqtdgipn53xnzk6bpc5 ##",
+          "CompiledFunction",
+          96,
+          291.388364
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph f4xrsztxia3igefvbmbwc6amwzj36ok7e6v4xy4umejwh5xjtx7v ##",
+          "CompiledFunction",
+          64,
+          218.592663
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph f2sngysrzkk6aszcqswwgfqyr4o7komd2tm5z4bkov236a52fw7m ##",
+          "CompiledFunction",
+          32,
+          136.133957
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph fod7fcc52jten2ohnncdypnfx2mkal7cshrmsa74y6s4e3l6acid ##",
+          "CompiledFunction",
+          32,
+          101.151017
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q42",
+      "rank": 0,
+      "label": "early_item",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "rel_ms",
+        "dur_ms",
+        "parent"
+      ],
+      "rows": [
+        [
+          "aten::item",
+          608.277283,
+          50.915963,
+          "task.profile_update.111.train_step.rank0"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          608.280864,
+          50.910332,
+          "aten::item"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          608.418615,
+          50.749841,
+          "PythonSubclass"
+        ],
+        [
+          "aten::item",
+          671.74646,
+          2.667771,
+          "aten::is_nonzero"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          671.7483,
+          2.665521,
+          "aten::item"
+        ],
+        [
+          "aten::item",
+          682.18497,
+          1.972612,
+          "aten::is_nonzero"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          682.18863,
+          1.968032,
+          "aten::item"
+        ],
+        [
+          "aten::item",
+          691.340344,
+          3.090236,
+          "aten::is_nonzero"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          691.341244,
+          3.088776,
+          "aten::item"
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q43",
+      "rank": 0,
+      "label": "distinct_queue",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "category",
+        "linked_device_events",
+        "queued_before_prior_end",
+        "late_after_prior_end",
+        "multiple_launch_flows"
+      ],
+      "rows": [
+        [
+          "gpu_memcpy",
+          2932,
+          1857,
+          1075,
+          0
+        ],
+        [
+          "gpu_memset",
+          9184,
+          9183,
+          1,
+          0
+        ],
+        [
+          "kernel",
+          96013,
+          87717,
+          7885,
+          446
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q44",
+      "rank": 0,
+      "label": "families",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "family",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "nvjet GEMM",
+          8768,
+          4322.665857
+        ],
+        [
+          "other compute/unknown",
+          66981,
+          3954.789901
+        ],
+        [
+          "DeepGEMM",
+          2688,
+          1790.760727
+        ],
+        [
+          "NCCL ReduceScatter",
+          384,
+          1057.424596
+        ],
+        [
+          "NCCL AllGather",
+          736,
+          990.222893
+        ],
+        [
+          "HybridEP combine mixed",
+          640,
+          872.311226
+        ],
+        [
+          "quantization other",
+          11392,
+          777.185045
+        ],
+        [
+          "HybridEP dispatch mixed",
+          640,
+          433.958435
+        ],
+        [
+          "Inductor CE",
+          384,
+          201.444631
+        ],
+        [
+          "NCCL other",
+          424,
+          135.361234
+        ],
+        [
+          "HybridEP other mixed",
+          2976,
+          44.68816
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q45",
+      "rank": 0,
+      "label": "integrity",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "category",
+        "incomplete",
+        "n"
+      ],
+      "rows": [
+        [
+          null,
+          0,
+          2
+        ],
+        [
+          "Trace",
+          0,
+          1
+        ],
+        [
+          "cpu_op",
+          0,
+          413744
+        ],
+        [
+          "cuda_driver",
+          0,
+          46152
+        ],
+        [
+          "cuda_runtime",
+          0,
+          127583
+        ],
+        [
+          "gpu_memcpy",
+          0,
+          2932
+        ],
+        [
+          "gpu_memset",
+          0,
+          9184
+        ],
+        [
+          "gpu_user_annotation",
+          0,
+          3871
+        ],
+        [
+          "kernel",
+          0,
+          96013
+        ],
+        [
+          "overhead",
+          0,
+          28
+        ],
+        [
+          "user_annotation",
+          0,
+          11120
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q46",
+      "rank": 0,
+      "label": "optimizer_launches",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "n",
+        "device_sum_ms",
+        "first_device_start_after_cpu_start_ms",
+        "last_device_end_after_cpu_end_ms"
+      ],
+      "rows": [
+        [
+          "void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::FusedOptimizerTensorListMetadata<4>, at::native::(anonymous namespace)::FusedAdamMathFunctor<float, 4, (at::native::ADAM_MODE)1, false>, float const*, double, double, double, double, double, bool, float const*, float const*>(at::native::(anonymous namespace)::FusedOptimizerTensorListMetadata<4>, at::native::(anonymous namespace)::FusedAdamMathFunctor<float, 4, (at::native::ADAM_MODE)1, false>, float const*, double, double, double, double, double, bool, float const*, float const*)",
+          17,
+          22.735345,
+          27.256446,
+          48.201566
+        ],
+        [
+          "void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<1>, at::native::(anonymous namespace)::BinaryOpScalarFunctor<float, 1, 1, 0>, std::plus<float>, float>(at::native::(anonymous namespace)::TensorListMetadata<1>, at::native::(anonymous namespace)::BinaryOpScalarFunctor<float, 1, 1, 0>, std::plus<float>, float)",
+          1,
+          0.002304,
+          27.253086,
+          25.43886
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q47",
+      "rank": 1,
+      "label": "loader_frame",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "n",
+        "sum_ms",
+        "first_rel_ms",
+        "last_end_rel_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          33,
+          631.059163,
+          0.589016,
+          643.752649,
+          346.222994
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q48",
+      "rank": 1,
+      "label": "scalar_ancestors",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "parent",
+        "grandparent",
+        "ancestor",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph fymwlzaftqyx6pktp3sofbki4zm3k7ryvu3wyuu5x6zo6ef4m7lh ##",
+          "CompiledFunctionBackward",
+          64,
+          3716.512015
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph fntma6yt3xbacyeamqxrgoq5mhhxq7sbsixbw6cbuttmgqino37t ##",
+          "CompiledFunctionBackward",
+          96,
+          1160.162509
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph f5ujlnnjo6gdxqzcg5rzygnqhkh6h5l2sxvyupvv7xlkx2ay6yk3 ##",
+          "CompiledFunctionBackward",
+          32,
+          544.886648
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph frhkumejt5qlf7gshto6yl534xa4i22ygbeigpttgktzevffklry ##",
+          "CompiledFunctionBackward",
+          32,
+          409.860307
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph f7ornfkswu6yss2g4oehlzwtlw3yts347s6mg4avr5l6jfqtbxmk ##",
+          "CompiledFunction",
+          96,
+          303.693963
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph fmc66nvpp4axflaaltmqsckgqqeouyok2jr2ho4mkoy4753yace3 ##",
+          "CompiledFunction",
+          64,
+          219.97418
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph ffykc3lvexzzgbwlgsn4yt27q7oqnxebc46nlkjwbszmcggakzop ##",
+          "CompiledFunction",
+          32,
+          133.755605
+        ],
+        [
+          "torchtitan::conditional_capacity_mask",
+          "## Call CompiledFxGraph f5ewr462dgyi76xawmsaxa7zrcuiwmvaut2ar7r7lf254mufairb ##",
+          "CompiledFunction",
+          32,
+          102.408989
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q49",
+      "rank": 1,
+      "label": "early_item",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "rel_ms",
+        "dur_ms",
+        "parent"
+      ],
+      "rows": [
+        [
+          "aten::item",
+          644.917032,
+          14.948252,
+          "task.profile_update.111.train_step.rank1"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          644.921722,
+          14.942382,
+          "aten::item"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          645.056264,
+          14.790239,
+          "PythonSubclass"
+        ],
+        [
+          "aten::item",
+          671.193683,
+          3.915985,
+          "aten::is_nonzero"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          671.195253,
+          3.913845,
+          "aten::item"
+        ],
+        [
+          "aten::item",
+          682.30602,
+          2.54118,
+          "aten::is_nonzero"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          682.30695,
+          2.53978,
+          "aten::item"
+        ],
+        [
+          "aten::item",
+          691.564266,
+          3.556251,
+          "aten::is_nonzero"
+        ],
+        [
+          "aten::_local_scalar_dense",
+          691.565326,
+          3.554151,
+          "aten::item"
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q50",
+      "rank": 1,
+      "label": "distinct_queue",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "category",
+        "linked_device_events",
+        "queued_before_prior_end",
+        "late_after_prior_end",
+        "multiple_launch_flows"
+      ],
+      "rows": [
+        [
+          "gpu_memcpy",
+          2932,
+          1858,
+          1074,
+          0
+        ],
+        [
+          "gpu_memset",
+          9184,
+          9182,
+          2,
+          0
+        ],
+        [
+          "kernel",
+          96079,
+          87757,
+          7905,
+          382
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q51",
+      "rank": 1,
+      "label": "families",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "family",
+        "n",
+        "sum_ms"
+      ],
+      "rows": [
+        [
+          "nvjet GEMM",
+          8768,
+          4360.350559
+        ],
+        [
+          "other compute/unknown",
+          67047,
+          3955.933153
+        ],
+        [
+          "DeepGEMM",
+          2688,
+          1728.667789
+        ],
+        [
+          "NCCL ReduceScatter",
+          384,
+          1044.157386
+        ],
+        [
+          "NCCL AllGather",
+          736,
+          1023.490955
+        ],
+        [
+          "HybridEP combine mixed",
+          640,
+          920.999052
+        ],
+        [
+          "quantization other",
+          11392,
+          762.249841
+        ],
+        [
+          "HybridEP dispatch mixed",
+          640,
+          411.893412
+        ],
+        [
+          "Inductor CE",
+          384,
+          197.807378
+        ],
+        [
+          "NCCL other",
+          424,
+          136.349259
+        ],
+        [
+          "HybridEP other mixed",
+          2976,
+          45.107216
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q52",
+      "rank": 1,
+      "label": "integrity",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "category",
+        "incomplete",
+        "n"
+      ],
+      "rows": [
+        [
+          null,
+          0,
+          2
+        ],
+        [
+          "Trace",
+          0,
+          1
+        ],
+        [
+          "cpu_op",
+          0,
+          413758
+        ],
+        [
+          "cuda_driver",
+          0,
+          46152
+        ],
+        [
+          "cuda_runtime",
+          0,
+          127597
+        ],
+        [
+          "gpu_memcpy",
+          0,
+          2932
+        ],
+        [
+          "gpu_memset",
+          0,
+          9184
+        ],
+        [
+          "gpu_user_annotation",
+          0,
+          3871
+        ],
+        [
+          "kernel",
+          0,
+          96079
+        ],
+        [
+          "overhead",
+          0,
+          28
+        ],
+        [
+          "user_annotation",
+          0,
+          11120
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q53",
+      "rank": 1,
+      "label": "optimizer_launches",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "n",
+        "device_sum_ms",
+        "first_device_start_after_cpu_start_ms",
+        "last_device_end_after_cpu_end_ms"
+      ],
+      "rows": [
+        [
+          "void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::FusedOptimizerTensorListMetadata<4>, at::native::(anonymous namespace)::FusedAdamMathFunctor<float, 4, (at::native::ADAM_MODE)1, false>, float const*, double, double, double, double, double, bool, float const*, float const*>(at::native::(anonymous namespace)::FusedOptimizerTensorListMetadata<4>, at::native::(anonymous namespace)::FusedAdamMathFunctor<float, 4, (at::native::ADAM_MODE)1, false>, float const*, double, double, double, double, double, bool, float const*, float const*)",
+          17,
+          22.746985,
+          27.428272,
+          48.513586
+        ],
+        [
+          "void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<1>, at::native::(anonymous namespace)::BinaryOpScalarFunctor<float, 1, 1, 0>, std::plus<float>, float>(at::native::(anonymous namespace)::TensorListMetadata<1>, at::native::(anonymous namespace)::BinaryOpScalarFunctor<float, 1, 1, 0>, std::plus<float>, float)",
+          1,
+          0.002464,
+          27.42472,
+          25.736905
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q54",
+      "rank": 0,
+      "label": "kernel_sources",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "family",
+        "launch_parent",
+        "launch_grandparent",
+        "n",
+        "kernel_sum_ms"
+      ],
+      "rows": [
+        [
+          "nvjet",
+          "cudacherry::gemm",
+          "torchtitan::fp8_dense_gemm",
+          6144,
+          1581.18739
+        ],
+        [
+          "nvjet",
+          "aten::mm",
+          "MmBackward0",
+          128,
+          1434.550452
+        ],
+        [
+          "NCCL",
+          "nccl:_reduce_scatter_base",
+          "record_param_comms",
+          384,
+          1057.424596
+        ],
+        [
+          "NCCL",
+          "nccl:_all_gather_base",
+          "record_param_comms",
+          736,
+          990.222893
+        ],
+        [
+          "nvjet",
+          "aten::mm",
+          "aten::matmul",
+          64,
+          725.082333
+        ],
+        [
+          "DeepGEMM",
+          "torchtitan::k_grouped_fp8_gemm_contiguous",
+          "## Call CompiledFxGraph f5duhvijewcbgcwe5aoeujr52fyt3n77angb6fg2za3hpswyunhx ##",
+          192,
+          267.943938
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph f5duhvijewcbgcwe5aoeujr52fyt3n77angb6fg2za3hpswyunhx ##",
+          "CompiledFunctionBackward",
+          576,
+          255.146911
+        ],
+        [
+          "other",
+          "ChunkGatedDeltaRuleFunctionBackward",
+          "autograd::engine::evaluate_function: ChunkGatedDeltaRuleFunctionBackward",
+          1536,
+          251.737054
+        ],
+        [
+          "other",
+          "ChunkGatedDeltaRuleFunction",
+          "torchtitan::gdn_chunk",
+          1920,
+          240.894724
+        ],
+        [
+          "nvjet",
+          "aten::mm",
+          "## Call CompiledFxGraph ftssdzy5nxe6udan44qxmirn3ixq6nmimw7br4ptpi4vie7uaby4 ##",
+          768,
+          212.780895
+        ],
+        [
+          "DeepGEMM",
+          "torchtitan::k_grouped_fp8_gemm_contiguous",
+          "## Call CompiledFxGraph ftssdzy5nxe6udan44qxmirn3ixq6nmimw7br4ptpi4vie7uaby4 ##",
+          128,
+          212.369659
+        ],
+        [
+          "other",
+          "aten::_cudnn_attention_backward",
+          "aten::_scaled_dot_product_cudnn_attention_backward",
+          288,
+          210.992849
+        ],
+        [
+          "nvjet",
+          "aten::mm",
+          "## Call CompiledFxGraph faszywbeqlhy6l74pfngzucsxp75jfn6se4rf4riafwci3mbacwy ##",
+          480,
+          205.582597
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph ftssdzy5nxe6udan44qxmirn3ixq6nmimw7br4ptpi4vie7uaby4 ##",
+          "CompiledFunctionBackward",
+          384,
+          202.429125
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph f7yn4pmcjbyeifjgv6fefogdj3epoq4bjmqtdgipn53xnzk6bpc5 ##",
+          "CompiledFunction",
+          384,
+          188.109708
+        ],
+        [
+          "HybridEP",
+          "hybridep::combine_bwd",
+          "## Call CompiledFxGraph f5duhvijewcbgcwe5aoeujr52fyt3n77angb6fg2za3hpswyunhx ##",
+          288,
+          166.198005
+        ],
+        [
+          "HybridEP",
+          "hybridep::combine",
+          "## Call CompiledFxGraph f7yn4pmcjbyeifjgv6fefogdj3epoq4bjmqtdgipn53xnzk6bpc5 ##",
+          288,
+          155.863859
+        ],
+        [
+          "other",
+          "_FusedQKVConv1dUnpackFn",
+          "torchtitan::qkv_conv1d_unpack",
+          384,
+          151.653952
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph f4xrsztxia3igefvbmbwc6amwzj36ok7e6v4xy4umejwh5xjtx7v ##",
+          "CompiledFunction",
+          256,
+          144.854894
+        ],
+        [
+          "NCCL",
+          "nccl:all_reduce",
+          "record_param_comms",
+          424,
+          135.361234
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph fllxrtjpt7osllusyuaqrnwtsms6ad2c2h24qj666co2ynmhp7mq ##",
+          "CompiledFunctionBackward",
+          256,
+          135.154919
+        ],
+        [
+          "other",
+          "aten::_cudnn_attention_forward",
+          "aten::_scaled_dot_product_cudnn_attention",
+          192,
+          132.120158
+        ],
+        [
+          "HybridEP",
+          "hybridep::combine",
+          "## Call CompiledFxGraph f5duhvijewcbgcwe5aoeujr52fyt3n77angb6fg2za3hpswyunhx ##",
+          288,
+          127.056046
+        ],
+        [
+          "other",
+          "_FusedQKVConv1dUnpackFnBackward",
+          "autograd::engine::evaluate_function: _FusedQKVConv1dUnpackFnBackward",
+          576,
+          107.947214
+        ],
+        [
+          "CE",
+          "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+          "## Call CompiledFxGraph fmmz2yat46nvtdpi27y57myqjwgi6dccjvzftomkclltgymw66xd ##",
+          128,
+          105.827615
+        ],
+        [
+          "DeepGEMM",
+          "torchtitan::k_grouped_fp8_gemm_contiguous",
+          "## Call CompiledFxGraph fllxrtjpt7osllusyuaqrnwtsms6ad2c2h24qj666co2ynmhp7mq ##",
+          64,
+          95.413467
+        ],
+        [
+          "CE",
+          "triton_red_fused__log_softmax__to_copy_prepare_softmax_online_view_0",
+          "## Call CompiledFxGraph fjd33u2s7vt5jlsqtj44uhc33km6y24qkiikmjozrsgg53yfgm3b ##",
+          128,
+          94.848091
+        ],
+        [
+          "other",
+          "ChunkGatedDeltaRuleFunction",
+          "torchtitan::fla_vjp",
+          960,
+          92.97157
+        ],
+        [
+          "other",
+          "aten::cat",
+          "SplitBackward0",
+          64,
+          92.61774
+        ],
+        [
+          "DeepGEMM",
+          "torchtitan::k_grouped_fp8_gemm_contiguous",
+          "## Call CompiledFxGraph fcfkjz6dt6m4vdkq4dd6xyahlm6yaltpp6lyolkybio4ah66ehmc ##",
+          64,
+          92.004107
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q55",
+      "rank": 0,
+      "label": "head_gather",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "name",
+        "n",
+        "host_sum_ms"
+      ],
+      "rows": [
+        [
+          "GFSDP::all_gather (layers.0)",
+          64,
+          10.312888
+        ],
+        [
+          "GFSDP::all_gather (layers.1[efsdp])",
+          64,
+          10.007382
+        ],
+        [
+          "GFSDP::all_gather (layers.1[fsdp])",
+          64,
+          10.537867
+        ],
+        [
+          "GFSDP::all_gather (layers.2[efsdp])",
+          64,
+          9.55769
+        ],
+        [
+          "GFSDP::all_gather (layers.2[fsdp])",
+          64,
+          10.593184
+        ],
+        [
+          "GFSDP::all_gather (layers.3[efsdp])",
+          64,
+          9.532764
+        ],
+        [
+          "GFSDP::all_gather (layers.3[fsdp])",
+          64,
+          10.857504
+        ],
+        [
+          "GFSDP::all_gather (layers.4[efsdp])",
+          64,
+          9.669131
+        ],
+        [
+          "GFSDP::all_gather (layers.4[fsdp])",
+          64,
+          10.498204
+        ],
+        [
+          "GFSDP::all_gather (layers.5[efsdp])",
+          64,
+          9.716947
+        ],
+        [
+          "GFSDP::all_gather (layers.5[fsdp])",
+          64,
+          11.133783
+        ],
+        [
+          "GFSDP::all_gather (layers.6[efsdp])",
+          64,
+          9.803945
+        ],
+        [
+          "GFSDP::all_gather (layers.6[fsdp])",
+          64,
+          10.406382
+        ],
+        [
+          "GFSDP::all_gather (layers.7[efsdp])",
+          64,
+          12.054142
+        ],
+        [
+          "GFSDP::all_gather (layers.7[fsdp])",
+          64,
+          10.692482
+        ],
+        [
+          "GFSDP::all_gather (lm_head)",
+          32,
+          5.381982
+        ],
+        [
+          "GFSDP::all_gather (mtp.layers.0)",
+          64,
+          13.947347
+        ],
+        [
+          "GFSDP::all_gather (norm)",
+          64,
+          10.390815
+        ],
+        [
+          "GFSDP::all_gather (tok_embeddings)",
+          64,
+          13.391094
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q56",
+      "rank": 0,
+      "label": "gpu_gap_summary",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "n",
+        "interior_idle_ms",
+        "gaps_over1ms",
+        "over1ms_total_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          90849,
+          1083.498102,
+          6,
+          617.367572,
+          607.370712
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q57",
+      "rank": 0,
+      "label": "mb_integrity",
+      "trace_id": "trace_d9e7ae24dd735c55",
+      "columns": [
+        "n",
+        "outside_train",
+        "min_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          32,
+          0,
+          388.287115,
+          400.260983
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q58",
+      "rank": 1,
+      "label": "kernel_sources",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "family",
+        "launch_parent",
+        "launch_grandparent",
+        "n",
+        "kernel_sum_ms"
+      ],
+      "rows": [
+        [
+          "nvjet",
+          "cudacherry::gemm",
+          "torchtitan::fp8_dense_gemm",
+          6144,
+          1593.011048
+        ],
+        [
+          "nvjet",
+          "aten::mm",
+          "MmBackward0",
+          128,
+          1441.436328
+        ],
+        [
+          "NCCL",
+          "nccl:_reduce_scatter_base",
+          "record_param_comms",
+          384,
+          1044.157386
+        ],
+        [
+          "NCCL",
+          "nccl:_all_gather_base",
+          "record_param_comms",
+          736,
+          1023.490955
+        ],
+        [
+          "nvjet",
+          "aten::mm",
+          "aten::matmul",
+          64,
+          744.450177
+        ],
+        [
+          "DeepGEMM",
+          "torchtitan::k_grouped_fp8_gemm_contiguous",
+          "## Call CompiledFxGraph fntma6yt3xbacyeamqxrgoq5mhhxq7sbsixbw6cbuttmgqino37t ##",
+          192,
+          286.461071
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph fntma6yt3xbacyeamqxrgoq5mhhxq7sbsixbw6cbuttmgqino37t ##",
+          "CompiledFunctionBackward",
+          576,
+          274.646493
+        ],
+        [
+          "other",
+          "ChunkGatedDeltaRuleFunctionBackward",
+          "autograd::engine::evaluate_function: ChunkGatedDeltaRuleFunctionBackward",
+          1536,
+          250.663166
+        ],
+        [
+          "other",
+          "ChunkGatedDeltaRuleFunction",
+          "torchtitan::gdn_chunk",
+          1920,
+          241.228227
+        ],
+        [
+          "nvjet",
+          "aten::mm",
+          "## Call CompiledFxGraph fymwlzaftqyx6pktp3sofbki4zm3k7ryvu3wyuu5x6zo6ef4m7lh ##",
+          768,
+          211.591255
+        ],
+        [
+          "other",
+          "aten::_cudnn_attention_backward",
+          "aten::_scaled_dot_product_cudnn_attention_backward",
+          288,
+          210.560608
+        ],
+        [
+          "nvjet",
+          "aten::mm",
+          "## Call CompiledFxGraph fyjqcezhfng2dwwfovyszr7vy6ydu73jxfftkaekddzvhaumpc7v ##",
+          480,
+          205.176562
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph f7ornfkswu6yss2g4oehlzwtlw3yts347s6mg4avr5l6jfqtbxmk ##",
+          "CompiledFunction",
+          384,
+          202.5157
+        ],
+        [
+          "DeepGEMM",
+          "torchtitan::k_grouped_fp8_gemm_contiguous",
+          "## Call CompiledFxGraph fymwlzaftqyx6pktp3sofbki4zm3k7ryvu3wyuu5x6zo6ef4m7lh ##",
+          128,
+          176.560602
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph fymwlzaftqyx6pktp3sofbki4zm3k7ryvu3wyuu5x6zo6ef4m7lh ##",
+          "CompiledFunctionBackward",
+          384,
+          167.910483
+        ],
+        [
+          "other",
+          "_FusedQKVConv1dUnpackFn",
+          "torchtitan::qkv_conv1d_unpack",
+          384,
+          150.313953
+        ],
+        [
+          "HybridEP",
+          "hybridep::combine_bwd",
+          "## Call CompiledFxGraph fntma6yt3xbacyeamqxrgoq5mhhxq7sbsixbw6cbuttmgqino37t ##",
+          288,
+          149.386904
+        ],
+        [
+          "HybridEP",
+          "hybridep::combine",
+          "## Call CompiledFxGraph f7ornfkswu6yss2g4oehlzwtlw3yts347s6mg4avr5l6jfqtbxmk ##",
+          288,
+          140.808386
+        ],
+        [
+          "NCCL",
+          "nccl:all_reduce",
+          "record_param_comms",
+          424,
+          136.349259
+        ],
+        [
+          "other",
+          "aten::_cudnn_attention_forward",
+          "aten::_scaled_dot_product_cudnn_attention",
+          192,
+          136.22632
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph frhkumejt5qlf7gshto6yl534xa4i22ygbeigpttgktzevffklry ##",
+          "CompiledFunctionBackward",
+          256,
+          127.521433
+        ],
+        [
+          "DeepGEMM",
+          "## Call CompiledFxGraph fmc66nvpp4axflaaltmqsckgqqeouyok2jr2ho4mkoy4753yace3 ##",
+          "CompiledFunction",
+          256,
+          121.293969
+        ],
+        [
+          "HybridEP",
+          "hybridep::combine",
+          "## Call CompiledFxGraph fntma6yt3xbacyeamqxrgoq5mhhxq7sbsixbw6cbuttmgqino37t ##",
+          288,
+          120.619199
+        ],
+        [
+          "HybridEP",
+          "hybridep::combine_bwd",
+          "## Call CompiledFxGraph fymwlzaftqyx6pktp3sofbki4zm3k7ryvu3wyuu5x6zo6ef4m7lh ##",
+          192,
+          112.975239
+        ],
+        [
+          "other",
+          "_FusedQKVConv1dUnpackFnBackward",
+          "autograd::engine::evaluate_function: _FusedQKVConv1dUnpackFnBackward",
+          576,
+          107.480969
+        ],
+        [
+          "HybridEP",
+          "hybridep::combine",
+          "## Call CompiledFxGraph fmc66nvpp4axflaaltmqsckgqqeouyok2jr2ho4mkoy4753yace3 ##",
+          192,
+          104.649187
+        ],
+        [
+          "CE",
+          "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+          "## Call CompiledFxGraph feknixa4jsyhozdf362xf2eesnclhbeogfytrbgufjmz7hnrcym2 ##",
+          128,
+          103.728454
+        ],
+        [
+          "CE",
+          "triton_red_fused__log_softmax__to_copy_prepare_softmax_online_view_0",
+          "## Call CompiledFxGraph frot2dx7qvbckxhna6tsz5qrhjf5j3zyv4u5fstnd2jivqjafsje ##",
+          128,
+          93.319884
+        ],
+        [
+          "other",
+          "ChunkGatedDeltaRuleFunction",
+          "torchtitan::fla_vjp",
+          960,
+          92.795546
+        ],
+        [
+          "other",
+          "aten::cat",
+          "SplitBackward0",
+          64,
+          92.391236
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q59",
+      "rank": 1,
+      "label": "head_gather",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "name",
+        "n",
+        "host_sum_ms"
+      ],
+      "rows": [
+        [
+          "GFSDP::all_gather (layers.0)",
+          64,
+          10.117743
+        ],
+        [
+          "GFSDP::all_gather (layers.1[efsdp])",
+          64,
+          10.001519
+        ],
+        [
+          "GFSDP::all_gather (layers.1[fsdp])",
+          64,
+          10.454762
+        ],
+        [
+          "GFSDP::all_gather (layers.2[efsdp])",
+          64,
+          9.599789
+        ],
+        [
+          "GFSDP::all_gather (layers.2[fsdp])",
+          64,
+          10.530511
+        ],
+        [
+          "GFSDP::all_gather (layers.3[efsdp])",
+          64,
+          9.373305
+        ],
+        [
+          "GFSDP::all_gather (layers.3[fsdp])",
+          64,
+          10.94361
+        ],
+        [
+          "GFSDP::all_gather (layers.4[efsdp])",
+          64,
+          9.564453
+        ],
+        [
+          "GFSDP::all_gather (layers.4[fsdp])",
+          64,
+          10.654283
+        ],
+        [
+          "GFSDP::all_gather (layers.5[efsdp])",
+          64,
+          9.630765
+        ],
+        [
+          "GFSDP::all_gather (layers.5[fsdp])",
+          64,
+          11.168359
+        ],
+        [
+          "GFSDP::all_gather (layers.6[efsdp])",
+          64,
+          9.192711
+        ],
+        [
+          "GFSDP::all_gather (layers.6[fsdp])",
+          64,
+          10.448426
+        ],
+        [
+          "GFSDP::all_gather (layers.7[efsdp])",
+          64,
+          9.954646
+        ],
+        [
+          "GFSDP::all_gather (layers.7[fsdp])",
+          64,
+          10.654516
+        ],
+        [
+          "GFSDP::all_gather (lm_head)",
+          32,
+          5.314464
+        ],
+        [
+          "GFSDP::all_gather (mtp.layers.0)",
+          64,
+          16.505171
+        ],
+        [
+          "GFSDP::all_gather (norm)",
+          64,
+          10.520361
+        ],
+        [
+          "GFSDP::all_gather (tok_embeddings)",
+          64,
+          14.950411
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q60",
+      "rank": 1,
+      "label": "gpu_gap_summary",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "n",
+        "interior_idle_ms",
+        "gaps_over1ms",
+        "over1ms_total_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          90932,
+          1131.58259,
+          3,
+          646.792548,
+          643.908423
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    },
+    {
+      "query_id": "q61",
+      "rank": 1,
+      "label": "mb_integrity",
+      "trace_id": "trace_40a5092f8f0c7a38",
+      "columns": [
+        "n",
+        "outside_train",
+        "min_ms",
+        "max_ms"
+      ],
+      "rows": [
+        [
+          32,
+          0,
+          388.459177,
+          395.506707
+        ]
+      ],
+      "error": false,
+      "truncated": false
+    }
+  ],
+  "trace_artifact_storage": {
+    "status": "lossless canonical gzip pair; original MCP inputs are historical paths",
+    "compression_receipt": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/trace-compression.json",
+    "mapping_fields": "traces[].path and historical_mcp_input_path are original paths loaded by MCP; traces[].current_canonical_gzip_artifact is the current readable artifact",
+    "original_pair_bytes": 602500095,
+    "compressed_pair_bytes": 45573265,
+    "logical_bytes_removed": 556926830,
+    "full_roundtrip_size_and_sha256_verified_before_original_removal": true,
+    "no_plain_trace_copy_retained": true,
+    "other_raw_run_artifacts_unchanged": true,
+    "observed_nfs_available_bytes_delta": 0,
+    "observed_nfs_available_inodes_delta": 0,
+    "profile_cache": {
+      "path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/cache",
+      "status": "removed; four compiled CE wrapper sources retained",
+      "bytes": 604978569,
+      "files": 9217,
+      "reason": "exact four minimal AOT wrappers retained with original hashes; obsolete private cache removed after processes stopped",
+      "status_at_compression_receipt": "preserved",
+      "cleanup_status_after_receipt": "complete",
+      "completion_receipt_available": true,
+      "cleanup_receipt": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/obsolete-cache-cleanup.json",
+      "retained_wrapper_manifest": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/k1a-compiled-ce-evidence/manifest.json",
+      "retained_wrapper_bytes": 73504
+    }
+  }
+}

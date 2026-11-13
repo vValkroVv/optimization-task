@@ -33,7 +33,7 @@ mean `references/kindulov/source/`, `references/hidden-z-loss/source/` and
 
 | ID | Source reconciliation and applicability | Expected costs, risks and decision gate |
 | --- | --- | --- |
-| K1a: cap-zero fused CE | **Applicable and missing.** G/torchtitan/components/loss.py:34–44 converts each logits chunk to FP32 for CE. K/torchtitan/ops/softcap_cross_entropy.py:12–55 saves logits, labels and FP32 row LSE; :58–93 permits cap zero and int64 targets. K/torchtitan/ops/_softcap_cross_entropy.py:9–15 explicitly skips softcap at cap zero, :22–43 computes FP32 online LSE with ignored labels, and :50–65 writes logits-dtype gradient. MTP inherits the donor chunk loss. | Can avoid full-vocabulary FP32 CE intermediates while retaining low-precision logits; still computes logits and scans vocabulary. Triton uses one row program and 4096-column tiles, so V128256 is a concrete performance question. GPU summation/rounding may differ. Preserve SUM/global-valid-token scaling, MTP weights, int64 labels, first-order gradients, head hooks, monitoring 2/32 chunks and FP32 hidden-gradient accumulation. Require eager/compiled elementwise loss/gradient comparisons and full fixed-workload runtime evidence. |
+| K1a: cap-zero fused CE | **Independent algorithm remains applicable; proposed FP32-buffer removal is already present.** Actual G3 AOT forward saves BF16 logits/labels and two FP32 row statistics; backward writes BF16 gradients without a full-vocabulary FP32 buffer. Donor K saves one FP32 row LSE and directly computes softmax-minus-one-hot, removing the baseline backward's vocabulary-wide one-hot-gradient reduction. See [compiled contract and four pinned cache wrappers](k1a-compiled-contract.md). | Ordinary paths both use three kernels per CE chunk; the donor is not a launch-count reduction. Remaining arithmetic benefit and small row-stat lifetime difference are unmeasured. Adapt donor integration to preserve compiled CE rather than its eager bypass, without adding the unsupported head softcap keyword at cap zero. Unchanged donor also loses normalization for finite large equal logits: the pinned formula proof requires separate FP32 maximum/log-denominator statistics and an actual CUDA/compiled regression before acceptance. Preserve SUM/global-valid-token scaling, MTP weights, signed int64 labels, ignored/all-ignored behavior, head hooks, monitoring 2/32 chunks and FP32 hidden-gradient accumulation. Eager/compiled elementwise checks, native integration, A/B and comparable traces remain open. |
 | K1b: completed chunk lifetime | **Applicable and missing independently of fusion.** Current G/loss.py:738–762 keeps Python `logits` and `chunk_loss` references until the next iteration rebinds them; the next head output is allocated while the prior logits variable is still live. K/loss.py:751 releases both after inner backward. Current code already clears `h_chunk.grad`; :703–706 still keeps all contiguous hidden/label chunks, and :708–712 retains the FP32 accumulated hidden gradient. | Explicit deletion can remove adjacent-logits overlap without changing computation. It does not eliminate all chunk copies or head buffers. Measure phase-aligned allocated/reserved peaks and actual end-to-end effect; allocator reuse and compiler ownership determine magnitude. Keep argmax sink/metrics and exception cleanup intact. |
 | K2: dense/shared local FFN recomputation | **Applicable, missing as a local option; incremental benefit unresolved.** Current G/models/common/ffn/__init__.py:85–129 already uses FP8 projections, fused SwiGLU quantization and FP8-input storage, but has no local checkpoint. K/same-file:132–164 wraps the FP8-capable implementation in nonreentrant checkpoint and commits temporary clip counts outside that boundary. Shared experts use the same component through G/models/common/moe/__init__.py:69–70,183. | Fixed block SAC already replays these paths: G/distributed/activation_checkpoint.py:187–210 distinguishes dense `mm` from grouped `experts_up`; saving routed up projections does not mean dense/shared projections are saved. Nesting local checkpoints may add replay, retain an extra boundary input and change compiler partitioning. Dense layer0 uses recompute; most MoE blocks save routed up results only; the outer MTP segment falls through to global selective SAC with an empty save list. Do not call this inapplicable merely because SAC exists, or a saving merely because the donor supports FP8. Trace/saved-tensor evidence must show additional removable lifetime without unacceptable repeated GEMMs. Preserve FP8 `orig_shape` handling and clip/aux counters under both replay levels. |
 | K3: routed local recomputation | **Inapplicable unchanged under required routed FP8.** Actual guard is K/models/common/moe/experts/gmm.py:111–115, not the package `__init__.py`: it raises when recompute and FP8 grouped GEMM are both enabled. BF16 checkpoint branch is at :212. | Converting routed experts to BF16 violates the workload. Existing SAC and FP8 grouped GEMM remain. A new FP8 algorithm is beyond a direct donor port; no performance claim follows from the BF16 implementation. |
@@ -103,54 +103,295 @@ silently adding a second capture campaign. No K2 implementation is active.
 
 ## V2 lifetime and state findings
 
-The donor producer owns source iteration and closes it on that same thread
-(V/core/prefetch.py:51–107). `copy_context()` carries context variables. The
-condition guards `_active`, ready queue and pause; it sets active before `next`
-and clears it in `finally`. Capacity checks happen before reading the next item.
-Errors are stored, queued items drain first, then consumer raises (:109–120).
-`paused()` waits for any active read and rejects a saved error (:123–134).
-`close()` requests shutdown but does not interrupt a blocking source read;
-`join(timeout)` raises if it still runs (:136–147). These are concrete contracts,
-not proof of correct text-loader integration.
+### Selected minimal port and acceptance
 
-Deeper installed-source inspection changes the proposed checkpoint integration:
-use a **committed consumer cursor**, not ready-queue serialization. GIFT stores
-rank-identical `dp_rank_0` state and supports changed world size/replication;
-rank-specific queued batches do not fit that elastic contract. Installed
-`StreamingDataLoader.__iter__` advances its cursor before yielding, and its local
-`state_dict()` performs no collective. Queue `(batch,state-after-batch)` and
-commit metadata only on delivery, saving the same scalar-state format; recompute
-undelivered batches on restore. This adds a shared-memory read/JSON decode per
-produced batch and must be included in the cost comparison.
+**Specification only; no implementation or performance acceptance.** Reuse the
+bounded `PrefetchIterator` from donor `860152d111e4bac25daecbe3cc0cd84c68c8af9c`
+(V/core/prefetch.py), with a thin finite-epoch adapter around the existing Mosaic
+loader. Keep `streaming_text`, its dataset/collator and scalar checkpoint format.
+The finite deliverable is config wiring, producer/consumer cursor separation,
+consumer-owned epoch entry and cleanup, behavior regressions, then the existing
+native numerical/performance gates. No loader replacement, new state framework,
+GPU copy/stream, trainer accumulation/normalization rewrite or preset change is
+part of V2.
 
-Do not background-wrap the existing infinite generator: one producer can enter
-Mosaic's node-shared next-epoch barrier while another queue pauses before it,
-deadlocking checkpoint pause/join. Use a finite single-epoch producer and restart
-on the consumer only after draining. Construct/reset/prime DataLoader iterators
-on the consumer thread to preserve global CPU RNG draw timing and PyTorch's
-main-thread SIGCHLD setup. Keep generator/data-world context and checkpoint/PP
-collectives on their existing consumer paths. Same-instance load must also reset
-Mosaic epoch bookkeeping: forwarding an older saved epoch can otherwise be
-ignored after `next_epoch` advanced. Closing cannot cancel blocked `next()`;
-join timeout is a failure, not permission to reset a live source.
+Installed Streaming0.13.0 source remains authoritative: dataloader SHA-256
+`5328e3970ad2557df6bceeab64b18fc60691dbc39cb5ccb88631c985ab9cbfce` and dataset
+`3bac8df314d3a9faac01b9f65e8a4de01420639feb67949194a6d6cbc3df02fb`, matching
+[the data receipt](mds-data.json). Reinspected PyTorch2.15 development
+`torch/utils/data/dataloader.py` is
+`793f8e638fe953b55111b54c6efe007a44cc57abf031b3105f6a487ec666d58a`; its
+`_utils/signal_handling.py` is
+`20f1545bbf8f20445a89971fca8fb7f44fd9337f5aa6c0df336cf17f8246579e`.
+These identify the installed `/opt/torchtitan-venv/lib/python3.12/site-packages`
+files; current online documentation is background, not a replacement pin.
+The official [PyTorch DataLoader documentation](https://docs.pytorch.org/docs/main/data.html)
+and [Mosaic checkpoint interface](https://docs.mosaicml.com/projects/streaming/en/stable/api_reference/generated/streaming.StreamingDataLoader.html)
+confirm existing worker prefetch and loader state interfaces. Installed source
+shows the concrete gap: neither supplies a bounded asynchronous main iterator
+whose checkpoint cursor advances only when GIFT consumes a batch. The donor
+supplies queue mechanics but no text-loader integration. A thin adaptation is
+therefore required; replacing Mosaic would expand checkpoint/partition contracts.
 
-The minimal proposed selector is default-off `num_prefetch_batches: 0`, with two
-as an initial isolated trial. At B2/S4096 its additional ready-batch tensors are
-about320 KiB/rank, excluding producer/Python/IPC overhead and existing worker
-buffers. Installed PyTorch already resolves null prefetch factor to two per
-worker (four outstanding with two workers); Mosaic also has preparation threads.
-These established paths do not supply a checkpoint-aware asynchronous main
-iterator. See official [PyTorch DataLoader](https://docs.pytorch.org/docs/main/data.html),
-[Mosaic tuning](https://docs.mosaicml.com/projects/streaming/en/latest/distributed_training/performance_tuning.html)
-and [checkpoint interface](https://docs.mosaicml.com/projects/streaming/en/stable/api_reference/generated/streaming.StreamingDataLoader.html).
+### Queue depth and what the trace can establish
 
-The donor tests cover generic queue/pause/error/exhaustion, not actual elastic
-Mosaic state. Required integration tests include queue-ahead exact continuation,
-unequal-rank epoch-boundary pause, existing changed-world-size/replication/chained
-resume, CPU RNG parity, persistent/nonpersistent workers, same-instance load,
-validation early break/reiteration and thread cleanup. The real eight-rank
-fixture must retain exact row/label/position ordering through wrap and resume.
-Campaign saves are off, so successful training alone cannot close continuation.
+Use default-off `num_prefetch_batches: int = 0`; reject negative values. Select
+**32** only in the isolated candidate override, superseding the earlier provisional
+trial depth2. `Trainer.train_step` consumes32 microbatches before any model compute;
+a queue of2 can hold only two already-materialized batches across that compute
+interval. Depth32 can hold a full next fetch burst when the finite epoch has that
+many remaining batches. This is a workload-based trial choice, not evidence of
+an optimal depth or a speedup. Do not add a queue-depth sweep to this campaign.
+
+The actual `TextPretrainCollator` returns int64 `input` and labels, plus int32
+`positions`, each B2/S4096: `(8+8+4)*2*4096 = 163840` bytes, **160KiB/batch**.
+Thus depth2 is320KiB and depth32 is **5MiB/rank** of ready tensors, not4.2MiB.
+This excludes Python/state dictionaries, IPC/storage ownership, existing worker
+queues and Mosaic preparation threads. The trainer already holds up to32 CPU
+microbatches; the feature may retain another32 while compute runs. No tensor clone
+is required by the queue. Actual storage lifetime and process RSS remain measured
+gates, especially while trainer inputs migrate to GPU and workers recycle buffers.
+Two workers with null `prefetch_factor` already resolve to two tasks/worker,
+four outstanding tasks; V2 adds main-iterator materialization beyond that layer.
+
+The supplied G3 MCP evidence for ordinary update111 reports rank0/1 underlying
+DataLoader33-next sums591.856/631.059ms, before first microbatch at659.616/660.192ms;
+the largest input prefix is607/644ms. CPU frame14.130s differs from unprofiled
+ordinary roughly13.79s. All-GPU idle1.086/1.133s includes causes beyond input.
+896 rows /8 ranks /B2 gives56 local batches/epoch; update111 starts at
+`110*32 mod56 = 48`, consuming8 old-epoch then24 new-epoch batches. Thirty-three
+calls are consistent with32 deliveries plus `StopIteration`; a355/346ms call
+near wrap is observed, but worker/epoch causality is not directly established.
+
+A safe producer cannot start the next epoch ahead of the consumer. First-batch
+epoch entry remains synchronous, so the port cannot be credited with eliminating
+all0.6s of input time or the wrap call. It may overlap the ready portion of the
+next burst with the current update's GPU work; a depth32 queue cannot cross the
+barrier to prepare those24 new-epoch batches. Keep the fixed native111–160 window
+(which covers every epoch phase), accepted G2 A/A controls and candidate profile111.
+No new trace campaign is needed. The unprofiled comparison must retain monitor150,
+all FP8/compile/CuTe/SAC/MTP settings, B2/S4096/accum32, FSDP8/EP8, seed2048 and
+scheduler65000/2000; the G2 baseline is124454.812 global input tokens/s with
+A2/A1−0.074173%, not a promised V2 gain.
+
+### Exact integration boundary and cursor ownership
+
+Proposed owned training files and APIs (names below are port contracts, not
+claims that these methods already exist):
+
+- `torchtitan/config/schema/datasets/streaming/core/dataloader.py`:
+  `BaseStreamingDataLoaderConfig.num_prefetch_batches`, default0 and lightweight
+  nonnegative validation. Document one candidate override; keep canonical YAML0.
+- `torchtitan/datasets/streaming/core/prefetch.py`: adapted donor
+  `PrefetchIterator`, retaining `paused()`, `close()` and `join(timeout)` semantics.
+  Preserve donor provenance/license. Do not edit the inert reference snapshot.
+- `torchtitan/datasets/streaming/core/dataloader.py`:
+  `_TitanStreamingDataLoader.begin_prefetch_epoch()` constructs/resets the raw
+  PyTorch iterator with `torch.utils.data.DataLoader.__iter__(self)` and resets
+  `num_samples_yielded=0` on the consumer. It **primes the first batch on the
+  consumer**, increments the counter with existing `_get_batch_size`, and snapshots
+  through existing `StreamingDataLoader.state_dict()`. Return this primed
+  `(batch,state_after_batch)` and a finite remainder source. Each producer read
+  mirrors that same increment/snapshot sequence. Do not use the lazy Mosaic
+  `__iter__` wrapper as an allegedly already-initialized source.
+- The same file's `BaseStreamingDataLoader.__iter__` owns the outer infinite
+  loop and the enabled epoch producer. Start a thread only after successful
+  priming; enqueue the first pair, then finite remainder pairs. On delivery,
+  replace a separate `_committed_state` with that pair's scalar state **before
+  yielding**. Do not mutate batches, labels or positions. Preserve the existing
+  finite exhaustion and two-empty-epoch guard. New iteration closes the prior
+  producer first. Only one active iteration is supported per loader, as with
+  the underlying persistent-worker iterator.
+- Its `state_dict()` returns a fresh copy under `dp_rank_0` of committed scalar
+  metadata, never source-ahead state or queued tensors. At a checkpoint, use
+  `paused()` to surface producer failure/quiesce an active read, then copy the
+  committed cursor; pause does not serialize or discard the queue. Saving before
+  first delivery retains the existing loader-state behavior; loading initializes
+  committed state from the supplied scalar dictionary. Preserve missing/empty-key
+  behavior. Saving and resuming must work with old checkpoints and changed
+  world size/replication; retain Mosaic's sample-count/replication arithmetic.
+- `torchtitan/datasets/streaming/text/dataloader.py`: pass the new config value
+  through the existing `_init_streaming_loader` call. Text dataset, collation,
+  transforms, sample partitioning and output dtypes remain unchanged.
+
+`load_state_dict()` first closes/joins the enabled producer and invalidates the
+old outer iterator so it cannot deliver stale batches. Only after successful join
+may it discard queued pairs and apply existing `_loader.load_state_dict(state)`.
+Installed `StreamingDataset.load_state_dict` only writes shared resume JSON;
+`_resume` ignores an older saved epoch when `next_epoch` has advanced. Therefore
+same-instance restore must also set the **public** `dataset.next_epoch` to the
+saved `epoch`, and reset `num_samples_yielded`, before creating the new iterator.
+
+This scalar is shared across local ranks/workers. A per-rank unsynchronized reset
+can rewind it after a faster rank already starts workers. For the enabled
+real-distributed load path use a consumer data-world quiescence barrier after
+all producers join, then each owner loads the identical scalar state, the
+node/data-world local leader resets `next_epoch`, and a completion barrier
+precedes any new iterator. The exact existing route is
+`Trainer.__init__` -> `DataWorld.from_parallel_dims(parallel_dims, role="train")`
+-> `parallel_dims.get_optional_mesh("data")` -> `DataWorld.from_mesh(...)` ->
+`process_group=data_mesh.get_group()`. `ParallelDims.get_optional_mesh` flattens
+the existing `dataloading["batch", "cp", "tp"]` mesh using
+`_flatten("data_mesh", backend_override="gloo")`; `DataWorld` already exposes the
+validated `process_group`, `local_rank` and `world_size` fields. The text loader
+stores this object as `BaseStreamingDataLoader.data_world` through the existing
+`_init_streaming_loader` call. Therefore the two enabled-load barriers are exactly
+`dist.barrier(group=self.data_world.process_group)` when data-world size>1;
+the shared-scalar writer is exactly `self.data_world.local_rank == 0`.
+No new group creation or group plumbing is required on the native caller path.
+For enabled distributed construction with world_size>1, validate that this
+explicit group exists rather than interpreting None as the default/global group;
+manual diagnostic callers must pass their actual group via existing
+`DataWorld(process_group=...)`. Size1/non-distributed cases need no barriers.
+
+`Trainer.__init__` computes `DataWorld` before `build_replicated_dataloader`, so
+existing mesh construction still involves its required participants. The latter
+builds real loaders only on local rank0 of the PP replication mesh; its other
+ranks receive wrappers. The `data` group excludes PP and spans one PP coordinate.
+Consequently all real loader owners of the first PP coordinate participate in
+that coordinate's restore barriers, while other PP coordinates do not enter
+these loader barriers or build real loaders. `ReplicatedBatchDataLoader` already
+forwards `load_state_dict` only on its owner and preserves receiver empty state.
+Keep that routing. The selected PP1/TP1/CP1/EP8 workload has eight real owners in
+one existing Gloo data group. `DataWorld.from_parallel_dims(..., role="validation")`
+in `BaseValidator.validate` supplies the same API for a separately built
+validation loader. No background collective is allowed. This is a
+checkpoint-load-only coordination cost and an explicit eight-rank integration
+gate, not a per-batch collective. Do not mutate Mosaic private shared-memory
+objects or its barrier; do not use the checkpointer's group as a guessed substitute.
+
+### Epoch, RNG, errors and close lifecycle
+
+The donor condition guards active read, bounded ready queue and pause; capacity
+is checked before `next`. It stores errors, drains earlier ready items, then raises.
+`paused()` waits for an active read and rejects a saved error. `close()` requests
+shutdown; it cannot interrupt blocked source I/O. `join(timeout)` raising is a
+failed lifecycle gate: never reset a live source or silently abandon its thread.
+Retain context propagation with `copy_context()` and close the finite generator
+on its producer thread. The consumer releases the raw iterator only after join.
+
+Do not wrap the infinite generator: one rank can enter Mosaic's node-shared
+next-epoch worker barrier while another pauses with an old-epoch queue. Even a
+finite source needs consumer priming, since dataset `__iter__` is lazy and enters
+`_resume_incr_epoch` on first `next`. Prime before starting the producer, so the
+producer never owns epoch entry. Drain the queue, observe exhaustion, join, and
+only then let the consumer reset/prime the next epoch. An empty epoch starts no
+producer. Keep data-world contexts active on each owning thread; PP broadcasts
+and checkpoint collectives remain on consumer paths.
+
+Create/reset/prime at the same first-`next` boundary as the baseline, not eagerly
+at `iter(loader)` or constructor time. PyTorch `_BaseDataLoaderIter` consumes a
+CPU Torch base-seed draw at construction; persistent resets reuse it, while
+nonpersistent iterators draw anew. `_set_SIGCHLD_handler()` is a no-op outside the
+main thread. Preserve both by consumer ownership. The inspected text path and
+Mosaic sampling use local NumPy generators; FIM seeds `(seed,epoch,idx)`, not the
+process-global Python/NumPy/Torch RNG. Do not install a different global RNG state
+in the producer or perform per-batch global-RNG save/restore. Test observable draw
+timing around deliveries, wraps and restores, including `num_workers=0`; arbitrary
+new transforms that consume process-global RNG in the producer need a guarded
+synchronous path or explicit further design, not silent acceptance.
+
+Explicit cleanup is required because existing trainer/validation paths do not
+close an owned asynchronous iterator on every exit. The exact interface is
+`BaseDataLoader.close_iteration() -> None` and `BaseDataLoader.close() -> None`,
+with no-op defaults in `torchtitan/components/dataloader.py`; these names are new
+proposed methods, not existing APIs. Implement idempotent overrides on
+`BaseStreamingDataLoader`: `close_iteration()` stops/joins/releases the current
+source and retains reusable persistent workers; `close()` additionally performs
+final worker shutdown. After load/close_iteration an old epoch iterator must
+terminate rather than restart another producer; only a new `iter(loader)` may
+start the replacement generation. This can use a per-iteration generation token
+owned by the base streaming adapter, with no source/checkpoint-format change.
+Keep PyTorch's existing shutdown behavior isolated in `_TitanStreamingDataLoader`;
+its private worker-shutdown API is already used by Mosaic's destructor and must
+be checked against the pinned installed source. Forward these methods through
+`ReplicatedBatchDataLoader` in `torchtitan/components/dataloader.py` only on its
+owner; clear its pending/iterator references. Add no-op base lifecycle methods
+for loaders without owned asynchronous resources. In
+`torchtitan/components/validate.py`, retain the validation iterator and call
+`close_iteration()` in `finally` for early break and failure, preserving cached
+loader reuse. `Trainer.close()` closes the loader through the wrapper, including
+failure/normal completion; `batch_generator` propagates explicit iterator close
+in `finally`. These are lifecycle edits only: preserve all32-fetch callbacks,
+valid-token counting, device transfers, forward/backward and optimizer order.
+
+### Finite verification gates and runtime-cost review
+
+1. Add focused helper tests (adapt donor queue/order/bounds/pause/drain-error/
+   exhaustion tests) and text-loader integration tests in existing streaming
+   suites. Cover queue-ahead save/replay, exact end-of-epoch save, fresh and
+   same-instance old-epoch restore, repeated/chained loads, changed data-world
+   size and replication, unchanged state keys, zero/one/two workers, and two-worker
+   persistent/nonpersistent modes. Assert tensor contents/dtypes, labels/masks,
+   positions and elementwise continuation, not just sample counts or rounded norms.
+2. Test lazy RNG draw timing against default-off at startup, each epoch reset,
+   pause/save and restore; include Python, NumPy and Torch CPU draws. Verify the
+   actual PyTorch iterator is initialized on the consumer and worker failure
+   reaches it. Exercise validation early break/reiteration, producer exception,
+   bounded join failure, explicit close, no surviving producer, old iterator
+   invalidation and empty-epoch guard. Demonstrate each regression fails on the
+   corresponding broken adapter, then passes. Run affected config decoding,
+   torch-free/golden tests and `ruff F821,F811,F841` for changed Python files.
+3. Before GPU performance, extend the existing real eight-rank/two-worker MDS
+   check with off/on32 matched batch/label/position hashes through at least a wrap,
+   queue-ahead checkpoint and same-instance older-epoch restore. Exercise skewed
+   rank consumption/pause around the boundary with a deadline; retain the actual
+   baseline rank partition, no missing/duplicate rows and identical continuation.
+   Run both persistent and nonpersistent worker cases. Reuse the existing
+   changed-world/replication/chained-resume tests with prefetch enabled, plus
+   focused `ReplicatedBatchDataLoader` state/close forwarding regressions; these
+   cover supported scalar/wrapper contracts without a new native PP/TP/CP matrix.
+   The production target remains PP1/TP1/CP1/EP8.
+4. Checkpoint verification is **loader-only**. Exercise actual installed
+   `torch.distributed.checkpoint.save({"dataloader": loader}, checkpoint_id=...,
+   process_group=data_world.process_group)` and matching `dcp.load` on all eight
+   real Gloo owners, using the real MDS loader and a task-owned small checkpoint.
+   DCP calls the loader's `state_dict()` during serialization/target creation and
+   `load_state_dict()` after deserialization (installed
+   `state_dict_saver._stateful_to_state_dict` and `state_dict_loader.load`). Save
+   while ahead, advance across a wrap, restore the same loader to the older
+   serialized cursor, and compare subsequent batch/label/position hashes to the
+   off control/fresh restore under a deadline. Assert actual persisted
+   `dataloader.dp_rank_0` scalar keys and values, not an in-memory dict roundtrip.
+   This is the production Stateful serialization/load boundary: GIFT
+   `CheckpointManager` stores the same loader under `DATALOADER="dataloader"`;
+   `GFSDPCheckpointAdapter.load`/`load_gfsdp_dcp` retains nonmodel loader objects
+   in the target and delegates to DCP. No new CheckpointManager/GFSDP code edit,
+   full model/optimizer/EMA checkpoint, data download or 228GB artifact is needed.
+   This closes the affected loader persistence/coordination claim if it passes;
+   it does not establish full-model numerical checkpoint continuation.
+5. Use the established native numerical harness for fixed-workload deterministic
+   loss/elementwise-gradient/relevant-state comparison on ordinary and monitoring
+   paths. CPU/Gloo loader-only checks do not establish GPU transfer or native
+   training numerics; those are this native gate. No additional GPU/NCCL
+   checkpoint gate is material to the selected loader-only change if its source
+   review confirms state remains scalar/CPU, the data group remains Gloo, and
+   no model, optimizer, EMA, GPU buffer or checkpoint staging path is changed.
+   A change to those assumptions reopens only its affected gate. Full-model
+   continuation is not claimed. Keep campaign checkpoints off throughout native
+   numerical/performance runs. Then compare the existing alternating unprofiled
+   A/B111–160 windows and profile111 for mechanism; retain failed/skipped gates
+   and source/config/runtime identities. No additional native checkpoint run or
+   broad parallelism campaign is requested by this specification.
+
+Expected cost per enabled batch is one queue push/pop and condition signaling,
+state counter arithmetic plus a fresh scalar snapshot (shared-memory read and
+JSON decode), and producer Python/GIL work. There are no additional GPU kernels,
+H2D transfers, device synchronization, training collectives, model arithmetic,
+compilation boundaries or optimizer changes. There is one producer per rank,
+thread start/join and synchronous first-batch entry per finite epoch; eight ranks
+contend with sixteen existing workers and Mosaic preparation threads. The queue
+retains CPU/IPC storage, so actual RSS/lifetime and CPU contention can outweigh
+hidden fetch time. Checkpoint pause/load/close may wait for one active read;
+load adds the explicit data-world coordination above. The default0 path must
+keep original iteration/state logic and allocate no producer/queue/snapshots or
+extra distributed coordination. Close forwarding adds only lifecycle calls.
+
+Review the final implementation once against this contract and its measured
+costs. Promotion requires all applicable behavior/native gates and a complete
+performance comparison; queue32, generic donor tests and this specification are
+not production acceptance. No unsupported combinations or claimed gains have
+been established by this read-only work.
 
 ## V3 independent mechanisms and inherited constraints
 

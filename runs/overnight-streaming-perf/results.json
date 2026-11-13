@@ -54,12 +54,12 @@
       "mechanism": "cap-zero fused CE and completed-chunk logits lifetime",
       "status": "NOT_COMPLETED",
       "source_pin": "b983803337dfcc34fdd571b38aaf5e01df583bbe",
-      "applicability": "Both absent and applicable; loss/MTP/hooks/FP8 accumulation require independent checks.",
+      "applicability": "The donor algorithm remains independently applicable; compiled baseline already avoids full-vocabulary FP32 CE intermediates. Loss/MTP/hooks/FP8 accumulation parity and measured benefit remain open.",
       "correctness": null,
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G3 trace hypothesis then G5 isolated numerical/native/A-B-A-B evidence"
+      "unresolved_gate": "G5 stable separate-row-stat adaptation and actual CUDA/compiled large-common-offset regression (unchanged donor formula fails CPU FP32 proof), elementwise parity, native integration and alternating A/B evidence; source contract k1a-compiled-contract.md. G3 supplies no speed claim."
     },
     {
       "id": "K2",
@@ -71,7 +71,7 @@
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G3 nested replay/lifetime evidence and G5"
+      "unresolved_gate": "G5 targeted saved-tensor/lifetime, nested SAC correctness and native/A-B evidence; G3 confirms replay but not removable activation lifetime."
     },
     {
       "id": "K3",
@@ -119,7 +119,7 @@
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G3 exposed input gaps and G5 queue/state/exception/native evidence"
+      "unresolved_gate": "G5 queue/state/exception/shutdown/resume checks and repeated unprofiled A/B across epoch positions; G3 input gap is a hypothesis, not a gain."
     },
     {
       "id": "V3",
@@ -131,7 +131,7 @@
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G3 all-gather/retention evidence and G5"
+      "unresolved_gate": "G5 partial-backward guard regression, safe arena/release analysis and actual gather/lifetime comparison; G3 shows expected all-gather counts without abnormal extra regathers."
     },
     {
       "id": "V4",
@@ -155,12 +155,11 @@
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G3 early producer-read exposure; G5 compiled loss/grad/aux-scale parity, uneven/empty counts, callback/int64 save-load state and controlled TPS/trace."
+      "unresolved_gate": "G5 compiled loss/gradient/aux-scale parity, uneven/empty counts, callback/int64 save-load state and controlled TPS; G3 exposes the early producer read but does not establish a gain."
     }
   ],
   "accepted_improvements": [],
   "open_gates": [
-    "G3",
     "G4",
     "G5",
     "G6",
@@ -191,7 +190,7 @@
       "deepgemm_guard": "complete all8rank literal0 start/end and tested binary identity",
       "raw_evidence": "artifacts/raw/g2-baseline-a1",
       "accepted_tps": null,
-      "next_action": "Use as additional calibration; fresh W110/111–160 controls, A2 only after first control passes",
+      "next_action": "Use as additional calibration; fresh W110/111\u2013160 controls, A2 only after first control passes",
       "native_training_complete": true,
       "finite_loss_and_grad_entries_per_rank": 110,
       "physical_window_tokens_global": 104857600,
@@ -278,6 +277,76 @@
           }
         }
       }
+    },
+    {
+      "run_id": "g3-baseline-update111-001",
+      "source_revision": "6123a24f",
+      "category": "trace_parser_integrity",
+      "initial_status": "FAIL",
+      "native_updates_per_rank": 111,
+      "actual_target_call_counts": "1 train_step/32 microbatches/1 optimizer on all8",
+      "native_profiler_created_ranks": [
+        0,
+        1
+      ],
+      "initial_trace_marker_counts": "2 train_step/64 microbatches/1 optimizer on both ranks",
+      "trace_artifacts": {
+        "0": {
+          "marker_counts": {
+            "task.profile_update.111.microbatch.rank0": 64,
+            "task.profile_update.111.optimizer_step.rank0": 1,
+            "task.profile_update.111.train_step.rank0": 2
+          },
+          "path": "native/profiling/traces/iteration_111/rank0_trace.json",
+          "sha256": "49a58c1f6df639b9fdb26e40e2ba079f0a5e4f37d2e9d592233750664e2aac01",
+          "size_bytes": 301241287
+        },
+        "1": {
+          "marker_counts": {
+            "task.profile_update.111.microbatch.rank1": 64,
+            "task.profile_update.111.optimizer_step.rank1": 1,
+            "task.profile_update.111.train_step.rank1": 2
+          },
+          "path": "native/profiling/traces/iteration_111/rank1_trace.json",
+          "sha256": "f7a0c61a4fc8893b0d703419ca453f00d2264f1a4d53225cdf4af5964df146cf",
+          "size_bytes": 301258808
+        }
+      },
+      "failure": "Initial runner parser exit1 counted CPU user_annotation logical markers and gpu_user_annotation projections by name only; both traces appeared to contain 2/64/1 markers.",
+      "retry_performed": false,
+      "raw_evidence": "artifacts/raw/g3-baseline-update111-001",
+      "diagnosis": "CPU user_annotation has exactly 1 train_step/32 microbatches/1 optimizer per selected rank; GPU projections are a separate category and do not supply the logical call count.",
+      "posthoc_resolution": {
+        "status": "PASS_POSTHOC",
+        "reparse_summary": "artifacts/raw/g3-baseline-update111-001/summary.reparsed.json",
+        "reparse_receipt": "artifacts/raw/g3-baseline-update111-001/reparse-receipt.json",
+        "reparse_method": "category-aware CPU logical marker validation; no recapture",
+        "actual_perfetto_result": "g3-baseline-perfetto.json",
+        "no_tps_claim_from_trace": true
+      },
+      "current_compressed_artifacts": {
+        "0": {
+          "path": "artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json.gz",
+          "sha256": "6d40b5fd51d22ab084075ade2daa99009dd84c48076817277f8e4fd6bc1cb5fb",
+          "size_bytes": 22782123
+        },
+        "1": {
+          "path": "artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json.gz",
+          "sha256": "f258f36648ecac43d0c10e08a345a63d4c66fb89ee5c63b9899642bafc4c5488",
+          "size_bytes": 22791142
+        }
+      }
+    },
+    {
+      "run_id": "native-numerics-c1-b-001",
+      "source_revision": "f29581c4dcae78928cb940313b13893826f4e10c",
+      "failure": "ValueError: initial parameter, optimizer, scheduler, buffer, RNG, or counter gate differs",
+      "phase": "before optimizer update1; all8 ranks",
+      "specific_receipt_evidence": "243 mismatched initial_parameter observations/rank, first model.0.tok_embeddings.weight; field-level cause under diagnosis",
+      "candidate_failure": false,
+      "elementwise_error_floor_measured": false,
+      "clean_teardown": true,
+      "retained_reference_namespace": "artifacts/raw/native-numerics-reference-c1-001"
     }
   ],
   "cleanup_events": [
@@ -313,6 +382,79 @@
       "files_removed": 9217,
       "receipt": "artifacts/raw/g2-calibration-001/obsolete-cache-cleanup.json",
       "reason": "Calibration PASS/stopped, concrete compiler diagnosis resolved on separate retained A1 evidence; current control uses independent fresh paths; noncache artifacts unchanged"
+    },
+    {
+      "run_id": "g2-baseline-a1",
+      "action": "removed_stopped_private_compiler_cache",
+      "receipt": "artifacts/raw/g2-baseline-a1/obsolete-cache-cleanup.json",
+      "logical_file_bytes_removed": 600625705,
+      "file_count_removed": 9217,
+      "noncache_artifacts_unchanged": true,
+      "available_bytes_delta_observed": 0,
+      "available_inodes_delta_observed": 0,
+      "preserved_diagnostics": {
+        "relative_root": "artifacts/raw/g2-baseline-a1/rejected-w60-fused-fp8-swiglu-evidence",
+        "manifest_sha256": "2f29bf1bb64b926bda95e4c0eda464b5a0b7f5785d17a25ec90858727496a2b3",
+        "variants": 6,
+        "files": 48,
+        "logical_bytes": 2161925
+      }
+    },
+    {
+      "run_id": "g2-baseline-a1-w110",
+      "action": "removed_stopped_private_compiler_cache",
+      "receipt": "artifacts/raw/g2-baseline-a1-w110/obsolete-cache-cleanup.json",
+      "logical_file_bytes_removed": 602841229,
+      "file_count_removed": 9217,
+      "noncache_artifacts_unchanged": true,
+      "available_bytes_delta_observed": 0,
+      "available_inodes_delta_observed": 0
+    },
+    {
+      "run_id": "g2-baseline-a2-w110",
+      "action": "removed_stopped_private_compiler_cache",
+      "receipt": "artifacts/raw/g2-baseline-a2-w110/obsolete-cache-cleanup.json",
+      "logical_file_bytes_removed": 602844035,
+      "file_count_removed": 9217,
+      "noncache_artifacts_unchanged": true,
+      "available_bytes_delta_observed": 0,
+      "available_inodes_delta_observed": 0
+    },
+    {
+      "run_id": "g3-baseline-update111-001",
+      "action": "losslessly_compressed_and_removed_original_G3_traces",
+      "receipt": "artifacts/raw/g3-baseline-update111-001/trace-compression.json",
+      "original_trace_files_removed": 2,
+      "original_trace_bytes_removed": 602500095,
+      "compressed_trace_bytes_retained": 45573265,
+      "logical_bytes_removed_by_pair": 556926830,
+      "full_gzip_roundtrip_size_and_sha256_verified": true,
+      "no_plain_trace_copy_retained": true,
+      "other_raw_run_artifacts_unchanged": true,
+      "observed_available_bytes_delta": 0,
+      "observed_available_inodes_delta": 0,
+      "separate_profile_cache": {
+        "path": "artifacts/raw/g3-baseline-update111-001/cache",
+        "status": "preserved",
+        "bytes": 604978569,
+        "files": 9217,
+        "status_at_compression_receipt": "preserved",
+        "cleanup_status_after_receipt": "removed_after_minimal_evidence_preserved",
+        "completion_receipt_available": true,
+        "cleanup_receipt": "artifacts/raw/g3-baseline-update111-001/obsolete-cache-cleanup.json"
+      }
+    },
+    {
+      "run_id": "g3-baseline-update111-001",
+      "action": "removed_stopped_private_compiler_cache_after_four_CE_wrappers_preserved",
+      "receipt": "artifacts/raw/g3-baseline-update111-001/obsolete-cache-cleanup.json",
+      "logical_file_bytes_removed": 604978569,
+      "file_count_removed": 9217,
+      "retained_wrapper_bytes": 73504,
+      "retained_wrapper_manifest_sha256": "df0ef838c59ed84e199cba5defb279e7d6ff050aa099d1c0e20c79fe8af9465f",
+      "noncache_artifacts_unchanged": true,
+      "available_bytes_delta_observed": 0,
+      "available_inodes_delta_observed": 0
     }
   ],
   "streaming_smoke": {
@@ -595,5 +737,163 @@
       "interpretation": "Accepted identical-control pair; no candidate gain",
       "native_source_config_yaml_sha256": "c0080a1356e333500cf666b6a5c72f9908202ffbe42d7091139c9fca212423f0"
     }
-  ]
+  ],
+  "baseline_profile_capture": {
+    "status": "PASS_POSTHOC",
+    "run_id": "g3-baseline-update111-001",
+    "source_revision": "6123a24f",
+    "runtime_code_equivalent_pin": "87230b5b",
+    "native_updates_per_rank": 111,
+    "training_steps": 111,
+    "finite_metrics_all_ranks": true,
+    "deep_gemm_guard_value_all_ranks": "0",
+    "native_profiler_created_ranks": [
+      0,
+      1
+    ],
+    "actual_target_call_counts_per_rank": {
+      "train_step": 1,
+      "microbatch": 32,
+      "optimizer_step": 1
+    },
+    "original_runner_result": {
+      "status": "FAIL",
+      "exit_code": 1,
+      "meaning": "post-run trace parser failure only; all111 native updates completed",
+      "cause": "name-only counting double-counted CPU logical user_annotation events and GPU gpu_user_annotation projections",
+      "evidence": "artifacts/raw/g3-baseline-update111-001/failure.json and summary.json"
+    },
+    "posthoc_reparse": {
+      "status": "PASS",
+      "summary": "artifacts/raw/g3-baseline-update111-001/summary.reparsed.json",
+      "receipt": "artifacts/raw/g3-baseline-update111-001/reparse-receipt.json",
+      "cpu_category": "user_annotation",
+      "cpu_logical_counts_per_rank": {
+        "train_step": 1,
+        "microbatch": 32,
+        "optimizer_step": 1
+      },
+      "gpu_projection_category": "gpu_user_annotation",
+      "gpu_projection_counts_per_rank": {
+        "train_step": 1,
+        "microbatch": 32,
+        "optimizer_step": 0
+      },
+      "incomplete_slices": 0,
+      "microbatches_outside_cpu_train_frame": 0,
+      "recapture_performed": false
+    },
+    "perfetto_mcp": {
+      "status": "PASS",
+      "tool": "actual Perfetto MCP load_trace/list_tables/list_table_structure/list_stdlib_modules/execute_sql",
+      "canonical_result": "g3-baseline-perfetto.json",
+      "strict_nccl_memset_overlap_corrected": true,
+      "all_device_events_inside_cpu_frame": true,
+      "no_trace_derived_tps_claim": true,
+      "optimizer_cuda_flow_fused_adamw_kernels_per_rank": 17
+    },
+    "trace_artifacts": [
+      {
+        "rank": 0,
+        "historical_mcp_input_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json",
+        "historical_sha256": "49a58c1f6df639b9fdb26e40e2ba079f0a5e4f37d2e9d592233750664e2aac01",
+        "historical_size_bytes": 301241287,
+        "current_compressed_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json.gz",
+        "current_compressed_sha256": "6d40b5fd51d22ab084075ade2daa99009dd84c48076817277f8e4fd6bc1cb5fb",
+        "current_compressed_size_bytes": 22782123,
+        "trace_id": "trace_d9e7ae24dd735c55"
+      },
+      {
+        "rank": 1,
+        "historical_mcp_input_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json",
+        "historical_sha256": "f7a0c61a4fc8893b0d703419ca453f00d2264f1a4d53225cdf4af5964df146cf",
+        "historical_size_bytes": 301258808,
+        "current_compressed_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json.gz",
+        "current_compressed_sha256": "f258f36648ecac43d0c10e08a345a63d4c66fb89ee5c63b9899642bafc4c5488",
+        "current_compressed_size_bytes": 22791142,
+        "trace_id": "trace_40a5092f8f0c7a38"
+      }
+    ],
+    "compression_receipt": "artifacts/raw/g3-baseline-update111-001/trace-compression.json",
+    "compression_totals": {
+      "original_bytes": 602500095,
+      "compressed_bytes_retained": 45573265,
+      "logical_bytes_removed": 556926830,
+      "full_roundtrip_size_and_sha256_verified": true,
+      "non_cache_non_trace_raw_artifacts_unchanged": true,
+      "observed_nfs_available_bytes_delta": 0,
+      "observed_nfs_available_inodes_delta": 0
+    },
+    "cache_retention": {
+      "path": "artifacts/raw/g3-baseline-update111-001/cache",
+      "status_at_compression_receipt": "preserved",
+      "cleanup_status_after_receipt": "removed_after_minimal_evidence_preserved",
+      "completion_receipt_available": true,
+      "bytes_at_compression_receipt": 604978569,
+      "files_at_compression_receipt": 9217,
+      "reason": "four exact compiled CE wrappers retained; obsolete cache removed after stop/ownership/preservation checks",
+      "cleanup_receipt": "artifacts/raw/g3-baseline-update111-001/obsolete-cache-cleanup.json",
+      "retained_wrapper_manifest": "artifacts/raw/g3-baseline-update111-001/k1a-compiled-ce-evidence/manifest.json",
+      "retained_wrapper_manifest_sha256": "df0ef838c59ed84e199cba5defb279e7d6ff050aa099d1c0e20c79fe8af9465f",
+      "retained_wrapper_bytes": 73504
+    },
+    "clean_teardown_and_all_gpus_idle": true,
+    "candidate_interpretation": {
+      "input_prefetch": "trace-grounded hypothesis near local epoch transition; no measured gain",
+      "compiled_ce": "baseline avoids full-vocabulary FP32 intermediates; removing its one-hot-gradient reduction remains independent and unmeasured"
+    }
+  },
+  "native_numerical_calibration": {
+    "status": "RETRY_READY_AFTER_METADATA_FIX",
+    "source_revision": "f29581c4dcae78928cb940313b13893826f4e10c",
+    "helper_integration_tests_passed": 110,
+    "c1_reference_run": "native-numerics-c1-a-001",
+    "c1_controller_pid": 362311,
+    "launch_receipt": "artifacts/raw/native-numerics-c1-a-001.launch.json",
+    "scope": "update1 selected capture, matched fresh A export/B compare; no TPS interpretation",
+    "initial_and_prefix_exact_gates": "initial_parameter observation mismatch; cause under diagnosis",
+    "numerical_tolerances_established": false,
+    "remaining_selected_updates": [
+      2,
+      50
+    ],
+    "c1_reference_capture_status": "complete; comparison pending",
+    "c1_comparison_run": "native-numerics-c1-b-001",
+    "c1_comparison_controller_pid": 375534,
+    "c1_comparison_status": "FAIL before update1 on all8",
+    "initial_parameter_mismatches_per_rank": 243,
+    "initial_parameter_first_mismatch": "model.0.tok_embeddings.weight",
+    "selected_tensor_comparison_performed": false,
+    "all_c1_owned_processes_stopped": true,
+    "temporary_reference_blobs_retained": 12320,
+    "temporary_reference_retention_reason": "required initial-gate diagnosis and evidence reuse assessment; no comparison results yet",
+    "initial_gate_failure_cause": "DeviceMesh coordinate tuple/list representation after JSON; strict comparator remains unchanged",
+    "diagnosis": "native-c1-initial-gate-diagnosis.md",
+    "metadata_fix_tests": {
+      "test_numerics": 14,
+      "test_numerics_payload": 12,
+      "default_path": 2,
+      "modified_ragged_shard_regression": "PASS; failed old producer",
+      "scoped_ruff": "PASS",
+      "diff_check": "PASS"
+    },
+    "reference_reuse_decision": {
+      "status": "APPROVED_METADATA_ONLY_ADAPTER_COMPATIBILITY",
+      "reference_run": "native-numerics-c1-a-001",
+      "reference_revision": "f29581c4dcae78928cb940313b13893826f4e10c",
+      "old_numerics_sha256": "6c3842353626262cec6ab3623c83475595397c083e473b8b89463a3c467a24bf",
+      "fixed_numerics_sha256": "3425076e1d319797bc01d54a5dc4b68d278c49efd7a68eba7df612eb180b3dbf",
+      "unchanged_numerics_payload_sha256": "d6afbab28d04204f15cf19264f3f024cbbbb75174e9610fd99d3328da085578b",
+      "expected_unchanged_gift_sha256": "1f21d9e92b5213f40e88da42d2d31f4bca4ccce8d26a07350f7644ca8e902663",
+      "sole_runtime_adapter_delta": "Convert participating mesh coordinate tuple to list at metadata producer; preserve None and exact comparator. Serialized JSON/schema and payload bytes are unchanged. No training computation, tensor operation or initialization change.",
+      "review": "Independent source diagnosis plus actual producer/comparator CPU proof; root reviewed the exact two-line fix and behavioral regression.",
+      "provenance_policy": "Preserve A revision and old helper hash; record fresh B actual revision/new hash. This is an explicit adapter compatibility exception, not identical complete helper bytes.",
+      "mandatory_fresh_B_gates": [
+        "exact initial parameter/optimizer/scheduler/buffer/RNG/counter state",
+        "exact all prefix inputs",
+        "unchanged GIFT/config/runtime/data identities; only approved helper delta and dump_folder may differ",
+        "bound finite per-tensor comparison metrics before reference payload deletion"
+      ]
+    }
+  }
 }

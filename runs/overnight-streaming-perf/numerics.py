@@ -1640,6 +1640,8 @@ def _tensor_metadata(
 def _mesh_metadata(value: Any) -> dict[str, Any]:
     mesh = value.device_mesh
     coordinate = mesh.get_coordinate()
+    if coordinate is not None:
+        coordinate = list(coordinate)
     placements = []
     for placement in value.placements:
         item = {"type": type(placement).__name__, "value": str(placement)}

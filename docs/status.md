@@ -107,10 +107,19 @@ A1 differs by−0.074173%. Both include monitor150 in updates111–160. These tw
 controls describe observed variation, without a statistical confidence interval.
 The reviewed task adapter records existing compiler state at window boundaries
 and rejects DeepGEMM cache misses after W, using a guard validated on both active
-grouped GEMM paths. G2 is complete; baseline traces, numerical candidate parity and
-candidate gains remain open. The execution ledger owns
-progress; the [report](../runs/overnight-streaming-perf/report.md)
-and its results file own measurements and remaining evidence gates.
+grouped GEMM paths. G2 is complete. G3 is now accepted post hoc: the update111
+trace pair covers the CPU logical calls on ranks0/1, and actual Perfetto MCP
+analysis completed for both ranks. The original exit1 from name-only CPU/GPU
+marker double counting remains in the record; category-aware reparse validated
+the unchanged pair. Lossless gzip artifacts are mapped in the
+[canonical Perfetto results](../runs/overnight-streaming-perf/g3-baseline-perfetto.json).
+The trace identifies an input wait near the local epoch transition as a V2
+prefetch hypothesis, not an established speed gain. The compiled CE already
+avoids full-vocabulary FP32 intermediates, while the donor's removal of the baseline
+one-hot-gradient reduction remains unmeasured. Numerical candidate parity and
+candidate gains remain open. The execution ledger owns progress; the
+[report](../runs/overnight-streaming-perf/report.md) and its results file own
+measurements and remaining evidence gates.
 
 The working tree now keeps four current documents, an editable planning area,
 the active GIFT source, candidate references and compact run evidence. Duplicate

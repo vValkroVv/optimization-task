@@ -16,7 +16,7 @@ installable trees; import dependencies outside the selection are not bundled.
 
 | Direction | Proposed mechanism | Fit with the current crop | Start reading |
 | --- | --- | --- | --- |
-| Kindulov: loss fusion | Fuse softcap and CE forward/backward; retain low-precision logits and row log-sum-exp instead of full FP32 intermediates; release completed chunks | The crop has no positive logit softcap. Evaluate the cap-zero CE path without adding softcap to the objective; preserve MTP and monitoring chunk counts | [Source explanation](../references/kindulov/source/docs/softcap_memory.md) |
+| Kindulov: loss fusion | Fuse softcap and CE forward/backward; retain low-precision logits and row log-sum-exp instead of full FP32 intermediates; release completed chunks | The crop has no positive logit softcap; compiled baseline already avoids full-vocabulary FP32 CE buffers. Evaluate the remaining cap-zero backward algorithm and completed-chunk lifetime independently; preserve MTP and monitoring chunk counts | [Source explanation](../references/kindulov/source/docs/softcap_memory.md) |
 | Kindulov: local FFN recomputation | Recompute FFN/shared-expert internals rather than retain activations | Dense/shared FP8 is a candidate; interaction with existing per-layer SAC can add duplicate recomputation. Routed-expert variant explicitly rejects FP8 | [FFN implementation](../references/kindulov/source/torchtitan/models/common/ffn/__init__.py) |
 | Fused hidden z-loss | Combine SwiGLU, FP8 quantization and gate/up hidden-z-loss gradients | Current crop applies z-loss to final norm input, not gate/up. This is not a direct fusion of the currently active regularizer | [FP8 design](../references/hidden-z-loss/source/torchtitan/ops/float8/README.md) |
 | Vision-related runtime work | Compact supervised-token CE, input prefetch, GFSDP buffer/prefetch changes, frozen-weight storage and metric accounting | Mechanisms have different applicability; CompactCE rejects MTP, frozen storage requires frozen parameters, input prefetch requires the streaming loader | [Runtime source map below](#vision-related-runtime-work) |
@@ -49,6 +49,14 @@ head-local hidden-z-loss cases fall back to the original path. Retain ignored
 labels, reduction/normalization, MTP acceptance counters, head FSDP hooks and
 monitoring behavior when adapting it. GPU rounding can differ; donor CPU tests
 and reported L8 measurements do not establish crop accuracy or speed.
+
+Actual G3 compiler evidence shows BF16 logits/gradients and only FP32 row
+statistics in the baseline CE. The donor can still remove its one-hot-gradient
+reduction; ordinary kernel count remains three. See the
+[compiled contract](../runs/overnight-streaming-perf/k1a-compiled-contract.md)
+for pinned generated code, the required compile adaptation and a confirmed
+large-common-offset stability defect in the unchanged donor formula. Retain
+maximum/log-denominator separately before accepting that algorithm.
 
 Local FFN recomputation trades saved activations for repeated GEMMs and SwiGLU.
 Check it against the crop's `experts_up` and `comm` SAC save policies before
