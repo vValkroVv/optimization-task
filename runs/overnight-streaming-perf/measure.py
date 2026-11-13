@@ -360,7 +360,7 @@ class WindowMeasurement:
                     if previous_ns is None
                     else (timestamp_ns - previous_ns) / 1_000_000_000
                 ),
-                "monitoring_step": step % self.monitor_interval == 0,
+                "monitoring_step": bool(self.monitor_interval and step % self.monitor_interval == 0),
                 "window_boundary": boundary,
             }
         )
@@ -412,7 +412,7 @@ class WindowMeasurement:
                     self.warmup_updates + 1,
                     self.warmup_updates + self.window_updates + 1,
                 )
-                if step % self.monitor_interval == 0
+                if self.monitor_interval and step % self.monitor_interval == 0
             ],
             "physical_input_tokens_local": self._physical_end - self._physical_start,
             "supervised_tokens_global": self._supervised_end
@@ -810,20 +810,15 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--steps", type=int, required=True)
     parser.add_argument("--warmup", type=int, required=True)
     parser.add_argument("--window", type=int, required=True)
-    parser.add_argument("--monitor-interval", type=int, required=True)
+    parser.set_defaults(monitor_interval=0)
+    parser.add_argument("--observe-compiler-cache", action="store_true")
     parser.add_argument("--capture-microbatches", action="store_true")
     parser.add_argument("--profile-update", type=int)
-    parser.add_argument("--native-numerics", action="store_true")
-    parser.add_argument("--native-reference-output", type=Path)
-    parser.add_argument("--native-reference-input", type=Path)
-    parser.add_argument("--native-capture-update", type=int)
     args = parser.parse_args(helper_argv)
     if not train_argv:
         parser.error("a native experiment config and overrides must follow `--`")
     if args.window < 0 or args.warmup < 0 or args.steps <= 0:
         parser.error("steps must be positive; warmup and window must be nonnegative")
-    if args.monitor_interval <= 0:
-        parser.error("monitor interval must be positive")
     if args.window and (args.warmup <= 0 or args.steps != args.warmup + args.window):
         parser.error("measured runs require warmup>0 and steps == warmup + window")
     if not args.window and args.warmup and args.profile_update is None:
@@ -831,98 +826,22 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     if args.profile_update is not None:
         if args.window != 0:
             parser.error("profile-update requires window 0")
-        if args.monitor_interval != 50:
-            parser.error("profile-update requires monitor interval 50")
         if args.warmup <= 0:
             parser.error("profile-update requires warmup > 0")
         if args.profile_update < 2:
             parser.error("profile-update must be at least 2")
         if args.profile_update <= args.warmup:
             parser.error("profile-update must be greater than warmup")
-        if args.profile_update % 50 == 0:
-            parser.error("profile-update must not be a monitoring update")
         if args.steps != args.profile_update:
             parser.error("profile-update requires steps == profile-update")
-    if args.native_numerics and (
-        args.steps != 50
-        or args.warmup != 0
-        or args.window != 0
-        or args.monitor_interval != 50
-        or args.profile_update is not None
-        or args.capture_microbatches
-    ):
-        parser.error(
-            "native-numerics requires steps=50, warmup=0, window=0, "
-            "monitor interval 50, no profile-update, and no capture-microbatches"
-        )
-    reference_requested = (
-        args.native_reference_output is not None
-        or args.native_reference_input is not None
-        or args.native_capture_update is not None
-    )
-    if args.native_reference_output is not None and args.native_reference_input is not None:
-        parser.error("native reference output and input are mutually exclusive")
-    if reference_requested:
-        if args.native_numerics:
-            parser.error("native hash receipts and reference calibration are exclusive modes")
-        if args.native_reference_output is None and args.native_reference_input is None:
-            parser.error("native-capture-update requires a reference output or input")
-        if args.native_capture_update not in {1, 2, 50}:
-            parser.error("reference calibration requires native-capture-update 1, 2, or 50")
-        if (
-            args.steps != args.native_capture_update
-            or args.warmup != 0
-            or args.window != 0
-            or args.monitor_interval != 50
-            or args.profile_update is not None
-            or args.capture_microbatches
-        ):
-            parser.error(
-                "reference calibration requires steps=capture-update, warmup=0, "
-                "window=0, monitor interval 50, no profile-update, and no capture-microbatches"
-            )
     return args, train_argv
 
 
-def _run_native_main(
-    args: argparse.Namespace,
-    train_argv: list[str],
-    adapter: NativeAdapter,
-    trainer_module: Any,
-) -> None:
+def _run_native_main(train_argv: list[str], adapter: NativeAdapter) -> None:
     with adapter:
-        reference_output = getattr(args, "native_reference_output", None)
-        reference_input = getattr(args, "native_reference_input", None)
-        capture_update = getattr(args, "native_capture_update", None)
-        reference_mode = (
-            reference_output is not None
-            or reference_input is not None
-        )
-        if args.native_numerics or reference_mode:
-            from numerics import NativeNumericalReceipt
+        from torchtitan.train import main as native_main
 
-            observer = NativeNumericalReceipt(
-                trainer_class=trainer_module.Trainer,
-                optimizer_container_class=trainer_module.OptimizersContainer,
-                callback_manager_class=trainer_module.CallbackManager,
-                dist_utils_module=trainer_module.dist_utils,
-                output_dir=args.measurement_dir,
-                rank=int(os.environ["RANK"]),
-                capture_updates=(1, 2, 50) if args.native_numerics else (capture_update,),
-                expected_microbatches=32,
-                reference_output=reference_output,
-                reference_input=reference_input,
-                capture_update=capture_update,
-                run_id=getattr(args, "run_id", "native-numerics"),
-            )
-            with observer:
-                from torchtitan.train import main as native_main
-
-                native_main(train_argv)
-        else:
-            from torchtitan.train import main as native_main
-
-            native_main(train_argv)
+        native_main(train_argv)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -946,16 +865,12 @@ def main(argv: list[str] | None = None) -> None:
         "capture_microbatches": args.capture_microbatches,
         "profile_update": args.profile_update,
     }
-    if args.window:
+    if args.observe_compiler_cache and args.window:
         from compiler_stats import CompilationWindowObserver
 
         compiler_observer = CompilationWindowObserver()
         options["compiler_snapshot"] = compiler_observer.snapshot
         options["compiler_source_metadata"] = compiler_observer.source_metadata
-    if args.window or args.profile_update is not None:
-        from compiler_stats import verify_deep_gemm_guard_identity
-
-        options["compiler_guard_identity"] = verify_deep_gemm_guard_identity()
     adapter = NativeAdapter(
         trainer_class=trainer_module.Trainer,
         profiler_class=profiler_module.Profiler,
@@ -971,7 +886,7 @@ def main(argv: list[str] | None = None) -> None:
             Path(os.environ["TASK_DEEP_GEMM_RANK_CACHE_ROOT"]),
         ),
     )
-    _run_native_main(args, train_argv, adapter, trainer_module)
+    _run_native_main(train_argv, adapter)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ Updated: 13 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
 
-## Baseline: selected and running
+## Baseline: selected; campaign cancelled
 
 The [canonical baseline](baseline.md) is a GIFT 3.5 100B-dev crop: eight trunk
 layers, D4096, one dense FFN and seven MoE layers, 128 routed experts, expert
@@ -32,7 +32,7 @@ and DeepEP `1.2.1+1b8f467`.
 | Item | Outcome | Evidence / limit |
 | --- | --- | --- |
 | Eight-H100 smoke | PASS: 10 optimizer updates, 320 microbatches per rank, exit 0 | [Report](../runs/100b-crop8-ep8-smoke/report.md), [receipt](../runs/100b-crop8-ep8-smoke/result.json) |
-| Monitoring | Steps 5 and 10 completed | Smoke interval 5; canonical interval 50. Ordinary/monitoring loss chunks 2/32 supported by resolved config and active source/hook path |
+| Monitoring | Steps 5 and 10 completed | Smoke interval 5; then-default interval 50. Ordinary/monitoring loss chunks 2/32 supported by resolved config and active source/hook path |
 | Observed metrics | Final rank-0 loss 14.57517, gradient norm 7.6661; finite logged metrics | These do not establish numerical equivalence or convergence |
 | Memory | Maximum native console metric 72.61 GiB | Reserved peak plus report-time non-PyTorch usage; not a simultaneous device-wide peak |
 | Lifecycle | All ranks tore down, GPUs released; no checkpoint, profiler trace or memory snapshot | No checkpoint continuation was tested in this smoke |
@@ -80,63 +80,79 @@ Decision: keep CUDA Graphs off in the default. This is not proof that all graph
 boundaries fail, nor that the 3B trace predicts the current crop's performance.
 Revisit only with a concrete crop bottleneck and a finite comparison plan.
 
-## Next decisions and working layout
+## Cleanup-only assignment and preserved campaign results
 
-The authorized [overnight MDS/performance campaign](../planning/overnight-streaming-perf.md)
-is running. Entry checks verified eight idle H100s, the existing runtime and NFS,
-and actual Perfetto MCP path/query access. Reference applicability is reconciled
-in the [campaign evidence](../runs/overnight-streaming-perf/reference-coverage.md);
-no candidate gain is established. The 896-row full-length MDS fixture passed
-two real eight-rank loader checks; native profiler/measurement support passed
-scoped tests and review. Native smoke attempt001 failed in a metadata census
-before any model update; its scoped fix passed regression/review. Attempt002
-passed ten updates and 320 microbatches on every rank, including finite metrics
-and monitoring at 5/10, with clean teardown and released GPUs. The
-[MDS smoke receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json)
-also records zero frozen parameters on all ranks, making frozen-storage V4
-inapplicable to this crop. The canonical YAML now selects that MDS fixture;
-its affected decode/golden and path/shard-equivalence checks passed. Only the
-data mapping changed. Calibration completed60 finite native updates per rank,
-including normal monitor50. The first W60 control completed110 native updates
-but failed the conservative cache-stability gate. Diagnosis identified rank-local
-SwiGLU specialization loading; all ranks held both classes by110. The first W110
-control then passed its complete50-update window with stable observed compiler
-state; the identical second control also passed. The accepted run-level median is
-124,454.812 global input tokens/s and124,424.427 valid-target tokens/s; A2 versus
-A1 differs by−0.074173%. Both include monitor150 in updates111–160. These two
-controls describe observed variation, without a statistical confidence interval.
-The reviewed task adapter records existing compiler state at window boundaries
-and rejects DeepGEMM cache misses after W, using a guard validated on both active
-grouped GEMM paths. G2 is complete. G3 is now accepted post hoc: the update111
-trace pair covers the CPU logical calls on ranks0/1, and actual Perfetto MCP
-analysis completed for both ranks. The original exit1 from name-only CPU/GPU
-marker double counting remains in the record; category-aware reparse validated
-the unchanged pair. Lossless gzip artifacts are mapped in the
-[canonical Perfetto results](../runs/overnight-streaming-perf/g3-baseline-perfetto.json).
-The trace identifies an input wait near the local epoch transition as a V2
-prefetch hypothesis, not an established speed gain. The compiled CE already
-avoids full-vocabulary FP32 intermediates, while the donor's removal of the baseline
-one-hot-gradient reduction remains unmeasured. Numerical candidate parity and
-candidate gains remain open. The execution ledger owns progress; the
-[report](../runs/overnight-streaming-perf/report.md) and its results file own
-measurements and remaining evidence gates.
+The original [overnight campaign](../planning/overnight-streaming-perf.md) is
+cancelled and incomplete. The current assignment removes full-model numerical
+machinery, disables detailed performance monitoring and records the revised
+short-run/local-block protocol. Do not resume candidate experiments, training,
+benchmarks, new traces or numerical block comparisons. The active plan owns the
+finite cleanup checklist. Numerical machinery is removed. Canonical/generated
+configuration and short-run behavior passed 101 scoped CPU/config checks and an
+independent integration/runtime-cost review. The [cleanup receipt](../runs/overnight-streaming-perf/cancellation-cleanup.json)
+confirms no owned numerical processes or reference tensor blobs remain; 40,650
+files totaling 381,915,112,855 logical bytes were deleted, without attributing NFS
+free-space changes. Compact history, MDS, candidate source and Perfetto evidence
+remain. No training, benchmark, new trace or local numerical block run occurred.
 
-The working tree now keeps four current documents, an editable planning area,
-the active GIFT source, candidate references and compact run evidence. Duplicate
-scope/status scaffolding, the second framework and intermediate campaign files
-were removed from the tracked tree. Their complete tracked versions remain at
-Git revision `9d56011df976017972d8f2993b910bde03487e2a` with
-[recovery instructions](../references/README.md). Raw traces/logs outside Git
-are not included in that recovery guarantee and were not deleted by this cleanup.
-The GIFT source, configuration, candidate source bytes and smoke launcher are
-unchanged; this reorganization has no production-runtime effect.
+Preserved completed evidence:
 
-Consolidation checks: all maintained local Markdown links resolve; all retained
-JSON parses; all 109 candidate source checksums and eight graph-evidence hashes
-match their manifests; the baseline config hashes match the successful receipt;
-`bash -n` and staged whitespace checks pass. Git confirms no change under `gift/`
-or to the smoke launcher/result. No GPU rerun was needed for document moves.
-Tracked files decreased from 57,849 to 27,768; task Markdown outside training and
-reference snapshots decreased from 150 to 13 at that consolidation commit (before
-the later overnight plan and prompt were added). Git history is retained, so this
-reduces the working tree, not the size of already published historical objects.
+- The 896-row, full-length MDS preparation and real eight-rank loader checks,
+  plus the ten-update/320-microbatch native smoke, remain valid within their
+  recorded scope. The [MDS receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json)
+  also records zero frozen parameters on every rank. Canonical data selection
+  and packing/partitioning remain unchanged.
+- Historical monitoring-inclusive G2 controls measured median input throughput
+  **124454.81175967702 global tokens/s (15556.851469959627 per GPU)** over
+  updates 111–160 including monitor 150. These are historical results, **not
+  directly comparable to future monitoring-off measurements**. Their W110/cache
+  acceptance method is archived, not a future prerequisite.
+- G3 update 111 trace acceptance was recovered post hoc by category-aware parsing;
+  the original parser failure stays recorded. Both ranks were analyzed using
+  actual Perfetto MCP. [Canonical results](../runs/overnight-streaming-perf/g3-baseline-perfetto.json),
+  SQL, compact source evidence and compressed trace pair are retained. The input
+  wait is a V2 hypothesis, not a measured gain.
+- C1 B2 passed; compact history is retained. C2 A reached terminal PASS export
+  at 08:34:48 UTC; child 418189 and its process group stopped, and its controller
+  was absent at 08:45 UTC. C2 B and C50 were cancelled without launch. The
+  full-model validation programme is abandoned, not completed; there is no
+  replacement whole-model parameter/gradient/Adam acceptance gate.
+- V2 source variant `21c1891dda531a1222e6c350802f2765758794f9` on
+  `vkropotin-v2-prefetch` is preserved with default 0 and its
+  [source/CPU review](../runs/overnight-streaming-perf/v2-prefetch-review.md).
+  Actual eight-owner Gloo/DCP and native/performance gates were not executed
+  or completed. No candidate has been accepted.
+
+Future separately authorized comparisons start with **10 warmup + 10 measured
+optimizer updates**, accumulation 32, with LR horizon 65,000/LR warmup 2,000
+unchanged. Disable detailed monitoring callbacks/hooks rather than increasing an
+interval; ordinary loss uses two chunks. Retain lightweight native loss/time/TPS/
+errors, EMA and training losses. Validation, checkpoint saves, snapshots,
+numerical capture and CUDA Graphs remain off. Repeat promising or ambiguous
+short-pair results when needed; one pair is provisional. Extend warmup only for
+actual compilation/runtime settling that affects the window, not a cache entry
+alone. No mandatory 110/50, exhaustive-cache gate or large control matrix remains.
+
+After performance identifies a candidate worth retaining, compare the smallest
+meaningful affected block on matched boundary inputs and needed weights/state;
+compare affected backward with matched incoming gradients if it changes. Assess
+precision, casts, rounding, reduction order and fusion, with a higher-precision
+local reference when needed. Do not assume baseline exactness, universal tolerance
+or bitwise equality. See [validation](../planning/validation.md). No such checks
+are run during cleanup.
+
+The source execution pin before cleanup is `e9048f65`. The
+[report](../runs/overnight-streaming-perf/report.md) and
+[results](../runs/overnight-streaming-perf/results.json) retain the original
+measurements, failures and cancellation status. Original G4–G7 incompleteness is
+not an instruction to continue the campaign. Source/config/protocol and cleanup
+acceptance are verified; the publication revision will be recorded after push.
+
+## Working layout and historical consolidation
+
+Current documents, editable planning, active flattened `gift/`, inert candidate
+references and compact run evidence remain at their existing paths. Historical
+consolidation records are recoverable from `9d56011df976017972d8f2993b910bde03487e2a`
+using [recovery instructions](../references/README.md). That earlier consolidation
+had no source/runtime effect and passed its documented link/JSON/hash checks;
+those historical checks do not substitute for this cleanup's affected checks.

@@ -1,8 +1,79 @@
-# Overnight streaming and performance campaign
+# Streaming performance campaign: cancellation and cleanup
 
-Status: RUNNING. The [accepted campaign](../../planning/overnight-streaming-perf.md)
-owns execution progress and the finite G0–G7 acceptance checklist. This report
-and `results.json` own measured results; raw payloads remain ignored.
+Status: ORIGINAL_CAMPAIGN_CANCELLED_INCOMPLETE; current assignment CLEANUP_ONLY.
+The [active plan](../../planning/overnight-streaming-perf.md) owns the finite
+cleanup checklist. No candidate is accepted. Do not resume G0–G7 or launch any
+training, benchmark, trace or local numerical block check during cleanup.
+
+## Revised protocol and cleanup receipt
+
+The last campaign execution source was `e9048f65`. Remove the campaign full-model
+numerical modules and exclusive integrations/tests/config, and disable detailed
+monitoring callbacks/hooks in the performance configuration. Ordinary two-chunk
+loss, lightweight loss/time/TPS/errors, EMA and training losses remain. Preserve
+the fixed MDS/model, FP8, compile, CuTe, SAC, MTP, optimizer, routing and batch.
+Validation, checkpoint saves, snapshots, numerical capture and CUDA Graphs stay off.
+
+Future separately authorized measurements start with 10 warmup + 10 measured
+optimizer updates, accumulation 32 and LR horizon 65,000/warmup 2,000 unchanged.
+Extend warmup only for actual compilation/runtime settling affecting the window;
+a cache entry alone is insufficient. No mandatory 110/50, exhaustive-cache or large
+A/A or A/B/A/B matrix remains. Begin with a matched short baseline/candidate pair and
+label it provisional; repeat promising/ambiguous effects when needed.
+
+Performance comes first. A candidate worth retaining then receives a local check
+of the smallest affected block on matched boundary inputs and needed weights/
+state, plus affected backward with matched incoming gradients if changed. Assess
+accumulation precision, casts, rounding, reductions and fusion, using a higher-
+precision local reference when needed. Baseline output is not assumed exact;
+there is no universal tolerance, assumed bitwise equality or whole-model
+parameter/gradient/Adam capture. See [validation](../../planning/validation.md).
+
+Historical monitoring-inclusive G2 median input TPS was 124454.81175967702 global
+and 15556.851469959627 per GPU. **It is not directly comparable to future
+monitoring-off measurements.** MDS preparation, G2 measurements, G3 Perfetto
+SQL/results/compressed traces, candidate code and useful compact evidence remain.
+
+C1 B2 passed; compact history is retained. C2 A reached terminal PASS export
+at 08:34:48 UTC; child 418189/process group stopped and controller absent at 08:45.
+C2 B and C50 were cancelled without launch. Full-model validation was abandoned,
+not completed. V2 source `21c1891d`/`vkropotin-v2-prefetch` remains preserved and
+default 0; actual eight-owner Gloo/DCP and performance gates were not executed or
+completed. Its source/CPU handoff is not runtime acceptance.
+
+| Current cleanup acceptance | Receipt |
+| --- | --- |
+| Numerical removal/import/parser checks | PASS: modules, full-model probe and exclusive tests/config removed; imports/help and removed-mode rejection verified |
+| Short window/disabled monitoring/preserved config checks | PASS: 100 scoped CPU/config tests plus 1 canonical golden; one unrelated native-DCP test deselected; independent integration/runtime-cost review passed |
+| Exact stopped jobs/heavy numerical payload removal | PASS: [receipt](cancellation-cleanup.json); zero owned numerical processes and reference blobs; 40,650 files / 381,915,112,855 logical bytes removed, plus two obsolete clean worktrees; no NFS reclaimed-byte claim |
+| Affected document links | PASS: 176 local links across 20 affected documents resolve; 2 fragment links pass; 3 unchanged upstream root-relative links are excluded and recorded in results; no new broken link; JSON/whitespace checks pass |
+| Commit/push | Coordinating owner records resulting commit after integrated review |
+
+Verification commands, intermediate failed checks and their resolutions are retained
+in `artifacts/raw/cleanup-verification/runner/CHECKS.md`; the independent review is
+`artifacts/raw/cleanup-verification/integration-review.md`. The new configuration
+regression fails on the original monitored YAML and passes on the final YAML.
+No full suite or GPU execution is claimed. The final path removes numerical
+exports and diagnostic hooks/reductions; it retains native logging, EMA and two
+timing-boundary synchronizations, with no new model computation or communication.
+The GIFT operating instructions also replace their universal bitwise-loss rule
+with the local, precision-aware post-performance policy.
+
+The unchanged historical smoke launcher requires its recorded original source
+and configuration; current MDS/monitoring-off defaults do not reproduce its
+receipt. MDS index and both canonical compressed G3 trace hashes still match;
+V2 source remains clean at `21c1891d`. The existing untracked V2 loader-check helper
+is preserved without adding it to this cleanup change set.
+
+## Archived original campaign record
+
+**Everything below is dated historical evidence, including its proposed next
+steps, numerical prerequisites, monitoring-inclusive policy and old 110/50/cache
+method. Those instructions are retired and do not authorize or constrain future
+runs. The current cleanup plan and validation policy above replace them.**
+Original failures and incomplete gates are preserved; the archive does not claim
+the original campaign finished. Heavy numerical payload locations may describe
+removed historical files; compact evidence is retained where useful.
 
 ## Entry and environment
 
@@ -567,7 +638,7 @@ C1A's one-update export completed on all eight ranks, covering32 microbatches
 per rank and approximately47.5 GB per rank of numerical payloads. C1B failed before
 update 1: all eight ranks raised
 `ValueError('initial parameter, optimizer, scheduler, buffer, RNG, or counter gate differs')`
-at [numerics_payload.py](numerics_payload.py) line 580. The runner exited, owned
+at `numerics_payload.py` (removed during cleanup) line 580. The runner exited, owned
 cleanup completed, and all GPUs are idle. Native A is complete, but the A/B
 initial-state gate did not pass because live tuple mesh coordinates differed
 from their serialized list representation. The original B live hashes were not

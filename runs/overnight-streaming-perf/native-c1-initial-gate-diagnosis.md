@@ -1,5 +1,13 @@
 # C1 initial-gate diagnosis
 
+Status: ARCHIVED historical evidence from the cancelled/incomplete original
+campaign. Old numerical-harness, monitoring-inclusive, long-window/cache and
+pre-performance numerical instructions below are retired; they describe the
+method reviewed at that time, not active requirements. The [revised plan](../../planning/overnight-streaming-perf.md)
+and [validation](../../planning/validation.md) own the cleanup-only assignment
+and future 10+10 monitoring-off/performance-first local-block policy. No new run
+or trace is authorized. Referenced removed modules are historical symbols.
+
 ## Scope and result
 
 Acceptance: identify a concrete first-gate defect using small records and active
@@ -107,3 +115,12 @@ Either route requires a fresh B to pass every exact initial hash/state gate and
 every prefix-input gate before consuming payloads. The failed B cannot be
 retroactively passed; actual A/A metrics, C2 and monitor50 remain open. Preserve
 the first-capture format/provenance history and all native preset settings.
+
+## Final historical disposition
+
+C1 B2 subsequently passed at `e9048f65`; its compact metrics/history remain.
+C2 A reached terminal PASS export; C2 B and C50 were cancelled without launch.
+The full-model numerical programme is abandoned, not completed. No retry,
+monitor 50 validation, full-model capture or tolerance-calibration gate remains.
+Owned-process and heavy-file cleanup verification is recorded by the coordinating
+owner in the campaign report/results.

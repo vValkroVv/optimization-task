@@ -1,35 +1,42 @@
-Execute the overnight GIFT streaming/performance campaign and deliver reproducible results by the next morning handoff. Work from `/workspace-SR008.nfs2/vkropotin/optimization-task` on the existing `sr008-gpu` eight-H100 allocation. The user will not answer questions during execution. Make routine implementation decisions autonomously, repair feasible blockers within the authorization below, and preserve honest partial results if an external dependency remains unavailable.
+# Cleanup-only agent launch prompt
 
-Read `AGENTS.md`, `docs/status.md`, `docs/baseline.md`, `docs/candidates.md`, `planning/validation.md`, and `planning/overnight-streaming-perf.md`. The last file is the accepted detailed campaign contract and the single progress ledger: execute it, rather than drafting another plan. Follow the source-tree rules and relevant available training/performance skills. No campaign has been launched by the agent that wrote this prompt.
+Work in `/workspace-SR008.nfs2/vkropotin/optimization-task` and complete only the
+cleanup and protocol revision in [the active plan](overnight-streaming-perf.md).
+Use English. Read [current state](../docs/status.md), [baseline](../docs/baseline.md),
+[validation](validation.md) and applicable source rules before relevant work.
+The original G0–G7 optimization campaign is cancelled and incomplete.
 
-Starting point:
-- As of 13 November 2026, the task source at `ee965d3c8e019f73c291104f345c40458a3f9f31` contains the verified 100B-dev crop and a passed HF `c4_test` smoke: eight ranks, ten optimizer updates, 320 microbatches per rank. This is execution evidence, not a performance baseline.
-- The source is the task-owned flattened `gift/` tree. Preserve the model, MTP1, FP8, compile, CuTe, AdamW, EP8/GFSDP2, microbatch 2/sequence 4096/global 512/accumulation 32, SAC, EMA, token capacity 50,000, seed 2048 and scheduler horizon 65,000. CUDA Graphs remain off.
-- The previously verified interpreter is `/opt/torchtitan-venv/bin/python3.12`; source `/etc/profile.d/wm.sh` before CUDA use. Reconcile the current environment, relevant new receipts and dirty changes once, and check existing processes before launching anything. Do not redo unchanged historical checks merely because HEAD changed.
-- `references/` contains pinned candidate code and manifests. Known limits: routed recomputation rejects FP8; CompactCE rejects MTP; gate/up hidden-z-loss is not active in this crop; external CudaCherry kernels are missing; the vision collection is not a confirmed team list. Verify and record applicability instead of changing the objective to make a candidate run.
+Stop exact task-owned C1/C2/C50 processes before changing their files. Remove
+campaign full-model numerical modules, exclusive tests/config and active
+runner/observer/parser integrations. Remove cancelled owned reference tensors,
+temporary checkpoints and unnecessary heavy dumps after jobs stop. Preserve MDS,
+candidate sources, compact historical results, Perfetto SQL/results and the
+canonical compressed trace pair. Preserve other contributors' changes.
 
-Authorization and ownership:
-You may modify this task checkout, including `gift/`, configs, tests, data-preparation and launch/analysis helpers; run training/profiling on the existing eight GPUs serially; prepare local MDS data; fetch pinned candidate sources through existing authorized access; install required packages/tools in a private task/personal environment; fix concrete blockers; clean your owned heavy artifacts; commit and push task source/results. This authorization supersedes older notes limiting work to the completed smoke or prohibiting all installations. Do not alter shared `/opt` packages, drivers, shared startup files/services, other users' environments, original workspace checkouts or unrelated data. Do not allocate extra GPU jobs, guess hosts or borrow credentials. You are not alone in the filesystem: preserve other contributors' edits and reconcile concurrent changes before publication. Use task `main` for integrated validated results, keep experimental variants reachable and disabled unless selected, and never force-push.
+Disable detailed monitoring callbacks and hooks in the performance configuration;
+a longer monitoring interval is insufficient. Retain native lightweight loss,
+step-time/TPS and errors; use ordinary two-chunk loss. Preserve model/data, FP8,
+compile, CuTe, SAC, MTP, EMA, optimizer, routing, batch/accumulation 32 and schedule 65,000/2,000.
+Keep validation, checkpoint saves, memory snapshots, numerical capture and CUDA
+Graphs off. Support 10 warmup plus 10 measured optimizer updates without compressing
+LR scheduling. Verify imports/parsing and resolved configuration with scoped CPU
+checks, then reconcile docs, historical status and affected links.
 
-Deliver in priority order:
-1. Establish full-length pretokenized MDS on GIFT `streaming_text`, using the existing C4 corpus and tokenizer. The bundled MDS packer defaults to 2048-token rows, while this crop uses4096: prepare a separate task-owned 4096-row dataset rather than timing padding. Inspect the packer's overwrite behavior. Validate actual labels, positions, EOS/BOS, valid-target count, rank partitioning and epoch repeats. HF and MDS packing differ, including the last target; treat MDS as a new identified baseline, not an exact-data A/B with the old HF smoke. Get native integration running early, then complete the ten-update monitoring smoke.
-2. Measure a warmed, unprofiled MDS baseline and identical-control A/A variation. Use calibration to choose the actual settled warmup, then freeze the campaign's 50-consecutive-update window with normal monitoring interval 50. Preserve initialization, data order, window, topology and cache policy. Report complete-window global input TPS, valid-target TPS, per-step median/spread, per-GPU units and memory; verify timer and counter semantics. Do not use profiler-run TPS as the performance result.
-3. Capture exactly one complete representative ordinary optimizer update on global ranks 0 and 1 only, in a separate run. All eight ranks still train; only two profile. No shape/stack/memory-history capture or checkpoints. The native profiler lacks rank selection and hardcodes shapes: implement the smallest reviewed opt-in extension/adapter while preserving native scheduling and exports; do not invent unsupported CLI fields. Verify 32 microbatches, optimizer coverage, trace integrity and exactly two outputs.
-4. Analyze both traces through Perfetto MCP. Verify MCP access/path visibility early and set up a private server/tool route if needed. Use load_trace, discover actual schemas and run SQL; preserve queries and compact results. Explain device compute, communication-only time, copies, GPU idle, input/host work, queueing and rank differences without adding overlapping times. If required MCP is unavailable after feasible setup/repair, keep that gate explicitly open; a Python-only summary cannot silently replace it. Continue other useful work.
-5. Reconcile every mechanism in the plan's reference coverage table. For applicable, nonduplicate candidates, use traces to order work, port one independent change at a time, run targeted numerical/integration checks, measure alternating A/B/A/B, and capture one comparable two-rank/one-update trace pair per executed candidate. Reuse valid controls/evidence when their assumptions still hold. Record inapplicable and already-present mechanisms with concrete source/contract evidence. Do not implement unrelated new kernels or change dimensions/loss objectives for coverage.
-6. Integrate qualifying improvements sequentially, verify their interactions and measure the final combination against the fixed MDS baseline. If no gain is accepted, retain the MDS baseline and publish negative results. Keep uncertain numerical behavior out of accepted defaults. Update the canonical data configuration only after its streaming integration passes; do not erase the historical HF smoke receipt.
+Record future policy without executing it: begin with a short matched baseline/
+candidate pair; a single pair is provisional, and promising or ambiguous effects
+may need repeats. Extend warmup only for actual compilation/runtime settling in
+the measured window, not a cache entry alone. No mandatory 110/50 or large A/A/
+A/B/A/B matrix. Measure performance first; for a candidate worth retaining, then
+replay the smallest affected block with matched inputs and needed weights/state.
+Compare outputs and affected backward with matched incoming gradients when it
+changes; analyze precision, casts, rounding, reductions and fusion, using a
+higher-precision local reference when needed. Do not assume universal tolerances,
+bitwise equality or that baseline output is exact. Do not collect full-model
+parameter/gradient/Adam state or implement a replacement numerical framework.
 
-Execution and decision rules:
-- Use one reviewed detached runner with persistent logs and exit markers, all-rank errors, a finite timeout and cleanup for exact owned PIDs. Before each run check GPU ownership, disk/inodes and source/config freeze. Never edit a running runner or source matrix. Do not kill sshd/mpirun/orted or use broad process/shared-memory cleanup.
-- Separate model/optimizer LR warmup from compile/runtime warmup. The schedule remains 65,000 with 2000 LR warmup; early stopping must not compress it. Include normal input and monitoring costs in primary TPS, and label excluded validation/checkpoint costs.
-- Use actual forward/backward and optimizer updates. Check elementwise affected gradients/state, loss scaling, MTP, ignored labels, SAC replay, routing and monitoring; finite loss alone is insufficient. Honor applicable repository review and regression requirements. Establish tolerances from a valid reference/precision contract and A/A variation, not an invented percentage or unsupported bitwise requirement. An uncalibrated difference is unresolved evidence, not automatic acceptance or failure. Continue independent cases.
-- Before more diagnostics identify the unresolved question, possible outcomes and decision changed. After two consecutive harness failures before useful measurements, repair the specific interface or use the native path. Do not grow a new general harness or repeatedly audit unrelated code. Concrete crashes, wrong objectives, missing updates and nonfinite values require scoped repairs and affected checks. A failed control invalidates that comparison; it is not evidence of candidate speed.
-- Update `planning/overnight-streaming-perf.md` at stage transitions, failures, integrations and completed experiments. Record current PID/job, revision, command/log paths, completed/remaining gates and next action. Store one campaign report and `results.json` under `runs/overnight-streaming-perf/`, with one row per candidate: change/source pin, applicability, correctness, baseline/candidate TPS and noise, memory, trace mechanism, disposition and unresolved gate. Publish useful milestones so an interruption leaves recoverable results.
-
-Mandatory storage hygiene:
-Keep checkpoints and memory snapshots off. Do not retain full-model copies or per-step tensors. Temporary task-owned checkpoints/dumps are allowed only for a necessary comparison; remove them once its compact evidence is verified. Retain only one canonical trace pair per baseline/executed candidate, preferably losslessly compressed after parsing and MCP analysis; delete redundant decompressed/converted copies and superseded diagnostic captures. Remove owned cores, staging data and obsolete cache copies after their jobs stop and they are no longer referenced. Keep minimal unresolved failure evidence and document its retention reason. Never clean shared caches, other users' paths or unrelated historical payloads. Check space before every run, record cleanup/reclaimed bytes, and finish with released owned processes/GPUs and no unnecessary heavy artifacts. Raw data/traces/caches/checkpoints do not go into Git.
-
-Completion criteria:
-The assignment is complete only when the accepted plan's G0–G7 are evidenced: streaming baseline validated; warmed baseline TPS/noise measured; both baseline traces analyzed with Perfetto MCP; every reference mechanism has a supported final disposition; every executed candidate has correctness, TPS and trace-based explanation; combined results or explicit baseline retention are validated; current state and progress agree with results; source/results are committed and pushed; owned resources and unnecessary heavy files are cleaned. INAPPLICABLE and ALREADY_PRESENT require evidence; BLOCKED or NOT_COMPLETED remain visible open gates, not full completion. A missing provider/tool capability does not invalidate completed experiments and must not be mislabeled as feature failure.
-
-Finish with a concise Russian morning report: MDS data identity, baseline TPS, best accepted TPS and percentage change (or no accepted gain), memory tradeoff, candidate-by-candidate outcomes, trace mechanisms, numerical limits, exact remaining blockers, source commits, report/trace locations and cleanup status. Do not promise convergence, production-scale speedup, guaranteed overnight completion or automatic recovery if the agent provider itself stops. Stop when the finite campaign is complete; do not open a CUDA Graph or model-shape campaign.
+Do not launch training, benchmarks, traces, candidate experiments or block checks.
+The monitoring-inclusive historical TPS is not comparable to monitoring-off.
+Record actual process/cleanup and check receipts, unresolved issues and the
+resulting commit. Commit and push under the user's existing authorization and
+repository-local identity after integrated review. Stop after cleanup publication;
+do not continue the campaign or execute the future measurement example.

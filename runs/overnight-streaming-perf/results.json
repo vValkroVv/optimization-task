@@ -1,9 +1,9 @@
 {
-  "status": "RUNNING",
+  "status": "ORIGINAL_CAMPAIGN_CANCELLED_INCOMPLETE_CLEANUP_ONLY",
   "entry_revision": "a2a59e14545b55ca777f94a28e332759e7c06087",
   "start_moscow": "2026-11-13T02:18:00+03:00",
   "baseline": {
-    "status": "PASS",
+    "status": "HISTORICAL_PASS_MONITORING_INCLUSIVE",
     "run_ids": [
       "g2-baseline-a1-w110",
       "g2-baseline-a2-w110"
@@ -46,7 +46,8 @@
     ],
     "candidate_gain_accepted": false,
     "runtime_and_initial_config_helper_data_hashes_match": true,
-    "native_parameter_and_rng_repeatability_verified": false
+    "native_parameter_and_rng_repeatability_verified": false,
+    "comparability": "Historical monitoring-inclusive result; not directly comparable to future monitoring-off measurements."
   },
   "candidates": [
     {
@@ -59,7 +60,7 @@
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G5 stable separate-row-stat adaptation and actual CUDA/compiled large-common-offset regression (unchanged donor formula fails CPU FP32 proof), elementwise parity, native integration and alternating A/B evidence; source contract k1a-compiled-contract.md. G3 supplies no speed claim."
+      "unresolved_gate": "Original candidate work cancelled/incomplete. Historical proposed gate: G5 stable separate-row-stat adaptation and actual CUDA/compiled large-common-offset regression (unchanged donor formula fails CPU FP32 proof), elementwise parity, native integration and alternating A/B evidence; source contract k1a-compiled-contract.md. G3 supplies no speed claim."
     },
     {
       "id": "K2",
@@ -71,7 +72,7 @@
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G5 targeted saved-tensor/lifetime, nested SAC correctness and native/A-B evidence; G3 confirms replay but not removable activation lifetime."
+      "unresolved_gate": "Original candidate work cancelled/incomplete. Historical proposed gate: G5 targeted saved-tensor/lifetime, nested SAC correctness and native/A-B evidence; G3 confirms replay but not removable activation lifetime."
     },
     {
       "id": "K3",
@@ -115,11 +116,22 @@
       "status": "NOT_COMPLETED",
       "source_pin": "860152d111e4bac25daecbe3cc0cd84c68c8af9c",
       "applicability": "Helper missing in current loader; selected donor lacks concrete text-loader state integration.",
-      "correctness": null,
+      "correctness": {
+        "source_cpu_handoff": "accepted after Trainer.close failure cleanup fix",
+        "review": "v2-prefetch-review.md",
+        "scoped_cpu_tests_passed": 306,
+        "preexisting_registry_test_deselected": 1,
+        "cleanup_tests_after_fix_passed": 9,
+        "independent_targeted_review_cases_passed": 4,
+        "eight_owner_real_mds_gloo_dcp": "NOT_EXECUTED_NOT_COMPLETED_CANCELLED",
+        "native_numerical_integration": "CANCELLED_FULL_MODEL_FRAMEWORK_ABANDONED"
+      },
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G5 queue/state/exception/shutdown/resume checks and repeated unprofiled A/B across epoch positions; G3 input gap is a hypothesis, not a gain."
+      "unresolved_gate": "No runtime/performance acceptance. Actual eight-owner Gloo/DCP not executed/completed. Future separate authorization required; short monitoring-off performance first then local affected contract checks.",
+      "source_variant_revision": "21c1891dda531a1222e6c350802f2765758794f9",
+      "source_variant_branch": "vkropotin-v2-prefetch"
     },
     {
       "id": "V3",
@@ -131,7 +143,7 @@
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G5 partial-backward guard regression, safe arena/release analysis and actual gather/lifetime comparison; G3 shows expected all-gather counts without abnormal extra regathers."
+      "unresolved_gate": "Original candidate work cancelled/incomplete. Historical proposed gate: G5 partial-backward guard regression, safe arena/release analysis and actual gather/lifetime comparison; G3 shows expected all-gather counts without abnormal extra regathers."
     },
     {
       "id": "V4",
@@ -155,16 +167,11 @@
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G5 compiled loss/gradient/aux-scale parity, uneven/empty counts, callback/int64 save-load state and controlled TPS; G3 exposes the early producer read but does not establish a gain."
+      "unresolved_gate": "Original candidate work cancelled/incomplete. Historical proposed gate: G5 compiled loss/gradient/aux-scale parity, uneven/empty counts, callback/int64 save-load state and controlled TPS; G3 exposes the early producer read but does not establish a gain."
     }
   ],
   "accepted_improvements": [],
-  "open_gates": [
-    "G4",
-    "G5",
-    "G6",
-    "G7"
-  ],
+  "open_gates": [],
   "source_inspection": "reference-coverage.md",
   "failed_attempts": [
     {
@@ -607,21 +614,51 @@
     "post_run_lint_fix": "Default Ruff E731 found lambda assignment; converted to equivalent local def. CPU-only planner contract and selected calls/configs/budgets exactly match tested plan; Ruff passes. GPU proof is reused from archived tested script bytes."
   },
   "measurement_protocol": {
-    "warmup_updates": 110,
+    "status": "FUTURE_POLICY_ONLY_NO_EXECUTION_DURING_CLEANUP",
+    "warmup_optimizer_updates": 10,
+    "measured_optimizer_updates": 10,
     "measured_updates": [
-      111,
-      160
+      11,
+      20
     ],
-    "consecutive_updates": 50,
-    "monitor_interval": 50,
-    "monitor_update_in_window": 150,
-    "cache_policy": "fresh private caches each process, native DeepGEMM warmup retained",
-    "deepgemm_after_warmup": "DG_CACHE_FORCE_SKIP=0; tested binary pin in guard probe",
-    "compilation_observer": "existing Dynamo timing lists, Inductor async counters, CuTe compiled object map, Triton existing device caches; raw boundary snapshots and recomputed comparison",
-    "observer_helper_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
-    "source_checks": "36 observer and 26 measurement tests passed; final missing-prior-value regression reproduced old falsepass then 5 affected cases passed; independent guard integration/runtime-cost review accepted and final tiny fix inspected by root; staged whitespace check then found trailing blank lines in two new files, removed without executable changes",
-    "native_measured_validation": "A1-W110 PASS/rootaccepted; A2-W110 running source87230b5b/controller292349,start04:30:51UTC; A/A noisegatepending",
-    "memory_peak_scope": "native reset epochs overlapping W110..160; initial sample can include updates101..110; retry/OOM deltas use actual W/end boundaries"
+    "gradient_accumulation": 32,
+    "scheduler_horizon": 65000,
+    "lr_warmup_updates": 2000,
+    "detailed_monitoring_callbacks_and_hooks": false,
+    "ordinary_loss_chunks": 2,
+    "lightweight_logging": [
+      "native_loss",
+      "step_time",
+      "TPS",
+      "errors"
+    ],
+    "preserve": [
+      "model",
+      "MDS",
+      "FP8",
+      "compile",
+      "CuTe",
+      "SAC",
+      "MTP",
+      "EMA",
+      "optimizer",
+      "routing",
+      "batch"
+    ],
+    "disabled": [
+      "validation",
+      "checkpoint_saving",
+      "memory_snapshots",
+      "numerical_capture",
+      "profiling_in_unprofiled_runs",
+      "CUDA_Graphs"
+    ],
+    "warmup_extension": "Only actual compilation or continuing runtime settling affecting measurement window; cache entry alone insufficient",
+    "comparison": "Short matched baseline/candidate first; one pair provisional; repeat promising or ambiguous results when needed",
+    "mandatory_long_or_exhaustive_gates": false,
+    "numerical_order": "Performance first; smallest affected local block for candidate worth retaining afterward",
+    "local_numerical_contract": "Matched boundary inputs and needed weights/state; outputs and affected backward with matched activations/incoming gradients; precision/casts/rounding/reductions/fusion analysis; higher-precision local reference as needed; no universal tolerance or assumed bitwise equality",
+    "whole_model_parameter_gradient_adam_capture": false
   },
   "baseline_controls": [
     {
@@ -844,19 +881,16 @@
     }
   },
   "native_numerical_calibration": {
-    "status": "RETRY_READY_AFTER_METADATA_FIX",
+    "status": "ABANDONED_C1_PASS_C2_A_TERMINAL_EXPORT_B_C50_CANCELLED",
     "source_revision": "f29581c4dcae78928cb940313b13893826f4e10c",
     "helper_integration_tests_passed": 110,
     "c1_reference_run": "native-numerics-c1-a-001",
     "c1_controller_pid": 362311,
     "launch_receipt": "artifacts/raw/native-numerics-c1-a-001.launch.json",
     "scope": "update1 selected capture, matched fresh A export/B compare; no TPS interpretation",
-    "initial_and_prefix_exact_gates": "initial_parameter observation mismatch; cause under diagnosis",
+    "initial_and_prefix_exact_gates": "PASS all8 C1 B2",
     "numerical_tolerances_established": false,
-    "remaining_selected_updates": [
-      2,
-      50
-    ],
+    "remaining_selected_updates": [],
     "c1_reference_capture_status": "complete; comparison pending",
     "c1_comparison_run": "native-numerics-c1-b-001",
     "c1_comparison_controller_pid": 375534,
@@ -865,8 +899,8 @@
     "initial_parameter_first_mismatch": "model.0.tok_embeddings.weight",
     "selected_tensor_comparison_performed": false,
     "all_c1_owned_processes_stopped": true,
-    "temporary_reference_blobs_retained": 12320,
-    "temporary_reference_retention_reason": "required initial-gate diagnosis and evidence reuse assessment; no comparison results yet",
+    "temporary_reference_blobs_retained": 0,
+    "temporary_reference_retention_reason": "C1 heavy bytes/files removed after verified per-observation metrics; compact metadata retained",
     "initial_gate_failure_cause": "DeviceMesh coordinate tuple/list representation after JSON; strict comparator remains unchanged",
     "diagnosis": "native-c1-initial-gate-diagnosis.md",
     "metadata_fix_tests": {
@@ -894,6 +928,126 @@
         "unchanged GIFT/config/runtime/data identities; only approved helper delta and dump_folder may differ",
         "bound finite per-tensor comparison metrics before reference payload deletion"
       ]
+    },
+    "c1_retry_run": "native-numerics-c1-b-002",
+    "c1_retry_controller_pid": 392076,
+    "c1_retry_revision": "e9048f65f6a00b87c97b1e7e2cfb31fa66f56414",
+    "c1_retry_status": "PASS; compact historical evidence retained",
+    "c2_reference_run": "native-numerics-c2-a-001",
+    "c2_controller_pid": 417773,
+    "c2_revision": "e9048f65f6a00b87c97b1e7e2cfb31fa66f56414",
+    "cancelled_selected_updates": [
+      2,
+      50
+    ],
+    "c2_reference_status": "PASS terminal export at 2026-11-13T08:34:48Z; not completed A/B comparison",
+    "c2_child_pid": 418189,
+    "c2_child_process_group_stopped": true,
+    "c2_controller_absent_checked_at_utc": "2026-11-13T08:45:00Z",
+    "c2_b_and_c50_status": "CANCELLED_NOT_LAUNCHED",
+    "full_model_validation_disposition": "Abandoned, not completed; machinery removed by cleanup; no replacement full-model gate"
+  },
+  "cancelled_incomplete_campaign_gates": [
+    "G4",
+    "G5",
+    "G6",
+    "G7"
+  ],
+  "historical_measurement_protocol": {
+    "warmup_updates": 110,
+    "measured_updates": [
+      111,
+      160
+    ],
+    "consecutive_updates": 50,
+    "monitor_interval": 50,
+    "monitor_update_in_window": 150,
+    "cache_policy": "fresh private caches each process, native DeepGEMM warmup retained",
+    "deepgemm_after_warmup": "DG_CACHE_FORCE_SKIP=0; tested binary pin in guard probe",
+    "compilation_observer": "existing Dynamo timing lists, Inductor async counters, CuTe compiled object map, Triton existing device caches; raw boundary snapshots and recomputed comparison",
+    "observer_helper_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+    "source_checks": "36 observer and 26 measurement tests passed; final missing-prior-value regression reproduced old falsepass then 5 affected cases passed; independent guard integration/runtime-cost review accepted and final tiny fix inspected by root; staged whitespace check then found trailing blank lines in two new files, removed without executable changes",
+    "native_measured_validation": "Historical G2 A1/A2 W110 passed; not a future monitoring-off control",
+    "memory_peak_scope": "native reset epochs overlapping W110..160; initial sample can include updates101..110; retry/OOM deltas use actual W/end boundaries",
+    "status": "ARCHIVED_RETIRED"
+  },
+  "cleanup_assignment": {
+    "status": "VERIFIED_AWAITING_PUBLICATION",
+    "execution_source_revision": "e9048f65f6a00b87c97b1e7e2cfb31fa66f56414",
+    "training_benchmarks_traces_block_comparisons_executed": false,
+    "implementation_checks": {
+      "status": "PASS",
+      "cpu_config_tests": {
+        "passed": 100,
+        "deselected": 1,
+        "deselected_scope": "unrelated multi-rank native-DCP test"
+      },
+      "canonical_golden_tests_passed": 1,
+      "distinct_scoped_tests_passed": 101,
+      "removed_modes_rejected": true,
+      "runner_observer_parser_import_and_help": "PASS",
+      "monitoring_regression": "Fails on original monitored configuration; passes on final configuration",
+      "performance_config": {
+        "default_optimizer_updates": 20,
+        "warmup_optimizer_updates": 10,
+        "measured_optimizer_updates": 10,
+        "gradient_accumulation": 32,
+        "lr_total_steps": 65000,
+        "lr_warmup_steps": 2000,
+        "callbacks": [
+          "ema"
+        ],
+        "ordinary_loss_chunks": 2,
+        "detailed_monitoring_hooks": false,
+        "validation_checkpoint_snapshot_numerical_capture_cuda_graphs": false
+      },
+      "required_model_data_precision_parallelism_sac_mtp_optimizer_routing_preserved": true,
+      "optional_compiler_observation_default": false,
+      "lint": "Ruff F821,F811,F841 and whitespace checks passed",
+      "commands_and_failed_check_resolutions": "artifacts/raw/cleanup-verification/runner/CHECKS.md",
+      "independent_integration_and_runtime_cost_review": {
+        "status": "PASS",
+        "material_findings_remaining": 0,
+        "path": "artifacts/raw/cleanup-verification/integration-review.md"
+      },
+      "historical_smoke_launcher": "Requires its recorded original revision/config; incompatible with current MDS/monitoring-off defaults, now explicitly archived",
+      "gpu_training_benchmarks_traces_local_block_comparisons_executed": false,
+      "evidence_sha256": {
+        "artifacts/raw/cleanup-verification/runner/CHECKS.md": "3b1715ee35f2659dba55dbcdd0ce5d79eb9444ea9be433a2998368d1193d563e",
+        "artifacts/raw/cleanup-verification/integration-review.md": "102722ec9d8326f8edc592dc9edcdfd16466382551f16d9d5bb3dbfd2eba45ab",
+        "cancellation-cleanup.json": "4e92ef2055a6ca6171e86d88799b82aaac9d2d82b0ccb8c1eebcdfc751de98a4"
+      },
+      "documentation_links": {
+        "documents_checked": 20,
+        "local_links_resolved": 176,
+        "local_fragment_links_passed": 2,
+        "preexisting_upstream_root_relative_links_unchanged": [
+          "gift/.claude/CLAUDE.md:/CONTRIBUTING.md",
+          "gift/.claude/CLAUDE.md:/REVIEW.md (two occurrences)"
+        ],
+        "new_or_changed_broken_links": 0
+      },
+      "retained_artifacts": {
+        "mds_index_sha256": "7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2",
+        "g3_compressed_trace_sha256": [
+          "6d40b5fd51d22ab084075ade2daa99009dd84c48076817277f8e4fd6bc1cb5fb",
+          "f258f36648ecac43d0c10e08a345a63d4c66fb89ee5c63b9899642bafc4c5488"
+        ],
+        "v2_clean_source_revision": "21c1891dda531a1222e6c350802f2765758794f9",
+        "mds_preparation_and_perfetto_tracked_bytes_unchanged": true,
+        "existing_untracked_v2_loader_check_preserved": true
+      }
+    },
+    "owned_process_and_heavy_payload_cleanup_receipt": "cancellation-cleanup.json",
+    "publication_commit": null,
+    "cleanup_summary": {
+      "task_processes_remaining": 0,
+      "reference_tensor_blobs_remaining": 0,
+      "deleted_files": 40650,
+      "deleted_logical_bytes": 381915112855,
+      "nfs_free_delta_claimed": false,
+      "obsolete_numerical_worktrees_removed": 2,
+      "candidate_source_mds_perfetto_evidence_preserved": true
     }
   }
 }

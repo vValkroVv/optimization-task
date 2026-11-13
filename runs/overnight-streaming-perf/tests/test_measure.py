@@ -438,9 +438,9 @@ def _run_short(trainer, stop_after: int) -> None:
 def test_profile_update_defaults_validation_cli_decode_and_resolved_config(
     tmp_path: Path,
 ) -> None:
-    default_args = runner._parse_args(["--run-id", "default", "--steps", "10"])
-    assert default_args.warmup == 0
-    assert default_args.window == 0
+    default_args = runner._parse_args(["--run-id", "default"])
+    assert default_args.warmup == 10
+    assert default_args.window == 10
     assert default_args.profile_update is None
     default_overrides = runner._training_overrides(
         default_args, {"native": tmp_path / "default-native"}
@@ -479,6 +479,8 @@ def test_profile_update_defaults_validation_cli_decode_and_resolved_config(
             "3",
             "--monitor-interval",
             "5",
+            "--window",
+            "0",
             "--profile-update",
             "7",
         ),
@@ -495,6 +497,8 @@ def test_profile_update_defaults_validation_cli_decode_and_resolved_config(
             "7",
             "--warmup",
             "3",
+            "--window",
+            "0",
             "--profile-update",
             "7",
         ]
@@ -564,7 +568,8 @@ def test_profile_update_defaults_validation_cli_decode_and_resolved_config(
         "lr_scheduler.total_steps": 65000,
         "lr_scheduler.warmup_steps": 2000,
         "debug.seed": 2048,
-        "callbacks.monitoring.log_interval": 50,
+        "loss.num_chunks": 2,
+        "callbacks.ema.type": "ema",
         "metrics.log_freq": 1,
         "checkpoint.enable": False,
         "validator.enable": False,
@@ -638,8 +643,6 @@ def test_measure_cli_accepts_only_the_profile_update_schedule(tmp_path: Path) ->
         "3",
         "--window",
         "0",
-        "--monitor-interval",
-        "50",
         "--profile-update",
         "7",
         "--",
@@ -652,10 +655,8 @@ def test_measure_cli_accepts_only_the_profile_update_schedule(tmp_path: Path) ->
     assert train_argv == ["experiment.yaml"]
 
     invalid_variants = (
-        {"--monitor-interval": "5"},
         {"--warmup": "0"},
         {"--steps": "8"},
-        {"--steps": "50", "--profile-update": "50"},
         {"--window": "50"},
     )
     for changes in invalid_variants:
@@ -984,6 +985,8 @@ def _profile_parser_fixture(run_dir: Path, *, target_update: int = 2, warmup: in
             str(target_update),
             "--warmup",
             str(warmup),
+            "--window",
+            "0",
             "--profile-update",
             str(target_update),
         ]

@@ -1,5 +1,10 @@
 # Experiment workflow
 
+Current assignment: cleanup and protocol revision only. Do not run training,
+benchmarks, new traces or local block comparisons. The steps below govern future
+authorized experiments; [the active cleanup plan](overnight-streaming-perf.md)
+owns the current finite acceptance checklist.
+
 1. Read [current state](../docs/status.md) and [baseline](../docs/baseline.md).
    Reuse completed evidence; do not repeat a smoke to answer a different property.
 2. Choose one question from [the plan](README.md). Define finite acceptance,
@@ -11,9 +16,11 @@
 4. Work only within authorized source, dependency and compute scope. Review
    correctness and runtime costs of the affected path before implementation and
    once against the final result. Preserve other contributors' work.
-5. Verify the affected behavior, then measure performance only after the required
-   correctness gates pass. If a control fails, record it and do not treat the
-   remaining candidate timing as a valid comparison.
+5. For future authorized candidates, measure a short matched performance pair
+   first; a single pair is provisional. For a candidate worth retaining, assess
+   the smallest affected numerical block afterward as described in validation.
+   Repeat promising/ambiguous performance results only when needed. A failed
+   control does not establish a candidate gain.
 6. Keep one report and compact result per experiment. Record source identities,
    commands and evidence needed to reproduce conclusions. Put large raw traces,
    checkpoints and logs outside Git with explicit locations and hashes.

@@ -1,11 +1,17 @@
 # 100B crop8 EP8 training smoke
 
-Status: PASS on eight H100 GPUs, 13 November 2026 (Moscow date).
+Status: historical PASS on eight H100 GPUs, 13 November 2026 (Moscow date).
 
-The default is [the agreed baseline](../../docs/baseline.md), implemented
+The current default is [the agreed baseline](../../docs/baseline.md), implemented
 in [the canonical experiment](../../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml).
 Training source lives in `optimization-task/gift`. This is a basic execution
 check, not a throughput benchmark or convergence study.
+
+Reproduction of this historical result requires the executed revision and its
+recorded configuration below. The current canonical configuration selects MDS
+and disables monitoring; the unchanged historical launcher assumes monitoring
+and does not reproduce this receipt against current defaults. No smoke run is
+authorized by the current cleanup assignment.
 
 ## Runtime and reproduction
 

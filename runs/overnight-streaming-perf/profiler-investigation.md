@@ -1,5 +1,13 @@
 # Native profiler and measurement inspection
 
+Status: ARCHIVED historical evidence from the cancelled/incomplete original
+campaign. Old numerical-harness, monitoring-inclusive, long-window/cache and
+pre-performance numerical instructions below are retired; they describe the
+method reviewed at that time, not active requirements. The [revised plan](../../planning/overnight-streaming-perf.md)
+and [validation](../../planning/validation.md) own the cleanup-only assignment
+and future 10+10 monitoring-off/performance-first local-block policy. No new run
+or trace is authorized. Referenced removed modules are historical symbols.
+
 Read-only design inspection at source `a2a59e14545b55ca777f94a28e332759e7c06087`.
 No training, benchmark, source modification or runtime correctness test was
 performed by this investigation. The coordinating agent owns implementation and

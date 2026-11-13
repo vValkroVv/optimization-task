@@ -1,5 +1,13 @@
 # Native runner and measurement integration review
 
+Status: ARCHIVED historical evidence from the cancelled/incomplete original
+campaign. Old numerical-harness, monitoring-inclusive, long-window/cache and
+pre-performance numerical instructions below are retired; they describe the
+method reviewed at that time, not active requirements. The [revised plan](../../planning/overnight-streaming-perf.md)
+and [validation](../../planning/validation.md) own the cleanup-only assignment
+and future 10+10 monitoring-off/performance-first local-block policy. No new run
+or trace is authorized. Referenced removed modules are historical symbols.
+
 Scope: one combined review of `run.py`, `measure.py`, `parse_results.py` and
 their actual native trainer, metrics, profiler, configuration and cache consumers.
 No GPU execution by this reviewer. Final targeted fixes were reviewed after the

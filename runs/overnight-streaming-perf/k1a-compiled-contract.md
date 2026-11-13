@@ -1,5 +1,13 @@
 # K1a compiled CE contract reconciliation
 
+Status: ARCHIVED historical evidence from the cancelled/incomplete original
+campaign. Old numerical-harness, monitoring-inclusive, long-window/cache and
+pre-performance numerical instructions below are retired; they describe the
+method reviewed at that time, not active requirements. The [revised plan](../../planning/overnight-streaming-perf.md)
+and [validation](../../planning/validation.md) own the cleanup-only assignment
+and future 10+10 monitoring-off/performance-first local-block policy. No new run
+or trace is authorized. Referenced removed modules are historical symbols.
+
 Read-only judgment, 13 November 2026; task HEAD
 `6123a24ff74df7f47efad677070d47ed5a238705`. Donor K is pinned by
 `references/kindulov/manifest.json` to

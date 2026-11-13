@@ -19,8 +19,9 @@ Historical full records are recoverable through [references](references/README.m
   Run Git at this root; do not initialize repositories or refresh submodules
   inside it. `references/` contains inert upstream source, not active imports.
 - Training-source writes require authorization for the named tree and scope.
-  Preserve the agreed config; do not disable FP8, compile, SAC, monitoring,
-  MTP or change dimensions to make a check pass without an explicit decision.
+  Preserve the agreed config; do not disable FP8, compile, SAC or MTP, or change
+  dimensions to make a check pass without an explicit decision. Performance runs
+  use the agreed monitoring-off configuration in [baseline](docs/baseline.md).
 - Package installation, data/model downloads, GPU allocation/training and shared
   environment changes require authorization. Never kill unrelated processes or
   modify shared packages/startup configuration as routine cleanup.
@@ -49,9 +50,14 @@ routing, precision, optimizer, schedule and accumulation. Preserve loader/RNG,
 validation and persisted state; distinguish exact continuation from weights-only
 loading. Any deliberate computation change needs an agreed quality criterion.
 
-Compare elementwise loss/gradients and relevant state for numerical claims;
-rounded norms are insufficient. Use matched inputs and stated tolerances. Verify
-actual resolved configuration and activation, not only requested settings.
+For future candidates, measure performance first, then assess numerical effects
+within the smallest affected block worth retaining. Replay original and changed
+blocks with matched inputs and required local state; compare the affected
+backward block when it changes. Interpret differences using precision, casts,
+rounding, reduction order and fusion, with a higher-precision local reference
+when needed. Do not require whole-model gradients or optimizer exports, universal
+tolerances or unjustified bitwise equality. Keep unresolved differences explicit.
+Verify actual resolved configuration and activation, not only requested settings.
 CPU checks do not establish GPU/NCCL behavior; a smoke does not establish speed,
 convergence, long-run stability or continuation. Retain failed/skipped checks.
 
@@ -61,11 +67,19 @@ communication, compilation, lifetime and scale, including inherited active code.
 Run relevant tests and integration checks. Documentation-only changes have no
 runtime effect when source/config/runner bytes remain unchanged.
 
-For performance use A/A noise and alternating unprofiled A/B after warmup; pair
-memory by lifecycle phase. Use traces for mechanism, not speed magnitude. Keep
+For future performance comparisons, start with matched unprofiled baseline and
+candidate runs of about ten warmup and ten measured optimizer updates. Keep the
+original accumulation and LR schedule. Extend warmup only when actual compilation
+or continuing runtime settling affects the window; a cache entry alone is not
+evidence. Treat a single pair as provisional and repeat promising or ambiguous
+results as needed to distinguish an effect from noise. Pair memory by lifecycle
+phase. Use existing traces for mechanism, not speed magnitude. Keep
 host/device/communication scopes explicit; overlapping sums are not elapsed time.
-Include recurring input, metrics, evaluation and checkpoint costs at real cadence.
-Never promote an incomplete or failed control comparison.
+State which input, lightweight logging, evaluation and checkpoint costs are
+included. Detailed monitoring, validation, checkpoint saving, memory snapshots,
+numerical capture and CUDA Graphs remain disabled in performance runs. Never
+promote an incomplete or failed control comparison. The current cleanup assignment
+does not authorize executing these future measurements or block comparisons.
 
 ## Bounded work and artifacts
 

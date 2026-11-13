@@ -1,5 +1,13 @@
 # Profiler controls: independent integration and runtime-cost review
 
+Status: ARCHIVED historical evidence from the cancelled/incomplete original
+campaign. Old numerical-harness, monitoring-inclusive, long-window/cache and
+pre-performance numerical instructions below are retired; they describe the
+method reviewed at that time, not active requirements. The [revised plan](../../planning/overnight-streaming-perf.md)
+and [validation](../../planning/validation.md) own the cleanup-only assignment
+and future 10+10 monitoring-off/performance-first local-block policy. No new run
+or trace is authorized. Referenced removed modules are historical symbols.
+
 Verdict: **accept source handoff for G1/G3; no blocking source findings**.
 Eight-GPU trace/lifecycle acceptance remains open. This review did not launch
 GPU work, modify training source, or repeat previously passing suites.

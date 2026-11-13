@@ -602,21 +602,31 @@ def test_parser_requires_stable_rank_boundaries_but_keeps_coverage_partial() -> 
     assert summary["deep_gemm_compilation_guard"]["status"] == "complete"
 
 
-@pytest.mark.parametrize("failure", ["missing", "changed_counter", "missing_comparison"])
-def test_parser_rejects_missing_or_changed_compiler_receipts(failure: str) -> None:
+@pytest.mark.parametrize("observation", ["absent", "changed_counter"])
+def test_parser_treats_cache_observations_as_optional_diagnostics(observation: str) -> None:
     records, metadata = _parser_records()
-    observer = records[2]["measurement"]["compilation_observer"]
-    if failure == "missing":
-        observer["after"] = None
-    elif failure == "missing_comparison":
-        observer.pop("comparison")
+    if observation == "absent":
+        for record in records:
+            record["measurement"].pop("compilation_observer")
     else:
+        observer = records[2]["measurement"]["compilation_observer"]
         observer["after"]["sources"]["inductor"]["counters"][
             "async_compile_cache_miss"
         ]["value"] += 1
-
+        observer["comparison"] = compiler_stats.compare_compilation_snapshots(
+            observer["before"], observer["after"], observer["source_metadata"]
+        )
     summary = parse_results.summarize_records(records, metadata)
+    assert summary["status"] == "complete", summary["errors"]
+    assert summary["compilation_observer"]["status"] == (
+        "disabled" if observation == "absent" else "changes_observed"
+    )
 
+
+def test_parser_rejects_tampered_optional_compiler_receipt() -> None:
+    records, metadata = _parser_records()
+    records[2]["measurement"]["compilation_observer"].pop("comparison")
+    summary = parse_results.summarize_records(records, metadata)
     assert summary["status"] == "incomplete"
     assert any("compiler" in error.lower() for error in summary["errors"])
 

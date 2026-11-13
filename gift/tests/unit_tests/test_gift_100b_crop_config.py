@@ -63,7 +63,7 @@ assert c.lr_scheduler.warmup_steps == 2000
 assert c.lr_scheduler.decay_ratio is None
 assert c.lr_scheduler.decay_type == 'cosine'
 assert c.lr_scheduler.min_lr_factor == 0.0098
-assert (c.loss.num_chunks, c.loss.num_chunks_on_monitoring_steps) == (2, 32)
+assert (c.loss.num_chunks, c.loss.num_chunks_on_monitoring_steps) == (2, None)
 assert c.loss.loss_weights == [0.3]
 assert c.parallelism.data_parallel_shard_degree == c.parallelism.expert_parallel_degree == 8
 assert c.parallelism.fsdp_backend == 'gfsdp2' and c.parallelism.gfsdp_match_fsdp2_init
@@ -93,10 +93,10 @@ expected |= {f'mtp.layers.0.block.feed_forward.w{i}' for i in (1, 2, 3)}
 assert selected == expected, (selected - expected, expected - selected)
 assert not any(pattern.search(name) for name in ('lm_head', 'layers.1.moe.router.gate', 'layers.0.attention.ba_proj', 'layers.3.attention.wkv_a'))
 assert c.callbacks['ema'].start_step == 10000 and c.callbacks['ema'].decay == .99
-assert c.callbacks['monitoring'].log_interval == 50
+assert set(c.callbacks) == {'ema'}
 assert not c.checkpoint.enable and not c.profiler.enable_profiling
 assert not c.profiler.enable_memory_snapshot and not c.training.enable_cpu_offload
-assert c.dataloader.dataset == 'c4_test'
+assert c.dataloader.dataset.streams[0].local.endswith('/artifacts/raw/mds4096')
 print('crop config verified')
 """)
     assert result.stdout.strip() == "crop config verified"

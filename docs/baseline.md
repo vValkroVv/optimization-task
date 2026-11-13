@@ -24,9 +24,11 @@ Layer 0 is dense with hidden size 10,944. Layers 1–7 are MoE layers with 128 r
 | Optimizer | Fused AdamW; CuTe applies to the norm backend |
 | Offload and routing | No CPU offload; adaptive load balancing; no forced routing |
 | EMA | Keep enabled |
-| Loss and monitoring | Two ordinary loss chunks, 32 on monitoring steps; monitoring interval 50 |
+| Loss and monitoring | Performance runs disable detailed monitoring callbacks/hooks; ordinary loss uses two chunks; retain lightweight native loss/time/TPS/errors |
 | Batch | Microbatch 2, sequence length 4,096, global batch 512, gradient accumulation 32 |
-| Scheduler | 65,000-step horizon |
+| Scheduler | 65,000-update horizon, 2,000-update LR warmup; short performance stop does not compress it |
+| Performance window | 10 warmup + 10 measured optimizer updates; extend only for actual compilation/runtime settling in the window |
+| Disabled performance features | Validation, checkpoint saves, memory snapshots, numerical capture, profiling and CUDA Graphs |
 
 Use the agreed microbatch and accumulation values. Do not copy the development preset's local batch 64 or its prior PP microbatch 2 setting into this EP8/PP1 baseline. Confirm the effective mesh and batch semantics from the rank-zero resolved configuration before treating the configuration as verified.
 
@@ -102,14 +104,24 @@ interval was 5 instead of the default 50. Both ordinary and monitoring paths
 completed; the 2/32 loss-chunk selection is supported by resolved settings and
 native source/hook correlation, not a direct chunk counter. No checkpoint,
 profiler trace or memory snapshot was emitted, and all training processes released
-the GPUs. The canonical interval remains 50. No full performance benchmark,
-convergence study was performed in that historical smoke. The authorized MDS
-performance campaign is tracked separately; its unfinished gates are not smoke
-acceptance claims.
+the GPUs. Those historical monitoring settings do not apply to future performance runs:
+detailed callbacks/hooks are disabled there, with ordinary two-chunk loss. No
+performance benchmark or convergence study was performed in that HF smoke.
+The original MDS performance campaign is cancelled/incomplete; its unfinished
+gates are not smoke acceptance claims.
 
 The baseline uses the installed DeepGEMM `2.3.0+f093a4c` and DeepEP
 `1.2.1+1b8f467`, with the native `torchtitan.train` entrypoint. The launcher verifies
 package paths and source hashes. See the [result receipt](../runs/100b-crop8-ep8-smoke/result.json).
+
+## Historical performance boundary
+
+The monitoring-inclusive G2 median input TPS was 124454.81175967702 global and
+15556.851469959627 per GPU. It is historical and not directly comparable with
+future monitoring-off measurements. A new matched short baseline/candidate pair
+is required for a future authorized comparison; single-pair results remain
+provisional. Performance precedes local assessment of a candidate worth retaining.
+The current assignment is cleanup only and runs no experiments.
 
 ## Future work
 

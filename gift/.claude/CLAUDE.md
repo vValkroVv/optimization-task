@@ -36,14 +36,16 @@ When running performance tests, use at least 10 training steps (for example,
 `--training.steps 10`) so startup and warmup effects do not dominate the results.
 
 ### Validating Numerics
-Non-computation changes (e.g. activation checkpointing, refactoring) must produce
-**identical loss** before vs. after with `--debug.seed=42` and `--debug.deterministic`.
-Computation changes require loss convergence on representative datasets (e.g. C4).
-
-With the same parallelisms, GPU settings, and the debug options, two runs should produce
-bit-wise identical loss and grad_norm. Note that stdout only prints the most
-significant five digits, which may not be enough. Follow `scripts/loss_compare.py` to
-enable profiling and check loss and grad_norm from the TensorBoard results.
+For performance candidates, follow `planning/validation.md` at the task repository root:
+measure a short matched baseline/candidate pair first, then assess a candidate
+worth retaining within its smallest affected block. Compare matched inputs and
+needed local weights/state, including matched incoming gradients when backward
+changes. Interpret differences using accumulation precision, casts, rounding,
+reduction order and fusion; use a higher-precision local reference when needed.
+Do not assume universal tolerances, bitwise equality or that the old output is
+mathematically exact. Do not require full-model gradients, parameters or optimizer
+exports. Keep unresolved differences explicit. Deliberate mathematical changes
+require an agreed quality criterion and relevant convergence evidence.
 
 You should NEVER use `--debug.deterministic_warn_only`.
 

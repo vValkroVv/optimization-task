@@ -1,540 +1,150 @@
-# Overnight streaming and optimization campaign
+# Streaming performance tooling: cleanup and revised protocol
 
-Status: RUNNING — execution began 13 November 2026 at 02:18 Europe/Moscow
-(12 November 23:18 UTC). Starting state: 13 November 2026,
-GIFT source as recorded at task commit `ee965d3c8e019f73c291104f345c40458a3f9f31`.
-Goal: have reproducible measurements and per-candidate conclusions available at
-the next morning handoff, prioritizing actual results over diagnostic scaffolding.
-No exact clock deadline was supplied: record start time in Europe/Moscow, proceed
-through the finite scope below, and leave durable partial results on interruption.
+Status: CLEANUP_ONLY. The original G0–G7 overnight optimization campaign is
+cancelled and incomplete. This assignment changes tooling and instructions;
+it does not resume experiments. All new communication and deliverables use English.
 
-## Outcome and authorization
+## Current assignment and finite acceptance
 
-1. Establish the existing crop on GIFT `streaming_text` using tokenized local MDS.
-2. Measure warmed, unprofiled baseline TPS and noise; then capture one complete
-   optimizer update on global ranks 0 and 1 only.
-3. Analyze both traces with Perfetto MCP and map observed bottlenecks to all
-   mechanisms in `references/`.
-4. Port and evaluate applicable mechanisms sequentially, with correctness checks,
-   repeated TPS measurements and sparse trace evidence for each executed variant.
-5. Deliver a table explaining each change, measured effect, mechanism, validation
-   status and disposition; integrate only qualifying improvements.
+Work in `/workspace-SR008.nfs2/vkropotin/optimization-task`. The last campaign
+execution source was `e9048f65f6a00b87c97b1e7e2cfb31fa66f56414`.
+The revised user objective supersedes the old campaign's long-window, monitoring
+and full-model numerical prerequisites. Complete only these acceptance items:
 
-The user explicitly authorizes unattended work on the existing eight-H100
-`sr008-gpu` allocation and task checkout
-`/workspace-SR008.nfs2/vkropotin/optimization-task`, including changes under its
-`gift/`, runners, tests, MDS preparation, dependency/tool installation needed for
-this campaign, scoped blocker repairs, owned-artifact cleanup, commit/push and
-result publication. Do not wait for user answers to routine implementation choices.
+1. Stop exact task-owned C1/C2/C50 processes before changing their files. Remove
+   campaign `numerics.py`, `numerics_payload.py`, exclusive tests/configuration,
+   and active runner/observer/parser integrations. Preserve unrelated training.
+2. Disable detailed monitoring callbacks and hooks in the resolved performance
+   configuration, using ordinary two-chunk loss. Retain lightweight native loss,
+   step-time/TPS and error logging, EMA and training losses.
+3. Accept 10 warmup plus 10 measured **optimizer updates**, preserving accumulation
+   32 and LR horizon 65,000/LR warmup 2,000. Disable validation, checkpoint saves,
+   memory snapshots, numerical capture and CUDA Graphs.
+4. Record the future performance-first/local-block protocol below. Remove old
+   active numerical and long-measurement prerequisites; do not build another
+   numerical framework or run local block comparisons now.
+5. After owned jobs stop, delete cancelled task-owned reference tensors,
+   temporary checkpoints and unnecessary heavy dumps. Preserve MDS preparation,
+   candidate source, compact historical evidence, Perfetto SQL/results and the
+   canonical compressed trace pair. Record actual cleanup counts only from receipts.
+6. Use scoped CPU/config checks to verify imports/parsing, no active numerical
+   entry points, short windows, disabled monitoring and preserved training
+   settings. Check affected document links. Record checks, cleanup status and
+   unresolved issues in the existing [report](../runs/overnight-streaming-perf/report.md)
+   and [results](../runs/overnight-streaming-perf/results.json).
+7. The coordinating owner reviews the integrated changes, commits and pushes with
+   the existing repository-local identity under the user's authorization, then stops.
 
-Preserve other users' processes and files. Installation authority is for an
-isolated personal/task environment or dependency copy, not modification of shared
-`/opt/torchtitan-venv`, the driver, shared services or another user's environment.
-Do not allocate another GPU job, expand beyond the existing eight GPUs, or use
-unrelated private credentials. Preserve original workspace training checkouts.
-Use existing authorized access; never guess replacement hosts. The eight GPUs run
-one training experiment at a time. Resolve routine blockers within this scope;
-an unavailable external capability is recorded, not bypassed by inventing evidence.
+No GPU training, benchmark, candidate experiment, trace collection or numerical
+block execution is authorized by this cleanup assignment. Do not allocate jobs,
+install packages or continue the former campaign.
 
-## Fixed workload and known starting constraints
+### Current cleanup ledger
 
-Read [status](../docs/status.md), [baseline](../docs/baseline.md),
-[candidates](../docs/candidates.md), [validation](validation.md) and `gift/AGENTS.md`.
-Reuse the completed HF smoke, source tests and recorded failures as dated evidence.
-Reconcile once with newer relevant commits/results and running processes on entry.
+| Item | State / evidence |
+| --- | --- |
+| Numerical source removal and runner/config verification | PASS: 101 scoped CPU/config checks; independent integration/runtime-cost review; see [results](../runs/overnight-streaming-perf/results.json) |
+| Exact owned-job stop and heavy-payload cleanup | PASS: no owned numerical processes or reference blobs remain; 40,650 files / 381,915,112,855 logical bytes removed; [receipt](../runs/overnight-streaming-perf/cancellation-cleanup.json) |
+| Revised instructions and historical reconciliation | PASS: this plan, [launch prompt](overnight-agent-prompt.md), [validation](validation.md), [current state](../docs/status.md); 156 local links/16 documents and results JSON checks pass |
+| Commit/push | Coordinating owner records resulting commit after integration |
 
-Keep D4096, eight trunk blocks, E128/H1536/top8/shared1, MTP1, microbatch 2,
-sequence 4096, global 512, accumulation 32, EP8/GFSDP2, PP/TP/CP1, dense+sparse FP8,
-CuTe, model/loss compile, AdamW, adaptive routing, production SAC, EMA and token
-capacity 50,000. Seed2048 and scheduler horizon 65,000/warmup2000 stay fixed even
-when training stops early. Performance measurement excludes runtime/compile
-warmup, not optimizer LR warmup; record that the short runs remain in LR warmup.
-Do not silently disable required features, shrink the model, change token capacity,
-force routing, add gate/up z-loss or positive softcap, or turn off MTP.
+Source, configuration, protocol and cleanup checks passed. Publication is the
+remaining step; it does not authorize training or reopen the original G0–G7 gates.
 
-Canonical monitoring interval is50. Preserve it in performance runs; interval 5
-is permitted only for the short streaming smoke to exercise monitoring. Disable
-validation, checkpoint saves and memory snapshots for this bounded campaign;
-report that it excludes those production lifecycle costs and proves no resume
-or convergence result. CUDA Graphs stay off; this is not a renewed graph campaign.
+## Fixed workload for future authorized comparisons
 
-Known pitfalls requiring explicit handling:
+Keep the validated 896-row full-length MDS fixture and its packing/partitioning.
+The [baseline](../docs/baseline.md) owns all defaults: D4096, eight trunk blocks,
+E128/H1536/top8/shared1, MTP1, B2/S4096/global512/accumulation 32, EP8/GFSDP2 and
+PP/TP/CP1; dense+sparse FP8, CuTe, model/loss compile, fused AdamW, adaptive
+routing, production SAC, EMA, capacity 50,000 and seed 2048. Training losses and
+EMA are required behavior, not diagnostic monitoring.
 
-- The bundled `tests/assets/c4_test_mds/pack_test_dataset.py` defaults to **2048**
-  tokens and 384 rows. Do not use those shards unchanged for a 4096-token study:
-  the current collator pads short rows and masks their labels.
-- HF uses windows of 4097 tokens to produce 4096 input/target pairs; streaming
-  truncates rows to 4096 and masks the final target. Its EOS-derived positions
-  also need inspection. Same corpus/tokenizer does not imply identical batches
-  or losses. Establish a new MDS baseline; do not compare its TPS/loss directly
-  against the old HF smoke as a computation-preserving optimization.
-- The native profiler currently lacks rank selection and hardcodes
-  `record_shapes=True`. Do not invent `profile_ranks` YAML fields. Add a minimal,
-  reviewed opt-in extension or task-local adapter using native scheduling/export,
-  with profiling active only on ranks 0/1 and shapes/stacks/memory history off.
-  Non-profiled ranks still execute every training step and collective.
-- The environment was `/opt/torchtitan-venv/bin/python3.12`, torch
-  `2.15.0.dev20260822+cu130`, with `/etc/profile.d/wm.sh` supplying CUDA compatibility.
-  Verify current imports and versions; do not treat these notes as live preflight.
-- Perfetto MCP availability on the executing agent is not verified. Check it early,
-  including trace-path visibility. Installing/configuring a task-owned server or
-  tools is authorized. Use existing access, no credential borrowing. Do not
-  substitute a Python summary and mark the required MCP analysis complete.
+Detailed monitoring callbacks/hooks are disabled, rather than delayed with a
+larger interval. Ordinary loss uses two chunks. Lightweight loss/time/TPS/errors
+remain. Validation, checkpoint saving, memory snapshots, numerical capture,
+profiling and CUDA Graphs are off for unprofiled performance measurements.
+A short stop does not compress the LR schedule: horizon 65,000/warmup 2,000 remain.
 
-## Progress ledger — update this file at milestones
+## Future short comparison protocol — not an instruction to run now
 
-Use NOT_STARTED, RUNNING, PASS, FAIL, BLOCKED or INAPPLICABLE with evidence.
-PASS applies only to the stated gate. Keep one active-row next action and UTC/Moscow
-timestamps; on resume check recorded processes before relaunching anything.
+Start with a short matched baseline/candidate pair: 10 warmup optimizer updates
+and 10 measured optimizer updates (updates 11–20), each with 32 microbatches.
+Freeze source, initialization/data order, workload, topology, timer boundaries,
+cache policy and the one candidate change; inspect actual resolved configuration
+and candidate activation before interpreting results. Keep physical input and
+valid-target TPS distinct, including global/per-GPU units, elapsed scope, step
+series, median/spread and memory scope. Report excluded lifecycle costs.
 
-| Gate | Status | Evidence / next action |
-| --- | --- | --- |
-| G0 Environment, ownership, disk and Perfetto route | PASS | Existing master sees eight idle H100s; NFS has 2.5 TiB free and 2.9 billion free inodes. Verified Python/torch/CUDA/NCCL and installed streaming. Perfetto MCP loaded and queried a task-owned synthetic Chrome JSON via the actual absolute NFS path. |
-| G1 Full-length MDS, data contract and streaming smoke | PASS | Data checks and native002 smoke PASS: all eight ranks completed ten updates/320 microbatches, finite metrics and monitoring 5/10, then clean teardown. [Smoke receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json). Canonical data-only promotion passed the focused golden test and path/shard-hash equivalence check. |
-| G2 Warmed baseline A/A TPS and memory | PASS | W110 controls both PASS:160 finite updates/rank, complete111–160 with monitor150, stable observed compiler state/guard all8. Median124454.812 globalinputTPS; valid124424.427. A2/A1−0.074173%, descriptive two-run variation. Memory/counter/source/runtime evidence in report/results. Rejected W60 retained as calibration evidence. |
-| G3 Baseline trace pair and Perfetto bottleneck analysis | PASS | All8 completed111 updates; selected profiler ranks0/1 attest1/32/1. Original parser exit1 is retained as a name-only CPU/GPU annotation double count; post-hoc category-aware reparse passes. Actual MCP analysis of both traces is accepted. Canonical gzip pair is roundtrip-verified; no trace-derived TPS claim. See [G3 evidence](../runs/overnight-streaming-perf/report.md#g3-baseline-capture-and-perfetto-analysis). |
-| G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 remain applicable. G3 candidate ordering is evidence-based, while final outcomes and remaining applicability review stay open. |
-| G5 Sequential applicable experiments | RUNNING | Native numerical C1 A/A calibration launched; V2 default-off port is in an isolated task-owned worktree. No candidate correctness, A/B/A/B or candidate trace gate has passed. |
-| G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
-| G7 Report, state, Git publication and cleanup | RUNNING | Accepted baseline A/A published at `6123a24f`; numerical helper integration and G3 parser fix published at `f29581c4`. G3 evidence is integrated. Numerical calibration/candidate results, final state reconciliation and cleanup remain. |
+Extend warmup only when actual compilation or continuing runtime settling affects
+the measurement window. A new internal compiler-cache entry alone does not justify
+extension or invalidate an otherwise useful window. No mandatory 110 warmup,
+50-update window, exhaustive compiler-cache audit, large A/A or A/B/A/B matrix
+precedes an initial candidate comparison. A single pair is provisional; repeat
+promising or ambiguous effects as needed to distinguish them from noise and drift.
+Use traces only for an unresolved mechanism question under separate authorization;
+there is no mandatory new trace pair per candidate.
 
-Latest native control: `native-numerics-c1-b-001` FAILED_INITIAL_GATE before
-update1 on every rank; controllerPID375534 and its owned group exited, temporary
-directory was removed and all GPUs released. All eight failure receipts list243
-mismatched `initial_parameter` observations per rank, first
-`model.0.tok_embeddings.weight`; the source-grounded cause is tuple-valued live mesh coordinates versus their
-JSON list representation. Raw B hashes were not persisted and remain unattested. No selected tensor metrics or numerical floor
-exist. C1 A (`native-numerics-c1-a-001`, controllerPID362311, launched07:12:58 UTC)
-completed one native update/32 microbatches and exported all eight namespaces.
-All12,320 A blobs remain intact for diagnosis/reuse assessment, about380GB total;
-this is necessary temporary comparison evidence, not an accepted checkpoint.
-Both runs used source `f29581c4`, the same configuration/seed and fresh caches.
-No candidate failed, and no tolerance is inferred from this failed control. The
-producer now canonicalizes only coordinates to list/None; the exact comparator
-is unchanged. The actual CPU initial-gate regression failed before this fix and
-passes now (14 observer/12 payload/2 default-path checks; scoped Ruff passes).
-Root accepts immutable A reuse under an explicit metadata-only adapter
-compatibility decision: old `numerics.py` SHA6c384235…; fixed SHA3425076e…;
-GIFT SHA1f21d9e9…, payload helper/schema, configuration, runtime and data must
-remain unchanged. A metadata/payload is not rewritten. Fresh B must still pass
-all exact initial/input gates and finite bound-metric checks. The decision and
-full hashes are in `results.json`; this is not an assertion of identical helper
-bytes or a retrospective pass for failed B.
+### Future command example — do not execute during this assignment
 
+From the repository root, after separate authorization for a future measurement:
 
-The helper integration passed110 combined tests, scoped Ruff and independent
-targeted review, but those checks did not establish native initial identity.
-C1 retry, C2/update2 and C50/monitor50 remain open. V2 source implementation is
-isolated under `runs/overnight-streaming-perf/artifacts/raw/source-variants/v2-prefetch/`,
-branch `vkropotin-v2-prefetch`, within the task checkout's authorized source scope;
-its default remains0 and no V2 native result is accepted.
+```bash
+/opt/torchtitan-venv/bin/python3.12 runs/overnight-streaming-perf/run.py \
+  --run-id future-baseline-001 --steps 20 --warmup 10 --window 10
+```
 
-G3 evidence is `g3-baseline-update111-001`, source `6123a24f`,
-runtime-code-equivalent pin `87230b5b`, controllerPID320271. It launched
-05:36:22 UTC /08:36:22 Moscow. Exact command:
-`/opt/torchtitan-venv/bin/python3.12 -u runs/overnight-streaming-perf/run.py --run-id g3-baseline-update111-001 --steps 111 --warmup 110 --window 0 --monitor-interval 50 --profile-update 111 --timeout-seconds 7200`.
-Controller log/PID: `runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001.controller.{log,pid}`;
-run artifacts under sibling `g3-baseline-update111-001/`. Preflight confirmed
-all8 idle H100s, clean training source/helpers,1.7TiB NFS/2.9B free inodes and
-256GiB free/dev/shm. Source/helpers/HEAD stayed frozen through capture. No TPS or
-native numerical mode was active; only ranks0/1 constructed the profiler. All8
-sidecars attest target calls1train_step/32microbatches/1optimizer and finite
-metrics; all guard values were0. The initial runner exited1 after name-only
-marker counting combined CPU logical annotations and GPU projections, producing
-2/64/1 in both traces. Preserve that failure and summary as history. Category-aware
-Perfetto inspection found CPU `user_annotation` counts1/32/1, separate GPU
-`gpu_user_annotation` projections1/32/0, no incomplete slices, and no
-microbatches outside the CPU frame. The immutable pair was successfully analyzed
-by actual Perfetto MCP and reparsed without recapture. G3 closed post hoc; the
-trace supplies mechanism evidence only, not a TPS comparison. The two raw JSON
-files (602,500,095 bytes total) were removed only after complete gzip roundtrips;
-current canonical artifacts and original MCP input paths are mapped in
-`g3-baseline-perfetto.json`. The compression receipt records the run cache as
-preserved at that time; separate cache cleanup is complete:9217 files/604,978,569 logical bytes removed,
-with four exact CE wrappers/73,504 bytes retained. The cleanup receipt records
-unchanged raw/MCP/trace artifacts and zero observed shared-capacity/inode delta.
-Owned G3 processes stopped and all GPUs were idle before C1 launch.
+The current runner defaults are 20 total, 10 warmup and 10 measured optimizer
+updates. There is no monitoring-interval flag: detailed callbacks/hooks are
+removed from the resolved performance configuration. Compiler-cache observation
+is optional and diagnostic, not a mandatory acceptance gate. This example has
+not been executed and does not authorize a run during cleanup.
 
-Previous execution: `g2-baseline-a2-w110` PASS, source `87230b5b`, controllerPID292349
-exited. Launched04:30:51 UTC /07:30:51 Moscow, completed05:23:46 UTC. Exact command:
-`/opt/torchtitan-venv/bin/python3.12 -u runs/overnight-streaming-perf/run.py --run-id g2-baseline-a2-w110 --steps 160 --warmup 110 --window 50 --monitor-interval 50 --timeout-seconds 7200`.
-Controller log: `runs/overnight-streaming-perf/artifacts/raw/g2-baseline-a2-w110.controller.log`;
-run receipts under sibling `g2-baseline-a2-w110/`. Source/helpers/HEAD stayed
-frozen. Owned process group stopped, temporary directory removed and all GPUs
-released before the separate G3 profiling launch.
+### Local numerical assessment follows performance
 
-First valid control `g2-baseline-a1-w110` PASS:160 complete native updates per
-rank; all eight direct observer comparisons stable, guard0after110..160, two
-boundary syncs, complete111–160 including monitor150. Global inputTPS124500.9847,
-validTPS124470.5890, elapsed842.2231s; counts104857600/104832000. Allocator peaks
-max67.401GiB allocated/68.467GiB reserved with native reset scope, zero retries/OOMs.
-Five ordinary cadence bins show no continuing monotonic settling. Source/config
-unchanged, temp/group stopped and GPUs released before A2. Root inspected raw
-all-rank guards/counters/comparisons in both controls. A2 inputTPS124408.6388,
-validTPS124378.2656, elapsed842.8482s; same counters and all8 gates pass. Pair
-accepted: median input124454.8118/valid124424.4273TPS, A2/A1−0.074173%; two controls
-do not establish a confidence interval. No candidate gain is accepted.
+For a candidate worth retaining after its performance measurement, choose the
+smallest meaningful affected block. Capture representative boundary inputs and
+only weights/state needed to replay that block. Run original and changed blocks
+on identical inputs and compare their outputs. If backward changes, replay the
+affected backward block with matched activations and incoming gradients.
 
-Previous control: `g2-baseline-a1` completed110 native
-updates but FAILED required measurement acceptance at03:24:19 UTC /06:24 Moscow:
-Triton cache state grew on ranks0,2,5 during updates61–110. A2 was not launched.
-DeepGEMM guard receipts are complete on all eight ranks. No TPS is accepted.
-Owned process group stopped, local temp removed and all GPUs released.
-Read-only diagnosis resolved the new entries as FP8 SwiGLU token-bucket integer
-alignment classes. Shared disk artifacts predate the window; local module/cache
-loading is strongly supported, actual new compilation is unproven. The conservative
-warmup criterion remains failed. All ranks have both classes by110 and ordinary
-91–110 medians are stable, so new controls use W110/updates111–160/monitor150.
-No observer relaxation or kernel/source change is needed.
-Raw failure/summary/measurement/log evidence remains under
-`runs/overnight-streaming-perf/artifacts/raw/g2-baseline-a1/`; controller242078
-started02:45:39 UTC, source/helpers frozen at published `72a814f2`.
-Command: `/opt/torchtitan-venv/bin/python3.12 -u runs/overnight-streaming-perf/run.py --run-id g2-baseline-a1 --steps 110 --warmup 60 --window 50 --monitor-interval 50 --timeout-seconds 7200`.
-The failed window's receipts and six SwiGLU variant artifacts remain for this
-diagnosis; obsolete private cache bulk was removed after verified preservation.
-The rejected W60 and both accepted W110 cleanup receipts record27,651 files /
-1,806,310,969 logical bytes removed, unchanged non-cache evidence, independent
-active G3 cache, and zero immediately observed free-capacity/inode delta. The
-preserved48 files total2,161,925 bytes; see report/results for manifest identity.
-A separate helper-only worktree at
-`/workspace-SR008.nfs2/vkropotin/optimization-task-worktrees/native-numerics`
-branches from72a814f2 and does not modify main. Its default-off diagnostic mode
-passed source review after malformed-capture regressions and61 affected CPU
-checks plus2 final hash/failure-path checks. It is preserved at isolated commit
-`84b72524`; main integration and native execution remain open.
-The numerical variation contract now selects three temporary-reference/streaming
-comparison prefix pairs (capture1,2,50), because hash-only mismatches cannot measure
-errors. A fresh isolated helper implementation is in progress; no numerical
-instrumentation enters the frozen controls/profile. Resource costs, initialization,
-all-prefix input and monitor-publication gates are recorded in the existing
-[campaign report](../runs/overnight-streaming-perf/report.md#native-numerical-receipt-integration-verified-calibration-open).
+Interpret differences using accumulation precision, casts, rounding, reduction
+order and fusion. The baseline is not assumed mathematically exact; use a
+higher-precision local reference when needed to judge which implementation is
+more accurate. Justify tolerances for the block/dtypes and observed behavior;
+there is no universal tolerance or assumed bitwise equality. Keep unexplained
+differences open. Do not collect whole-model gradients, parameters or AdamW state.
+Do not implement or execute these checks during this cleanup assignment.
 
-Previous calibration: `g2-calibration-001` PASS/exit0,
-finished01:28:14 UTC /04:28 Moscow on13 November; controller PID `200928` exited.
-It launched01:05 UTC from HEAD `1faec419` plus capture-helper edits whose exact
-bytes are now preserved at `02cfb427` (hashes in run metadata). Command:
-`/opt/torchtitan-venv/bin/python3.12 -u runs/overnight-streaming-perf/run.py --run-id g2-calibration-001 --steps 60 --monitor-interval 50 --timeout-seconds 7200`.
-Controller log/PID: `runs/overnight-streaming-perf/artifacts/raw/g2-calibration-001.controller.{log,pid}`;
-native outputs/exit markers have the same run ID. No timed window/profiling.
-Source/config hashes stayed unchanged, owned temp directory was removed and
-local GPU query was empty. The completion-only watcher/session49650 has exited;
-parent wait wrapper `g6:120` is terminated. No monitor remains.
-W60 is supported by post-monitor settling, but compile absence is not established
-by disabled diagnostic logs. The scoped existing-state boundary observer passed
-26 tests and independent targeted review; existing measurement24 tests pass
-with the explicit task import route. It retains raw snapshots/source pins and
-rank-local comparisons, and the parser recomputes them. GPU numerical-equivalence
-evidence remains open. The installed DeepGEMM binary's dynamic cache-miss rejection
-guard passed
-both m_grouped/k_grouped runtime miss/hit/positive controls at02:21 UTC, with
-unchanged caches on rejection and all GPUs released. Thin boundary integration
-passed36 observer/26 measurement tests and independent integration/runtime-cost
-review; its final missing-field regression is fixed (5 affected cases pass).
-See the campaign report/results for source pins,
-scope and resolved review findings. The independent
-G3 parser extra-marker finding is resolved: both regressions failed on `02cfb427`,
-then9 affected cases passed the fix; root reviewed that targeted delta. The original
-G3 capture's initial parser failure is separately resolved by actual CPU/GPU
-category diagnosis and post-hoc reparse; the immutable pair was analyzed with
-Perfetto MCP and compressed losslessly. The four minimal compiled CE wrapper
-sources have been preserved for the K1a contract review; obsolete G3 cache
-cleanup is complete with its separate verified receipt. Continue numerical calibration and
-candidate gates. Control source is `87230b5b`; its separate numerical receipt
-module is not active in TPS runs.
+## Preserved history and cancelled gates
 
-Retry `g1-streaming-smoke-002` PASS at
-00:34 UTC /03:34 Moscow on 13 November, source `4d7689aa`, exit0. Controller
-PID `164736` and original execution session `86376` have exited. The separate
-[receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json) verifies all
-eight ranks, source/config freeze, no checkpoint/trace/snapshot and released GPUs.
-Command used `--run-id g1-streaming-smoke-002 --steps 10 --monitor-interval 5
---timeout-seconds 3600`; raw logs remain under the same run ID. Canonical MDS
-promotion/config checks passed; the native smoke used the equivalent external
-fragment, while canonical path/shard equivalence is verified separately.
-Task-only G3 capture support passed22 focused checks and its unprofiled path
-review. The accepted G2 baseline TPS is recorded above; the G3 profile does not
-provide a separate speed claim.
+| Original gate | Historical disposition |
+| --- | --- |
+| G0 entry/source/MCP access | Completed evidence retained |
+| G1 full-length MDS preparation/native smoke | Completed evidence retained; 10 updates/320 microbatches per rank |
+| G2 monitoring-inclusive controls | Historical measurements retained; new monitoring-off baseline required for future comparisons |
+| G3 two-rank update 111 capture/Perfetto analysis | Accepted post hoc after category-aware parser repair; SQL/results/compressed traces retained |
+| G4 reference reconciliation | Useful source findings retained; full campaign coverage incomplete |
+| G5 candidates | Cancelled/incomplete; no candidate accepted |
+| G6 combined result | Not executed; no qualifying improvement |
+| G7 original campaign handoff | Original campaign incomplete/cancelled; cleanup publication has its own finite acceptance above |
 
-First native smoke attempt `g1-streaming-smoke-001` FAILED,
-exit1 before any model update; controller PID `158532` exited. Launched
-13 November 2026 about 03:05 Europe/Moscow (00:05 UTC), source `dd3c0682`. Command:
-`/opt/torchtitan-venv/bin/python3.12 runs/overnight-streaming-perf/run.py --run-id g1-streaming-smoke-001 --steps 10 --monitor-interval 5`.
-Controller log/PID: `runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-001.controller.{log,pid}`;
-attempt payload/logs/exit marker are under sibling `g1-streaming-smoke-001/`.
-The independent [runtime receipt](../runs/overnight-streaming-perf/g1-runtime-receipt.json)
-verified resolved settings and all-rank initialization, but census called
-`RaggedShardDTensor.to_local()` with grad enabled and hit its explicit guard.
-Zero updates/microbatches executed. This is the first actual harness failure;
-it is not a streaming/model feature verdict. Native group stopped, local temp
-directory removed, GPUs released (local nvidia-smi empty), and source/config
-hashes unchanged. All source/data/dependencies stay fixed; only the task census
-and its regression test are released for a scoped no_grad repair. Entry revision `a2a59e14545b55ca777f94a28e332759e7c06087`,
-branch `main`, initially clean. Node `lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0`;
-task root is on verified SR008 NFS. Interpreter `/opt/torchtitan-venv/bin/python3.12`,
-torch `2.15.0.dev20260822+cu130`, CUDA 13.0, NCCL 2.30.7, streaming 0.13.0;
-source `/etc/profile.d/wm.sh`. Default image import resolves `/home/user/torchtitan`,
-so runners must explicitly set task `gift/` in `PYTHONPATH`. No new allocation needed.
-MDS, profiler/timer and reference inspections have separate bounded owners.
-The retry resolved native integration. No unchanged historical smoke/data check
-is repeated for the data-only canonical promotion.
-The scoped metadata loop now uses no_grad, preserving original trainability and
-restoring caller grad mode on success/error. Two affected tests pass. An
-in-memory run of the exact old census from Git reproduces the guarded failure;
-the fixed version counts the existing local shard correctly. Independent
-targeted review accepted this delta. All unchanged data/source/cache evidence
-is reused. The first failed attempt's obsolete compiler-cache tree was removed
-after release and compact evidence extraction (23,453,549 logical file bytes).
-After a second pre-measurement harness failure reassess the adapter/native route
-instead of expanding diagnostics. Complete all-rank smoke before data promotion.
-Independent runner review found that inherited DeepGEMM warmup overrides the
-requested private cache with `/temp/.cache/rank_N/deepgemm`. The task-only fix
-now redirects the actual helper before Trainer construction and guards the
-alternate shared-cache path while preserving warmup. The real setup/share-path
-test covers ranks0–7 and patch restoration; five focused tests pass. The missing
-measured-window attribute is fixed and covered by complete/incomplete-window
-tests. Reviewed child-only core limits and inherited diagnostic cleanup are
-active. No shared cache was cleaned.
-See [runner review](../runs/overnight-streaming-perf/runner-review.md) for the
-consolidated findings and verification. Prepared MDS index SHA256 is
-`7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2`.
-Data checks used installed streaming0.13, not the bundled snapshot. Persistent
-workers are selected and validated across the epoch boundary; pinning stays off.
-The first data pass exited0 with 16 multiprocessing finalizer warnings because
-provider TMPDIR is NFS; the fresh second pass used tmpfs and had no such warnings.
-Future native runs use a unique owned local temp directory, with persistent
-data/compiler caches still on task NFS. `/dev/shm` has 256GiB free.
-G0 synthetic
-route trace is not training evidence (`artifacts/raw/g0/mcp-route.json`, MCP handle
-`trace_f8655236b978288d`; SELECT returned the expected 100000 ns slice).
+Historical monitoring-inclusive G2 median input TPS was 124454.81175967702 global
+and 15556.851469959627 per GPU, over updates 111–160 including monitor 150. These
+values are **not directly comparable** to future monitoring-off measurements.
+The previous W60/cache-state rejection and W110 selection explain historical
+choices only; they impose no new gate on the revised protocol.
 
-## G0–G1: establish streaming without a long prerequisite campaign
+C1 B2 passed and compact evidence is retained. C2 A reached a terminal export;
+C2 B and C50 were cancelled. Full-model numerical validation was abandoned,
+not completed or replaced with a new full-model gate. The prior failed C1 B
+remains failed in history; its tuple/list metadata diagnosis and successful
+retry are retained without requiring another run.
 
-Use `runs/overnight-streaming-perf/` for a single campaign report, `results.json`,
-runner/parser, and per-experiment commands/configs/log pointers. Raw payloads and prepared data go under
-`runs/overnight-streaming-perf/artifacts/raw/`, covered by the existing ignore rule;
-verify `git check-ignore` before generating large files. Keep source changes inside task `gift/`; no nested
-repositories. Preserve the old verified HF revision and receipt as historical
-smoke evidence while establishing a separately identified MDS baseline.
-
-1. Verify all eight GPUs are free for this task, no competing task-owned run is
-   active, NFS is writable, and disk/inode capacity is sufficient. Inspect cleanup
-   behavior before launch. Freeze source/environment for each measurement matrix.
-2. Use the same local C4 JSONL and tokenizer as the existing smoke. Adapt the
-   existing packer through its callable API into a new task-owned data directory,
-   with full 4096-token rows. Inspect its `exist_ok` deletion semantics; never point
-   it at existing shared data or the original bundled shards. Record corpus,
-   tokenizer, row count/length, token dtype, packing policy and file hashes.
-   Repeated local data are acceptable for this controlled perf fixture; label
-   them clearly, never as a production mixture or quality evaluation.
-3. Use the existing GIFT streaming preset as a starting point: FIM off, shuffle
-   off, fixed canonical-node setting, infinite iteration. Start with its two
-   workers; choose persistent workers/pinning only after supported-field checks
-   and apply the same settings to every control/candidate. Verify partitioning
-   and repeats over all 8 ranks, including epoch wrap. No tokenization in the
-   timed training loop. Data decoding/collation/transfers remain timed.
-4. Check real input/label shape `[2,4096]`, full row lengths, label shift, ignored
-   targets, EOS/BOS/document positions, vocab range and sample fingerprints.
-   For full rows the current collator yields 4095 valid main targets per sample;
-   verify actual counts instead of assuming all4096 are supervised. Do not
-   relabel padding as useful tokens. Any loader fix needs a focused regression.
-5. Run the smallest useful native streaming integration early, then complete a
-   ten-update smoke on all ranks with monitoring 5/10,32 microbatches/update,
-   finite metrics and clean teardown. Reuse unchanged source tests; rerun those
-   affected by data/profiler integration. This closes execution, not parity with
-   differently packed HF data. Promote the validated streaming configuration as
-   the campaign baseline, with its data-generation recipe recorded.
-
-## G2: unprofiled TPS protocol
-
-Use native training and one reviewed detached runner with persistent exit markers
-and all-rank error logs. Do not edit a running script or running source matrix.
-Preserve data order, initialization, seed, scheduler trajectory, optimizer updates,
-monitoring cadence and backend environment across fresh-process controls.
-
-Start with a calibration run. Plan at least 20 initial updates before considering
-measurement, inspect compilation/warmup/allocator and step series, and extend in
-10-update increments only while those observations justify it. Twenty is a
-starting probe, not proof of warmup. Require no ongoing compilation or unexplained
-monotonic settling in the chosen window. If no stable regime is reached, diagnose
-that concrete failure rather than silently choosing fast steps.
-
-After calibration, freeze discard count `W` and a **50-consecutive-update**
-measurement window for this campaign. Fifty covers one monitoring event at the
-normal cadence. Use the same absolute update range and monitoring position for
-all comparisons; if a candidate needs more warmup, change the window for both
-sides and rerun only affected controls. Record exact boundaries before measuring.
-Collect two identical controls A1/A2, separate processes, identical data/cache
-policy. A2 can later serve as the first A of an A/B/A/B comparison only if source,
-environment, topology, window and intervening conditions remain comparable.
-
-Execution note: calibration must inspect the first normal monitoring update50
-before declaring the complete cadence warmed. The native path switches head/loss
-chunk geometry from2 to32 there; a fresh cold-cache process may compile that
-geometry for the first time. An ordinary-step plateau before50 alone cannot
-establish that the later measured monitoring event is free of startup compilation.
-Use observed compile/step evidence to select `W`; preserve interval50 in every
-performance process.
-
-Primary metric: aggregate physical input tokens per second for the complete
-optimizer-update window, including input pipeline and normal monitoring cost.
-For full fixed batches the expected numerator is
-`512 * 4096 = 2,097,152 input tokens/update` globally (262,144/GPU); verify it
-against actual batch counts. Also report supervised-token TPS using actual valid
-labels, median and spread of per-update times/TPS, global versus per-GPU units,
-monitoring versus ordinary steps, and complete-window elapsed throughput.
-Inspect the native timer/counter scopes first: supervised-token TPS must not be
-misnamed input TPS; do not sum rank throughput or double-count MTP tokens.
-
-Keep all 50 steps in the primary cadence-aware metric. A secondary ordinary-step
-view may exclude monitoring only when labeled and applied symmetrically. Measure
-allocated/reserved/native memory with definitions, retries/OOM and rank skew;
-profiled timings, checkpoints and diagnostic tensor dumps are excluded from TPS
-runs. Do not change log cadence between variants. State excluded validation/save
-costs explicitly.
-
-## G3: minimal traces and Perfetto MCP analysis
-
-Run a **separate** baseline profiling process after the TPS controls. Capture one
-complete non-monitoring update after the same settled warmup, including all32
-microbatches, optimizer and relevant communication; global ranks 0 and 1 only.
-Profiler schedule: one warmup step, active 1, repeat 1, wait/skip chosen from the
-actual stable update. Verify native step numbering and end-of-update export in
-the installed implementation. Keep all other ranks unprofiled, not just their
-exports deleted. No shape/stack/memory-history capture. Confirm exactly two
-valid traces and log their hashes, update, source and resolved config.
-
-Use the actual available Perfetto MCP tools: `load_trace`, table/schema discovery
-and `execute_sql`. Check accepted Chrome JSON/Perfetto input format rather than
-renaming file extensions. If conversion or server-visible transfer is required,
-verify the same events/timestamps and retain hashes before deleting duplicate
-payloads. Preserve the queries and compact result tables with the run report.
-
-For both ranks determine compute/kernel families, communication-only intervals,
-copy traffic, device-idle interval unions, host input/submission time and exposed
-waits, compile/recompile and SAC replay. Use CPU↔GPU correlation and dependencies
-to separate queued work from late submission; overlapping kernel sums are not
-elapsed time. Compare rank skew and relate the traced step to unprofiled ordinary
-step duration. Report timing scopes unavailable in the trace. A trace supports
-mechanism; repeated unprofiled runs support TPS magnitude.
-
-## G4–G5: cover references, then run candidates in evidence-based order
-
-Every row must receive a disposition; do not promise speedup or apply incompatible
-features merely to fill the table. Source inspection can establish inapplicability
-or that the mechanism is already present. A lack of a demonstrated hotspot ranks
-priority lower but does not silently count an applicable candidate as evaluated.
-
-| ID | Reference mechanism | Initial applicability question | Final status / evidence |
-| --- | --- | --- | --- |
-| K1 | Kindulov fused softcap/CE and chunk lifetimes | Cap-zero path with MTP, monitoring chunks and head hooks; identify already-present chunk release | Applicable missing cap-zero fusion and completed-logits release; separate checks required ([source evidence](../runs/overnight-streaming-perf/reference-coverage.md)). |
-| K2 | Kindulov dense/shared FFN recomputation | FP8 support and interaction with fixed per-layer SAC; avoid duplicate replay and auxiliary counters | Applicable FP8 dense/shared local recompute; incremental savings versus block SAC need trace/lifetime evidence. |
-| K3 | Kindulov routed-expert recomputation | Donor rejects routed FP8; retain required FP8, document source incompatibility rather than convert to BF16 | INAPPLICABLE: pinned donor `experts/gmm.py:111–115` rejects required routed FP8. |
-| Z1 | Fused SwiGLU/FP8 hidden z-loss | Active crop has final-norm-input z-loss only; gate/up regularizer is absent and external pinned kernels are missing | INAPPLICABLE: gate/up regularizer absent from fixed objective; pinned external kernels also missing. |
-| V1 | Vision CompactCE | Reference rejects MTP; do not disable MTP to make it run | INAPPLICABLE: donor `loss.py:1153–1164` rejects required MTP1. |
-| V2 | Vision streaming prefetch | Now a relevant loader path; compare donor/current queue, state and exception behavior before porting | Applicable bounded CPU queue helper absent; donor snapshot lacks text-loader state integration. Actual input waits and safe cursor/queue restore need checks. |
-| V3 | Vision GFSDP buffer/prefetch work | Determine existing versus missing code and apply only supported crop-relevant changes | Existing text prefetch chains/private head gradients; missing partial-backward guard and arena/retention logic. Startup slicing has startup-only costs. |
-| V4 | Vision frozen BF16 storage | Current crop trains its parameters; no frozen-component benefit unless source shows an actual applicable path | INAPPLICABLE: native002 census has zero frozen tensors/elements on every rank; EMA/buffers are not frozen model parameters. |
-| V5 | Vision metric accounting | Check duplication and exposed logging/synchronization; adding a metric alone is not a speed optimization | Applicable retained-device producer/consumer port; real `.item()` is in `dist_sum` before microbatches, while current consumer `int()` is CPU-only. Preserve local clamp, denominator precision and current callback/counter order. Accounting alone has no speed claim. |
-
-Allowed final candidate labels: TESTED_GAIN, TESTED_NO_GAIN, TESTED_REGRESSION,
-INAPPLICABLE (source/contract reason), ALREADY_PRESENT, BLOCKED (failed required
-path and remedies), or NOT_COMPLETED (work remaining). Never mark a real required
-implementation complete because diagnostic time was spent. Preserve source pins
-and helpful unsuccessful implementations in reachable commits, not active defaults.
-
-For every applicable candidate:
-
-1. Record the trace hypothesis and expected compute/memory/communication cost;
-   inspect donor interfaces and current consumers before porting. Use one
-   candidate difference. Keep optional changes independently selectable.
-2. Run targeted behavior/regression tests and same-input forward/backward tests,
-   preserving accumulation, masks, MTP normalization, SAC replay, routing state,
-   precision and monitoring. Compare elementwise gradients and affected optimizer
-   updates, not just norms. Use donor numerical criteria only if their precision
-   and workload assumptions apply. Otherwise calibrate against a valid reference
-   and A/A variation; no invented percentage tolerance or unjustified bitwise gate.
-   Record uncalibrated differences as unresolved. Native execution can still be
-   tested, but correctness failures cannot be promoted as wins.
-3. Run a short native 8-GPU integration, including monitoring. For a valid candidate,
-   measure A/B/A/B with the fixed 50-update windows; reuse a valid nearby A where
-   justified. Fresh initialization/data order and equivalent cache policy on each
-   side; no profiling in these runs. Report run-level paired effects and A/A noise,
-   not a significance claim based on correlated steps as independent trials.
-4. Capture at most one two-rank/one-update trace pair for that executed candidate
-   using the baseline policy. Explain which kernels/copies/waits changed and
-   whether that matches measured TPS. Reuse the common baseline trace when valid.
-   Replace a bad trace only for a documented capture/representativeness failure.
-5. Record source commit, config delta, correctness results, TPS series/aggregate,
-   noise, memory, trace queries/mechanism and next disposition in `results.json`
-   and the campaign report. A negative result is useful; do not tune indefinitely.
-
-After isolated tests, combine qualifying winners sequentially. Recheck affected
-interactions and obtain a final native, unprofiled comparison against the frozen
-MDS baseline; component wins do not establish an additive combined gain. Retain
-the baseline if no candidate meets correctness and measurable benefit. Mathematical
-objective changes and new model-shape/token-capacity studies are outside this
-campaign; no convergence claim is required or implied by an overnight perf study.
-
-## Artifacts, disk ownership and mandatory cleanup
-
-Check free bytes/inodes before preparation and each run; track task-owned size.
-Keep checkpointing disabled. If a required state comparison genuinely needs a
-checkpoint/tensor dump, create the minimum task-owned temporary artifact, record
-what it proves, then remove it after the comparison and compact result verify.
-Do not accumulate full-model snapshots or per-step tensor dumps.
-
-After each experiment and before the morning handoff:
-
-- Retain compact configs, commands, manifests, step series, exit status, first
-  fatal errors, SQL queries/results and the per-experiment conclusion.
-- Retain only the intended two-rank/one-update trace pair for the baseline and
-  each executed candidate; prefer one losslessly compressed canonical copy after
-  successful parsing/MCP analysis. Remove redundant JSON/decompressed/converted
-  copies and superseded successful diagnostic traces after verified extraction.
-- Remove task-owned temporary checkpoints, tensor dumps, cores and staging copies
-  once their required comparison/diagnosis is complete. Keep the smallest failure
-  evidence that still explains an unresolved error; record that exception and
-  next action rather than deleting the sole reproducible artifact.
-- Reuse validated data and compiler caches where compatible; remove obsolete
-  campaign-owned cache copies only after their processes stop and no queued run
-  references them. Do not clear shared `/temp`, `/tmp`, package caches, old
-  unrelated evidence or other users' artifacts.
-- Record cleaned paths/classes and reclaimed/remaining bytes in a compact cleanup
-  receipt. Confirm owned processes have exited and the eight GPUs are released.
-
-No arbitrary storage cap is introduced. Disk pressure is a concrete stop/cleanup
-condition, not permission to delete useful unrelated data. Never use broad
-`pkill`, `killall` or shared-memory cleanup; identify owned PIDs and resources.
-Raw payloads/data/caches stay outside Git. Do not copy large traces to the local
-Mac merely for convenience.
-
-## Blockers, publication and completion
-
-After two consecutive harness failures before a useful measurement, reassess the
-method: repair the concrete interface or use the existing native path. Distinguish
-runner/comparator errors, infrastructure failure and feature failure. Do not
-restart broad source audits or build a general experiment framework. Continue
-independent candidates when one is blocked; preserve failures and attempted fixes.
-
-Run code review and checks required by the repository, including an independent
-integration/runtime-cost review where its rules require one. Reconcile findings
-once and test affected fixes; do not spawn redundant reviews. Keep valid source
-changes and experiments in reachable commits. Integrate validated MDS/default
-changes and qualifying candidates on task `main`, preserve nonselected variants
-without enabling them, and push at useful milestones. No force push. Check remote
-changes before publishing; preserve other contributors' work.
-
-The campaign is complete when G0–G7 are evidenced, every reference row has a
-supported final disposition, baseline TPS and both baseline MCP analyses exist,
-every executed candidate has its change/correctness/TPS/trace explanation, combined
-acceptance (or baseline retention) is explicit, docs/status and plan are current,
-results/source are published, and owned resources/heavy temporaries are cleaned.
-If a required outcome remains blocked or unfinished, publish a useful partial
-handoff with exact open gates and next action; do not claim full completion.
-
-The final morning report must lead with baseline TPS, best accepted TPS and delta
-(or no accepted gain), memory tradeoff and data identity; then show one row per
-candidate, observed mechanisms, validation limits and remaining blockers. Update
-this ledger at stage boundaries, source integration, failures and completed
-experiments, not after every tool call. Provider/client termination is not a
-feature verdict; the prompt cannot guarantee that a stopped agent restarts itself.
+V2 source variant `21c1891dda531a1222e6c350802f2765758794f9`, branch
+`vkropotin-v2-prefetch`, is preserved with default 0 and its
+[source/CPU review](../runs/overnight-streaming-perf/v2-prefetch-review.md).
+Actual eight-owner Gloo/DCP and native/performance acceptance were not executed
+or completed. No candidate gain, convergence, full-model continuation or
+production-scale result is established. See the [coverage record](../runs/overnight-streaming-perf/reference-coverage.md)
+and [historical report](../runs/overnight-streaming-perf/report.md).

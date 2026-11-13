@@ -3,7 +3,10 @@
 This is the entry point for three proposed research directions. The default is
 still the [verified 100B crop](baseline.md). The sources below are
 reference material for future experiments, not enabled changes or measured
-speedups on that baseline.
+speedups on that baseline. The original campaign is cancelled/incomplete; the
+current assignment is [cleanup only](../planning/overnight-streaming-perf.md).
+Future separately authorized candidates follow the short monitoring-off,
+performance-first [validation protocol](../planning/validation.md).
 
 All listed GIFT source files are preserved inside this repository under
 [references](../references/README.md).
@@ -16,7 +19,7 @@ installable trees; import dependencies outside the selection are not bundled.
 
 | Direction | Proposed mechanism | Fit with the current crop | Start reading |
 | --- | --- | --- | --- |
-| Kindulov: loss fusion | Fuse softcap and CE forward/backward; retain low-precision logits and row log-sum-exp instead of full FP32 intermediates; release completed chunks | The crop has no positive logit softcap; compiled baseline already avoids full-vocabulary FP32 CE buffers. Evaluate the remaining cap-zero backward algorithm and completed-chunk lifetime independently; preserve MTP and monitoring chunk counts | [Source explanation](../references/kindulov/source/docs/softcap_memory.md) |
+| Kindulov: loss fusion | Fuse softcap and CE forward/backward; retain low-precision logits and row log-sum-exp instead of full FP32 intermediates; release completed chunks | The crop has no positive logit softcap; compiled baseline already avoids full-vocabulary FP32 CE buffers. Evaluate the remaining cap-zero backward algorithm and completed-chunk lifetime independently; preserve MTP and ordinary two-chunk loss with detailed monitoring disabled | [Source explanation](../references/kindulov/source/docs/softcap_memory.md) |
 | Kindulov: local FFN recomputation | Recompute FFN/shared-expert internals rather than retain activations | Dense/shared FP8 is a candidate; interaction with existing per-layer SAC can add duplicate recomputation. Routed-expert variant explicitly rejects FP8 | [FFN implementation](../references/kindulov/source/torchtitan/models/common/ffn/__init__.py) |
 | Fused hidden z-loss | Combine SwiGLU, FP8 quantization and gate/up hidden-z-loss gradients | Current crop applies z-loss to final norm input, not gate/up. This is not a direct fusion of the currently active regularizer | [FP8 design](../references/hidden-z-loss/source/torchtitan/ops/float8/README.md) |
 | Vision-related runtime work | Compact supervised-token CE, input prefetch, GFSDP buffer/prefetch changes, frozen-weight storage and metric accounting | Mechanisms have different applicability; CompactCE rejects MTP, frozen storage requires frozen parameters, input prefetch requires the streaming loader | [Runtime source map below](#vision-related-runtime-work) |
@@ -47,7 +50,8 @@ The fused CE path preserves the softcap cast before FP32 CE and writes a
 low-precision logits gradient. It supports first-order gradients; DTensor and
 head-local hidden-z-loss cases fall back to the original path. Retain ignored
 labels, reduction/normalization, MTP acceptance counters, head FSDP hooks and
-monitoring behavior when adapting it. GPU rounding can differ; donor CPU tests
+supported hook behavior when adapting it; performance runs keep detailed
+monitoring disabled. GPU rounding can differ; donor CPU tests
 and reported L8 measurements do not establish crop accuracy or speed.
 
 Actual G3 compiler evidence shows BF16 logits/gradients and only FP32 row
@@ -84,8 +88,8 @@ going to present it at the meeting.
 The mechanism adds the gate/up z-loss gradients before FP8 rounding. When gate/up
 z-loss is enabled, the dense path retains BF16 inputs for backward rather than
 only FP8 copies. This has a memory cost that must be included in an experiment.
-Validate gradient scaling, accumulated auxiliary totals, SAC replay and monitoring
-alongside loss/gradient parity.
+For future local assessment, inspect gradient scaling, accumulated auxiliary
+totals and SAC replay in the affected block; performance monitoring remains off.
 
 The current [crop preset](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml)
 selects only `hidden_z_loss_patterns.norm` on input. Adding gate/up regularization
@@ -114,8 +118,8 @@ not every selected mechanism was first introduced by that commit.
 | Approach | Local implementation and tests | Applicability / concern |
 | --- | --- | --- |
 | CompactCE | `CompactCELoss` in [loss.py](../references/vision-runtime/source/torchtitan/components/loss.py); [tests](../references/vision-runtime/source/tests/unit_tests/test_compact_loss.py) | Compute head/loss for selected supervised positions. Rejects MTP and TP/CP/full-DTensor; the crop has MTP1. Savings depend on ignored-label fraction; preserve token/sample normalization |
-| Streaming prefetch | `PrefetchIterator` in [prefetch.py](../references/vision-runtime/source/torchtitan/datasets/streaming/core/prefetch.py), [loader](../references/vision-runtime/source/torchtitan/datasets/streaming/core/dataloader.py), [tests](../references/vision-runtime/source/tests/unit_tests/test_streaming_prefetch.py) | Overlap input production with consumption. The overnight campaign now exercises `streaming_text`; its native MDS smoke passed. Check queue memory, exception propagation and resume state on this path before porting |
-| GFSDP buffers and prefetch chains | [parameter groups](../references/vision-runtime/source/torchtitan/distributed/gfsdp/_param_group.py), [state](../references/vision-runtime/source/torchtitan/distributed/gfsdp/_state.py), [omni chain wiring](../references/vision-runtime/source/torchtitan/models/gift_omni/parallelize.py), [data-pool tests](../references/vision-runtime/source/tests/unit_tests/test_gfsdp_data_pool.py) | Crop already uses GFSDP2. Compare mechanisms with current source before porting; retained buffers, all-gather overlap and backward order must fit GIFT MoE, SAC and monitoring |
+| Streaming prefetch | `PrefetchIterator` in [prefetch.py](../references/vision-runtime/source/torchtitan/datasets/streaming/core/prefetch.py), [loader](../references/vision-runtime/source/torchtitan/datasets/streaming/core/dataloader.py), [tests](../references/vision-runtime/source/tests/unit_tests/test_streaming_prefetch.py) | Overlap input production with consumption. The preserved MDS smoke passed. V2 source `21c1891d` is preserved default-off; real Gloo/DCP and performance gates were not executed/completed. Check queue memory, exception and resume contracts before promotion |
+| GFSDP buffers and prefetch chains | [parameter groups](../references/vision-runtime/source/torchtitan/distributed/gfsdp/_param_group.py), [state](../references/vision-runtime/source/torchtitan/distributed/gfsdp/_state.py), [omni chain wiring](../references/vision-runtime/source/torchtitan/models/gift_omni/parallelize.py), [data-pool tests](../references/vision-runtime/source/tests/unit_tests/test_gfsdp_data_pool.py) | Crop already uses GFSDP2. Compare mechanisms with current source before porting; retained buffers, all-gather overlap and backward order must fit GIFT MoE, SAC and ordinary loss backward |
 | Frozen BF16 storage | [Design](../references/vision-runtime/source/docs/frozen_parameter_storage.md), [utils](../references/vision-runtime/source/torchtitan/tools/utils.py), [integration tests](../references/vision-runtime/source/tests/integration_tests/frozen_parameter_storage.py) | Helps frozen components; no frozen-component saving established for full crop pretraining. FP32-to-BF16 storage rounds weights and affects checkpoint precision |
 | Metric accounting | [Metrics design](../references/vision-runtime/source/docs/metrics.md), [trainer source](../references/vision-runtime/source/torchtitan/callbacks/sources/trainer_source.py), [trainer](../references/vision-runtime/source/torchtitan/trainer.py), [tests](../references/vision-runtime/source/tests/unit_tests/callbacks/test_input_token_throughput.py) | Input-token counts share the loss-count collective. Keep input versus supervised-token rates distinct; instrumenting metrics is not itself a proven speedup |
 
@@ -129,10 +133,14 @@ FP8, SAC, microbatch, MTP and token-drop settings fixed unless that experiment
 explicitly studies a change.
 
 The saved tests are starting points, not executed validation of these snapshots.
-Before claiming a gain, check representative loss and elementwise gradients,
-relevant distributed/recompute behavior, then repeated unprofiled timing and
-memory after warmup. No experiments or training-source changes were made while
-assembling this inventory.
+Start future authorized comparisons with a short matched monitoring-off
+baseline/candidate performance pair. A single pair is provisional; repeat
+promising or ambiguous results when needed. For a candidate worth retaining,
+then compare the smallest affected block on matched inputs and needed weights/
+state, including affected backward if changed. Analyze precision and rounding
+and use a higher-precision local reference when needed; no whole-model gradient/
+Adam gate or universal tolerance remains. No experiments or training-source
+changes were made while assembling this inventory.
 
 ## Other hypotheses retained from earlier reviews
 

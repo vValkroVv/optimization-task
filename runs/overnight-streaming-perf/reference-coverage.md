@@ -1,5 +1,12 @@
 # Reference applicability review
 
+Status: preserved source findings from a cancelled/incomplete campaign. No
+candidate is accepted. The [cleanup plan](../../planning/overnight-streaming-perf.md)
+and [validation policy](../../planning/validation.md) govern future authorized
+work: short monitoring-off performance first, then local affected-block checks.
+This record authorizes no execution during cleanup. Source contracts below remain
+useful; historical monitoring-inclusive/long-window acceptance requirements are retired.
+
 Scope: read-only source reconciliation for K1–K3, Z1 and V1–V5. No training,
 benchmark, dependency installation or training-source change was performed.
 Acceptance: identify independent missing mechanisms, inspect current consumers
@@ -33,14 +40,14 @@ mean `references/kindulov/source/`, `references/hidden-z-loss/source/` and
 
 | ID | Source reconciliation and applicability | Expected costs, risks and decision gate |
 | --- | --- | --- |
-| K1a: cap-zero fused CE | **Independent algorithm remains applicable; proposed FP32-buffer removal is already present.** Actual G3 AOT forward saves BF16 logits/labels and two FP32 row statistics; backward writes BF16 gradients without a full-vocabulary FP32 buffer. Donor K saves one FP32 row LSE and directly computes softmax-minus-one-hot, removing the baseline backward's vocabulary-wide one-hot-gradient reduction. See [compiled contract and four pinned cache wrappers](k1a-compiled-contract.md). | Ordinary paths both use three kernels per CE chunk; the donor is not a launch-count reduction. Remaining arithmetic benefit and small row-stat lifetime difference are unmeasured. Adapt donor integration to preserve compiled CE rather than its eager bypass, without adding the unsupported head softcap keyword at cap zero. Unchanged donor also loses normalization for finite large equal logits: the pinned formula proof requires separate FP32 maximum/log-denominator statistics and an actual CUDA/compiled regression before acceptance. Preserve SUM/global-valid-token scaling, MTP weights, signed int64 labels, ignored/all-ignored behavior, head hooks, monitoring 2/32 chunks and FP32 hidden-gradient accumulation. Eager/compiled elementwise checks, native integration, A/B and comparable traces remain open. |
+| K1a: cap-zero fused CE | **Independent algorithm remains applicable; proposed FP32-buffer removal is already present.** Actual G3 AOT forward saves BF16 logits/labels and two FP32 row statistics; backward writes BF16 gradients without a full-vocabulary FP32 buffer. Donor K saves one FP32 row LSE and directly computes softmax-minus-one-hot, removing the baseline backward's vocabulary-wide one-hot-gradient reduction. See [compiled contract and four pinned cache wrappers](k1a-compiled-contract.md). | Ordinary paths both use three kernels per CE chunk; the donor is not a launch-count reduction. Remaining arithmetic benefit and small row-stat lifetime difference are unmeasured. Adapt donor integration to preserve compiled CE rather than its eager bypass, without adding the unsupported head softcap keyword at cap zero. Unchanged donor also loses normalization for finite large equal logits: the pinned formula proof requires separate FP32 maximum/log-denominator statistics and an actual CUDA/compiled regression before acceptance. Preserve SUM/global-valid-token scaling, MTP weights, signed int64 labels, ignored/all-ignored behavior, head hooks, ordinary two-chunk loss with monitoring disabled, and FP32 hidden-gradient accumulation. Eager/compiled elementwise checks, native integration, A/B and comparable traces remain open. |
 | K1b: completed chunk lifetime | **Applicable and missing independently of fusion.** Current G/loss.py:738–762 keeps Python `logits` and `chunk_loss` references until the next iteration rebinds them; the next head output is allocated while the prior logits variable is still live. K/loss.py:751 releases both after inner backward. Current code already clears `h_chunk.grad`; :703–706 still keeps all contiguous hidden/label chunks, and :708–712 retains the FP32 accumulated hidden gradient. | Explicit deletion can remove adjacent-logits overlap without changing computation. It does not eliminate all chunk copies or head buffers. Measure phase-aligned allocated/reserved peaks and actual end-to-end effect; allocator reuse and compiler ownership determine magnitude. Keep argmax sink/metrics and exception cleanup intact. |
 | K2: dense/shared local FFN recomputation | **Applicable, missing as a local option; incremental benefit unresolved.** Current G/models/common/ffn/__init__.py:85–129 already uses FP8 projections, fused SwiGLU quantization and FP8-input storage, but has no local checkpoint. K/same-file:132–164 wraps the FP8-capable implementation in nonreentrant checkpoint and commits temporary clip counts outside that boundary. Shared experts use the same component through G/models/common/moe/__init__.py:69–70,183. | Fixed block SAC already replays these paths: G/distributed/activation_checkpoint.py:187–210 distinguishes dense `mm` from grouped `experts_up`; saving routed up projections does not mean dense/shared projections are saved. Nesting local checkpoints may add replay, retain an extra boundary input and change compiler partitioning. Dense layer0 uses recompute; most MoE blocks save routed up results only; the outer MTP segment falls through to global selective SAC with an empty save list. Do not call this inapplicable merely because SAC exists, or a saving merely because the donor supports FP8. Trace/saved-tensor evidence must show additional removable lifetime without unacceptable repeated GEMMs. Preserve FP8 `orig_shape` handling and clip/aux counters under both replay levels. |
 | K3: routed local recomputation | **Inapplicable unchanged under required routed FP8.** Actual guard is K/models/common/moe/experts/gmm.py:111–115, not the package `__init__.py`: it raises when recompute and FP8 grouped GEMM are both enabled. BF16 checkpoint branch is at :212. | Converting routed experts to BF16 violates the workload. Existing SAC and FP8 grouped GEMM remain. A new FP8 algorithm is beyond a direct donor port; no performance claim follows from the BF16 implementation. |
 | Z1: fused gate/up z-loss | **Inapplicable to the active objective, with missing dependency source.** G/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml:45–46 selects norm-input z-loss only. G/ffn/__init__.py:73–82 guards gate/up z-loss with fused FP8. Z/ffn/__init__.py:122–144,179–195 implements gate/up gradient fusion, not final-norm-input fusion. Z/ops/float8/_cudacherry.py:72 imports external fused kernels. | Adding gate/up coefficients changes computation and is explicitly disallowed. The no-gate/up path already has fused SwiGLU/quantization in the baseline; enabling that is not a new gain. Donor nonzero gate/up z-loss requires higher-precision saved inputs and scaling/replay validation. Missing external kernels stay a source limit; they do not block K1/K2/V2/V3. |
 | V1: CompactCE | **Inapplicable unchanged.** V/components/loss.py:1153–1164 selects supervised positions before vocabulary projection and explicitly requires ordinary loss for MTP (also TP/CP/PP/full DTensor). Crop MTP1 is mandatory. | Do not disable MTP. A new MTP-capable compact objective path would require shifting/boundary/weight/denominator integration absent from this donor. Full-length streaming masks only certain targets; ignored fraction must be measured before predicting a material opportunity. |
 | V2: bounded CPU streaming prefetch | **Applicable and missing.** Current G/datasets/streaming/core/dataloader.py:113–140 synchronously yields Mosaic batches and snapshots only its source cursor; current text loader :104–118 uses this base. V/core/prefetch.py is a reusable producer helper, but `rg PrefetchIterator V/` finds only its class and tests: selected donor files contain no text-loader consumer or checkpoint integration. | Adds a thread, bounded ready-batch memory, locking and possibly contention. Existing Mosaic workers/prefetch_factor are already supported (G/core/dataloader.py:106–109), so this is additional main-iterator overlap, not first-ever prefetch. The trainer fetches all 32 accumulation microbatches before compute (G/trainer.py:733–750); the producer may overlap next-update loading with current-update GPU work, but cannot interleave current-step compute without a separate trainer change. Trace exposed `fetching_batch` and worker gaps before ranking. No CUDA streams or H2D overlap are implemented by this CPU helper. |
-| V3: GFSDP runtime collection | **Partly already present, with independent missing pieces below.** Current G/models/gift_moe/_base/parallelize.py:195–223 already separates norm/head and gives chunked head a private gradient buffer; :235–266 orders embedding, blocks, norm, MTP, then head and explicitly prefetches forwards/backwards for EP8. Do not count enabling GFSDP, explicit order, double buffering or head private gradients as new mechanisms. | Missing buffer planner, tail retention, callback guard and startup slicing have distinct evidence/cost scopes. Port small coherent pieces; donor Omni branch wiring is not a drop-in text-model replacement. Required GPU acceptance covers EP8/GFSDP2, compiled SAC, MTP, ordinary and monitoring inner backwards and repeated updates. |
+| V3: GFSDP runtime collection | **Partly already present, with independent missing pieces below.** Current G/models/gift_moe/_base/parallelize.py:195–223 already separates norm/head and gives chunked head a private gradient buffer; :235–266 orders embedding, blocks, norm, MTP, then head and explicitly prefetches forwards/backwards for EP8. Do not count enabling GFSDP, explicit order, double buffering or head private gradients as new mechanisms. | Missing buffer planner, tail retention, callback guard and startup slicing have distinct evidence/cost scopes. Port small coherent pieces; donor Omni branch wiring is not a drop-in text-model replacement. Future affected-path assessment retains EP8/GFSDP2, compiled SAC, MTP and ordinary inner backwards; detailed monitoring is disabled. |
 | V4: frozen BF16 storage | **INAPPLICABLE to this fixed crop.** V/trainer.py:82–92 casts only non-trainable floating parameters before sharding/optimizer; documentation describes FP32 checkpoint rounding. Current crop configuration contains no freeze policy. | Native002 [runtime census](g1-smoke-002-receipt.json) confirms zero frozen tensors/elements on every rank. Non-trainable buffers and EMA copies are not eligible parameters. Do not freeze layers or cast trainable FP32 storage. Mixed frozen/trainable GFSDP partitioning is therefore not a crop speed experiment. |
 | V5a: input-token metric accounting | **Missing accounting, not a speedup by itself.** Current G/trainer.py:748 counts physical label slots for console metrics, :749–760 reduces supervised targets for loss, and callbacks retain `ntokens_seen`. V/trainer.py:983,997–1019 packs input token counts into the same collective; V/callbacks/sources/trainer_source.py:322–360 publishes separate input-token TPS. | Keep physical input TPS and supervised-target TPS distinct on streaming masks/MTP. Extra counters/history/reporting add small work; a new collective is unnecessary. Do not import donor sample-normalization or CompactCE behavior merely to add this metric. |
 | V5b: retained device count through producer and consumers | **Applicable after correcting the earlier premise.** G/trainer.py:749–758 reduces clamped local int64 counts through `dist_sum`, whose G/distributed/utils.py:70–72 returns a Python float via `.item()`. Donor V/trainer.py:997–1024 retains an int64 device tensor through direct functional reduction and adds it at:1131. | The current `int()` at:830 is CPU-only; the removable device read is at the producer before32 microbatches. A consumer-only replacement is invalid. A minimal independent port can retain the int64 reduction tensor without donor CompactCE/sample normalization/loss-unit vector. Preserve current local clamp-before-reduction, normalization precision, main denominator for MTP, optimizer/scheduler/callback/counter order and int64 persisted state. Verify compiled loss/gradient/aux-scale parity, empty/uneven local counts, callback observations and save/load; later logging/batch-end reads may bound benefit. |
@@ -73,7 +80,7 @@ again. A local boundary also retains input and can add replay/quantization and
 change fusion. At8192 tokens, BF16 boundary input is64 MiB, a dense gate/up output
 is172 MiB each and a shared output24 MiB each, before aliases/scales/FP8 storage.
 One additional complete nine-FFN replay would add27 GEMMs/microbatch or864/update
-at accumulation32 (about210.28 TFLOP/rank/update projection arithmetic). These
+at accumulation 32 (about210.28 TFLOP/rank/update projection arithmetic). These
 are conditional sizes/work, not measured savings or overhead; checkpoint early
 stop and compiled partitioning can change the actual count.
 
@@ -85,33 +92,35 @@ if this candidate is selected. Donor historical L8 results disabled block AC and
 do not establish benefit under this fixed SAC. Its preserved recompute test is
 primarily routed BF16 K3, not executable K2 FP8 acceptance evidence.
 
-The donor scratch-count commit remains inside the outer block SAC boundary;
-therefore it does not prove no duplicate mutation under both replay levels.
-Test persistent clip slots, published counts and projection/module hooks before
-and after backward, plus router/aux/bias state and two AdamW updates. Ordinary
-compiled execution and monitoring differ: current MonitoringCallback opens an
-`EagerWindow` on logged updates for module hooks. Required update50 coverage must
-exercise that path and chunks32 as well as ordinary chunks2. Native A/A and actual
-nested-SAC eager/compiled elementwise loss/input/projection-gradient/state checks
-remain required; no bitwise native assumption or tolerance is established.
-
-After G3, identify a concrete removable lifetime at the peak, replay GEMM/quantizer
-counts and exposed shared-combine/GFSDP waits before choosing a port order or
-selection. The campaign still retains only its agreed ordinary-update trace pair;
-monitoring behavior uses the native cadence and targeted path checks rather than
-silently adding a second capture campaign. No K2 implementation is active.
+The donor scratch-count commit remains inside outer SAC, so it does not prove
+absence of duplicate mutation. A future local K2 replay should inspect affected
+persistent clip slots, projection/module hooks and relevant router/aux/bias state
+through backward. Preserve actual FP8/compiled nested-SAC behavior. Detailed
+monitoring is disabled in the performance contract: ordinary two-chunk loss is
+the active path, with no update 50/32-chunk monitoring prerequisite. Measure
+performance first, then assess affected outputs/backward locally if worth retaining.
+No K2 implementation or measured gain is active.
 
 ## V2 lifetime and state findings
 
 ### Selected minimal port and acceptance
 
-**Specification only; no implementation or performance acceptance.** Reuse the
+**Isolated source port implemented; distributed/native/performance acceptance open.**
+Variant `21c1891dda531a1222e6c350802f2765758794f9` on
+`vkropotin-v2-prefetch` has default 0 and an accepted
+[independent source/CPU review](v2-prefetch-review.md). The cleanup-error finding
+is resolved. The306-test scoped pass retains one verified pre-existing registry
+deselection;9 targeted cleanup checks and4 reviewer checks passed. This is not
+a full-suite or runtime acceptance. The actual eight-owner Gloo/DCP gate was not executed/completed; continuation
+is cancelled. Native/performance acceptance is also incomplete.
+
+The selected contract below reuses the
 bounded `PrefetchIterator` from donor `860152d111e4bac25daecbe3cc0cd84c68c8af9c`
 (V/core/prefetch.py), with a thin finite-epoch adapter around the existing Mosaic
 loader. Keep `streaming_text`, its dataset/collator and scalar checkpoint format.
 The finite deliverable is config wiring, producer/consumer cursor separation,
 consumer-owned epoch entry and cleanup, behavior regressions, then the existing
-native numerical/performance gates. No loader replacement, new state framework,
+future local numerical/performance gates. No loader replacement, new state framework,
 GPU copy/stream, trainer accumulation/normalization rewrite or preset change is
 part of V2.
 
@@ -145,34 +154,35 @@ an optimal depth or a speedup. Do not add a queue-depth sweep to this campaign.
 
 The actual `TextPretrainCollator` returns int64 `input` and labels, plus int32
 `positions`, each B2/S4096: `(8+8+4)*2*4096 = 163840` bytes, **160KiB/batch**.
-Thus depth2 is320KiB and depth32 is **5MiB/rank** of ready tensors, not4.2MiB.
+Thus depth2 is 320KiB and depth 32 is **5 MiB/rank** of ready tensors, not 4.2MiB.
 This excludes Python/state dictionaries, IPC/storage ownership, existing worker
-queues and Mosaic preparation threads. The trainer already holds up to32 CPU
-microbatches; the feature may retain another32 while compute runs. No tensor clone
+queues and Mosaic preparation threads. The trainer already holds up to 32 CPU
+microbatches; the feature may retain another 32 while compute runs. No tensor clone
 is required by the queue. Actual storage lifetime and process RSS remain measured
 gates, especially while trainer inputs migrate to GPU and workers recycle buffers.
 Two workers with null `prefetch_factor` already resolve to two tasks/worker,
 four outstanding tasks; V2 adds main-iterator materialization beyond that layer.
 
-The supplied G3 MCP evidence for ordinary update111 reports rank0/1 underlying
-DataLoader33-next sums591.856/631.059ms, before first microbatch at659.616/660.192ms;
-the largest input prefix is607/644ms. CPU frame14.130s differs from unprofiled
-ordinary roughly13.79s. All-GPU idle1.086/1.133s includes causes beyond input.
-896 rows /8 ranks /B2 gives56 local batches/epoch; update111 starts at
-`110*32 mod56 = 48`, consuming8 old-epoch then24 new-epoch batches. Thirty-three
-calls are consistent with32 deliveries plus `StopIteration`; a355/346ms call
+The supplied G3 MCP evidence for ordinary update 111 reports rank0/1 underlying
+DataLoader 33-next sums 591.856/631.059ms, before first microbatch at 659.616/660.192ms;
+the largest input prefix is607/644ms. CPU frame 14.130s differs from unprofiled
+ordinary roughly 13.79s. All-GPU idle 1.086/1.133s includes causes beyond input.
+896 rows /8 ranks /B2 gives56 local batches/epoch; update 111 starts at
+`110*32 mod56 = 48`, consuming 8 old-epoch then 24 new-epoch batches. Thirty-three
+calls are consistent with 32 deliveries plus `StopIteration`; a 355/346ms call
 near wrap is observed, but worker/epoch causality is not directly established.
 
 A safe producer cannot start the next epoch ahead of the consumer. First-batch
 epoch entry remains synchronous, so the port cannot be credited with eliminating
-all0.6s of input time or the wrap call. It may overlap the ready portion of the
-next burst with the current update's GPU work; a depth32 queue cannot cross the
-barrier to prepare those24 new-epoch batches. Keep the fixed native111–160 window
-(which covers every epoch phase), accepted G2 A/A controls and candidate profile111.
-No new trace campaign is needed. The unprofiled comparison must retain monitor150,
-all FP8/compile/CuTe/SAC/MTP settings, B2/S4096/accum32, FSDP8/EP8, seed2048 and
-scheduler65000/2000; the G2 baseline is124454.812 global input tokens/s with
-A2/A1−0.074173%, not a promised V2 gain.
+all 0.6s of input time or the wrap call. It may overlap the ready portion of the
+next burst with the current update's GPU work; a depth 32 queue cannot cross the
+barrier to prepare those 24 new-epoch batches. Historical G2's111–160 window,
+monitor 150 and124454.812 input TPS remain source evidence only, not controls for
+a monitoring-off V2 comparison. Future authorized testing starts with a fresh
+matched short monitoring-off baseline/candidate pair at 10+10 optimizer updates,
+keeping FP8/compile/CuTe/SAC/MTP, B2/S4096/accumulation 32, EP8/GFSDP2, seed 2048 and
+schedule 65,000/2,000. A single pair is provisional; repeat only when useful to
+resolve promising or ambiguous effects. No new V2 measurement is run now.
 
 ### Exact integration boundary and cursor ownership
 
@@ -180,7 +190,7 @@ Proposed owned training files and APIs (names below are port contracts, not
 claims that these methods already exist):
 
 - `torchtitan/config/schema/datasets/streaming/core/dataloader.py`:
-  `BaseStreamingDataLoaderConfig.num_prefetch_batches`, default0 and lightweight
+  `BaseStreamingDataLoaderConfig.num_prefetch_batches`, default 0 and lightweight
   nonnegative validation. Document one candidate override; keep canonical YAML0.
 - `torchtitan/datasets/streaming/core/prefetch.py`: adapted donor
   `PrefetchIterator`, retaining `paused()`, `close()` and `join(timeout)` semantics.
@@ -360,19 +370,14 @@ valid-token counting, device transfers, forward/backward and optimizer order.
    full model/optimizer/EMA checkpoint, data download or 228GB artifact is needed.
    This closes the affected loader persistence/coordination claim if it passes;
    it does not establish full-model numerical checkpoint continuation.
-5. Use the established native numerical harness for fixed-workload deterministic
-   loss/elementwise-gradient/relevant-state comparison on ordinary and monitoring
-   paths. CPU/Gloo loader-only checks do not establish GPU transfer or native
-   training numerics; those are this native gate. No additional GPU/NCCL
-   checkpoint gate is material to the selected loader-only change if its source
-   review confirms state remains scalar/CPU, the data group remains Gloo, and
-   no model, optimizer, EMA, GPU buffer or checkpoint staging path is changed.
-   A change to those assumptions reopens only its affected gate. Full-model
-   continuation is not claimed. Keep campaign checkpoints off throughout native
-   numerical/performance runs. Then compare the existing alternating unprofiled
-   A/B111–160 windows and profile111 for mechanism; retain failed/skipped gates
-   and source/config/runtime identities. No additional native checkpoint run or
-   broad parallelism campaign is requested by this specification.
+5. These loader-state requirements describe unexecuted acceptance work, not
+   permission to run during cleanup. The former native full-model numerical
+   harness is removed. Future separately authorized experiments measure the
+   candidate first, then check its smallest affected loader/block contract on
+   matched inputs/state if it is worth retaining; compare affected backward only
+   if changed. Loader CPU/Gloo checks do not establish GPU timing or transfer
+   behavior. Keep missing evidence explicit. No model/optimizer/EMA checkpoint,
+   full-model gradient/Adam comparison or mandatory 111–160/profile111 gate remains.
 
 Expected cost per enabled batch is one queue push/pop and condition signaling,
 state counter arithmetic plus a fresh scalar snapshot (shared-memory read and
@@ -383,7 +388,7 @@ thread start/join and synchronous first-batch entry per finite epoch; eight rank
 contend with sixteen existing workers and Mosaic preparation threads. The queue
 retains CPU/IPC storage, so actual RSS/lifetime and CPU contention can outweigh
 hidden fetch time. Checkpoint pause/load/close may wait for one active read;
-load adds the explicit data-world coordination above. The default0 path must
+load adds the explicit data-world coordination above. The default 0 path must
 keep original iteration/state logic and allocate no producer/queue/snapshots or
 extra distributed coordination. Close forwarding adds only lifecycle calls.
 
@@ -455,7 +460,7 @@ most the following independently attributable changes before any combined winner
 1. K1b explicit chunk release; smallest isolated lifetime change. If no peak or
    TPS improvement survives controls, retain the negative result.
 2. K1a cap-zero fused CE if CE/intermediate allocation has meaningful exposed cost;
-   require local-CUDA path activation and parity before timing.
+   confirm actual activation for timing; assess local numerical effects afterward.
 3. V3 partial-backward guard if traces show premature decoder releases/regathers;
    use a targeted state/lifetime regression before full updates.
 4. V2 CPU prefetch if the loader/update boundary exposes input wait; preserve the
@@ -473,6 +478,8 @@ campaign blocker; it has no warmed-TPS priority. K3, Z1, V1 and V4 remain
 inapplicable under current constraints, without disabling FP8/MTP, changing the
 objective or freezing trainable parameters. Reorder applicable trials only when
 the baseline traces resolve one of the stated cost questions. Every executed
-candidate needs elementwise numerical/state checks, repeated unprofiled A/B/A/B,
-phase-matched memory, and a representative two-rank trace pair. No speed, memory
-percentage, production readiness or complete vision-list coverage is claimed here.
+candidate starts with a short matched monitoring-off performance pair, followed
+by local affected-block output/backward assessment if worth retaining. One pair
+is provisional; repeats and new traces answer specific unresolved questions.
+Actual Gloo/DCP/performance gates for V2 were not executed/completed. No speed,
+memory percentage, production readiness or complete vision-list coverage is claimed.
