@@ -56,6 +56,12 @@ class BaseDataLoader(Stateful, ABC, Configurable):
     @abstractmethod
     def __iter__(self) -> Iterator[tuple[dict[str, torch.Tensor], torch.Tensor]]: ...
 
+    def close_iteration(self) -> None:
+        """Release resources owned by the current iteration, if any."""
+
+    def close(self) -> None:
+        """Release resources owned by this loader, if any."""
+
 
 _STATUS_BATCH = 0
 _STATUS_EOF = 1
@@ -368,6 +374,28 @@ class ReplicatedBatchDataLoader(BaseDataLoader):
             return
         assert self._dataloader is not None
         self._dataloader.load_state_dict(state_dict)
+
+    def close_iteration(self) -> None:
+        dataloader = self._dataloader if self.is_owner else None
+        if dataloader is not None:
+            dataloader.close_iteration()
+
+        iterator, self._iterator = self._iterator, None
+        close = getattr(iterator, "close", None)
+        if close is not None and iterator is not dataloader:
+            close()
+
+        self._pending = None
+        self._keys = None
+        self._broadcast_keys = []
+        self._header = None
+        self._header_cpu = None
+
+    def close(self) -> None:
+        self.close_iteration()
+        if self.is_owner:
+            assert self._dataloader is not None
+            self._dataloader.close()
 
 
 def _wire_order(dtypes: list[torch.dtype | None]) -> list[int]:

@@ -18,9 +18,18 @@ class BaseStreamingDataLoaderConfig(BaseDataLoaderConfig):
     persistent_workers: bool = False
     pin_memory: bool = False
     prefetch_factor: int | None = None
+    num_prefetch_batches: int = 0
+    """Bounded CPU queue depth; zero keeps streaming batch fetching synchronous."""
     # pyrefly: ignore [bad-override]
     dataset: StreamingDatasetConfig = field(default_factory=StreamingDatasetConfig)
     infinite: bool = True
+
+    def __post_init__(self) -> None:
+        if self.num_prefetch_batches < 0:
+            raise ValueError(
+                "dataloader.num_prefetch_batches must be nonnegative, "
+                f"got {self.num_prefetch_batches}"
+            )
 
     def validate_for_validation_loop(self) -> None:
         """Only a full, ordered dataset re-iterates deterministically: without

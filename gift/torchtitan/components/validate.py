@@ -4,8 +4,8 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-from collections.abc import Callable
-from contextlib import AbstractContextManager
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, closing
 from typing import Any, TypeAlias
 
 import torch
@@ -34,6 +34,20 @@ from torchtitan.tools import utils
 from torchtitan.tools.logging import logger
 
 ValidationContext: TypeAlias = Callable[[], AbstractContextManager[None]]
+
+
+def _iter_with_loader_cleanup(
+    dataloader: BaseDataLoader,
+) -> Iterator[tuple[dict[str, torch.Tensor], torch.Tensor]]:
+    iterator = iter(dataloader)
+    try:
+        while True:
+            try:
+                yield next(iterator)
+            except StopIteration:
+                return
+    finally:
+        dataloader.close_iteration()
 
 
 class BaseValidator(Configurable):
@@ -255,76 +269,81 @@ class Validator(BaseValidator):
             if self._reuse_validation_dataloader:
                 self._validation_dataloader = validation_dataloader
 
-        for input_dict, labels in validation_dataloader:
-            # pyrefly: ignore [missing-attribute, unsupported-operation]
-            if self.config.steps != -1 and num_steps >= self.config.steps:
-                break
+        with closing(_iter_with_loader_cleanup(validation_dataloader)) as batches:
+            for input_dict, labels in batches:
+                # pyrefly: ignore [missing-attribute, unsupported-operation]
+                if self.config.steps != -1 and num_steps >= self.config.steps:
+                    break
 
-            for k, v in input_dict.items():
-                input_dict[k] = v.to(device_type)
-            labels = labels.to(device_type)
+                for k, v in input_dict.items():
+                    input_dict[k] = v.to(device_type)
+                labels = labels.to(device_type)
 
-            # Count valid tokens for this batch
-            local_valid_tokens = torch.tensor(0, dtype=torch.int64, device=device_type)
-            local_valid_tokens += (labels != IGNORE_INDEX).sum()
-
-            # All-reduce token count across DP ranks to get global token count
-            if parallel_dims.dp_enabled:
-                batch_mesh = parallel_dims.get_mesh("batch")
-                global_valid_tokens = dist_utils.dist_sum(
-                    local_valid_tokens, batch_mesh, None
+                # Count valid tokens for this batch
+                local_valid_tokens = torch.tensor(
+                    0, dtype=torch.int64, device=device_type
                 )
-            else:
-                global_valid_tokens = local_valid_tokens.float()
+                local_valid_tokens += (labels != IGNORE_INDEX).sum()
 
-            # Process data (extract inputs, handle attention masks, CP sharding)
-            inputs, labels, extra_inputs, extra_kwargs = self.post_dataloading_process(
-                input_dict, labels, model_parts
-            )
-
-            if parallel_dims.pp_enabled:
-                assert self.pp_schedule is not None
-                assert self.pp_has_first_stage is not None
-                assert self.pp_has_last_stage is not None
-                # Pipeline Parallel forward inside eval() call
-                with self.validation_context():
-                    targets, losses = (
-                        (labels, []) if self.pp_has_last_stage else (None, None)
+                # All-reduce token count across DP ranks to get global token count
+                if parallel_dims.dp_enabled:
+                    batch_mesh = parallel_dims.get_mesh("batch")
+                    global_valid_tokens = dist_utils.dist_sum(
+                        local_valid_tokens, batch_mesh, None
                     )
-                    if self.pp_has_first_stage:
-                        assert inputs is not None, (
-                            "first PP stage must receive 'input' from the dataloader"
-                        )
-                        self.pp_schedule.eval(
-                            inputs,
-                            **extra_inputs,
-                            **extra_kwargs,
-                            target=targets,
-                            losses=losses,
-                        )
-                    else:
-                        self.pp_schedule.eval(
-                            **extra_kwargs,
-                            target=targets,
-                            losses=losses,
-                        )
-
-                # accumulate losses across pipeline microbatches
-                # TODO: PP+FSDP unexpectedly puts the loss back to the CPU
-                if self.pp_has_last_stage:
-                    assert losses is not None
-                    # using sum because loss_fn already uses reduction='sum'
-                    loss_sum = torch.sum(torch.stack(losses)).to(device_type)
                 else:
-                    loss_sum = torch.tensor([-1.0], device=device_type)
-            else:
-                with self.validation_context():
-                    assert len(model_parts) == 1
-                    predictions = model_parts[0](inputs, **extra_inputs, **extra_kwargs)
-                    loss_sum = self.loss_fn(predictions, labels)
+                    global_valid_tokens = local_valid_tokens.float()
 
-            accumulated_losses.append(loss_sum.detach() / global_valid_tokens)
-            num_steps += 1
+                # Process data (extract inputs, handle attention masks, CP sharding)
+                inputs, labels, extra_inputs, extra_kwargs = (
+                    self.post_dataloading_process(input_dict, labels, model_parts)
+                )
+
+                if parallel_dims.pp_enabled:
+                    assert self.pp_schedule is not None
+                    assert self.pp_has_first_stage is not None
+                    assert self.pp_has_last_stage is not None
+                    # Pipeline Parallel forward inside eval() call
+                    with self.validation_context():
+                        targets, losses = (
+                            (labels, []) if self.pp_has_last_stage else (None, None)
+                        )
+                        if self.pp_has_first_stage:
+                            assert inputs is not None, (
+                                "first PP stage must receive 'input' from the dataloader"
+                            )
+                            self.pp_schedule.eval(
+                                inputs,
+                                **extra_inputs,
+                                **extra_kwargs,
+                                target=targets,
+                                losses=losses,
+                            )
+                        else:
+                            self.pp_schedule.eval(
+                                **extra_kwargs,
+                                target=targets,
+                                losses=losses,
+                            )
+
+                    # accumulate losses across pipeline microbatches
+                    # TODO: PP+FSDP unexpectedly puts the loss back to the CPU
+                    if self.pp_has_last_stage:
+                        assert losses is not None
+                        # using sum because loss_fn already uses reduction='sum'
+                        loss_sum = torch.sum(torch.stack(losses)).to(device_type)
+                    else:
+                        loss_sum = torch.tensor([-1.0], device=device_type)
+                else:
+                    with self.validation_context():
+                        assert len(model_parts) == 1
+                        predictions = model_parts[0](
+                            inputs, **extra_inputs, **extra_kwargs
+                        )
+                        loss_sum = self.loss_fn(predictions, labels)
+
+                accumulated_losses.append(loss_sum.detach() / global_valid_tokens)
+                num_steps += 1
 
         # Compute average loss
         loss = torch.sum(torch.stack(accumulated_losses))

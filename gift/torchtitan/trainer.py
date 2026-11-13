@@ -506,21 +506,30 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
         Note: Tensors may be on CPU or already on the training device.
         """
         data_iterator = iter(data_iterable)
+        try:
+            while True:
+                data_load_start = time.perf_counter()
+                try:
+                    batch = next(data_iterator)
+                except StopIteration as ex:
+                    # If data runs out during gradient accumulation, that
+                    # entire step will not be executed.
+                    raise DataloaderExhaustedError() from ex
+                input_dict, labels = batch
+                self.metrics_processor.data_loading_times.append(
+                    time.perf_counter() - data_load_start
+                )
 
-        while True:
-            data_load_start = time.perf_counter()
-            try:
-                batch = next(data_iterator)
-            except StopIteration as ex:
-                # If data runs out during gradient accumulation, that
-                # entire step will not be executed.
-                raise DataloaderExhaustedError() from ex
-            input_dict, labels = batch
-            self.metrics_processor.data_loading_times.append(
-                time.perf_counter() - data_load_start
-            )
-
-            yield input_dict, labels
+                yield input_dict, labels
+        finally:
+            close = getattr(data_iterator, "close", None)
+            close_iteration = getattr(data_iterable, "close_iteration", None)
+            if close is not None and not (
+                data_iterator is data_iterable and close_iteration is not None
+            ):
+                close()
+            if close_iteration is not None:
+                close_iteration()
 
     @sl.log_trace_span("post_dataloading_process")
     def post_dataloading_process(
@@ -1006,9 +1015,13 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
         self.ntokens_seen.fill_(state_dict["ntokens_seen"])
 
     def close(self) -> None:
-        if hasattr(self, "callbacks") and self.callbacks:
-            self.callbacks.close()
-        if hasattr(self, "checkpointer") and self.checkpointer:
-            self.checkpointer.close()
-        if hasattr(self, "metrics_processor") and self.metrics_processor:
-            self.metrics_processor.close()
+        try:
+            if hasattr(self, "callbacks") and self.callbacks:
+                self.callbacks.close()
+            if hasattr(self, "checkpointer") and self.checkpointer:
+                self.checkpointer.close()
+            if hasattr(self, "metrics_processor") and self.metrics_processor:
+                self.metrics_processor.close()
+        finally:
+            if hasattr(self, "dataloader") and self.dataloader:
+                self.dataloader.close()

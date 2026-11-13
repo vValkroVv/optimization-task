@@ -200,10 +200,15 @@ def test_drop_last_controls_partial_batch(tmp_path, drop_last, expected_batch_si
     assert [len(labels) for _, labels in loader] == expected_batch_sizes
 
 
-def test_infinite_replays_epochs_in_order(tmp_path):
+@pytest.mark.parametrize("num_prefetch_batches", [0, 2])
+def test_infinite_replays_epochs_in_order(tmp_path, num_prefetch_batches):
     write_tokenized_mds(tmp_path, make_sequential_rows(6, row_len=4))
     loader = make_text_dataloader(
-        tmp_path, seq_len=4, local_batch_size=2, infinite=True
+        tmp_path,
+        seq_len=4,
+        local_batch_size=2,
+        infinite=True,
+        num_prefetch_batches=num_prefetch_batches,
     )
 
     first_tokens = [
@@ -214,10 +219,16 @@ def test_infinite_replays_epochs_in_order(tmp_path):
     assert first_tokens[:3] == first_tokens[3:]
 
 
-def test_infinite_raises_when_epochs_stay_empty(tmp_path):
+@pytest.mark.parametrize("num_prefetch_batches", [0, 2])
+def test_infinite_raises_when_epochs_stay_empty(tmp_path, num_prefetch_batches):
     write_tokenized_mds(tmp_path, make_sequential_rows(2, row_len=4))
     loader = make_text_dataloader(
-        tmp_path, seq_len=4, local_batch_size=4, drop_last=True, infinite=True
+        tmp_path,
+        seq_len=4,
+        local_batch_size=4,
+        drop_last=True,
+        infinite=True,
+        num_prefetch_batches=num_prefetch_batches,
     )
     with pytest.raises(RuntimeError, match="no batches in two consecutive epochs"):
         next(iter(loader))

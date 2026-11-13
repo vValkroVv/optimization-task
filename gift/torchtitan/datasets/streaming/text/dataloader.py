@@ -115,5 +115,6 @@ class StreamingTextDataLoader(BaseStreamingDataLoader):
             persistent_workers=config.persistent_workers,
             pin_memory=config.pin_memory,
             prefetch_factor=config.prefetch_factor,
+            num_prefetch_batches=config.num_prefetch_batches,
             infinite=config.infinite,
         )
