@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -19,6 +22,13 @@ from numerics import NativeNumericalReceipt, _tensor_digest  # noqa: E402
 import numerics  # noqa: E402
 from torchtitan.callbacks.base import Event  # noqa: E402
 from torchtitan.callbacks.manager import CallbackManager  # noqa: E402
+from torchtitan.callbacks.metrics import emitters as metric_emitters  # noqa: E402
+from torchtitan.callbacks.metrics.emitters import MetricEmitter  # noqa: E402
+from torchtitan.callbacks.metrics.sample import MetricRecord  # noqa: E402
+from torchtitan.config.schema.callbacks.metrics.sample import (  # noqa: E402
+    ReduceConfig,
+    ReduceMode,
+)
 from torchtitan.components.optimizer import OptimizersContainer  # noqa: E402
 from torchtitan.distributed import utils as dist_utils  # noqa: E402
 
@@ -53,6 +63,7 @@ class _TinyLoss:
     def __init__(self) -> None:
         self._components: dict[str, torch.Tensor] = {}
         self.components_calls = 0
+        self.num_chunks = 2
 
     def begin_step(self) -> None:
         self._components = {}
@@ -94,6 +105,28 @@ class _TinySchedulers:
 
     def state_dict(self) -> dict[str, object]:
         return {"steps": self.steps, "learning_rate": self.optimizer.optimizers[0].param_groups[0]["lr"]}
+
+
+@dataclass
+class _TinyTrainingConfig:
+    steps: int = 1
+
+
+@dataclass
+class _TinyRuntimeConfig:
+    training: _TinyTrainingConfig = field(default_factory=_TinyTrainingConfig)
+    dump_folder: str = "tiny-output"
+
+
+class _TinyMetricEmitter:
+    def emit(self, records, *, parallel_dims, publish):
+        return None
+
+
+def _prepare_reference_trainer(trainer: _TinyTrainer) -> _TinyTrainer:
+    trainer.config = _TinyRuntimeConfig()
+    trainer.callbacks.handler._emitter = _TinyMetricEmitter()
+    return trainer
 
 
 class _TinyTrainer:
@@ -149,6 +182,7 @@ class _TinyTrainer:
 
     def run(self, updates: int, *, microbatches: int = 2) -> None:
         self.callbacks.emit(Event.after_load, self)
+        self.callbacks.emit(Event.fit_start, self)
         input_base = torch.arange(6, dtype=torch.float32).reshape(2, 3).transpose(0, 1)
         labels_base = torch.tensor([0, 2, 1], dtype=torch.int64)
         denominator = self.global_valid_tokens
@@ -350,6 +384,190 @@ def test_observation_is_neutral_for_two_update_two_chunk_adamw(
     assert any(record["phase"] == "optimizer_state" and record["name"].endswith("optimizer.exp_avg") for record in records)
 
 
+def test_reference_export_and_compare_are_neutral_for_tiny_adamw(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_cuda_rng_state(device=None):
+        return torch.tensor([3, 1, 4, 1, 5], dtype=torch.uint8)
+
+    monkeypatch.setattr(torch.cuda, "current_device", lambda: 0)
+    monkeypatch.setattr(torch.cuda, "get_rng_state", fake_cuda_rng_state)
+
+    torch.manual_seed(2903)
+    baseline = _TinyTrainer()
+    baseline.run(1, microbatches=32)
+    expected = _training_snapshot(baseline)
+    baseline_rng = torch.get_rng_state().clone()
+
+    python_rng_before = random.getstate()
+    numpy_rng_before = np.random.get_state()
+    torch.manual_seed(2903)
+    exported = _prepare_reference_trainer(_TinyTrainer())
+    reference_root = tmp_path / "reference"
+    reference_root.mkdir()
+    export_dir = tmp_path / "export"
+    observer = NativeNumericalReceipt(
+        trainer_class=_TinyTrainer,
+        optimizer_container_class=OptimizersContainer,
+        callback_manager_class=CallbackManager,
+        dist_utils_module=dist_utils,
+        output_dir=export_dir,
+        rank=0,
+        expected_microbatches=32,
+        reference_output=reference_root,
+        capture_update=1,
+        run_id="tiny-export",
+    )
+    original_methods = (
+        _TinyTrainer.forward_backward_step,
+        OptimizersContainer.step,
+        CallbackManager.emit,
+        dist_utils.clip_grad_norm_,
+        _TinyMetricEmitter.emit,
+    )
+    with observer:
+        exported.run(1, microbatches=32)
+    assert (
+        _TinyTrainer.forward_backward_step,
+        OptimizersContainer.step,
+        CallbackManager.emit,
+        dist_utils.clip_grad_norm_,
+        _TinyMetricEmitter.emit,
+    ) == original_methods
+    actual = _training_snapshot(exported)
+    for key in ("losses", "gradients", "parameters"):
+        for left, right in zip(expected[key], actual[key], strict=True):
+            assert torch.equal(left, right)
+    for expected_state, actual_state in zip(
+        expected["optimizer_state"], actual["optimizer_state"], strict=True
+    ):
+        assert expected_state.keys() == actual_state.keys()
+        for key, left in expected_state.items():
+            right = actual_state[key]
+            assert torch.equal(left, right) if isinstance(left, torch.Tensor) else left == right
+    assert torch.equal(expected["tokens_seen"], actual["tokens_seen"])
+    assert torch.equal(baseline_rng, torch.get_rng_state())
+    assert random.getstate() == python_rng_before
+    numpy_rng_after = np.random.get_state()
+    assert numpy_rng_before[0] == numpy_rng_after[0]
+    assert np.array_equal(numpy_rng_before[1], numpy_rng_after[1])
+    assert numpy_rng_before[2:] == numpy_rng_after[2:]
+
+    export_receipt = json.loads(
+        (export_dir / "native-numerics-rank0.json").read_text()
+    )
+    export_manifest = json.loads(
+        (reference_root / "rank-00" / "manifest.json").read_text()
+    )
+    assert export_manifest["complete"] is True
+    assert len(
+        [
+            row
+            for row in export_receipt["observations"]
+            if row["phase"] == "microbatch_output" and row["update"] == 1
+        ]
+    ) == 32
+
+    torch.manual_seed(2903)
+    compared = _prepare_reference_trainer(_TinyTrainer())
+    compare_dir = tmp_path / "compare"
+    compare_observer = NativeNumericalReceipt(
+        trainer_class=_TinyTrainer,
+        optimizer_container_class=OptimizersContainer,
+        callback_manager_class=CallbackManager,
+        dist_utils_module=dist_utils,
+        output_dir=compare_dir,
+        rank=0,
+        expected_microbatches=32,
+        reference_input=reference_root,
+        capture_update=1,
+        run_id="tiny-compare",
+    )
+    with compare_observer:
+        compared.run(1, microbatches=32)
+    compared_snapshot = _training_snapshot(compared)
+    for key in ("losses", "gradients", "parameters"):
+        for left, right in zip(expected[key], compared_snapshot[key], strict=True):
+            assert torch.equal(left, right)
+    assert torch.equal(baseline_rng, torch.get_rng_state())
+
+    comparison_receipt = json.loads(
+        (compare_dir / "native-numerics-rank0.json").read_text()
+    )
+    comparison_manifest_path = Path(comparison_receipt["reference"]["manifest"])
+    comparison_manifest = json.loads(comparison_manifest_path.read_text())
+    assert comparison_manifest["complete"] is True
+    assert comparison_manifest["payload_comparison_count"] > 0
+    for item in comparison_manifest["observations"]:
+        result_path = comparison_manifest_path.parent / item["result"]
+        result = json.loads(result_path.read_text())
+        if result.get("comparison_eligible") and "metrics" in result:
+            assert result["metrics"]["exact_element_match"] is True
+            assert result["metrics"]["exact_hash_match"] is True
+    assert not list((reference_root / "rank-00" / "tensors").glob("*.bin"))
+
+
+def test_monitor_capture_observes_real_published_values_before_record_clear(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reduce = ReduceConfig(mode=ReduceMode.online)
+    records = [
+        MetricRecord(name="train.loss", value=torch.tensor(1.25), step=50, reduce=reduce),
+        MetricRecord(
+            name="memory.max_reserved_bytes",
+            value=torch.tensor(2048, dtype=torch.int64),
+            step=50,
+            reduce=reduce,
+        ),
+    ]
+    emitter = MetricEmitter()
+    observer = NativeNumericalReceipt(
+        trainer_class=_TinyTrainer,
+        optimizer_container_class=OptimizersContainer,
+        callback_manager_class=CallbackManager,
+        dist_utils_module=dist_utils,
+        output_dir=tmp_path / "monitor-output",
+        rank=0,
+        reference_output=tmp_path / "unused-reference",
+        capture_update=50,
+    )
+    observer._emitter_instance = emitter
+    observer._callback_context = (object(), "batch_end", 50)
+    gather_calls = []
+
+    def observe_gather(metrics, parallel_dims, cache):
+        gather_calls.append((dict(metrics), parallel_dims, cache))
+        return metrics
+
+    monkeypatch.setattr(metric_emitters, "gather_metrics_over_pp", observe_gather)
+    published = []
+
+    def publish(step, metrics):
+        published.append((step, dict(metrics)))
+
+    wrapped_emit = observer._wrap_metric_emitter(MetricEmitter.emit)
+    wrapped_emit(
+        emitter,
+        records,
+        parallel_dims=object(),
+        publish=publish,
+    )
+    records.clear()
+
+    assert records == []
+    assert len(gather_calls) == 1
+    assert published == [
+        (50, {"train.loss": 1.25, "memory.max_reserved_bytes": 2048.0})
+    ]
+    assert observer._monitor_attestation["emitter_calls"] == 1
+    assert observer._monitor_attestation["record_count"] == 2
+    assert [item["index"] for item in observer._monitor_attestation["records"]] == [0, 1]
+    assert [item["multiplicity"] for item in observer._monitor_attestation["records"]] == [1, 1]
+    publish_rows = [item for item in observer._observations if item["phase"] == "monitor_publish"]
+    assert [item["value"] for item in publish_rows] == [1.25, 2048.0]
+    assert [item["resource_observation"] for item in publish_rows] == [False, True]
+
+
 def test_gradient_hash_detects_one_element_change_with_same_rounded_norm(tmp_path: Path) -> None:
     torch.manual_seed(811)
     base = _TinyTrainer()
@@ -447,6 +665,16 @@ def test_step_and_int64_token_mutation_are_recorded_exactly(tmp_path: Path) -> N
         "optimizer_calls": 1,
         "batch_end_calls": 1,
     }
+
+
+def test_reference_snapshot_scans_float8_finiteness_in_cpu_blocks() -> None:
+    finite = torch.tensor([0.0, 1.5], dtype=torch.float8_e4m3fn)
+    _, _, finite_flag, _ = numerics._tensor_snapshot(finite, rank=0)
+    assert finite_flag is True
+
+    nonfinite = torch.tensor([float("nan")], dtype=torch.float8_e4m3fn)
+    _, _, finite_flag, _ = numerics._tensor_snapshot(nonfinite, rank=0)
+    assert finite_flag is False
 
 
 def test_unselected_updates_are_not_captured(tmp_path: Path) -> None:

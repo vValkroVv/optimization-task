@@ -814,6 +814,9 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--capture-microbatches", action="store_true")
     parser.add_argument("--profile-update", type=int)
     parser.add_argument("--native-numerics", action="store_true")
+    parser.add_argument("--native-reference-output", type=Path)
+    parser.add_argument("--native-reference-input", type=Path)
+    parser.add_argument("--native-capture-update", type=int)
     args = parser.parse_args(helper_argv)
     if not train_argv:
         parser.error("a native experiment config and overrides must follow `--`")
@@ -852,6 +855,32 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
             "native-numerics requires steps=50, warmup=0, window=0, "
             "monitor interval 50, no profile-update, and no capture-microbatches"
         )
+    reference_requested = (
+        args.native_reference_output is not None
+        or args.native_reference_input is not None
+        or args.native_capture_update is not None
+    )
+    if args.native_reference_output is not None and args.native_reference_input is not None:
+        parser.error("native reference output and input are mutually exclusive")
+    if reference_requested:
+        if args.native_numerics:
+            parser.error("native hash receipts and reference calibration are exclusive modes")
+        if args.native_reference_output is None and args.native_reference_input is None:
+            parser.error("native-capture-update requires a reference output or input")
+        if args.native_capture_update not in {1, 2, 50}:
+            parser.error("reference calibration requires native-capture-update 1, 2, or 50")
+        if (
+            args.steps != args.native_capture_update
+            or args.warmup != 0
+            or args.window != 0
+            or args.monitor_interval != 50
+            or args.profile_update is not None
+            or args.capture_microbatches
+        ):
+            parser.error(
+                "reference calibration requires steps=capture-update, warmup=0, "
+                "window=0, monitor interval 50, no profile-update, and no capture-microbatches"
+            )
     return args, train_argv
 
 
@@ -862,7 +891,14 @@ def _run_native_main(
     trainer_module: Any,
 ) -> None:
     with adapter:
-        if args.native_numerics:
+        reference_output = getattr(args, "native_reference_output", None)
+        reference_input = getattr(args, "native_reference_input", None)
+        capture_update = getattr(args, "native_capture_update", None)
+        reference_mode = (
+            reference_output is not None
+            or reference_input is not None
+        )
+        if args.native_numerics or reference_mode:
             from numerics import NativeNumericalReceipt
 
             observer = NativeNumericalReceipt(
@@ -872,8 +908,12 @@ def _run_native_main(
                 dist_utils_module=trainer_module.dist_utils,
                 output_dir=args.measurement_dir,
                 rank=int(os.environ["RANK"]),
-                capture_updates=(1, 2, 50),
+                capture_updates=(1, 2, 50) if args.native_numerics else (capture_update,),
                 expected_microbatches=32,
+                reference_output=reference_output,
+                reference_input=reference_input,
+                capture_update=capture_update,
+                run_id=getattr(args, "run_id", "native-numerics"),
             )
             with observer:
                 from torchtitan.train import main as native_main
