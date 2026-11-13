@@ -1,6 +1,6 @@
 # Agreed 100B-dev crop baseline
 
-**State:** This is the accepted default workload contract. Its canonical task-local YAML is [gift_100b_crop8_ep8_fp8_compile_cute.yaml](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml), with the model preset [100b_crop8.yaml](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml). Runtime ports, configuration checks, independent source review and the eight-H100 smoke are complete. Every rank completed ten updates and 320 microbatches, including monitoring steps. See the [smoke report](../runs/100b-crop8-ep8-smoke/report.md) for evidence and limits.
+**State:** This is the accepted default workload contract. Its canonical task-local YAML is [gift_100b_crop8_ep8_fp8_compile_cute.yaml](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml), with the model preset [100b_crop8.yaml](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml). The full-length MDS configuration is now selected after its eight-H100 smoke passed. Every rank completed ten updates and 320 microbatches, including monitoring. The [campaign report](../runs/overnight-streaming-perf/report.md) owns MDS evidence and performance gates; the [historical HF smoke](../runs/100b-crop8-ep8-smoke/report.md) remains unchanged.
 
 ## Identity and scope
 
@@ -65,9 +65,33 @@ The hypothetical production target is 512 GPUs with PP4 and EP32, with dense FSD
 
 ## Smoke and runtime status
 
+### Selected MDS fixture
+
+The canonical loader is `streaming_text` over 896 full 4096-token uint32 rows
+prepared from the bundled C4 corpus and tokenizer. It uses two persistent workers,
+no pinning, null prefetch factor, shuffle/FIM off, one canonical node, original
+partitioning, drop-last and infinite iteration. The canonical relative path
+`../runs/overnight-streaming-perf/artifacts/raw/mds4096` assumes the normal
+`gift/` training working directory. The [data receipt](../runs/overnight-streaming-perf/mds-data.json)
+records the callable packing recipe, identities, hashes and all-rank loader checks.
+This repeated local fixture supports a controlled performance study, not a
+production data mixture or quality evaluation.
+
+The [native MDS receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json)
+passed the ten-update/monitor5 smoke on all eight ranks. That run used the
+equivalent external loader fragment; the subsequent canonical YAML promotion
+passed its decode/golden test, non-data semantic comparison and path/shard-hash
+equivalence check. These new YAML bytes were not independently GPU-rerun.
+All model, precision, parallelism, SAC, optimizer and scheduler settings remain
+unchanged. Full rows provide 4095 valid main targets per sample; the trainer
+uses causal per-row positions without EOS document isolation. HF packing differs,
+so this is a new identified data baseline, without an HF/MDS parity claim.
+
+### Historical HF smoke
+
 The authorized basic smoke passed on eight NV18-connected H100s using PyTorch
 2.15 development with CUDA 13.0, CUTLASS DSL 4.4.1 and TVM FFI 0.1.11. The launcher
-initializes the existing image CUDA compatibility profile. The config uses bundled
+initializes the existing image CUDA compatibility profile. That config used bundled
 `c4_test` data and the repository tokenizer as smoke inputs, not as a production
 data selection. The [smoke report](../runs/100b-crop8-ep8-smoke/report.md) records the
 verified runtime and successful execution.
@@ -79,7 +103,9 @@ completed; the 2/32 loss-chunk selection is supported by resolved settings and
 native source/hook correlation, not a direct chunk counter. No checkpoint,
 profiler trace or memory snapshot was emitted, and all training processes released
 the GPUs. The canonical interval remains 50. No full performance benchmark,
-convergence study or broader optimization campaign was performed.
+convergence study was performed in that historical smoke. The authorized MDS
+performance campaign is tracked separately; its unfinished gates are not smoke
+acceptance claims.
 
 The baseline uses the installed DeepGEMM `2.3.0+f093a4c` and DeepEP
 `1.2.1+1b8f467`, with the native `torchtitan.train` entrypoint. The launcher verifies

@@ -91,14 +91,14 @@
     {
       "id": "V4",
       "mechanism": "frozen BF16 storage",
-      "status": "NOT_COMPLETED",
+      "status": "INAPPLICABLE",
       "source_pin": "860152d111e4bac25daecbe3cc0cd84c68c8af9c",
-      "applicability": "No configured frozen component; confirm actual trainable/nontrainable parameter census before final inapplicability.",
-      "correctness": null,
+      "applicability": "Native002 census on all eight ranks: zero frozen tensors/elements; EMA and buffers are not frozen model parameters.",
+      "correctness": "g1-smoke-002-receipt.json parameter_census",
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G1 runtime parameter census"
+      "unresolved_gate": null
     },
     {
       "id": "V5",
@@ -115,7 +115,6 @@
   ],
   "accepted_improvements": [],
   "open_gates": [
-    "G1",
     "G2",
     "G3",
     "G4",
@@ -142,6 +141,25 @@
       "removed": true,
       "removed_logical_file_bytes": 23453549,
       "reason": "all owned processes stopped and GPUs released; compact failure/cache-path evidence retained; future runs use fresh caches"
+    },
+    {
+      "path": "runs/overnight-streaming-perf/artifacts/raw/g1-streaming-smoke-002/cache",
+      "class": "obsolete successful-smoke compiler caches",
+      "removed": true,
+      "removed_logical_file_bytes": 604228268,
+      "reason": "native002 PASS, owned processes exited and GPUs released; calibration/controls require fresh per-process caches, compact logs/config/cache-path evidence retained"
     }
-  ]
+  ],
+  "streaming_smoke": {
+    "run_id": "g1-streaming-smoke-002",
+    "status": "PASS",
+    "source_revision": "4d7689aa18e69ddb3d7ade9db0e9bc53b006a0bb",
+    "receipt": "g1-smoke-002-receipt.json",
+    "optimizer_updates_per_rank": 10,
+    "forward_backward_calls_per_rank": 320,
+    "final_loss": 14.57432,
+    "final_gradient_norm": 7.6163,
+    "maximum_native_composite_memory_gib": 72.57,
+    "canonical_data_promotion": "PASS: data-only config/golden change; focused golden1 passed; actual gift cwd path/index/all29 shard hashes equivalent"
+  }
 }

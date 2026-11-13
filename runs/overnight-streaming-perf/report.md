@@ -30,9 +30,21 @@ multi-node or production-scale performance conclusion is implied.
 
 ## Results
 
-First native smoke attempt `g1-streaming-smoke-001` failed at source `dd3c0682`
-before any model update. No performance measurements yet. Source applicability is recorded in the
+Native MDS smoke retry `g1-streaming-smoke-002` passed at source `4d7689aa`:
+ten optimizer updates and 320 successful forward/backward calls on each rank,
+finite metrics and native monitoring at 5/10. Final loss was 14.57432 and
+gradient norm 7.6163; maximum native composite memory was 72.57 GiB.
+The [separate receipt](g1-smoke-002-receipt.json) verifies unchanged source/config,
+clean teardown, no diagnostic outputs and released GPUs. No performance
+measurements yet. First attempt001 remains a failed harness attempt, not a
+candidate verdict. Source applicability is recorded in the
 [reference evidence](reference-coverage.md); candidate runtime gates remain open.
+
+The smoke's rank0 host boundary intervals were about 13.5–14.8 s for ordinary
+updates and 173.5/166.7 s for monitoring updates5/10. These are unsynchronized
+smoke cadence observations, not baseline TPS or CUDA kernel time. They reinforce
+the required normal-cadence calibration through update50 before choosing W;
+the 32-chunk shape and monitoring work cannot be omitted from the controls.
 
 ## MDS fixture and real loader contract
 
@@ -44,14 +56,21 @@ Index SHA256: `7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2`
 The [helper](prepare_mds.py) refuses existing output before calling the destructive
 packer. The [loader fragment](mds-dataloader.yaml) selects installed streaming0.13,
 two persistent workers/rank, shuffle/FIM off, canonical nodes1, infinite iteration
-and no pinning. Canonical training data are not promoted before native smoke.
+and no pinning. After native smoke passed, the canonical experiment's data
+mapping was promoted, with all non-data values preserved. Its affected golden
+test passed (1 passed,60 deselected) after regeneration and again in ordinary
+check mode. Relative `local` resolves from the normal `gift/` working directory
+to the same index and all29 shard hashes. Native002 used the equivalent absolute
+external fragment; canonical bytes have decode/path evidence, without another
+GPU smoke.
 
 Two fresh actual eight-rank Gloo runs each validated 58 batches/rank, including
 the 56-batch epoch wrap. Both passed exact row hashes/IDs, all16 worker partitions,
 global coverage, stable worker PIDs, shapes/dtypes, EOS-derived positions, label
 shift and final ignored labels. Each microbatch has 8190 valid main targets;
 global per-update numerators are 2,097,152 input and 2,096,640 valid main targets.
-No MTP token multiplier is applied. Native GPU training remains a separate gate.
+No MTP token multiplier is applied. The separate native GPU smoke passed; this
+does not establish parity with the differently packed historical HF input.
 
 Pass1 exited0 but retained 16 Python multiprocessing finalizer Errno16 warnings
 from the provider's NFS TMPDIR. Pass2 used local tmpfs and had none. The runner
@@ -146,6 +165,39 @@ training correctness. Source/config/helper hashes stayed unchanged; the owned
 group stopped, local temp directory was removed, GPUs were released, and no
 checkpoint/trace/snapshot was emitted. Logs and compact failure evidence remain.
 
+### Active compiler-cache scope
+
+TorchInductor, Triton, DeepGEMM rank caches and HybridEP use the run's fresh NFS
+cache tree. CUTLASS DSL4.4.1 additionally caches generated MLIR under
+`CUTE_DSL_CACHE_DIR`, or by default `$TMPDIR/$USER/cutlass_python_cache`
+(`cutlass/base_dsl/cache_helpers.py:66–82,235–306`). Root verified that
+`CUTE_DSL_CACHE_DIR` and `TVM_FFI_CACHE_DIR` are unset after the image profile;
+thus active CuTe IR cache uses each run's unique private tmpfs directory and is
+removed with that directory. Its `COMPILED`/`PLANS` maps are process-local.
+The active CuTe JIT exports a function pointer to TVM-FFI rather than invoking
+`tvm_ffi.cpp.extension`, so that extension builder's persistent default cache
+is not the norm path. This qualifies the cache policy without changing kernels
+or introducing another experiment. Shared/personal unrelated caches are intact.
+
+### G3 capture integration still required
+
+The native rank/shape controls are implemented, but the initial runner forces
+profiling off. Before G3 it needs a small opt-in target-update mode with the
+native schedule, profile-only actual-call markers and two-trace receipt checks.
+The actual local `structured_logging.log_trace_span` emits JSONL logging events,
+not Kineto `record_function` scopes. Its native `fwd_bwd` events attest calls in
+structured logs; manual markers from the profiler CPU test do not establish
+native Kineto microbatch/optimizer coverage. The task adapter must add those
+scopes around delegated calls on ranks0/1 at the one selected ordinary update,
+without wrapping the outer structured step context across its in-scope export.
+G1 has exited, and the task-only capture integration is being implemented before
+freezing helpers for the controls. Profile timing cannot enter primary TPS.
+This is a known remaining integration item, not a passed G3. Profile mode installs
+temporary delegated-call counters/checks on all eight ranks; only selected ranks
+enter scopes at the one selected update (32 successful microbatch calls, one
+train_step and one optimizer call). Unprofiled runs install no new wrappers.
+All eight ranks still train, without extra synchronizations.
+
 ## Reused validation interfaces and limits
 
 The historical `CampaignNumericalProbe` is not an unchanged validation route for
@@ -180,6 +232,48 @@ not subject to an invented percentage or unjustified bitwise gate. Any
 uncalibrated difference stays unresolved and the feature stays disabled.
 Tiny tests do not replace fixed-crop native GPU/SAC/GFSDP integration.
 
+### V3 partial-backward contract (design only)
+
+The isolated donor guard belongs at the start of the group loop in
+`GFSDPState._root_post_backward_final_callback`. During nonfinal inner backward,
+skip groups outside PRE_BACKWARD/POST_BACKWARD; preserve final cleanup. Current
+MTP already folds its hidden states into the chunk loop and sets shared
+`is_last_backward=False`, so no loss-class transplant is needed. Prefetch borrows
+PRE_BACKWARD temporarily and restores IDLE: an untouched IDLE group can still own
+a gathered buffer/pending all-gather. Regression coverage must preserve that
+ownership through repeated head chunks until the group's actual backward.
+
+Keep this default-off guard independently selectable from arena/tail retention.
+It adds Python state checks per group/inner backward and may remove premature
+reshard/regather, while extending existing buffer lifetimes; collision/overlap
+safety needs native evidence. Existing explicit EP8 chains, double buffering and
+head private gradients are already present. Startup shard slicing is an
+applicable initialization optimization with no warmed-runtime effect from the
+inspected mechanism; do not credit it as stable-step TPS or silently drop its
+initialization-equality gate.
+
+Current loss restores incoming `is_last_backward`/reduce-grads flags, but its
+finally hardcodes both reshard policies to true. This inherited limitation is
+outside the fixed crop's required policy and must not be described as arbitrary
+policy restoration. A guard port must preserve the current policy and verify
+normal/exception paths, MTP0.3, chunks2/32, actual owner/event lifetimes and
+elementwise losses/gradients/two optimizer updates. Exact callback/state checks
+are justified; native FP8/HybridEP floating-point repeatability is not yet
+established. Calibrate unchanged numerical A/A before setting native tolerances;
+timing A/A and rounded norms do not establish numerical equivalence.
+
+## Runtime applicability: V4
+
+The native002 parameter census found 243 trainable tensors and 2,375,764,304
+local FP32 elements per rank, with zero frozen tensors/elements on every rank.
+EMA storage and buffers are not frozen model parameters. V4 frozen BF16 storage
+is therefore INAPPLICABLE to this fixed crop; no precision change is made.
+
 ## Cleanup
 
-No campaign training processes, checkpoints or heavy diagnostic artifacts yet.
+Both native smoke processes have stopped and released the GPUs. Their logs,
+resolved configs and compact receipts are retained; no checkpoint, trace or
+snapshot was produced. Attempt001's obsolete compiler cache was removed as
+recorded above. Attempt002's obsolete compiler cache was removed after smoke
+acceptance (604,228,268 logical file bytes); calibration/controls use fresh
+per-process caches. Compact native/cache-path evidence remains.

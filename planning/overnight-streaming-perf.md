@@ -90,7 +90,7 @@ timestamps; on resume check recorded processes before relaunching anything.
 | Gate | Status | Evidence / next action |
 | --- | --- | --- |
 | G0 Environment, ownership, disk and Perfetto route | PASS | Existing master sees eight idle H100s; NFS has 2.5 TiB free and 2.9 billion free inodes. Verified Python/torch/CUDA/NCCL and installed streaming. Perfetto MCP loaded and queried a task-owned synthetic Chrome JSON via the actual absolute NFS path. |
-| G1 Full-length MDS, data contract and streaming smoke | RUNNING | 896 full rows in 29 shards prepared. Two actual eight-rank/two-worker Gloo passes validated 58 batches/rank, exact partitions, positions, labels and epoch replay with persistent workers. [Data receipt](../runs/overnight-streaming-perf/mds-data.json). Native ten-update monitoring smoke remains open. |
+| G1 Full-length MDS, data contract and streaming smoke | PASS | Data checks and native002 smoke PASS: all eight ranks completed ten updates/320 microbatches, finite metrics and monitoring 5/10, then clean teardown. [Smoke receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json). Canonical data-only promotion passed the focused golden test and path/shard-hash equivalence check. |
 | G2 Warmed baseline A/A TPS and memory | NOT_STARTED | Fix measurement window after calibration; collect two controls |
 | G3 Baseline trace pair and Perfetto bottleneck analysis | NOT_STARTED | Ranks0/1, same one complete ordinary update, two files total |
 | G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 have applicable missing pieces; trace ordering and final outcomes remain open. |
@@ -98,7 +98,20 @@ timestamps; on resume check recorded processes before relaunching anything.
 | G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
 | G7 Report, state, Git publication and cleanup | RUNNING | Initial G0/source-applicability milestone committed and pushed as `d5e3d717`; final source/results, state reconciliation and cleanup remain. |
 
-Active execution: first native smoke attempt `g1-streaming-smoke-001` FAILED,
+Active execution: no training process. Retry `g1-streaming-smoke-002` PASS at
+00:34 UTC /03:34 Moscow on 13 November, source `4d7689aa`, exit0. Controller
+PID `164736` and original execution session `86376` have exited. The separate
+[receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json) verifies all
+eight ranks, source/config freeze, no checkpoint/trace/snapshot and released GPUs.
+Command used `--run-id g1-streaming-smoke-002 --steps 10 --monitor-interval 5
+--timeout-seconds 3600`; raw logs remain under the same run ID. Canonical MDS
+promotion/config checks passed; the native smoke used the equivalent external
+fragment, while canonical path/shard equivalence is verified separately.
+Task-only G3 capture support is being implemented.
+Next: finish its affected checks/review, freeze helpers, then calibrate the
+ordinary monitor50 cadence before choosing W. No baseline TPS exists yet.
+
+First native smoke attempt `g1-streaming-smoke-001` FAILED,
 exit1 before any model update; controller PID `158532` exited. Launched
 13 November 2026 about 03:05 Europe/Moscow (00:05 UTC), source `dd3c0682`. Command:
 `/opt/torchtitan-venv/bin/python3.12 runs/overnight-streaming-perf/run.py --run-id g1-streaming-smoke-001 --steps 10 --monitor-interval 5`.
@@ -118,7 +131,8 @@ torch `2.15.0.dev20260822+cu130`, CUDA 13.0, NCCL 2.30.7, streaming 0.13.0;
 source `/etc/profile.d/wm.sh`. Default image import resolves `/home/user/torchtitan`,
 so runners must explicitly set task `gift/` in `PYTHONPATH`. No new allocation needed.
 MDS, profiler/timer and reference inspections have separate bounded owners.
-Next action: commit the accepted census correction and retry native smoke once.
+The retry resolved native integration. No unchanged historical smoke/data check
+is repeated for the data-only canonical promotion.
 The scoped metadata loop now uses no_grad, preserving original trainability and
 restoring caller grad mode on success/error. Two affected tests pass. An
 in-memory run of the exact old census from Git reproduces the guarded failure;
@@ -275,7 +289,7 @@ priority lower but does not silently count an applicable candidate as evaluated.
 | V1 | Vision CompactCE | Reference rejects MTP; do not disable MTP to make it run | INAPPLICABLE: donor `loss.py:1153–1164` rejects required MTP1. |
 | V2 | Vision streaming prefetch | Now a relevant loader path; compare donor/current queue, state and exception behavior before porting | Applicable bounded CPU queue helper absent; donor snapshot lacks text-loader state integration. Actual input waits and safe cursor/queue restore need checks. |
 | V3 | Vision GFSDP buffer/prefetch work | Determine existing versus missing code and apply only supported crop-relevant changes | Existing text prefetch chains/private head gradients; missing partial-backward guard and arena/retention logic. Startup slicing has startup-only costs. |
-| V4 | Vision frozen BF16 storage | Current crop trains its parameters; no frozen-component benefit unless source shows an actual applicable path | No freeze policy found; actual runtime parameter census remains before final INAPPLICABLE disposition. |
+| V4 | Vision frozen BF16 storage | Current crop trains its parameters; no frozen-component benefit unless source shows an actual applicable path | INAPPLICABLE: native002 census has zero frozen tensors/elements on every rank; EMA/buffers are not frozen model parameters. |
 | V5 | Vision metric accounting | Check duplication and exposed logging/synchronization; adding a metric alone is not a speed optimization | Accounting alone is not a speedup; tensor counter update can remove scalar read. Trace exposure and numerical/state evidence remain. |
 
 Allowed final candidate labels: TESTED_GAIN, TESTED_NO_GAIN, TESTED_REGRESSION,

@@ -86,9 +86,18 @@ The authorized [overnight MDS/performance campaign](../planning/overnight-stream
 is running. Entry checks verified eight idle H100s, the existing runtime and NFS,
 and actual Perfetto MCP path/query access. Reference applicability is reconciled
 in the [campaign evidence](../runs/overnight-streaming-perf/reference-coverage.md);
-no candidate gain is established. Full-length MDS preparation and native
-profiler/measurement support are in progress. No campaign training has launched
-yet. The execution ledger owns progress; the [report](../runs/overnight-streaming-perf/report.md)
+no candidate gain is established. The 896-row full-length MDS fixture passed
+two real eight-rank loader checks; native profiler/measurement support passed
+scoped tests and review. Native smoke attempt001 failed in a metadata census
+before any model update; its scoped fix passed regression/review. Attempt002
+passed ten updates and 320 microbatches on every rank, including finite metrics
+and monitoring at 5/10, with clean teardown and released GPUs. The
+[MDS smoke receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json)
+also records zero frozen parameters on all ranks, making frozen-storage V4
+inapplicable to this crop. The canonical YAML now selects that MDS fixture;
+its affected decode/golden and path/shard-equivalence checks passed. Only the
+data mapping changed. No performance baseline exists yet. The execution ledger owns
+progress; the [report](../runs/overnight-streaming-perf/report.md)
 and its results file own measurements and remaining evidence gates.
 
 The working tree now keeps four current documents, an editable planning area,

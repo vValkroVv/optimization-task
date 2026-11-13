@@ -1633,14 +1633,51 @@ trainer:
     cudagraph_exclude_blocks: []
     enable: true
   dataloader:
-    __type__: dataloader:hf_text
-    dataset: c4_test
+    __type__: dataloader:streaming_text
+    dataset:
+      __type__: torchtitan.config.schema.datasets.streaming.text.configs.StreamingTextDatasetConfig
+      batching_method: random
+      cache_limit: null
+      enable_syntax_aware_fim: false
+      epoch_size: null
+      fim_rates:
+        inline_fim: 0.0
+        multiline_fim: 0.0
+        syntax_aware_fim: 0.0
+        vanilla_fim: 0.0
+      legacy: true
+      ncn_multiplier: null
+      num_canonical_nodes: 1
+      partition_algo: orig
+      predownload: null
+      sampling_method: balanced
+      shuffle: false
+      shuffle_algo: py1br
+      shuffle_block_size: 262144
+      shuffle_seed: 9176
+      streams:
+      - __type__: torchtitan.config.schema.datasets.streaming.text.configs.TextStreamConfig
+        choose: null
+        download_retry: null
+        download_timeout: null
+        fim_rates: null
+        keep_zip: null
+        local: ../runs/overnight-streaming-perf/artifacts/raw/mds4096
+        name: c4_perf896
+        proportion: null
+        remote: null
+        repeat: null
+        split: train
+        validate_hash: null
     dataset_path: null
+    drop_last: true
     infinite: true
-    num_workers: 0
-    persistent_workers: false
+    num_workers: 2
+    persistent_workers: true
     pin_memory: false
     prefetch_factor: null
+    token_field: tokens
+    transforms_epoch: null
   debug:
     __type__: torchtitan.config.configs.DebugConfig
     batch_invariant: false
