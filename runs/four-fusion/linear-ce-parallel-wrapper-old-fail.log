@@ -1,0 +1,85 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager ______
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:912: in wrapper
+    self._join_processes(fn)
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1182: in _join_processes
+    self._check_return_codes(fn, elapsed_time)
+        active_children = []
+        elapsed    = 4.5058488845825195
+        elapsed_time = 4.606137037277222
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>>
+        i          = 0
+        p          = <SpawnProcess name='process 0' pid=981693 parent=981625 stopped exitcode=10>
+        pipe       = <multiprocessing.connection.Connection object at 0x7836e592e510>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>
+        start_time = 1794602918.2478292
+        subprocess_error = True
+        timeout    = 300
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1222: in _check_return_codes
+    raise RuntimeError(error)
+E   RuntimeError: Process 0 exited with error code 10 and exception:
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E       getattr(self, test_name)()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E       fn()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E       method(*args, **kwargs)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E       raise e
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E       func(self, *args, **kwargs)  # type: ignore[misc]
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 850, in test_parallelized_gfsdp_native_eager
+E       self._run_parallelized_gfsdp_head(compiled=False, incoming_last_backward=False)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 692, in _run_parallelized_gfsdp_head
+E       assert loss._linear_ce.supported_head
+E              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+        elapsed_time = 4.606137037277222
+        error      = 'Process 0 exited with error code 10 and exception:\nTraceback (most recent call last):\n  File "/opt/torchtitan-venv/...d_gfsdp_head\n    assert loss._linear_ce.supported_head\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n\n'
+        error_message = 'Traceback (most recent call last):\n  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal...zed_gfsdp_head\n    assert loss._linear_ce.supported_head\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n'
+        errored_processes = [(0, <SpawnProcess name='process 0' pid=981693 parent=981625 stopped exitcode=10>)]
+        first_process = <SpawnProcess name='process 0' pid=981693 parent=981625 stopped exitcode=10>
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>>
+        i          = 0
+        process    = <SpawnProcess name='process 0' pid=981693 parent=981625 stopped exitcode=10>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>
+----------------------------- Captured stdout call -----------------------------
+Process 0 terminated with exit code 10, terminating remaining processes.
+----------------------------- Captured stderr call -----------------------------
+I1113 20:48:38.247000 981625 torch/testing/_internal/common_distributed.py:991] Started process 0 with pid 981693
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077] Caught exception: 
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]     getattr(self, test_name)()
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]     fn()
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]     method(*args, **kwargs)
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]     raise e
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]     func(self, *args, **kwargs)  # type: ignore[misc]
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 850, in test_parallelized_gfsdp_native_eager
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]     self._run_parallelized_gfsdp_head(compiled=False, incoming_last_backward=False)
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 692, in _run_parallelized_gfsdp_head
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]     assert loss._linear_ce.supported_head
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077] AssertionError
+E1113 20:48:42.038000 981693 torch/testing/_internal/common_distributed.py:1077]  exiting process 0 with exit code: 10
+=============================== warnings summary ===============================
+../../../../opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68
+  /opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+    import pynvml  # type: ignore[import]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit_tests/test_fusion_losses.py::TestLinearCEParallelizedGFSDP::test_parallelized_gfsdp_native_eager
+1 failed, 1 warning in 8.01s

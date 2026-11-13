@@ -1,0 +1,330 @@
+{
+  "created_utc": "2026-11-13T21:22:27.232676+00:00",
+  "runtime": {
+    "python": "3.12.3",
+    "torch": "2.15.0.dev20260822+cu130",
+    "torch_git_version": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+    "torch_cuda_build": "13.0",
+    "triton": "3.8.0",
+    "device": "NVIDIA H100 80GB HBM3",
+    "git_head": "33b336a592746340d327d86e34149a23dc8688ee",
+    "source_sha256": {
+      "native_loss": "14d546d63b069a69041ec4a379d10a06f9b6a7888f25a68dddcadf27293b7f7c",
+      "stable_ce": "d101584f7abe3ee8c82f39fc758ea47c0c2a9e6abedd72bd0ed71310679e508a",
+      "replay_script": "22d5141119c15bb3186241a4341edd94e5e461f0112c625007aff1898783d487"
+    },
+    "torch_compile": {
+      "backend": "inductor",
+      "other_options": "native defaults"
+    },
+    "cache_dirs": {
+      "torchinductor": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/four-fusion/artifacts/raw/tasktmp/compile-cache/torchinductor",
+      "triton": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/four-fusion/artifacts/raw/tasktmp/compile-cache/triton"
+    }
+  },
+  "case": {
+    "seed": 2048,
+    "input": "synthetic BF16 normal logits with standard deviation 1; generated separately per chunk",
+    "shape_per_chunk": [
+      4,
+      2048,
+      128256
+    ],
+    "dtype": "bfloat16",
+    "batch": 2,
+    "sequence": 4096,
+    "vocabulary": 128256,
+    "chunks": 2,
+    "folded_order": "main batch then MTP batch, matching MTPLoss.flatten(0, 1)",
+    "mtp_label_shift": "shifted across full sequence before chunk slicing; last target ignored",
+    "global_valid_tokens_python_float": 2096640.0,
+    "head_weights": [
+      1.0,
+      0.3
+    ],
+    "normalization_order": "(raw_sum / global_valid_tokens) * head_weight; main + MTP",
+    "unit_upstream": true
+  },
+  "results": {
+    "chunks": [
+      {
+        "chunk": 1,
+        "sequence_range": [
+          0,
+          2048
+        ],
+        "valid_labels_by_head": [
+          4096,
+          4096
+        ],
+        "baseline": {
+          "raw_loss": [
+            50163.51171875,
+            50270.6328125
+          ],
+          "weighted_loss": [
+            0.023925669491291046,
+            0.007193028461188078
+          ],
+          "chunk_loss": 0.03111869841814041,
+          "incoming_scale": [
+            {
+              "value": 4.769536303683708e-07,
+              "fp32_bits": "0x35000801"
+            },
+            {
+              "value": 1.4308609763702407e-07,
+              "fp32_bits": "0x3419a335"
+            }
+          ]
+        },
+        "candidate": {
+          "raw_loss": [
+            50163.5078125,
+            50270.6328125
+          ],
+          "weighted_loss": [
+            0.023925667628645897,
+            0.007193028461188078
+          ],
+          "chunk_loss": 0.031118696555495262,
+          "incoming_scale": [
+            {
+              "value": 4.769536303683708e-07,
+              "fp32_bits": "0x35000801"
+            },
+            {
+              "value": 1.4308609763702407e-07,
+              "fp32_bits": "0x3419a335"
+            }
+          ]
+        },
+        "absolute_raw_loss_differences": [
+          0.00390625,
+          0.0
+        ],
+        "absolute_weighted_head_loss_differences": [
+          1.862645149230957e-09,
+          0.0
+        ],
+        "absolute_weighted_chunk_loss_difference": 1.862645149230957e-09,
+        "gradient": {
+          "elements": 1050673152,
+          "ulp_distance_counts": {
+            "zero": 1050609442,
+            "one": 63710,
+            "greater_than_one": 0
+          },
+          "max_abs_difference": 4.547473508864641e-13,
+          "max_abs_location": {
+            "row": {
+              "head": "main",
+              "batch": 0,
+              "sequence": 99
+            },
+            "vocab_column": 89160
+          },
+          "relative_l2": 1.7546436661737634e-07,
+          "worst_row_relative_l2": 2.8609927891965936e-06,
+          "worst_row": {
+            "head": "main",
+            "batch": 0,
+            "sequence": 1993
+          },
+          "ignored_gradient_nonzero_count_both_variants": 0
+        },
+        "fp64_gradient_calibration": {
+          "selected_rows": [
+            0,
+            99,
+            745,
+            1489,
+            1993,
+            2047,
+            2048,
+            2234,
+            2979,
+            3723,
+            4095,
+            4096,
+            4468,
+            5212,
+            5957,
+            6143,
+            6144,
+            6702,
+            7446,
+            8191
+          ],
+          "rows_include": "spread, first/last, batch/head boundaries, all ignored rows, and worst changed rows",
+          "baseline": {
+            "fp64_reference_max_abs_error": 3.400971970778286e-10,
+            "fp64_reference_relative_l2": 0.0006588087578862918,
+            "ideal_bf16_ulp_counts": {
+              "zero": 2565012,
+              "one": 108,
+              "greater_than_one": 0
+            }
+          },
+          "candidate": {
+            "fp64_reference_max_abs_error": 3.400971970778286e-10,
+            "fp64_reference_relative_l2": 0.0006588087579941967,
+            "ideal_bf16_ulp_counts": {
+              "zero": 2564834,
+              "one": 286,
+              "greater_than_one": 0
+            }
+          },
+          "forward_fp64_subset": "omitted; full-input CE loss values are compared directly"
+        }
+      },
+      {
+        "chunk": 2,
+        "sequence_range": [
+          2048,
+          4096
+        ],
+        "valid_labels_by_head": [
+          4094,
+          4092
+        ],
+        "baseline": {
+          "raw_loss": [
+            50139.78515625,
+            50084.078125
+          ],
+          "weighted_loss": [
+            0.02391435205936432,
+            0.007166335359215736
+          ],
+          "chunk_loss": 0.031080687418580055,
+          "incoming_scale": [
+            {
+              "value": 4.769536303683708e-07,
+              "fp32_bits": "0x35000801"
+            },
+            {
+              "value": 1.4308609763702407e-07,
+              "fp32_bits": "0x3419a335"
+            }
+          ]
+        },
+        "candidate": {
+          "raw_loss": [
+            50139.78515625,
+            50084.08203125
+          ],
+          "weighted_loss": [
+            0.02391435205936432,
+            0.007166335824877024
+          ],
+          "chunk_loss": 0.031080687418580055,
+          "incoming_scale": [
+            {
+              "value": 4.769536303683708e-07,
+              "fp32_bits": "0x35000801"
+            },
+            {
+              "value": 1.4308609763702407e-07,
+              "fp32_bits": "0x3419a335"
+            }
+          ]
+        },
+        "absolute_raw_loss_differences": [
+          0.0,
+          0.00390625
+        ],
+        "absolute_weighted_head_loss_differences": [
+          0.0,
+          4.656612873077393e-10
+        ],
+        "absolute_weighted_chunk_loss_difference": 0.0,
+        "gradient": {
+          "elements": 1050673152,
+          "ulp_distance_counts": {
+            "zero": 1050602899,
+            "one": 70253,
+            "greater_than_one": 0
+          },
+          "max_abs_difference": 4.547473508864641e-13,
+          "max_abs_location": {
+            "row": {
+              "head": "main",
+              "batch": 0,
+              "sequence": 2456
+            },
+            "vocab_column": 38173
+          },
+          "relative_l2": 1.7231422322686452e-07,
+          "worst_row_relative_l2": 2.8609920628896167e-06,
+          "worst_row": {
+            "head": "main",
+            "batch": 1,
+            "sequence": 3934
+          },
+          "ignored_gradient_nonzero_count_both_variants": 0
+        },
+        "fp64_gradient_calibration": {
+          "selected_rows": [
+            0,
+            408,
+            745,
+            1489,
+            2047,
+            2048,
+            2234,
+            2979,
+            3723,
+            3934,
+            4095,
+            4096,
+            4468,
+            5212,
+            5957,
+            6142,
+            6143,
+            6144,
+            6702,
+            7446,
+            8190,
+            8191
+          ],
+          "rows_include": "spread, first/last, batch/head boundaries, all ignored rows, and worst changed rows",
+          "baseline": {
+            "fp64_reference_max_abs_error": 3.3893334840440667e-10,
+            "fp64_reference_relative_l2": 0.0006477193260444132,
+            "ideal_bf16_ulp_counts": {
+              "zero": 2821338,
+              "one": 294,
+              "greater_than_one": 0
+            }
+          },
+          "candidate": {
+            "fp64_reference_max_abs_error": 3.3893334840440667e-10,
+            "fp64_reference_relative_l2": 0.0006477193260434253,
+            "ideal_bf16_ulp_counts": {
+              "zero": 2821361,
+              "one": 271,
+              "greater_than_one": 0
+            }
+          },
+          "forward_fp64_subset": "omitted; full-input CE loss values are compared directly"
+        }
+      }
+    ],
+    "baseline_weighted_total_loss": 0.06219938397407532,
+    "candidate_weighted_total_loss": 0.06219938397407532,
+    "absolute_total_loss_difference": 0.0
+  },
+  "interpretation_limit": "CE-only synthetic replay; measured differences need precision-aware review and are not a PASS/tolerance claim.",
+  "raw_receipt": {
+    "path": "runs/four-fusion/artifacts/raw/tasktmp/ce-numerical-replay-001.json",
+    "sha256": "86215583f70e451da6272d35088743f950cd23d20934817896a793b691cbb8ad",
+    "log": "runs/four-fusion/artifacts/raw/tasktmp/ce-numerical-replay-001.log"
+  },
+  "acceptance": {
+    "verdict": "passes precision-aware local CE block gate for the recorded synthetic case",
+    "basis": "at most one BF16 ULP between gradients; no differences greater than one ULP; incoming FP32 scales match bitwise; ignored gradients zero; sampled FP64 errors remain comparable to baseline",
+    "limits": "synthetic logits and 42 sampled FP64 rows across two chunks; not convergence or whole-model continuation evidence"
+  }
+}

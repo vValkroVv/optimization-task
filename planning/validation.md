@@ -12,9 +12,11 @@ This protocol is for an authorized, selected production workload. It does not au
 
 ## Future candidate order: performance first, then local numerical assessment
 
-The current assignment is cleanup only: do not execute performance measurements,
-block comparisons, training or new traces. This policy describes future authorized
-experiments and supersedes the former full-model numerical prerequisites.
+The [active assignment](README.md#active-assignment-four-independent-fusion-experiments)
+authorizes four independent comparisons against accepted V2, including matched
+bounded traces for every candidate. Historical cleanup-only restrictions below
+describe completed work. This protocol replaces the former full-model numerical
+prerequisites.
 
 Start with a matched short baseline/candidate pair: 10 warmup optimizer updates
 and 10 measured optimizer updates, retaining 32 microbatches per update. Preserve
@@ -38,8 +40,9 @@ step series, median/spread, timer boundaries and excluded lifecycle costs. Pair
 memory scopes by phase. Separate device compute, host work, synchronization/idle,
 copies/communication and integrated elapsed time when evidence permits; mark
 unavailable scopes and never sum overlapping durations. Reuse historical traces
-for mechanism; collect new traces only for a concrete unresolved question under
-separate authorization, not as a mandatory per-candidate gate.
+for mechanism. The active assignment explicitly requires matched new candidate
+traces, reusing a control capture only when source, workload, runtime and capture
+conditions remain applicable.
 
 For a candidate worth retaining after performance measurement:
 

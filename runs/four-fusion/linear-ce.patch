@@ -1,0 +1,46 @@
+--- a/gift/torchtitan/components/loss.py
++++ b/gift/torchtitan/components/loss.py
+@@ -557,6 +557,9 @@
+         compile_config: CompileConfig | None = None,
+     ):
+         super().__init__(config, compile_config=compile_config)
++        from torchtitan.experiments.four_fusion.linear_ce import LinearCE
++
++        self._linear_ce = LinearCE(compile_config)
+         self.fn: LossFunction = cross_entropy_loss
+         self._maybe_compile(compile_config)
+         self.num_chunks = config.num_chunks
+@@ -569,6 +572,7 @@
+     def set_lm_head(self, lm_head: nn.Module) -> None:
+         """Set the lm_head module. Must be called before the first __call__."""
+         self.lm_head = lm_head
++        self._linear_ce.install(lm_head)
+         if _is_plain_fsdp(lm_head):
+             # available before lazy init; tied embeddings share the head's group
+             self._head_has_own_fsdp_group = lm_head._get_fsdp_state()._modules == (
+@@ -735,16 +739,15 @@
+                         # the sync setter also arms AR, so override it last
+                         lm_head.set_requires_all_reduce(sync_all_reduce, recurse=False)
+ 
+-                logits = lm_head(h_chunk)
+-                if argmax_sink is not None:
+-                    # Greedy predictions for the acceptance counters, taken from
+-                    # the logits this loop already materializes; cat over the
+-                    # sequence restores the full [B, S] argmax per head.
+-                    with torch.no_grad():
+-                        argmax_sink.append(logits.detach().argmax(dim=-1))
+-
+-                chunk_loss = self._chunk_loss(
+-                    logits, label_chunk, global_valid_tokens, num_heads=num_heads
++                chunk_loss = self._linear_ce.chunk_loss(
++                    self,
++                    lm_head,
++                    h_chunk,
++                    label_chunk,
++                    global_valid_tokens,
++                    num_heads=num_heads,
++                    argmax_sink=argmax_sink,
++                    shape_probe=shape_probe,
+                 )
+                 total_loss = total_loss + chunk_loss.detach()
+                 if component is not None:

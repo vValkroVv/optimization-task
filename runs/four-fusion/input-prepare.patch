@@ -1,0 +1,28 @@
+diff --git a/gift/torchtitan/trainer.py b/gift/torchtitan/trainer.py
+index f6966710..082edea7 100644
+--- a/gift/torchtitan/trainer.py
++++ b/gift/torchtitan/trainer.py
+@@ -630,19 +630,14 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
+         model_parts = self.model_parts
+         parallel_dims = self.parallel_dims
+ 
+-        inputs, labels, extra_inputs, extra_kwargs = self.post_dataloading_process(
+-            input_dict, labels
++        from torchtitan.experiments.four_fusion.input_prepare import (
++            prepare_forward_batch,
+         )
+ 
+-        local = labels.to_local() if isinstance(labels, DTensor) else labels
+-        self.aux_loss.weigh(
+-            valid_tokens=(local != IGNORE_INDEX).sum(),
+-            global_valid_tokens=global_valid_tokens,
++        inputs, labels, extra_inputs, extra_kwargs = prepare_forward_batch(
++            self, input_dict, labels, global_valid_tokens
+         )
+ 
+-        # The loss decides what of the batch rides inside the targets.
+-        labels = self.loss_fn.pack_targets(labels, extra_kwargs)
+-
+         if parallel_dims.pp_enabled:
+             # Pipeline Parallel forward / backward inside step() call
+             loss_kwargs = {"global_valid_tokens": global_valid_tokens}

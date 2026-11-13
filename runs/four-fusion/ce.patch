@@ -1,0 +1,28 @@
+--- a/gift/torchtitan/components/loss.py
++++ b/gift/torchtitan/components/loss.py
+@@ -353,7 +353,11 @@
+ 
+     def __init__(self, config: Config, *, compile_config: CompileConfig | None = None):
+         super().__init__(config, compile_config=compile_config)
+-        self.fn: LossFunction = cross_entropy_loss
++        from torchtitan.experiments.four_fusion.stable_ce import (
++            cross_entropy_loss as stable_ce,
++        )
++
++        self.fn: LossFunction = stable_ce
+         self._maybe_compile(compile_config)
+ 
+ 
+@@ -557,7 +561,11 @@
+         compile_config: CompileConfig | None = None,
+     ):
+         super().__init__(config, compile_config=compile_config)
+-        self.fn: LossFunction = cross_entropy_loss
++        from torchtitan.experiments.four_fusion.stable_ce import (
++            cross_entropy_loss as stable_ce,
++        )
++
++        self.fn: LossFunction = stable_ce
+         self._maybe_compile(compile_config)
+         self.num_chunks = config.num_chunks
+         self.num_chunks_on_monitoring_steps = config.num_chunks_on_monitoring_steps

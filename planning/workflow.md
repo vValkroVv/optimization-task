@@ -1,9 +1,9 @@
 # Experiment workflow
 
-Current assignment: cleanup and protocol revision only. Do not run training,
-benchmarks, new traces or local block comparisons. The steps below govern future
-authorized experiments; [the active cleanup plan](overnight-streaming-perf.md)
-owns the current finite acceptance checklist.
+The [active four-fusion assignment](README.md#active-assignment-four-independent-fusion-experiments)
+authorizes task-local implementation, matched measurements and bounded traces on
+the existing allocation. Its finite checklist supersedes historical cleanup-only
+restrictions; new allocations, installations and publication remain unauthorized.
 
 1. Read [current state](../docs/status.md) and [baseline](../docs/baseline.md).
    Reuse completed evidence; do not repeat a smoke to answer a different property.

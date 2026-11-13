@@ -4,6 +4,65 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+## Active assignment: four independent fusion experiments
+
+Completed, 13 November 2026. The anchor is retained for existing links; the
+finite checklist below is closed and no further V2 run is outstanding.
+
+The 13 November 2026 goal authorizes source changes in this task's `gift/`,
+task-local runners/tests/evidence, and measurements on the existing allocation.
+It supersedes historical cleanup-only stop statements for these four experiments.
+At launch, no new allocation, installation, shared-environment change or
+publication was authorized. Starting source is clean `main` at
+`da6774a1c2191bfec0e1cb4aa1dc34019b3b7df8`.
+The owner's subsequent pull request advanced `main` to `33b336a5`, adding the
+[profile notes](../docs/profile-my-ideas.md) and ignore rules only; training source
+is unchanged and all experiment edits are preserved.
+
+Finite acceptance checklist:
+
+- [x] Reconcile the accepted V2 evidence, source/diff, dependency/data identities
+  and runtime route once; preserve prefetch 32, logical epoch 51,200 and the
+  complete [workload contract](../docs/baseline.md).
+- [x] Research, pin and implement four independent variants using explicit
+  handwritten Triton/CUDA/CuTe kernels: GPU preparation,
+  HybridEP routing metadata, fused linear-CE, and stable cap-zero CE. Record
+  reuse decisions, compatibility gaps, costs and scoped regression checks.
+- [x] For each variant, verify native activation and complete a matched
+  unprofiled V2/candidate comparison: ten warmup plus ten measured full updates,
+  input/valid-target TPS, update distributions and matched memory. Complete the
+  decision-relevant input/routing/CE repeats; routing and CE reuse the completed
+  input-repeat control because further V2 runs are prohibited. Record the FLCE
+  activation-failure attempt separately from the corrected active comparison.
+- [x] Capture matched rank-0/1 diagnostics after warmup, at most three complete
+  microbatches while all ranks execute all 32; analyze equivalent target forward
+  and affected backward regions with Perfetto, launch flows and stream overlap.
+- [x] Complete required local correctness gates: exact input scalar/auxiliary
+  state parity, routing metadata/gradient checks, the CE precision-aware
+  synthetic replay, and
+  scoped FLCE dH/dW/lifecycle checks. Reject active FLCE without a full-shape
+  replay; it is not retained. Resolve independent integration/runtime-cost
+  review findings and verify affected behavior.
+- [x] Record commands, pins, resolved configuration, activation, logs, trace
+  paths/hashes, failures and the four-way comparison table under
+  [experiment evidence](../runs/four-fusion/report.md); update result owners
+  and verify maintained document links/whitespace.
+
+Keep each candidate independently reproducible and never stack the variants.
+The owner prohibits any further V2 runs. The queued routing/CE control repeats
+were cancelled before launch; input ran candidate-first against its fresh
+control, and routing/CE reused the same completed input-repeat control. These
+time/order limits and exact gaps are recorded in the receipts and report.
+The owner's subsequent instruction replaces the compiler-expression approach to
+input preparation/routing: reuse existing handwritten kernels first, adapt them
+where needed, and document concrete gaps before writing missing kernels.
+Wrapping tensor expressions in `torch.compile` does not satisfy this assignment.
+Existing V2 model/loss compilation remains enabled.
+No finite acceptance item remains open. No further V2 runs or training-source
+changes are part of this completed comparison. The owner's subsequent
+"commit and push all" request authorizes publishing the completed four-fusion
+changes to `origin/main`; it authorizes no further compute.
+
 Publication: the subsequent user request authorizes committing the completed V2
 implementation, runners, tests and recorded results, then pushing to
 `origin/main`. Earlier no-publication statements and receipt flags describe the

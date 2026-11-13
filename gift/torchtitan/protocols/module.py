@@ -109,6 +109,9 @@ class Module(nn.Module, Configurable):
     _sharding_config: ShardingConfig | None = None
     _pos_arg_list: list[str] | None = None
     _parallelized: bool = False
+    _parallelized_forward_contract: (
+        tuple[Callable[..., Any], Callable[..., Any], ParallelDims] | None
+    ) = None
 
     Config: TypeAlias = ModuleConfig
 
@@ -343,7 +346,8 @@ class Module(nn.Module, Configurable):
         self._shard_states(parallel_dims)
         self._cache_pos_arg_names()
         self._validate_input_sharding_keys()
-        fn = self._maybe_wrap_with_local_map(self.forward, parallel_dims)
+        original_forward = self.forward
+        fn = self._maybe_wrap_with_local_map(original_forward, parallel_dims)
 
         def forward_with_redistribution(*args, **kwargs):
             args, kwargs = self._redistribute_inputs(parallel_dims, args, kwargs)
@@ -351,6 +355,12 @@ class Module(nn.Module, Configurable):
             return self._redistribute_outputs(parallel_dims, outputs)
 
         self.forward = forward_with_redistribution
+        if self._sharding_config.local_map is None:
+            self._parallelized_forward_contract = (
+                forward_with_redistribution,
+                original_forward,
+                parallel_dims,
+            )
 
     def _validate_input_sharding_keys(self) -> None:
         """Reject ``in_*_shardings`` keys naming no ``forward`` parameter:

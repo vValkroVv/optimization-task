@@ -6,6 +6,26 @@ new evidence changes a conclusion, not after each diagnostic command.
 
 ## V2 accepted: depth 32 for the long-epoch crop workload
 
+The completed [four-fusion assignment](../planning/README.md#active-assignment-four-independent-fusion-experiments)
+started from this accepted V2. All four explicit-kernel variants passed their
+scoped native/regression checks and were active in matched rank-0/1 traces.
+Input preparation, routing metadata and cap-zero CE improve their local regions,
+but their small positive TPS changes vary between initial and repeated pairs
+(input +0.0046%/+0.1630%, routing +0.2851%/+0.0897%, CE +0.3034%/+0.0560%).
+They do not establish whole-training gains against the approximately 0.247%
+descriptive range across the four initial controls; no material memory saving
+was measured for them. Routing and CE repeats reused the completed input-repeat
+V2 control as detailed in the [report](../runs/four-fusion/report.md).
+
+The activated 1,024-token-tile linear-CE port is rejected: throughput fell 3.2898%
+and the complete head/loss trace region slowed despite a 2.6384 GiB lower peak
+allocated memory. The cap-zero CE precision-aware synthetic local replay passes
+within its stated scope; it does not establish convergence or continuation. No
+four-fusion candidate is accepted or enabled. The owner prohibits further V2
+runs; all promised finite comparison gates are complete, so no additional run
+is outstanding. Historical stop statements below describe earlier assignments
+and neither reopen them nor the completed four-fusion work.
+
 On 13 November 2026 the owner accepted V2 CPU prefetch at depth 32 based on the
 long-epoch TPS pair and the subsequent
 [MCP Perfetto comparison](../runs/v2-prefetch-baseline/report.md#mcp-perfetto-comparison-and-acceptance).
@@ -162,7 +182,7 @@ and production-scale PP/inter-node behavior are not established by this result.
 The eight-GPU crop does not reproduce EP32 expert count per rank, expert-weight
 collectives or production PP overlap. Token-drop pressure remains a future study.
 
-## Candidate inventory: preserved, not integrated
+## Other candidate inventory: preserved, not integrated
 
 [Candidates](candidates.md) maps mechanisms to 109 byte-preserved upstream files,
 licenses, tests and hashes under `references/`.
@@ -179,7 +199,9 @@ licenses, tests and hashes under `references/`.
   GFSDP prefetch, MoE metadata/communication, GDN recomputation and linear CE.
   Their former 700B-specific settings are not crop defaults.
 
-No candidate has been promoted or benchmarked on the current crop.
+The four explicit-kernel experiments above are measured but remain task-local and
+unaccepted; this preserved donor inventory was not benchmarked on the current
+crop. V2 CPU prefetch is separately accepted as described above.
 Production 100B traces and the exact remaining production MR list have not been
 established by the preserved research. The small L8 config remains a donor
 example, not a confirmed future test setup or our baseline.

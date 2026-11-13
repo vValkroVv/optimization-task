@@ -1,0 +1,372 @@
+.FF                                                                      [100%]
+=================================== FAILURES ===================================
+______ TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager ______
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:912: in wrapper
+    self._join_processes(fn)
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1182: in _join_processes
+    self._check_return_codes(fn, elapsed_time)
+        active_children = []
+        elapsed    = 6.508592367172241
+        elapsed_time = 6.608921766281128
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>>
+        i          = 0
+        p          = <SpawnProcess name='process 0' pid=982308 parent=982126 stopped exitcode=10>
+        pipe       = <multiprocessing.connection.Connection object at 0x7fef149de660>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>
+        start_time = 1794602972.631247
+        subprocess_error = True
+        timeout    = 300
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1222: in _check_return_codes
+    raise RuntimeError(error)
+E   RuntimeError: Process 0 exited with error code 10 and exception:
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1385, in not_close_error_metas
+E       pair.compare()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 789, in compare
+E       self._compare_values(actual, expected)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 947, in _compare_values
+E       compare_fn(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1126, in _compare_regular_values_close
+E       matches = torch.isclose(
+E                 ^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 670, in __torch_dispatch__
+E       raise NotImplementedError(
+E   NotImplementedError: RaggedShardDTensor dispatch for aten.eq.Tensor is not implemented yet.
+E   
+E   The above exception was the direct cause of the following exception:
+E   
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E       getattr(self, test_name)()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E       fn()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E       method(*args, **kwargs)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E       raise e
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E       func(self, *args, **kwargs)  # type: ignore[misc]
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 850, in test_parallelized_gfsdp_native_eager
+E       self._run_parallelized_gfsdp_head(compiled=False, incoming_last_backward=False)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 752, in _run_parallelized_gfsdp_head
+E       torch.testing.assert_close(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1667, in assert_close
+E       error_metas = not_close_error_metas(
+E                     ^^^^^^^^^^^^^^^^^^^^^^
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1391, in not_close_error_metas
+E       raise RuntimeError(
+E   RuntimeError: Comparing
+E   
+E   TensorLikePair(
+E       id=(),
+E       actual=RaggedShardDTensor(local_tensor=tensor([-1.3351e-04,  1.4210e-04,  3.2616e-04,  ..., -5.2452e-06,
+E            2.7847e-04, -3.6049e-04], device='cuda:0', dtype=torch.bfloat16), device_mesh=DeviceMesh((fsdp=1), 'cuda', stride=((),)), placements=(RaggedShard(local_numel=16544, global_offset=0),)),
+E       expected=tensor([[-1.3351e-04,  1.4210e-04,  3.2616e-04,  ..., -4.0054e-04,
+E             6.3324e-04,  1.7262e-04],
+E           [-1.7643e-05,  1.0109e-04,  3.2997e-04,  ..., -3.8147e-05,
+E            -9.8705e-05,  2.1362e-04],
+E           [ 2.0981e-04, -1.8024e-04, -1.5068e-04,  ..., -2.5749e-05,
+E             3.6240e-05, -3.5286e-04],
+E           ...,
+E           [-1.0967e-04,  1.4496e-04,  3.3379e-04,  ..., -1.7643e-04,
+E             6.6280e-05,  8.6784e-05],
+E           [ 6.8665e-05,  2.7084e-04, -7.6294e-06,  ..., -7.2122e-06,
+E             3.7766e-04, -8.9645e-05],
+E           [ 1.0872e-04,  3.2425e-04, -4.6921e-04,  ..., -5.2452e-06,
+E             2.7847e-04, -3.6049e-04]], device='cuda:0', dtype=torch.bfloat16),
+E       rtol=0.02,
+E       atol=6e-05,
+E       equal_nan=False,
+E       check_device=True,
+E       check_dtype=True,
+E       check_layout=True,
+E       check_stride=False,
+E   )
+E   
+E   resulted in the unexpected exception above. If you are a user and see this message during normal operation please file an issue at https://github.com/pytorch/pytorch/issues. If you are a developer and working on the comparison functions, please except the previous error and raise an expressive `ErrorMeta` instead.
+E   
+E   To execute this test, run the following from the base repo dir:
+E       python test_fusion_losses.py TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager
+E   
+E   This message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0
+        elapsed_time = 6.608921766281128
+        error      = 'Process 0 exited with error code 10 and exception:\nTraceback (most recent call last):\n  File "/opt/torchtitan-venv/...test_parallelized_gfsdp_native_eager\n\nThis message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0\n\n'
+        error_message = 'Traceback (most recent call last):\n  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparis...P.test_parallelized_gfsdp_native_eager\n\nThis message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0\n'
+        errored_processes = [(0, <SpawnProcess name='process 0' pid=982308 parent=982126 stopped exitcode=10>)]
+        first_process = <SpawnProcess name='process 0' pid=982308 parent=982126 stopped exitcode=10>
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>>
+        i          = 0
+        process    = <SpawnProcess name='process 0' pid=982308 parent=982126 stopped exitcode=10>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_eager>
+----------------------------- Captured stdout call -----------------------------
+Process 0 terminated with exit code 10, terminating remaining processes.
+----------------------------- Captured stderr call -----------------------------
+I1113 20:49:32.631000 982126 torch/testing/_internal/common_distributed.py:991] Started process 0 with pid 982308
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] Caught exception: 
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1385, in not_close_error_metas
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     pair.compare()
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 789, in compare
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     self._compare_values(actual, expected)
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 947, in _compare_values
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     compare_fn(
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1126, in _compare_regular_values_close
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     matches = torch.isclose(
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]               ^^^^^^^^^^^^^^
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 670, in __torch_dispatch__
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     raise NotImplementedError(
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] NotImplementedError: RaggedShardDTensor dispatch for aten.eq.Tensor is not implemented yet.
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] The above exception was the direct cause of the following exception:
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     getattr(self, test_name)()
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     fn()
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     method(*args, **kwargs)
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     raise e
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     func(self, *args, **kwargs)  # type: ignore[misc]
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 850, in test_parallelized_gfsdp_native_eager
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     self._run_parallelized_gfsdp_head(compiled=False, incoming_last_backward=False)
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 752, in _run_parallelized_gfsdp_head
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     torch.testing.assert_close(
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1667, in assert_close
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     error_metas = not_close_error_metas(
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]                   ^^^^^^^^^^^^^^^^^^^^^^
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1391, in not_close_error_metas
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     raise RuntimeError(
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] RuntimeError: Comparing
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] TensorLikePair(
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     id=(),
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     actual=RaggedShardDTensor(local_tensor=tensor([-1.3351e-04,  1.4210e-04,  3.2616e-04,  ..., -5.2452e-06,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]          2.7847e-04, -3.6049e-04], device='cuda:0', dtype=torch.bfloat16), device_mesh=DeviceMesh((fsdp=1), 'cuda', stride=((),)), placements=(RaggedShard(local_numel=16544, global_offset=0),)),
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     expected=tensor([[-1.3351e-04,  1.4210e-04,  3.2616e-04,  ..., -4.0054e-04,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]           6.3324e-04,  1.7262e-04],
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]         [-1.7643e-05,  1.0109e-04,  3.2997e-04,  ..., -3.8147e-05,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]          -9.8705e-05,  2.1362e-04],
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]         [ 2.0981e-04, -1.8024e-04, -1.5068e-04,  ..., -2.5749e-05,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]           3.6240e-05, -3.5286e-04],
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]         ...,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]         [-1.0967e-04,  1.4496e-04,  3.3379e-04,  ..., -1.7643e-04,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]           6.6280e-05,  8.6784e-05],
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]         [ 6.8665e-05,  2.7084e-04, -7.6294e-06,  ..., -7.2122e-06,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]           3.7766e-04, -8.9645e-05],
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]         [ 1.0872e-04,  3.2425e-04, -4.6921e-04,  ..., -5.2452e-06,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]           2.7847e-04, -3.6049e-04]], device='cuda:0', dtype=torch.bfloat16),
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     rtol=0.02,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     atol=6e-05,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     equal_nan=False,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     check_device=True,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     check_dtype=True,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     check_layout=True,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     check_stride=False,
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] )
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] resulted in the unexpected exception above. If you are a user and see this message during normal operation please file an issue at https://github.com/pytorch/pytorch/issues. If you are a developer and working on the comparison functions, please except the previous error and raise an expressive `ErrorMeta` instead.
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] To execute this test, run the following from the base repo dir:
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]     python test_fusion_losses.py TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_eager
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077] This message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0
+E1113 20:49:38.218000 982308 torch/testing/_internal/common_distributed.py:1077]  exiting process 0 with exit code: 10
+____ TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_compiled _____
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:912: in wrapper
+    self._join_processes(fn)
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_compiled of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_compiled>>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_compiled>
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1182: in _join_processes
+    self._check_return_codes(fn, elapsed_time)
+        active_children = []
+        elapsed    = 11.516127347946167
+        elapsed_time = 11.616594314575195
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_compiled of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_compiled>>
+        i          = 0
+        p          = <SpawnProcess name='process 0' pid=982427 parent=982126 stopped exitcode=10>
+        pipe       = <multiprocessing.connection.Connection object at 0x7fef17ae8290>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_compiled>
+        start_time = 1794602979.276711
+        subprocess_error = True
+        timeout    = 300
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1222: in _check_return_codes
+    raise RuntimeError(error)
+E   RuntimeError: Process 0 exited with error code 10 and exception:
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1385, in not_close_error_metas
+E       pair.compare()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 789, in compare
+E       self._compare_values(actual, expected)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 947, in _compare_values
+E       compare_fn(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1126, in _compare_regular_values_close
+E       matches = torch.isclose(
+E                 ^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 670, in __torch_dispatch__
+E       raise NotImplementedError(
+E   NotImplementedError: RaggedShardDTensor dispatch for aten.eq.Tensor is not implemented yet.
+E   
+E   The above exception was the direct cause of the following exception:
+E   
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E       getattr(self, test_name)()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E       fn()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E       method(*args, **kwargs)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E       raise e
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E       func(self, *args, **kwargs)  # type: ignore[misc]
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 854, in test_parallelized_gfsdp_native_compiled
+E       self._run_parallelized_gfsdp_head(compiled=True)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 752, in _run_parallelized_gfsdp_head
+E       torch.testing.assert_close(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1667, in assert_close
+E       error_metas = not_close_error_metas(
+E                     ^^^^^^^^^^^^^^^^^^^^^^
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1391, in not_close_error_metas
+E       raise RuntimeError(
+E   RuntimeError: Comparing
+E   
+E   TensorLikePair(
+E       id=(),
+E       actual=RaggedShardDTensor(local_tensor=tensor([-1.3351e-04,  1.4210e-04,  3.2616e-04,  ..., -5.2452e-06,
+E            2.7847e-04, -3.6049e-04], device='cuda:0', dtype=torch.bfloat16), device_mesh=DeviceMesh((fsdp=1), 'cuda', stride=((),)), placements=(RaggedShard(local_numel=16544, global_offset=0),)),
+E       expected=tensor([[-1.3351e-04,  1.4210e-04,  3.2616e-04,  ..., -4.0054e-04,
+E             6.3324e-04,  1.7262e-04],
+E           [-1.7643e-05,  1.0109e-04,  3.2997e-04,  ..., -3.8147e-05,
+E            -9.8705e-05,  2.1362e-04],
+E           [ 2.0981e-04, -1.8024e-04, -1.5068e-04,  ..., -2.5749e-05,
+E             3.6240e-05, -3.5286e-04],
+E           ...,
+E           [-1.0967e-04,  1.4496e-04,  3.3379e-04,  ..., -1.7643e-04,
+E             6.6280e-05,  8.6784e-05],
+E           [ 6.8665e-05,  2.7084e-04, -7.6294e-06,  ..., -7.2122e-06,
+E             3.7766e-04, -8.9645e-05],
+E           [ 1.0872e-04,  3.2425e-04, -4.6921e-04,  ..., -5.2452e-06,
+E             2.7847e-04, -3.6049e-04]], device='cuda:0', dtype=torch.bfloat16),
+E       rtol=0.02,
+E       atol=6e-05,
+E       equal_nan=False,
+E       check_device=True,
+E       check_dtype=True,
+E       check_layout=True,
+E       check_stride=False,
+E   )
+E   
+E   resulted in the unexpected exception above. If you are a user and see this message during normal operation please file an issue at https://github.com/pytorch/pytorch/issues. If you are a developer and working on the comparison functions, please except the previous error and raise an expressive `ErrorMeta` instead.
+E   
+E   To execute this test, run the following from the base repo dir:
+E       python test_fusion_losses.py TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_compiled
+E   
+E   This message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0
+        elapsed_time = 11.616594314575195
+        error      = 'Process 0 exited with error code 10 and exception:\nTraceback (most recent call last):\n  File "/opt/torchtitan-venv/...t_parallelized_gfsdp_native_compiled\n\nThis message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0\n\n'
+        error_message = 'Traceback (most recent call last):\n  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparis...est_parallelized_gfsdp_native_compiled\n\nThis message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0\n'
+        errored_processes = [(0, <SpawnProcess name='process 0' pid=982427 parent=982126 stopped exitcode=10>)]
+        first_process = <SpawnProcess name='process 0' pid=982427 parent=982126 stopped exitcode=10>
+        fn         = <bound method TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_compiled of <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_compiled>>
+        i          = 0
+        process    = <SpawnProcess name='process 0' pid=982427 parent=982126 stopped exitcode=10>
+        self       = <tests.unit_tests.test_fusion_losses.TestLinearCEParallelizedGFSDP testMethod=test_parallelized_gfsdp_native_compiled>
+----------------------------- Captured stdout call -----------------------------
+Process 0 terminated with exit code 10, terminating remaining processes.
+----------------------------- Captured stderr call -----------------------------
+I1113 20:49:39.276000 982126 torch/testing/_internal/common_distributed.py:991] Started process 0 with pid 982427
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] Caught exception: 
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1385, in not_close_error_metas
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     pair.compare()
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 789, in compare
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     self._compare_values(actual, expected)
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 947, in _compare_values
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     compare_fn(
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1126, in _compare_regular_values_close
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     matches = torch.isclose(
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]               ^^^^^^^^^^^^^^
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 670, in __torch_dispatch__
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     raise NotImplementedError(
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] NotImplementedError: RaggedShardDTensor dispatch for aten.eq.Tensor is not implemented yet.
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] The above exception was the direct cause of the following exception:
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     getattr(self, test_name)()
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     fn()
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     method(*args, **kwargs)
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     raise e
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     func(self, *args, **kwargs)  # type: ignore[misc]
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 854, in test_parallelized_gfsdp_native_compiled
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     self._run_parallelized_gfsdp_head(compiled=True)
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_fusion_losses.py", line 752, in _run_parallelized_gfsdp_head
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     torch.testing.assert_close(
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1667, in assert_close
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     error_metas = not_close_error_metas(
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]                   ^^^^^^^^^^^^^^^^^^^^^^
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1391, in not_close_error_metas
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     raise RuntimeError(
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] RuntimeError: Comparing
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] TensorLikePair(
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     id=(),
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     actual=RaggedShardDTensor(local_tensor=tensor([-1.3351e-04,  1.4210e-04,  3.2616e-04,  ..., -5.2452e-06,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]          2.7847e-04, -3.6049e-04], device='cuda:0', dtype=torch.bfloat16), device_mesh=DeviceMesh((fsdp=1), 'cuda', stride=((),)), placements=(RaggedShard(local_numel=16544, global_offset=0),)),
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     expected=tensor([[-1.3351e-04,  1.4210e-04,  3.2616e-04,  ..., -4.0054e-04,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]           6.3324e-04,  1.7262e-04],
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]         [-1.7643e-05,  1.0109e-04,  3.2997e-04,  ..., -3.8147e-05,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]          -9.8705e-05,  2.1362e-04],
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]         [ 2.0981e-04, -1.8024e-04, -1.5068e-04,  ..., -2.5749e-05,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]           3.6240e-05, -3.5286e-04],
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]         ...,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]         [-1.0967e-04,  1.4496e-04,  3.3379e-04,  ..., -1.7643e-04,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]           6.6280e-05,  8.6784e-05],
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]         [ 6.8665e-05,  2.7084e-04, -7.6294e-06,  ..., -7.2122e-06,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]           3.7766e-04, -8.9645e-05],
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]         [ 1.0872e-04,  3.2425e-04, -4.6921e-04,  ..., -5.2452e-06,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]           2.7847e-04, -3.6049e-04]], device='cuda:0', dtype=torch.bfloat16),
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     rtol=0.02,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     atol=6e-05,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     equal_nan=False,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     check_device=True,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     check_dtype=True,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     check_layout=True,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     check_stride=False,
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] )
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] resulted in the unexpected exception above. If you are a user and see this message during normal operation please file an issue at https://github.com/pytorch/pytorch/issues. If you are a developer and working on the comparison functions, please except the previous error and raise an expressive `ErrorMeta` instead.
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] To execute this test, run the following from the base repo dir:
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]     python test_fusion_losses.py TestLinearCEParallelizedGFSDP.test_parallelized_gfsdp_native_compiled
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] 
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077] This message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0
+E1113 20:49:48.991000 982427 torch/testing/_internal/common_distributed.py:1077]  exiting process 0 with exit code: 10
+=============================== warnings summary ===============================
+../../../../opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68
+  /opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+    import pynvml  # type: ignore[import]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit_tests/test_fusion_losses.py::TestLinearCEParallelizedGFSDP::test_parallelized_gfsdp_native_eager
+FAILED tests/unit_tests/test_fusion_losses.py::TestLinearCEParallelizedGFSDP::test_parallelized_gfsdp_native_compiled
+2 failed, 1 passed, 1 warning in 27.56s
