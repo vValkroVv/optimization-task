@@ -96,7 +96,7 @@ timestamps; on resume check recorded processes before relaunching anything.
 | G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 have applicable missing pieces; trace ordering and final outcomes remain open. |
 | G5 Sequential applicable experiments | NOT_STARTED | Correctness, A/B/A/B, one trace pair per executed candidate |
 | G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
-| G7 Report, state, Git publication and cleanup | RUNNING | MDS baseline/smoke evidence published as `1faec419`; prior G0/source-applicability milestone `d5e3d717`. Final source/results, state reconciliation and cleanup remain. |
+| G7 Report, state, Git publication and cleanup | RUNNING | Calibration evidence/strict trace-marker validation published as `e8f678be`; MDS baseline `1faec419`, initial G0 milestone `d5e3d717`. Final source/results, state reconciliation and cleanup remain. |
 
 Active execution: no training process. `g2-calibration-001` PASS/exit0,
 finished01:28:14 UTC /04:28 Moscow on13 November; controller PID `200928` exited.
@@ -306,7 +306,7 @@ priority lower but does not silently count an applicable candidate as evaluated.
 | V2 | Vision streaming prefetch | Now a relevant loader path; compare donor/current queue, state and exception behavior before porting | Applicable bounded CPU queue helper absent; donor snapshot lacks text-loader state integration. Actual input waits and safe cursor/queue restore need checks. |
 | V3 | Vision GFSDP buffer/prefetch work | Determine existing versus missing code and apply only supported crop-relevant changes | Existing text prefetch chains/private head gradients; missing partial-backward guard and arena/retention logic. Startup slicing has startup-only costs. |
 | V4 | Vision frozen BF16 storage | Current crop trains its parameters; no frozen-component benefit unless source shows an actual applicable path | INAPPLICABLE: native002 census has zero frozen tensors/elements on every rank; EMA/buffers are not frozen model parameters. |
-| V5 | Vision metric accounting | Check duplication and exposed logging/synchronization; adding a metric alone is not a speed optimization | Accounting alone is not a speedup; tensor counter update can remove scalar read. Trace exposure and numerical/state evidence remain. |
+| V5 | Vision metric accounting | Check duplication and exposed logging/synchronization; adding a metric alone is not a speed optimization | Applicable retained-device producer/consumer port; real `.item()` is in `dist_sum` before microbatches, while current consumer `int()` is CPU-only. Preserve local clamp, denominator precision and current callback/counter order. Accounting alone has no speed claim. |
 
 Allowed final candidate labels: TESTED_GAIN, TESTED_NO_GAIN, TESTED_REGRESSION,
 INAPPLICABLE (source/contract reason), ALREADY_PRESENT, BLOCKED (failed required

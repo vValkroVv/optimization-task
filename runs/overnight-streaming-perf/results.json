@@ -105,12 +105,12 @@
       "mechanism": "metric accounting and scalar tokens-seen update",
       "status": "NOT_COMPLETED",
       "source_pin": "860152d111e4bac25daecbe3cc0cd84c68c8af9c",
-      "applicability": "Input accounting missing (not itself speedup); device-side counter add can remove per-update scalar conversion.",
+      "applicability": "V5a missing native input accounting has no independent speed claim. V5b applicable only as retained-device producer/reduction/normalization/counter port: current dist_sum producer performs .item() before microbatches; current consumer int() is CPU-only. Preserve local clamp, denominator precision and callback/counter order.",
       "correctness": null,
       "tps": null,
       "memory": null,
       "trace": null,
-      "unresolved_gate": "G3 exposed scalar-read wait and G5; do not change accounting with first baseline instrumentation"
+      "unresolved_gate": "G3 early producer-read exposure; G5 compiled loss/grad/aux-scale parity, uneven/empty counts, callback/int64 save-load state and controlled TPS/trace."
     }
   ],
   "accepted_improvements": [],

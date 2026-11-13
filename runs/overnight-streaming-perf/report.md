@@ -298,7 +298,7 @@ are justified; native FP8/HybridEP floating-point repeatability is not yet
 established. Calibrate unchanged numerical A/A before setting native tolerances;
 timing A/A and rounded norms do not establish numerical equivalence.
 
-### Native numerical receipt route (design only)
+### Native numerical receipt: isolated module, integration open
 
 The smallest identified production-path route is a separate task-only numerical
 run, with no instrumentation in TPS runs. Wrappers can observe native
@@ -336,6 +336,20 @@ This preserves microbatch overlap but still perturbs update boundaries. Hash
 runs alone cannot validate V3 asynchronous ownership: uninstrumented native
 integration and the separate representative trace remain required.
 
+Independent module review found one native integration blocker: `dist_sum`
+returns a Python float denominator, while the first observer required a tensor.
+A CPU probe through the actual helper reproduced the TypeError; scalar support
+without tensor conversion is now corrected and11 CPU tests pass. Root inspected
+all three affected boundaries and the native-helper regression. This also corrects the earlier
+V5b source premise: `int(global_valid_tokens)` at the counter update is a CPU
+conversion, not a new GPU read. Donor reconciliation identifies an applicable
+retained-device producer/consumer port: remove the producer `.item()` while
+preserving baseline local clamp, normalization precision and callback/counter
+order. No V5 speedup is established. The observer's
+post-flush callback record count cannot attest monitoring payload equality, and
+actual EMA shadow buffers are uncaptured. Keep those relevant acceptance limits
+separate from the mathematical gradient/state receipt.
+
 All-parameter captures are expensive: five full FP32 parameter-sized families
 are about47.5 GB/rank/update of D2H traffic (about760 GB across8 ranks for two
 updates), plus initialization/small state. Copies synchronize and can alter
@@ -343,8 +357,11 @@ scheduling; these are numerical diagnostics, never TPS. Preserve monitor50 and
 capture updates1,2,50 to cover chunks2/32 rather than treating first-two-update
 checks as monitoring coverage. A tiny real CPU AdamW test must verify observation
 neutrality, exact counts/dtypes/None, mutation detection, and exception cleanup;
-it cannot close native repeatability. This design is not implemented or accepted
-as production numerical evidence yet.
+it cannot close native repeatability. The isolated [numerics.py](numerics.py)
+module implements this corrected route. Independent review's native-denominator
+blocker is resolved; all11 CPU tests, scoped/default Ruff and compile checks pass.
+Runner integration and native numerical A/A remain open. It is not active in
+calibration or TPS runs and is not accepted production numerical evidence yet.
 
 ## Runtime applicability: V4
 

@@ -237,3 +237,23 @@ API/stubs; matching compiler/cache source is being sought to establish a
 post-run persistence audit. Wall timestamps around the timed window are needed
 for that audit. These snapshots alone cannot claim complete JIT coverage until
 the remaining source contract is resolved.
+
+### DeepGEMM fail-closed alternative under runtime verification
+
+The installed wheel records only short revision `f093a4c`; its image build removes
+the source. The helper names `gigallms/deepgemm`, but matching public source was
+not retrievable. Persistent-artifact guarantees therefore remain unproven.
+The actual extension SHA256 is
+`99b7afad2e2fe7ebabd26c22afc99dc652e2e6935fcbf37324359eb5aeeefe26`.
+
+Binary inspection provides a bounded alternative: `Compiler::build` loads
+`DG_CACHE_FORCE_SKIP` at0xc5e39, calls `get_env<int>` at0xc5e60, compares with1
+at0xc5e70 and otherwise branches to the CACHE MISS exception at0xc6ed7.
+`get_env<int>` calls libc getenv each time (0x359f0/0x35a08), so this guard is
+not construction-cached. The active helper documents the same flag semantics.
+A small private-cache positive/negative probe for both active m/k-grouped paths
+is being prepared before any control integration: known hit must run at0,
+different planned miss must fail at0 and then run at1. If verified, set literal0
+after normal warmup/before measurement on every rank and retain it through the
+window. This preserves tensor computation and fails the run on a new cache miss;
+it does not establish complete source provenance or arbitrary native paths.
