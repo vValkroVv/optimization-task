@@ -91,14 +91,36 @@ timestamps; on resume check recorded processes before relaunching anything.
 | --- | --- | --- |
 | G0 Environment, ownership, disk and Perfetto route | PASS | Existing master sees eight idle H100s; NFS has 2.5 TiB free and 2.9 billion free inodes. Verified Python/torch/CUDA/NCCL and installed streaming. Perfetto MCP loaded and queried a task-owned synthetic Chrome JSON via the actual absolute NFS path. |
 | G1 Full-length MDS, data contract and streaming smoke | PASS | Data checks and native002 smoke PASS: all eight ranks completed ten updates/320 microbatches, finite metrics and monitoring 5/10, then clean teardown. [Smoke receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json). Canonical data-only promotion passed the focused golden test and path/shard-hash equivalence check. |
-| G2 Warmed baseline A/A TPS and memory | RUNNING | Calibration001 PASS:60 finite updates/1920 microbatches on every rank, monitor50/post10 observed. W60/updates61–110 recommended. Direct boundary compiler evidence is being resolved before A1/A2; no TPS baseline yet. |
+| G2 Warmed baseline A/A TPS and memory | RUNNING | Calibration001 PASS:60 finite updates/1920 microbatches on every rank, monitor50/post10 observed. Original W60 control invalid: rank-local SwiGLU bucket-alignment cache growth on0,2,5. All8 hold both classes by110; tail settled. New W110/111–160 selected, monitor150 retained; no accepted TPS. |
 | G3 Baseline trace pair and Perfetto bottleneck analysis | NOT_STARTED | Ranks0/1, same one complete ordinary update, two files total |
 | G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 have applicable missing pieces; trace ordering and final outcomes remain open. |
 | G5 Sequential applicable experiments | NOT_STARTED | Correctness, A/B/A/B, one trace pair per executed candidate |
 | G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
-| G7 Report, state, Git publication and cleanup | RUNNING | Calibration evidence/strict trace-marker validation published as `e8f678be`; MDS baseline `1faec419`, initial G0 milestone `d5e3d717`. Final source/results, state reconciliation and cleanup remain. |
+| G7 Report, state, Git publication and cleanup | RUNNING | Reviewed compiler/guard policy and runtime-probe evidence published at `72a814f2`; calibration `e8f678be`, MDS baseline `1faec419`. Final source/results, state reconciliation and cleanup remain. |
 
-Active execution: no training process. `g2-calibration-001` PASS/exit0,
+Active execution: no new training launch. `g2-baseline-a1` completed110 native
+updates but FAILED required measurement acceptance at03:24:19 UTC /06:24 Moscow:
+Triton cache state grew on ranks0,2,5 during updates61–110. A2 was not launched.
+DeepGEMM guard receipts are complete on all eight ranks. No TPS is accepted.
+Owned process group stopped, local temp removed and all GPUs released.
+Read-only diagnosis resolved the new entries as FP8 SwiGLU token-bucket integer
+alignment classes. Shared disk artifacts predate the window; local module/cache
+loading is strongly supported, actual new compilation is unproven. The conservative
+warmup criterion remains failed. All ranks have both classes by110 and ordinary
+91–110 medians are stable, so new controls use W110/updates111–160/monitor150.
+No observer relaxation or kernel/source change is needed.
+Raw failure/summary/measurement/log evidence remains under
+`runs/overnight-streaming-perf/artifacts/raw/g2-baseline-a1/`; controller242078
+started02:45:39 UTC, source/helpers frozen at published `72a814f2`.
+Command: `/opt/torchtitan-venv/bin/python3.12 -u runs/overnight-streaming-perf/run.py --run-id g2-baseline-a1 --steps 110 --warmup 60 --window 50 --monitor-interval 50 --timeout-seconds 7200`.
+The failed window and private caches remain for this concrete diagnosis.
+A separate helper-only worktree at
+`/workspace-SR008.nfs2/vkropotin/optimization-task-worktrees/native-numerics`
+branches from72a814f2 and does not modify main. Its default-off diagnostic mode
+passed source review after malformed-capture regressions; final CPU checks were
+released once A1 stopped. It has not been integrated or run natively.
+
+Previous calibration: `g2-calibration-001` PASS/exit0,
 finished01:28:14 UTC /04:28 Moscow on13 November; controller PID `200928` exited.
 It launched01:05 UTC from HEAD `1faec419` plus capture-helper edits whose exact
 bytes are now preserved at `02cfb427` (hashes in run metadata). Command:
@@ -122,8 +144,8 @@ See the campaign report/results for source pins,
 scope and resolved review findings. The independent
 G3 parser extra-marker finding is resolved: both regressions failed on `02cfb427`,
 then9 affected cases passed the fix; root reviewed that targeted delta.
-Next: publish the reviewed policy, freeze W60/50 and helpers, then collect A1/A2.
-Latest published source is `25e0cb32`;
+Next: publish the failed-control diagnosis, then launch fresh W110/111–160 identical controls serially; second only after first passes.
+Latest published source is `72a814f2`;
 its separate numerical receipt module is not active in TPS runs.
 
 Retry `g1-streaming-smoke-002` PASS at

@@ -35,7 +35,7 @@ mean `references/kindulov/source/`, `references/hidden-z-loss/source/` and
 | --- | --- | --- |
 | K1a: cap-zero fused CE | **Applicable and missing.** G/torchtitan/components/loss.py:34–44 converts each logits chunk to FP32 for CE. K/torchtitan/ops/softcap_cross_entropy.py:12–55 saves logits, labels and FP32 row LSE; :58–93 permits cap zero and int64 targets. K/torchtitan/ops/_softcap_cross_entropy.py:9–15 explicitly skips softcap at cap zero, :22–43 computes FP32 online LSE with ignored labels, and :50–65 writes logits-dtype gradient. MTP inherits the donor chunk loss. | Can avoid full-vocabulary FP32 CE intermediates while retaining low-precision logits; still computes logits and scans vocabulary. Triton uses one row program and 4096-column tiles, so V128256 is a concrete performance question. GPU summation/rounding may differ. Preserve SUM/global-valid-token scaling, MTP weights, int64 labels, first-order gradients, head hooks, monitoring 2/32 chunks and FP32 hidden-gradient accumulation. Require eager/compiled elementwise loss/gradient comparisons and full fixed-workload runtime evidence. |
 | K1b: completed chunk lifetime | **Applicable and missing independently of fusion.** Current G/loss.py:738–762 keeps Python `logits` and `chunk_loss` references until the next iteration rebinds them; the next head output is allocated while the prior logits variable is still live. K/loss.py:751 releases both after inner backward. Current code already clears `h_chunk.grad`; :703–706 still keeps all contiguous hidden/label chunks, and :708–712 retains the FP32 accumulated hidden gradient. | Explicit deletion can remove adjacent-logits overlap without changing computation. It does not eliminate all chunk copies or head buffers. Measure phase-aligned allocated/reserved peaks and actual end-to-end effect; allocator reuse and compiler ownership determine magnitude. Keep argmax sink/metrics and exception cleanup intact. |
-| K2: dense/shared local FFN recomputation | **Applicable, missing as a local option; incremental benefit unresolved.** Current G/models/common/ffn/__init__.py:85–129 already uses FP8 projections, fused SwiGLU quantization and FP8-input storage, but has no local checkpoint. K/same-file:132–164 wraps the FP8-capable implementation in nonreentrant checkpoint and commits temporary clip counts outside that boundary. Shared experts use the same component through G/models/common/moe/__init__.py:69–70,183. | Fixed block SAC already replays these paths: G/distributed/activation_checkpoint.py:187–210 distinguishes dense `mm` from grouped `experts_up`; saving routed up projections does not mean dense/shared projections are saved. Nesting local checkpoints may add replay, retain an extra boundary input and change compiler partitioning. Dense layer0 uses recompute; most MoE blocks save routed up results only; MTP policy also needs resolved-config inspection. Do not call this inapplicable merely because SAC exists, or a saving merely because the donor supports FP8. Trace/saved-tensor evidence must show additional removable lifetime without unacceptable repeated GEMMs. Preserve FP8 `orig_shape` handling and clip/aux counters under both replay levels. |
+| K2: dense/shared local FFN recomputation | **Applicable, missing as a local option; incremental benefit unresolved.** Current G/models/common/ffn/__init__.py:85–129 already uses FP8 projections, fused SwiGLU quantization and FP8-input storage, but has no local checkpoint. K/same-file:132–164 wraps the FP8-capable implementation in nonreentrant checkpoint and commits temporary clip counts outside that boundary. Shared experts use the same component through G/models/common/moe/__init__.py:69–70,183. | Fixed block SAC already replays these paths: G/distributed/activation_checkpoint.py:187–210 distinguishes dense `mm` from grouped `experts_up`; saving routed up projections does not mean dense/shared projections are saved. Nesting local checkpoints may add replay, retain an extra boundary input and change compiler partitioning. Dense layer0 uses recompute; most MoE blocks save routed up results only; the outer MTP segment falls through to global selective SAC with an empty save list. Do not call this inapplicable merely because SAC exists, or a saving merely because the donor supports FP8. Trace/saved-tensor evidence must show additional removable lifetime without unacceptable repeated GEMMs. Preserve FP8 `orig_shape` handling and clip/aux counters under both replay levels. |
 | K3: routed local recomputation | **Inapplicable unchanged under required routed FP8.** Actual guard is K/models/common/moe/experts/gmm.py:111–115, not the package `__init__.py`: it raises when recompute and FP8 grouped GEMM are both enabled. BF16 checkpoint branch is at :212. | Converting routed experts to BF16 violates the workload. Existing SAC and FP8 grouped GEMM remain. A new FP8 algorithm is beyond a direct donor port; no performance claim follows from the BF16 implementation. |
 | Z1: fused gate/up z-loss | **Inapplicable to the active objective, with missing dependency source.** G/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml:45–46 selects norm-input z-loss only. G/ffn/__init__.py:73–82 guards gate/up z-loss with fused FP8. Z/ffn/__init__.py:122–144,179–195 implements gate/up gradient fusion, not final-norm-input fusion. Z/ops/float8/_cudacherry.py:72 imports external fused kernels. | Adding gate/up coefficients changes computation and is explicitly disallowed. The no-gate/up path already has fused SwiGLU/quantization in the baseline; enabling that is not a new gain. Donor nonzero gate/up z-loss requires higher-precision saved inputs and scaling/replay validation. Missing external kernels stay a source limit; they do not block K1/K2/V2/V3. |
 | V1: CompactCE | **Inapplicable unchanged.** V/components/loss.py:1153–1164 selects supervised positions before vocabulary projection and explicitly requires ordinary loss for MTP (also TP/CP/PP/full DTensor). Crop MTP1 is mandatory. | Do not disable MTP. A new MTP-capable compact objective path would require shifting/boundary/weight/denominator integration absent from this donor. Full-length streaming masks only certain targets; ignored fraction must be measured before predicting a material opportunity. |
@@ -44,6 +44,62 @@ mean `references/kindulov/source/`, `references/hidden-z-loss/source/` and
 | V4: frozen BF16 storage | **INAPPLICABLE to this fixed crop.** V/trainer.py:82–92 casts only non-trainable floating parameters before sharding/optimizer; documentation describes FP32 checkpoint rounding. Current crop configuration contains no freeze policy. | Native002 [runtime census](g1-smoke-002-receipt.json) confirms zero frozen tensors/elements on every rank. Non-trainable buffers and EMA copies are not eligible parameters. Do not freeze layers or cast trainable FP32 storage. Mixed frozen/trainable GFSDP partitioning is therefore not a crop speed experiment. |
 | V5a: input-token metric accounting | **Missing accounting, not a speedup by itself.** Current G/trainer.py:748 counts physical label slots for console metrics, :749–760 reduces supervised targets for loss, and callbacks retain `ntokens_seen`. V/trainer.py:983,997–1019 packs input token counts into the same collective; V/callbacks/sources/trainer_source.py:322–360 publishes separate input-token TPS. | Keep physical input TPS and supervised-target TPS distinct on streaming masks/MTP. Extra counters/history/reporting add small work; a new collective is unnecessary. Do not import donor sample-normalization or CompactCE behavior merely to add this metric. |
 | V5b: retained device count through producer and consumers | **Applicable after correcting the earlier premise.** G/trainer.py:749–758 reduces clamped local int64 counts through `dist_sum`, whose G/distributed/utils.py:70–72 returns a Python float via `.item()`. Donor V/trainer.py:997–1024 retains an int64 device tensor through direct functional reduction and adds it at:1131. | The current `int()` at:830 is CPU-only; the removable device read is at the producer before32 microbatches. A consumer-only replacement is invalid. A minimal independent port can retain the int64 reduction tensor without donor CompactCE/sample normalization/loss-unit vector. Preserve current local clamp-before-reduction, normalization precision, main denominator for MTP, optimizer/scheduler/callback/counter order and int64 persisted state. Verify compiled loss/gradient/aux-scale parity, empty/uneven local counts, callback observations and save/load; later logging/batch-end reads may bound benefit. |
+
+## K2 local checkpoint and fixed SAC contract
+
+Read-only integration inspection at `72a814f2` retains K2 as applicable, with no
+demonstrated incremental benefit. The donor pin above adds a strict default-off
+`FeedForwardConfig.recompute` and checkpoints `_forward_with_counts` with
+`use_reentrant=False` (K/ffn/__init__.py:132–164). Temporary counts are committed
+outside that local boundary. Current task fused FP8 output passes explicit
+`orig_shape=(*base_shape[:-1], self.w1.out_features)`; the donor does not preserve
+that active custom-op contract. Port the selector/count boundary without replacing
+the task FFN or its functional graph-safe GEMM/schema fixes. Root inspected the
+donor/current forward boundary and preset selection.
+
+There are nine eligible FFNs: trunk layer0 and MTP each H10944, and seven shared
+H1536. The preset MTP template aliases `&dense`; validate resolved selection and
+keep trunk/shared/MTP choices independent. Shared experts use the existing
+`FeedForwardConfig`, so no separate shared-expert API is needed. Local checkpointing
+must exclude router, dispatch/combine, synchronization and auxiliary-loss sites.
+The enclosing GFSDP unit owns live gathered parameters; longer replay can shift
+its buffer lifetime and shared-expert/combine overlap without adding a collective.
+
+MTP is wrapped as an outer segment and falls through to global selective SAC with
+an empty save list. Dense/shared backward intermediates are already discarded and
+regenerated by block SAC. Possible K2 savings concern regenerated lifetimes or
+compiler save decisions, not removal of the entire original-forward retention
+again. A local boundary also retains input and can add replay/quantization and
+change fusion. At8192 tokens, BF16 boundary input is64 MiB, a dense gate/up output
+is172 MiB each and a shared output24 MiB each, before aliases/scales/FP8 storage.
+One additional complete nine-FFN replay would add27 GEMMs/microbatch or864/update
+at accumulation32 (about210.28 TFLOP/rank/update projection arithmetic). These
+are conditional sizes/work, not measured savings or overhead; checkpoint early
+stop and compiled partitioning can change the actual count.
+
+Keep FP8 scale/rounding/padding and saved wrapper metadata intact. `_is_recompute`
+in the current GEMM is not a K2 switch and does not establish weight caching.
+Always-save `aten.max` does not prove opaque quantizer internal amax is cached;
+the active external quantizer's replay/storage contract still needs inspection
+if this candidate is selected. Donor historical L8 results disabled block AC and
+do not establish benefit under this fixed SAC. Its preserved recompute test is
+primarily routed BF16 K3, not executable K2 FP8 acceptance evidence.
+
+The donor scratch-count commit remains inside the outer block SAC boundary;
+therefore it does not prove no duplicate mutation under both replay levels.
+Test persistent clip slots, published counts and projection/module hooks before
+and after backward, plus router/aux/bias state and two AdamW updates. Ordinary
+compiled execution and monitoring differ: current MonitoringCallback opens an
+`EagerWindow` on logged updates for module hooks. Required update50 coverage must
+exercise that path and chunks32 as well as ordinary chunks2. Native A/A and actual
+nested-SAC eager/compiled elementwise loss/input/projection-gradient/state checks
+remain required; no bitwise native assumption or tolerance is established.
+
+After G3, identify a concrete removable lifetime at the peak, replay GEMM/quantizer
+counts and exposed shared-combine/GFSDP waits before choosing a port order or
+selection. The campaign still retains only its agreed ordinary-update trace pair;
+monitoring behavior uses the native cadence and targeted path checks rather than
+silently adding a second capture campaign. No K2 implementation is active.
 
 ## V2 lifetime and state findings
 

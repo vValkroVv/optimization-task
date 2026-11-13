@@ -97,10 +97,12 @@ also records zero frozen parameters on all ranks, making frozen-storage V4
 inapplicable to this crop. The canonical YAML now selects that MDS fixture;
 its affected decode/golden and path/shard-equivalence checks passed. Only the
 data mapping changed. Calibration completed60 finite native updates per rank,
-including normal monitor50. W60 and updates61–110 are selected for the controls.
+including normal monitor50. The first W60 control completed110 native updates
+but failed measurement acceptance because Triton cache state grew on three ranks;
+the second control is paused for a bounded warmup/cache diagnosis.
 The reviewed task adapter records existing compiler state at window boundaries
 and rejects DeepGEMM cache misses after W, using a guard validated on both active
-grouped GEMM paths. Native measured-window evidence and A/A remain open; no
+grouped GEMM paths. Native measured-window acceptance and A/A remain open; no
 performance baseline exists yet. The execution ledger owns
 progress; the [report](../runs/overnight-streaming-perf/report.md)
 and its results file own measurements and remaining evidence gates.

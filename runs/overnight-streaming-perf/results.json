@@ -132,6 +132,97 @@
       "cause": "census RaggedShardDTensor.to_local called with grad enabled",
       "optimizer_updates": 0,
       "receipt": "g1-runtime-receipt.json"
+    },
+    {
+      "run_id": "g2-baseline-a1",
+      "source_revision": "72a814f2",
+      "status": "FAIL_MEASUREMENT_ACCEPTANCE",
+      "native_updates_per_rank": 110,
+      "warmup_updates": 60,
+      "measured_updates": [
+        61,
+        110
+      ],
+      "failure": "Observed Triton compiler/cache state growth on ranks0,2,5",
+      "deepgemm_guard": "complete all8rank literal0 start/end and tested binary identity",
+      "raw_evidence": "artifacts/raw/g2-baseline-a1",
+      "accepted_tps": null,
+      "next_action": "Use as additional calibration; fresh W110/111\u2013160 controls, A2 only after first control passes",
+      "native_training_complete": true,
+      "finite_loss_and_grad_entries_per_rank": 110,
+      "physical_window_tokens_global": 104857600,
+      "supervised_window_tokens_global": 104832000,
+      "diagnostic_input_tps_unaccepted": 121757,
+      "diagnostic_valid_tps_unaccepted": 121728,
+      "diagnostic_global_envelope_seconds": 861.201,
+      "diagnostic_allocator_peak_allocated_gib": 68.022,
+      "diagnostic_allocator_peak_reserved_gib": 69.119,
+      "allocation_retries": 0,
+      "ooms": 0,
+      "source_and_config_unchanged": true,
+      "owned_process_group_stopped": true,
+      "local_temp_removed": true,
+      "all_eight_gpus_released": true,
+      "diagnosis": {
+        "changed_source": "fused FP8 SwiGLU fwd/bwd token_bucket integer alignment specialization, i32 empty attribute to divisibility16 D",
+        "growth_ranks": [
+          0,
+          2,
+          5
+        ],
+        "entry_counts_before_after": {
+          "0": [
+            87,
+            89
+          ],
+          "1": [
+            88,
+            88
+          ],
+          "2": [
+            85,
+            87
+          ],
+          "3": [
+            87,
+            87
+          ],
+          "4": [
+            87,
+            87
+          ],
+          "5": [
+            87,
+            89
+          ],
+          "6": [
+            88,
+            88
+          ],
+          "7": [
+            87,
+            87
+          ]
+        },
+        "other_observers": "Dynamo lengths/ids stable; Inductor hit316/miss676 stable; CuTe14 entries stable; Triton registry/function/cache identities stable",
+        "all_ranks_hold_both_bucket_classes_at_110": true,
+        "disk_artifacts_before_window": {
+          "forward_metadata_hash": "82a77f34327b7c29aecf1c50a93e34301ca8421b2b02f34a8b4d850bac45e339",
+          "forward_written_utc": "03:03:54",
+          "backward_metadata_hash": "15b8f23f9253111e95a4352b3b1ebd95fdd807b10180c00481908fd08771b422",
+          "backward_written_utc": "03:04:02",
+          "window_start_utc": "03:09:15.762"
+        },
+        "interpretation": "Rank-local cache population is observed; shared-disk loading strongly supported. Actual new device compilation in window unproven; conservative warmup gate remains failed. No compiler listener recorded.",
+        "rank0_ordinary_interval_median_seconds": {
+          "61-70": 14.7734935825,
+          "71-80": 14.226722933,
+          "81-90": 13.957648752,
+          "91-99": 13.793634972,
+          "101-110": 13.851599012
+        },
+        "timing_trend_cause": "unresolved; no specific routing/clock causal claim"
+      }
     }
   ],
   "cleanup_events": [
@@ -311,20 +402,20 @@
     "post_run_lint_fix": "Default Ruff E731 found lambda assignment; converted to equivalent local def. CPU-only planner contract and selected calls/configs/budgets exactly match tested plan; Ruff passes. GPU proof is reused from archived tested script bytes."
   },
   "measurement_protocol": {
-    "warmup_updates": 60,
+    "warmup_updates": 110,
     "measured_updates": [
-      61,
-      110
+      111,
+      160
     ],
     "consecutive_updates": 50,
     "monitor_interval": 50,
-    "monitor_update_in_window": 100,
+    "monitor_update_in_window": 150,
     "cache_policy": "fresh private caches each process, native DeepGEMM warmup retained",
     "deepgemm_after_warmup": "DG_CACHE_FORCE_SKIP=0; tested binary pin in guard probe",
     "compilation_observer": "existing Dynamo timing lists, Inductor async counters, CuTe compiled object map, Triton existing device caches; raw boundary snapshots and recomputed comparison",
     "observer_helper_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
     "source_checks": "36 observer and 26 measurement tests passed; final missing-prior-value regression reproduced old falsepass then 5 affected cases passed; independent guard integration/runtime-cost review accepted and final tiny fix inspected by root; staged whitespace check then found trailing blank lines in two new files, removed without executable changes",
-    "native_measured_validation": "OPEN: A1/A2 not launched",
-    "memory_peak_scope": "native reset epochs overlapping W60..110; initial sample can include updates51..60; retry/OOM deltas use actual W/end boundaries"
+    "native_measured_validation": "OPEN: original W60 control invalid; W110 chosen from actual all-rank JIT coverage and stable tail; new controls not launched",
+    "memory_peak_scope": "native reset epochs overlapping W110..160; initial sample can include updates101..110; retry/OOM deltas use actual W/end boundaries"
   }
 }

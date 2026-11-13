@@ -175,6 +175,41 @@ files, which the earlier unstaged check had not included. They are removed;
 executable statements are unchanged and the final helper hash is in results.
 A1/A2 and TPS remain open.
 
+### First measured control: invalid window
+
+`g2-baseline-a1`, source `72a814f2`, completed110 native updates, but its runner
+failed required acceptance at03:24:19 UTC. The direct observer found new Triton
+cache state on ranks0,2,5 during61–110; all eight DeepGEMM guard receipts were
+complete with literal0 at both boundaries. A2 was not launched. This window is
+not an accepted baseline or speed claim. Exact changed-key and settling diagnosis
+is active; raw failure, summary and rank snapshots remain under
+`artifacts/raw/g2-baseline-a1/`. Rank0 monitor100 took169.400s; ordinary intervals
+also drifted downward over the window, so source/cache interpretation and actual
+warmup selection remain open rather than selecting fast steps after the fact.
+
+Read-only diagnosis resolved the only additions as forward/backward fused FP8
+SwiGLU specializations in the padded routed-expert path: the runtime token bucket
+`total_tokens // 2048` changed from an unaligned int32 signature to Triton's
+divisibility16 attribute `D`. Hidden1536, launch options and all other signature
+fields match. Dynamo/Inductor/CuTe state and Triton registry/function/cache
+identities stayed stable. The run's shared disk metadata, TTIR, PTX and cubin for
+both aligned kernels predate the window; installed Triton returns `CompiledKernel`
+on a disk-metadata hit. Disk loading is strongly supported; actual new device
+compilation during the window is unproven. No compiler listener was recorded.
+The before/after snapshot is inside training, before exit; stop/export
+contamination is unsupported. Keep the conservative cache-stability criterion.
+
+All eight ranks hold both bucket-alignment classes by110. Rank0 ordinary medians
+were14.7735s at61–70,14.2267 at71–80,13.9576 at81–90,13.7936 at91–99 and13.8516
+at101–110. The trend's routing/clock/warmup cause is unresolved, while the final
+tail is stable. Reuse this run as additional calibration and select **W110,
+updates111–160, monitor150** symmetrically for fresh controls. No kernel/observer
+change or feature removal is required; first-control failure stops before A2.
+All110 native updates and finite metric pairs completed on all ranks; source and
+config hashes match, retries/OOMs were zero, owned temp/group stopped and all GPUs
+were released. Its unaccepted diagnostic timing/memory remain in results with
+the explicit failure label. No baseline TPS has been accepted.
+
 ## Native profiler controls
 
 Implemented generic opt-in `profile_ranks` and `record_shapes` controls in the
