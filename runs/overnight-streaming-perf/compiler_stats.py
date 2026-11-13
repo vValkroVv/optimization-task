@@ -734,4 +734,3 @@ def compare_compilation_snapshots(before: Any, after: Any, source_metadata: Any)
         },
         "errors": errors,
     }
-

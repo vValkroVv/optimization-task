@@ -170,6 +170,9 @@ requires presence; the regression reproduced the false pass and all5 affected
 cases pass. Root inspected the small fix. Post-run probe lint found E731 in a
 planner lambda; an equivalent local function now passes Ruff and produces the
 identical CPU plan. Exact GPU-tested script bytes remain with the raw receipt.
+The first staged whitespace check found trailing blank lines in two newly added
+files, which the earlier unstaged check had not included. They are removed;
+executable statements are unchanged and the final helper hash is in results.
 A1/A2 and TPS remain open.
 
 ## Native profiler controls

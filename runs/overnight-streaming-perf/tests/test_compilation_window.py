@@ -642,4 +642,3 @@ def test_parser_rejects_missing_or_malformed_deep_gemm_guard(failure: str) -> No
 
     assert summary["status"] == "incomplete"
     assert any("DeepGEMM guard" in error for error in summary["errors"])
-
