@@ -4,6 +4,25 @@ Updated: 13 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
 
+## Update-11 trace analysis: complete; candidate gains unmeasured
+
+The separately requested read-only analysis used actual Perfetto MCP on the fresh
+monitoring-off trace, with rank-1 CPU/CE cross-checks. Streaming prefetch has the
+clearest exposed opportunity: a 972.483 ms input-phase GPU gap in a 14,337.954 ms
+rank-0 train step. Head GEMMs plus CE account for 2,389.069 ms of kernel cost;
+CE alone is 195.220 ms. The 448 capacity checks include 6,611.223 ms of host
+synchronization, but only 92.149 ms coincides with all-device idle; the host sum
+is not a recoverable step-time estimate.
+
+The [analysis section](../runs/overnight-streaming-perf/report.md#update-11-candidate-analysis-with-perfetto-mcp)
+owns the full candidate dispositions, timing scopes, source-derived no-drop
+bound, import repair, limitations and next comparisons. Its
+[SQL/results](../runs/overnight-streaming-perf/monitorfree-update11-perfetto.json)
+retain failed and superseded queries. The original import dropped 417 overlapping
+CuTe events; display-lane normalization recovered all 94,436 kernels with complete
+launch-flow coverage and no importer errors. Canonical gzip bytes are unchanged.
+No source/config/runner change, GPU experiment or candidate acceptance followed.
+
 ## Monitoring-free baseline: TPS and fresh traces verified
 
 The new unprofiled baseline passed at execution revision

@@ -120,8 +120,262 @@ run scratch paths were removed by the runner after group exit; no task temporary
 children remain. A scoped process/environment check found no remaining owned
 training, loader or compiler-cache consumer. MDS index identity is unchanged.
 Compact evidence, candidate sources, the existing untracked V2 helper and the
-historical canonical G3 traces are preserved. Stop here; no candidate experiment,
-full-model numerical comparison or new bottleneck analysis was performed.
+historical canonical G3 traces are preserved. At capture handoff, no candidate
+experiment, full-model numerical comparison or bottleneck analysis was performed.
+
+## Update 11: candidate analysis with Perfetto MCP
+
+**Finding:** streaming prefetch has the clearest directly exposed opportunity.
+The head/linear-CE boundary is the largest identified candidate compute block.
+Capacity checks cause repeated host synchronization, but their host duration
+mostly overlaps GPU work. No candidate speedup has been measured.
+
+This read-only follow-up answers the new trace-analysis request. Acceptance:
+verify the captured workload and coverage; reconcile the Perfetto import; measure
+candidate costs and exposed waits; map every listed direction to evidence and
+limits. No GIFT/config/runner changes, training, new capture, candidate A/B or
+numerical block experiment were performed.
+
+The [SQL](monitorfree-update11-perfetto.sql) and
+[query results](monitorfree-update11-perfetto.json) preserve 53 actual MCP queries,
+including failed and superseded queries. Final rank-0 GPU results use handle
+`trace_fb8d93262d864d34`. CPU findings and complete CE counts from rank 1 provide
+a narrow cross-check; there is no rank-1 whole-device budget claim.
+
+### Workload and import verification
+
+Source is execution revision `16b13c2548317945712ded2e66f136b169130d95`;
+inspection HEAD is `b6610e60193319169f4349a41292dbac46964e41`, with no GIFT diff
+between them. The resolved configuration and rank-0 native log confirm EP8 on
+eight H100 80GB GPUs, dense/grouped FP8, compiled blocks/loss, CuTe norms, fixed
+per-layer SAC, MTP1 weight 0.3, B2/S4096 and 32-way accumulation. Detailed
+monitoring, evaluation, saving and graphs are off. All eight sidecars completed
+11 updates and record 32 microbatches/one optimizer at the target update.
+Runtime metadata pins PyTorch `2.15.0.dev20260822+cu130`, CUDA 13.0,
+NCCL 2.30.7, DeepGEMM `2.3.0+f093a4c`, DeepEP `1.2.1+1b8f467`
+and streaming 0.13.0.
+
+Evidence is under
+[the captured run](artifacts/raw/monitorfree-profile-update11-001/):
+`native/config/resolved_config.yaml`, `metadata.json`,
+`measurement/rank-00.json` through `rank-07.json`, and rank-0/1
+`logs/torchrun/686f3b1b-6505-4fdf-b7c4-7ab1b64f08fa_o4sawdbv/attempt_0/*/stdout.log`.
+Rank-0 stdout lines 128–149 record compile, SAC and HybridEP activation;
+line 180 records finite update-11 loss 14.43901 and gradient norm 7.8928.
+
+Direct import of the original rank-0 gzip silently omitted 417 CuTe kernels:
+94,019 imported versus 94,436 raw, with
+`slice_drop_overlapping_complete_event=417`. Raw same-stream CuTe timestamps
+have small crossing overlaps. Removing GPU user annotations alone did not fix
+this; that unsuccessful analysis copy and its receipt are retained.
+
+The [preparation script](monitorfree-perfetto-prepare.py) places overlapping device
+events on separate display lanes and moves their matching flow endpoints.
+Actual `args.stream`, timestamps, durations, names, arguments, CPU events and
+source gzip bytes remain unchanged; GPU display ranges are omitted from the
+analysis copy. Reproduce with:
+
+```bash
+nice -n 10 python runs/overnight-streaming-perf/monitorfree-perfetto-prepare.py \
+  runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/native/profiling/traces/iteration_11/rank0_trace.json.gz \
+  runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/perfetto-analysis/rank0.device-lanes.json.gz
+```
+
+The [receipt](artifacts/raw/monitorfree-profile-update11-001/perfetto-analysis/rank0.device-lanes.json.receipt.json)
+records hashes, 420 relocated device events and 420 relocated flow endpoints.
+MCP then imported **all 94,436 kernels, 2,839 copies and 9,184 memsets**, with zero
+error/data-loss statistics, no incomplete slices and a runtime/driver flow for
+every device event. Stream statistics group by original `args.stream`, not
+synthetic display lanes. The original rank-1 import drops 537 events; only its
+unchanged CPU records and intact 128-per-name CE census are used here.
+
+### Timing scopes
+
+All values below describe **rank 0, one profiled optimizer update**, clipped to
+the CPU train-step annotation. Interval unions count overlapping streams once.
+Compute includes unclassified noncommunication kernels; HybridEP mixes transport,
+permutation, reductions and peer waits.
+
+| Scope | Time |
+| --- | ---: |
+| Integrated CPU train-step span | 14,337.954 ms |
+| Device busy union: kernels, copies, memsets | 12,911.264 ms |
+| Device idle inside that span | 1,426.690 ms |
+| Compute/other kernel union | 10,791.650 ms |
+| NCCL union | 2,328.472 ms |
+| HybridEP mixed union | 1,327.828 ms |
+| Memcpy union | 191.583 ms |
+| NCCL with no other device work | 701.699 ms |
+| NCCL or HybridEP without classified compute | 2,034.346 ms |
+
+These rows overlap and must not be added. Inclusive CPU-operator totals also
+nest and do not measure independent CPU work. Python stacks and CPU scheduling
+samples are unavailable; host evidence consists of operator/API spans and
+correlated launches.
+
+The train-step span is within the separate unprofiled baseline's observed
+13.542–15.804 s cadence range. This checks plausibility, not profiler neutrality.
+The profile sidecar's update-11 return interval is **17.918 s**, including capture/
+export effects outside the train-step timer. Use the existing unprofiled
+145,163.84 global input tokens/s result for baseline magnitude. There is no new
+monitoring-off A/A noise estimate.
+
+### Ranked opportunities
+
+| Candidate in docs/candidates.md | Observed evidence | Decision |
+| --- | --- | --- |
+| Streaming prefetch | **972.483 ms** initial all-device gap; loader calls total **959.385 ms** | First comparison to authorize |
+| Linear projection + CE | Head GEMMs **2,193.849 ms** plus CE **195.220 ms** | Larger compute/memory boundary; investigate compatible fused implementations |
+| MoE metadata/capacity | **448** predicate checks, **6,611.223 ms** nested host synchronization; **92.149 ms** coincident device idle | Concrete synchronization target; establish exposed effect before estimating gain |
+| Kindulov CE algorithm | CE backward **102.887 ms**; all CE **195.220 ms** | Small budget; retain required numerical adaptation |
+| GFSDP buffers/prefetch | AG kernel sum **1,138.830 ms**; **180.373 ms** without non-NCCL device work | Existing prefetch is active; narrow the remaining wait |
+| GDN recomputation | Original/SAC forwards plus VJP and native-backward rebuilds visible | Proven repeated work; memory and compile contracts limit the change |
+| MLA backend | cuDNN SDPA forward/backward **322.712 ms** | Lower priority; no faster backend demonstrated |
+
+Kernel sums in this table are cost budgets, not removable elapsed time.
+The detailed dispositions below cover the remaining listed directions.
+
+**Streaming prefetch.** The GPU finishes its initial scalar fill, then has no
+recorded work for 972.483 ms. The next HtoD launch starts 972.449 ms into that gap,
+so this is not an already-submitted copy waiting behind GPU work. All 33
+DataLoader calls occur before the first microbatch; call 18 alone takes
+786.874 ms. The infinite loader can cross an epoch boundary during the trainer's
+up-front collection of 32 microbatches; the extra call and long reset are
+consistent with that mechanism, but no worker stack establishes its internal
+cause. Rank 1 also records 33 calls, 838.785 ms total and a 685.991 ms maximum.
+The MDS fixture has only 896 repeated full-length rows; do not generalize this
+epoch/reset exposure to production data.
+
+The trainer collects all microbatches before GPU forward/backward, so the
+preserved bounded CPU producer could prepare across this boundary while the
+previous update computes. DataLoader already has two persistent workers: adding
+workers is not evidence that this trainer-level boundary disappears. Removing
+the entire observed gap would reduce this trace's latency by **6.78%**, equivalent
+to **7.28% more TPS** if every other cost stayed fixed. This is an ideal ceiling
+for eliminating this gap alone, not a V2 result or a bound on all input-related
+effects. Preserve ordering, exception propagation, queue
+memory, loader/RNG cursor, Gloo/DCP ownership and exact resume; the V2 runtime/
+performance gates remain open. HtoD device copies total only 0.885 ms, so transfer
+bandwidth does not explain the nearly one-second input gap.
+
+**MoE capacity/metadata.** Launch ancestry identifies
+`select_capacity_routes -> conditional_capacity_mask -> is_nonzero -> item
+-> _local_scalar_dense -> cudaStreamSynchronize`.
+There are 448 checks, 6,656.050 ms inclusive host time and 6,611.223 ms nested
+synchronization. Rank 1 has the same 448 checks and 6,612.258 ms inclusive time.
+Only **92.149 ms** of rank-0 all-device idle intersects those predicate calls;
+that coincidence is not a causal savings estimate. Much of the host wait is
+previous GPU work draining. The observed host total therefore cannot support a
+46% speedup claim. This matches the general synchronization behavior described
+in [PyTorch's tuning guide](https://docs.pytorch.org/tutorials/recipes/recipes/tuning_guide.html#avoid-unnecessary-cpu-gpu-synchronization).
+
+There is a source-derived invariant for this exact crop: at most
+`8 * 8192 * 8 = 524288` routed pairs exist across the EP group, while the
+destination-group overload threshold is `(50000 // 8) * 128 = 800000`.
+A destination's count cannot exceed the total, so the configured group-overload
+gate is always false at this bound. This is an inference from the inspected
+capacity implementation and fixed layout, not captured predicate tensor values.
+It does **not** hold generally at EP32 or larger token bounds.
+
+An existing default-off `branchless_capacity_drop` path accepts the crop's
+65,536 routes. A future isolated comparison could evaluate that path while
+retaining the same mask semantics; a construction-time invariant fast path would
+require its own correctness review. Keep capacity 50,000, group gating, score
+ordering and stable ties. Do not simply remove production token dropping.
+HybridEP also has 416 dispatch synchronizations totaling 107.538 ms; those are a
+separate dynamic-output-size dependency. Existing nonblocking dispatch requires
+capacity/buffer proofs and does not automatically eliminate the capacity check.
+
+**Loss candidates.** Correlated launch ancestry and the active loss loop identify
+64 head forward GEMMs (759.772 ms) and two sets of 64 backward GEMMs
+(715.958/718.120 ms). MTP folds two heads into the batch. There are 128 calls of
+each of the three ordinary CE kernels: row statistics 91.580 ms, loss reduction
+0.753 ms and backward 102.887 ms. Thus CE alone accounts for **1.36%** of the
+14.338 s trace; even eliminating the entire backward kernel would cover only
+**0.72%**. A replacement still has to calculate gradients. The remaining Kindulov
+backward simplification is applicable, but the existing
+[compiled contract](k1a-compiled-contract.md) already establishes fused BF16
+logits/gradients, FP32 row statistics and a stability defect in the unchanged
+donor's combined-LSE formula. This trace does not resolve that defect.
+
+The larger linear+CE boundary is 2,389.069 ms, **16.66%** of trace time in summed
+kernel cost, with matrix products that remain mathematically necessary.
+This budget motivates research; it does not predict a 16.66% time saving.
+Any implementation must retain FP32 accumulation, compiled loss, main/MTP
+weights and masks, hidden-state gradient accumulation and head GFSDP hooks.
+From the actual folded loop and resolved dimensions, each BF16 logits chunk is
+`[4,2048,128256]`, **1.957 GiB**. Shapes were not captured. Completed-chunk
+release can shorten this lifetime in source; no memory snapshot measures its
+peak benefit, and the trace does not prove a speed benefit.
+
+**GFSDP.** There are 736 NCCL all-gathers and 384 reduce-scatters.
+Only 180.373 ms of AG is free of non-NCCL device work, versus 1,138.830 ms summed
+AG kernel duration. Reduce-scatter has 374.683 ms in that exposure definition
+and other NCCL 146.643 ms. These sum to the strict 701.699 ms NCCL-only union;
+they are not all independently removable waits. AG and RS do not overlap in
+this trace. RS is required by optimizer/buffer lifetime, not necessarily the
+next layer, so exposed RS is not proof of a forward/backward stall.
+
+The active parallelizer already wires explicit forward and reverse backward
+prefetch chains for EP. CPU gather markers show 64 calls per dense unit and
+32 for the head: **one head gather per microbatch**, across two chunks and two
+heads. Expert-FSDP1 marker activity is not an eight-rank expert-weight collective.
+There is no evidence for a redundant per-chunk head all-gather fix.
+Evaluate a specific remaining consumer wait and retained-buffer memory cost
+before porting donor buffer/prefetch code.
+
+**GDN.** Six GDN layers times 32 microbatches give 192 logical calls.
+Trace context shows 384 `gdn_chunk` forwards (original plus SAC replay), another
+192 full forwards inside `fla_vjp`, then 192 native FLA backwards that rebuild
+`w/u/h`. This agrees with `vjp_via_recompute` and the vendored FLA backward.
+Three representative kernel families account for **62.300 ms** in VJP forward
+rebuild and **43.388 ms** in native-backward rebuild. These are partial costs,
+not the whole GDN block or a measured removable budget. Avoiding repeated work
+requires a compatible saved-state/direct-backward boundary; do not disable SAC
+or expose the FLA integer indexing stream to compile. A broader all-GDN
+range-join query failed with an MCP RPC decode error; a concurrent aggregate
+then failed to send. Neither supplies a measurement. The completed bounded
+parent-context breakdown is retained; no further retry was needed for this
+candidate disposition.
+
+**Remaining directions.** cuDNN flash SDPA is already selected: 192 forward and
+96 backward kernels total 322.712 ms for the two trunk MLA layers and MTP layer,
+including replay. Conversion costs have not been uniquely attributed; do not
+assign generic concat/copy kernels to MLA. CuTe norms are active and cost
+546.187 ms over 13,664 kernels; enabling CuTe is not a new optimization.
+Residual-boundary fusion still needs an identified unfused operation.
+
+Dense and routed SwiGLU/FP8 fusion is already active. The gate/up z-loss
+coefficients are zero; only norm-input regularization is selected. The hidden
+z-loss donor therefore changes the objective if enabled unchanged, and its
+pinned external CudaCherry source remains missing. Local dense/shared FFN
+recomputation trades memory for extra GEMMs under existing SAC; routed donor
+recomputation rejects required FP8. Neither has demonstrated speed benefit.
+CompactCE rejects MTP; the actual baseline's main labels are already 99.9756%
+supervised (only 1/4096 ignored). All eight rank sidecars report zero frozen
+parameters. Frozen storage and metric-accounting changes have no demonstrated
+new saving here.
+
+### Decision and remaining evidence
+
+The first comparison worth running is a matched short monitoring-off baseline/V2
+pair if this fixture remains the intended target. In further research, prioritize
+a compatible linear+CE boundary and the exact MoE synchronization dependency. This ranking
+does not authorize source edits or compute. Keep candidate numerical, peak-memory,
+distributed/resume and repeated unprofiled timing gates open under
+[validation](../../planning/validation.md).
+
+The final source/config/runner bytes are unchanged. Diagnostic normalization was
+verified through the actual MCP import and full device-flow counts. The original
+gzip hashes remain canonical. No candidate is accepted and no speedup is claimed.
+
+Verification passed: original rank-0 gzip SHA256; event-by-event equality of all
+retained payloads and trace metadata except exactly 420 device/420 matching flow
+display tids; full normalized MCP census/launch coverage and empty importer error
+statistics; both maintained JSON files; 126 maintained local links/fragments;
+`ruff check --select F821,F811,F841 --no-cache` on the preparation script;
+`git diff --check`; and an empty diff for `gift/` and the training runner.
+The two optional GDN aggregate RPC failures remain in the query evidence.
 
 ---
 

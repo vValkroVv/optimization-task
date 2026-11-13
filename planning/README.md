@@ -4,6 +4,16 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+## Completed assignment: read-only update-11 candidate analysis
+
+The [analysis](../runs/overnight-streaming-perf/report.md#update-11-candidate-analysis-with-perfetto-mcp)
+completed workload/coverage verification, Perfetto import reconciliation,
+candidate cost/wait measurements and evidence-based dispositions. SQL and compact
+results are retained with the existing run. No new GPU run or training-source
+change was made. Future comparisons remain separately authorized; streaming
+prefetch is the first directly exposed opportunity, followed by linear/CE and
+the specific MoE synchronization path. No candidate is accepted.
+
 ## Completed assignment: monitoring-free baseline and fresh traces
 
 The [execution plan](overnight-streaming-perf.md) records completion: one valid

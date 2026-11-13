@@ -1,0 +1,4091 @@
+{
+  "schema_version": 1,
+  "analysis_date": "2026-11-13",
+  "task_head": "b6610e60193319169f4349a41292dbac46964e41",
+  "execution_revision": "16b13c2548317945712ded2e66f136b169130d95",
+  "scope": "Read-only analysis of existing traces and logs; diagnostic display-lane copies only; no training-source/config/runner changes or GPU experiments.",
+  "trace_handles": {
+    "rank0_original": "trace_6d2ec67f96a83162",
+    "rank0_ranges_removed": "trace_cee2983a842c428a",
+    "rank0_device_lanes": "trace_fb8d93262d864d34",
+    "rank1_original": "trace_d64072c4a30ae977"
+  },
+  "primary_rank": 0,
+  "units": "Perfetto ts/dur ns; summaries ms. Kernel sums are not elapsed time or projected gains.",
+  "import_reconciliation": {
+    "original_rank0_kernel_count": 94436,
+    "original_rank0_perfetto_kernel_count": 94019,
+    "original_rank0_dropped_complete_events": 417,
+    "initial_ranges_only_attempt": "Removing 3871 GPU user ranges did not fix the 417 overlapping kernel losses; not used for final GPU totals.",
+    "root_cause": "Raw same-stream CuTe kernel timestamps overlap; parser rejects crossing complete slices. Display-lane coloring preserves timestamps/durations/args.stream and relocates matching GPU flow endpoints.",
+    "final_rank0_kernel_count": 94436,
+    "final_rank0_kernel_sum_ms": 14619.40257,
+    "final_rank0_memcpy_count": 2839,
+    "final_rank0_memset_count": 9184,
+    "final_rank0_error_or_data_loss_stats": [],
+    "final_rank0_runtime_driver_flow_coverage": "94436/94436 kernels, 2839/2839 copies, 9184/9184 memsets",
+    "rank1_limit": "Original import drops 537 overlapping complete events. Only CPU frame/loader/capacity and intact CE name/count results used; no rank1 global GPU budget claimed."
+  },
+  "rank0_summary": {
+    "cpu_train_step_ms": 14337.954319,
+    "gpu_busy_union_ms": 12911.264472,
+    "gpu_idle_ms": 1426.689847,
+    "compute_other_union_ms": 10791.649873,
+    "nccl_union_ms": 2328.471823,
+    "hybrid_ep_mixed_union_ms": 1327.828033,
+    "memcpy_union_ms": 191.583002,
+    "strict_nccl_only_ms": 701.699089,
+    "communication_without_classified_compute_ms": 2034.345742,
+    "input_prefix_gpu_gap_ms": 972.482799,
+    "loader_next_count": 33,
+    "loader_host_ms": 959.38451,
+    "loader_longest_call_ms": 786.874459,
+    "capacity_predicate_count": 448,
+    "capacity_host_ms": 6656.0502,
+    "capacity_nested_stream_sync_ms": 6611.222591,
+    "capacity_intersection_with_all_device_idle_ms": 92.148703,
+    "ce_forward_ms": 92.333289,
+    "ce_backward_ms": 102.886956,
+    "ce_total_ms": 195.220245,
+    "head_gemm_forward_ms": 759.771613,
+    "head_gemm_nnt_backward_ms": 715.957502,
+    "head_gemm_ntt_backward_ms": 718.119659,
+    "head_gemm_total_ms": 2193.848774,
+    "head_and_ce_ms": 2389.069019,
+    "ag_sum_ms": 1138.830235,
+    "rs_sum_ms": 1041.403568,
+    "ag_no_non_nccl_device_ms": 180.372809,
+    "rs_no_non_nccl_device_ms": 374.683275,
+    "other_nccl_no_non_nccl_device_ms": 146.643005,
+    "gdn_representative_vjp_forward_rebuild_ms": 62.300336,
+    "gdn_representative_native_backward_rebuild_ms": 43.387829,
+    "sdpa_forward_backward_kernel_sum_ms": 322.712456,
+    "cuTe_norm_kernel_sum_ms": 546.186611
+  },
+  "source_inferences": {
+    "capacity_no_drop_proof": {
+      "max_group_routes": 524288,
+      "group_budget": 800000,
+      "formula": "8 ranks * (2*4096) source tokens * top8 <= (50000//8)*128. Thus every destination-group load <=524288<800000; the group-overload gate is always false for this exact crop layout.",
+      "limit": "Does not apply to EP32 or a larger token bound; preserve configured capacity, group gating and stable score/tie rules."
+    },
+    "logits_per_folded_chunk_gib": 1.95703125,
+    "logits_shape": "[4,2048,128256] BF16, from active folded MTP1 loss, B2, two chunks; shapes were not recorded by profiler.",
+    "compact_ce_main_ignored_fraction": 0.000244140625,
+    "frozen_parameters_all_eight_ranks": 0
+  },
+  "limitations": [
+    "One profiled optimizer update, not a performance A/B experiment. No candidate speedup is proven.",
+    "Rank0 train-step annotation is 14.337954319s; profiler-return cadence 17.918091177s includes capture/export and is not the same timer.",
+    "Unprofiled baseline is a separate single-run 145163.837099 global input tokens/s, with no new monitoring-off A/A noise estimate.",
+    "GPU annotations are removed only in analysis copies. CPU and original GPU/flow timing retained; actual args.stream must define stream grouping after lane coloring.",
+    "Host synchronization time overlaps queued GPU work; its 6.611s sum is not removable step latency.",
+    "Communication-only time does not by itself prove consumer blocking. HybridEP kernels mix transport, permutation, reduction and peer waiting.",
+    "Trace has no tensor shapes, Python stacks or memory snapshots. No candidate memory saving was measured.",
+    "Broad GDN total-device range join failed with an RPC response decode error; a concurrent forward aggregate then failed to send to the processor. Both are retained; use completed bounded parent-context query only. No retry or GDN whole-block aggregate claim.",
+    "Eight-H100 EP8 single-node crop does not establish production EP32, PP or inter-node behavior."
+  ],
+  "runtime_evidence": "artifacts/raw/monitorfree-profile-update11-001/metadata.json",
+  "source_evidence": [
+    "gift/torchtitan/trainer.py:train_step",
+    "gift/torchtitan/models/common/moe/dispatch/capacity.py:select_capacity_routes",
+    "gift/torchtitan/config/moe.py:TokenDropConfig.source_capacity",
+    "gift/torchtitan/models/gift_moe/_base/parallelize.py:GFSDP chain wiring",
+    "gift/torchtitan/components/loss.py:ChunkedCELoss._chunked_loss_and_grad, MTPLoss._chunk_loss",
+    "gift/torchtitan/models/common/attention/linear/fla_custom_ops.py:vjp_via_recompute",
+    "gift/contrib/flash-linear-attention/fla/ops/gated_delta_rule/chunk.py:chunk_gated_delta_rule_bwd",
+    "references/kindulov/manifest.json",
+    "references/vision-runtime/manifest.json",
+    "references/hidden-z-loss/manifest.json"
+  ],
+  "candidate_verdicts": [
+    {
+      "candidate": "Streaming prefetch (V2)",
+      "verdict": "Strongest directly exposed opportunity",
+      "evidence": "972.482799ms input-phase all-device idle, 959.384510ms loader calls, matched CPU prefix in rank1",
+      "limit": "Ideal removal of this whole prefix is 6.782577% trace-time reduction or 7.276083% TPS increase; not measured or generally repeatable."
+    },
+    {
+      "candidate": "Linear projection + CE",
+      "verdict": "Larger compute boundary worth a separately authorized study",
+      "evidence": "2193.848774ms head GEMMs +195.220245ms CE; source-derived 1.95703125GiB logits per folded chunk",
+      "limit": "Required matrix products remain. No fused implementation compatibility, speed or memory gain established."
+    },
+    {
+      "candidate": "MoE metadata/capacity synchronization",
+      "verdict": "Concrete recurring synchronization; gain unproven",
+      "evidence": "448 predicate checks;6611.222591ms nested sync;92.148703ms coincident all-device idle; no-drop invariant for exact EP8 token bound",
+      "limit": "Do not count queued GPU work as recoverable time or disable production routing controls. Existing branchless control remains off."
+    },
+    {
+      "candidate": "Kindulov CE backward (K1a)",
+      "verdict": "Applicable small device budget, stability adaptation required",
+      "evidence": "195.220245ms total CE;102.886956ms backward;128 calls of each of3 ordinary kernels",
+      "limit": "Full backward elimination would be0.717585% of trace, and the replacement must still compute a gradient. Historical compiled-contract defect remains open."
+    },
+    {
+      "candidate": "Kindulov chunk lifetime/local FFN recompute (K1b/K2)",
+      "verdict": "Memory hypotheses; no speed evidence",
+      "evidence": "Chunk-local logits lifetime in source;existing SAC; dense/routed fused SwiGLU quantization is active",
+      "limit": "No allocation/lifetime snapshot. Routed donor rejects required FP8; dense/shared recompute adds work."
+    },
+    {
+      "candidate": "GFSDP buffers/prefetch",
+      "verdict": "Narrow exposed AG opportunity; prefetch chain already present",
+      "evidence": "736 AG kernels1138.830235ms,180.372809ms without non-NCCL device work;32 head gathers",
+      "limit": "Most AG work overlaps; RS374.683275ms exclusive is not proven consumer blocking. Memory retention tradeoff unmeasured."
+    },
+    {
+      "candidate": "GDN recomputation",
+      "verdict": "Wrapper + SAC + native-backward rebuild proven, scope bounded",
+      "evidence": "384 gdn_chunk forward calls vs192 logical;192 additional VJP forwards;62.300336ms representative VJP rebuild +43.387829ms native backward rebuild kernels",
+      "limit": "These3 kernel families are partial cost, not a whole-GDN aggregate or removable-time estimate."
+    },
+    {
+      "candidate": "MLA backend",
+      "verdict": "Lower priority",
+      "evidence": "cuDNN SDPA active;192 forward+96 backward kernels322.712456ms",
+      "limit": "No distinct layout conversion penalty or faster compatible backend demonstrated."
+    },
+    {
+      "candidate": "Hidden gate/up z-loss fusion",
+      "verdict": "Does not accelerate current objective unchanged",
+      "evidence": "Norm-input z-loss only;gate/up coefficients0;SwiGLU+FP8 already fused",
+      "limit": "External pinned CudaCherry sources unavailable;enabling gate/up loss changes objective."
+    },
+    {
+      "candidate": "CompactCE / frozen storage / metrics / norm-residual",
+      "verdict": "No demonstrated new gain",
+      "evidence": "MTP1 unsupported by preserved CompactCE;main ignored1/4096;all8 ranks frozen0;CuTe already active",
+      "limit": "Preserve token normalization and current regularization;no residual-boundary or accounting speed gain measured."
+    }
+  ],
+  "queries": [
+    {
+      "name": "markers",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT category,name,count(*) n,min(ts) start_ns,max(ts+dur) end_ns,sum(dur)/1e6 sum_ms FROM slice WHERE name GLOB 'task.profile_update.*' OR name GLOB 'ProfilerStep*' GROUP BY 1,2",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "name",
+            "n",
+            "start_ns",
+            "end_ns",
+            "sum_ms"
+          ],
+          "row_count": 6,
+          "returned_rows": 6,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "gpu_user_annotation",
+              "task.profile_update.11.microbatch.rank0",
+              32,
+              3708863839222087,
+              3708876882698400,
+              5443.554057
+            ],
+            [
+              "gpu_user_annotation",
+              "task.profile_update.11.train_step.rank0",
+              1,
+              3708862829407604,
+              3708877164576888,
+              14335.169284
+            ],
+            [
+              "user_annotation",
+              "ProfilerStep#10",
+              1,
+              3708862828905676,
+              3708877167450553,
+              14338.544877
+            ],
+            [
+              "user_annotation",
+              "task.profile_update.11.microbatch.rank0",
+              32,
+              3708863838920006,
+              3708877099201832,
+              12351.78158
+            ],
+            [
+              "user_annotation",
+              "task.profile_update.11.optimizer_step.rank0",
+              1,
+              3708877111431180,
+              3708877113154199,
+              1.723019
+            ],
+            [
+              "user_annotation",
+              "task.profile_update.11.train_step.rank0",
+              1,
+              3708862829197270,
+              3708877167151589,
+              14337.954319
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "argskeys",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT key,count(*) n FROM args GROUP BY key ORDER BY n DESC LIMIT 35",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "key",
+            "n"
+          ],
+          "row_count": 35,
+          "returned_rows": 35,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "args.External id",
+              676707
+            ],
+            [
+              "args.Record function id",
+              421468
+            ],
+            [
+              "args.Ev Idx",
+              421468
+            ],
+            [
+              "args.correlation",
+              277568
+            ],
+            [
+              "args.cbid",
+              171526
+            ],
+            [
+              "args.stream",
+              106042
+            ],
+            [
+              "args.graph node id",
+              106042
+            ],
+            [
+              "args.graph id",
+              106042
+            ],
+            [
+              "args.device",
+              106042
+            ],
+            [
+              "args.context",
+              106042
+            ],
+            [
+              "args.channel_type",
+              106042
+            ],
+            [
+              "args.channel",
+              106042
+            ],
+            [
+              "args.warps per SM",
+              94019
+            ],
+            [
+              "args.shared memory",
+              94019
+            ],
+            [
+              "args.registers per thread",
+              94019
+            ],
+            [
+              "args.queued",
+              94019
+            ],
+            [
+              "args.occupancy.limitingFactors",
+              94019
+            ],
+            [
+              "args.occupancy.blockLimitWarps",
+              94019
+            ],
+            [
+              "args.occupancy.blockLimitSharedMem",
+              94019
+            ],
+            [
+              "args.occupancy.blockLimitRegs",
+              94019
+            ],
+            [
+              "args.occupancy.blockLimitBlocks",
+              94019
+            ],
+            [
+              "args.occupancy.blockLimitBarriers",
+              94019
+            ],
+            [
+              "args.occupancy.allocatedSharedMemPerBlock",
+              94019
+            ],
+            [
+              "args.occupancy.allocatedRegistersPerBlock",
+              94019
+            ],
+            [
+              "args.occupancy.activeBlocksPerMultiprocessor",
+              94019
+            ],
+            [
+              "args.grid[2]",
+              94019
+            ],
+            [
+              "args.grid[1]",
+              94019
+            ],
+            [
+              "args.grid[0]",
+              94019
+            ],
+            [
+              "args.est. achieved occupancy %",
+              94019
+            ],
+            [
+              "args.blocks per SM",
+              94019
+            ],
+            [
+              "args.block[2]",
+              94019
+            ],
+            [
+              "args.block[1]",
+              94019
+            ],
+            [
+              "args.block[0]",
+              94019
+            ],
+            [
+              "args.Sequence number",
+              13720
+            ],
+            [
+              "args.Fwd thread id",
+              13720
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stream_counts",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT s.track_id,t.name,s.category,count(*) n,sum(s.dur)/1e6 sum_ms FROM slice s JOIN track t ON t.id=s.track_id WHERE s.category IN ('kernel','gpu_memcpy','gpu_memset') GROUP BY 1,2,3 ORDER BY sum(s.dur) DESC",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "track_id",
+            "name",
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 6,
+          "returned_rows": 6,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              3,
+              null,
+              "kernel",
+              91279,
+              11824.745553
+            ],
+            [
+              6,
+              null,
+              "kernel",
+              2317,
+              2624.248931
+            ],
+            [
+              6,
+              null,
+              "gpu_memcpy",
+              455,
+              186.437423
+            ],
+            [
+              5,
+              null,
+              "kernel",
+              423,
+              148.168612
+            ],
+            [
+              3,
+              null,
+              "gpu_memset",
+              9184,
+              10.295457
+            ],
+            [
+              3,
+              null,
+              "gpu_memcpy",
+              2384,
+              5.145579
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stats",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT name,idx,severity,value FROM stats WHERE value!=0 AND severity IN ('error','data_loss') ORDER BY name",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "severity",
+            "value"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "slice_drop_overlapping_complete_event",
+              null,
+              "error",
+              417
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "waits",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT category,name,count(*) n,sum(dur)/1e6 sum_ms,max(dur)/1e6 max_ms FROM slice WHERE category IN ('cuda_runtime','cuda_driver','cpu_op','user_annotation') AND (name GLOB '*Synchronize*' OR name GLOB '*Wait*' OR name GLOB '*item*' OR name GLOB '*local_scalar*' OR name GLOB '*fetch*' OR name GLOB '*DataLoader*') GROUP BY 1,2 ORDER BY sum(dur) DESC LIMIT 25",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "name",
+            "n",
+            "sum_ms",
+            "max_ms"
+          ],
+          "row_count": 25,
+          "returned_rows": 25,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "cuda_runtime",
+              "cudaStreamSynchronize",
+              969,
+              7691.884472,
+              106.070568
+            ],
+            [
+              "cpu_op",
+              "aten::_local_scalar_dense",
+              457,
+              6743.304381,
+              106.113928
+            ],
+            [
+              "cpu_op",
+              "aten::item",
+              454,
+              6708.472398,
+              106.121968
+            ],
+            [
+              "user_annotation",
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              33,
+              959.38451,
+              786.874459
+            ],
+            [
+              "user_annotation",
+              "GFSDP::backward_prefetch for mtp.layers.0",
+              64,
+              8.313322,
+              0.255573
+            ],
+            [
+              "cuda_runtime",
+              "cudaStreamWaitEvent",
+              9310,
+              7.986601,
+              0.009541
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for mtp.layers.0",
+              32,
+              7.008194,
+              0.231383
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.3[fsdp]",
+              32,
+              6.99328,
+              0.228833
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.4[fsdp]",
+              32,
+              6.988538,
+              0.236333
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.6[fsdp]",
+              32,
+              6.916519,
+              0.277563
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.2[fsdp]",
+              32,
+              6.910168,
+              0.242773
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.7[fsdp]",
+              32,
+              6.828259,
+              0.226342
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.5[fsdp]",
+              32,
+              6.82603,
+              0.224243
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.1[fsdp]",
+              32,
+              6.568664,
+              0.216333
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.0",
+              32,
+              6.320882,
+              0.209862
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for norm",
+              32,
+              6.291103,
+              0.234343
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.1[efsdp]",
+              32,
+              6.190639,
+              0.205052
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for lm_head",
+              32,
+              5.940684,
+              0.200972
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.2[efsdp]",
+              32,
+              5.910695,
+              0.200382
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.4[efsdp]",
+              32,
+              5.841936,
+              0.194293
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.3[efsdp]",
+              32,
+              5.811415,
+              0.198242
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.5[efsdp]",
+              32,
+              5.782373,
+              0.247462
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.6[efsdp]",
+              32,
+              5.717285,
+              0.231973
+            ],
+            [
+              "user_annotation",
+              "GFSDP::forward_prefetch for layers.7[efsdp]",
+              32,
+              5.686123,
+              0.189042
+            ],
+            [
+              "user_annotation",
+              "GFSDP::backward_prefetch for layers.5[fsdp]",
+              32,
+              5.254401,
+              0.227583
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "topkernels",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT name,count(*) n,sum(dur)/1e6 sum_ms,avg(dur)/1e3 avg_us FROM slice WHERE category='kernel' GROUP BY name ORDER BY sum(dur) DESC LIMIT 45",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms",
+            "avg_us"
+          ],
+          "row_count": 45,
+          "returned_rows": 45,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              736,
+              1138.830235,
+              1547.3236888586955
+            ],
+            [
+              "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+              4608,
+              1133.806386,
+              246.05173307291665
+            ],
+            [
+              "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              384,
+              1041.403568,
+              2711.9884583333337
+            ],
+            [
+              "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+              256,
+              882.777529,
+              3448.34972265625
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+              640,
+              822.482046,
+              1285.128196875
+            ],
+            [
+              "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+              64,
+              718.119659,
+              11220.619671875
+            ],
+            [
+              "void hybrid_ep::combine_kernel<hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<4, 0>, hybrid_ep::warp_group<0, 4>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<0, 6>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<4, 0>, 2, 10, 2, 2, 2, 4, 64, 4096, 8192, 16, 8, 1, 16, 108, 1, 1, false>(hybrid_ep::combine_kernel_param_t)",
+              416,
+              544.417486,
+              1308.6958798076923
+            ],
+            [
+              "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+              1536,
+              444.777506,
+              289.56868880208333
+            ],
+            [
+              "void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)",
+              1312,
+              435.308739,
+              331.7901974085366
+            ],
+            [
+              "void deep_gemm::sm90_fp8_gemm_1d1d_impl<3072u, 4096u, 0u, 16u, 128u, 152u, 128u, 128u, 128u, 5u, 128u, 256u, 1u, false, 116u, (deep_gemm::GemmType)3, true, cutlass::bfloat16_t>(__nv_fp8_e4m3*, __nv_fp8_e4m3*, int*, CUtensorMap_st*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+              224,
+              408.736111,
+              1824.71478125
+            ],
+            [
+              "void hybrid_ep::combine_kernel<hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<4, 0>, hybrid_ep::warp_group<0, 4>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<0, 6>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<4, 0>, 2, 10, 2, 2, 2, 4, 64, 4096, 8192, 16, 8, 1, 16, 108, 1, 1, true>(hybrid_ep::combine_kernel_param_t)",
+              224,
+              331.117307,
+              1478.202263392857
+            ],
+            [
+              "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 3072u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+              256,
+              318.995093,
+              1246.07458203125
+            ],
+            [
+              "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, false>(int, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>)",
+              1146,
+              295.589217,
+              257.9312539267016
+            ],
+            [
+              "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 1536u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+              416,
+              293.880193,
+              706.4427716346154
+            ],
+            [
+              "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 3072u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+              224,
+              293.6566,
+              1310.9669642857143
+            ],
+            [
+              "void hybrid_ep::dispatch_kernel<unsigned char, hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, 10, 10, 8, 8, 128, 6, 64, 4096, 8192, 16, 8, 1, 16, 108, true>(hybrid_ep::dispatch_kernel_param_t<unsigned char>)",
+              416,
+              273.326691,
+              657.0353149038461
+            ],
+            [
+              "void deep_gemm::sm90_fp8_gemm_1d1d_impl<4096u, 1536u, 0u, 16u, 128u, 152u, 128u, 128u, 128u, 5u, 128u, 256u, 1u, false, 116u, (deep_gemm::GemmType)3, true, cutlass::bfloat16_t>(__nv_fp8_e4m3*, __nv_fp8_e4m3*, int*, CUtensorMap_st*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+              224,
+              218.421654,
+              975.0966696428571
+            ],
+            [
+              "cudnn_generated_fort_native_sdpa_sm90_flash_bprop_wgmma_f16_knob_2_64x64x192_1x4x1_cga1x1x1_kernel0_0",
+              96,
+              187.67877,
+              1954.9871875
+            ],
+            [
+              "_qkv_conv1d_unpack_kernel",
+              576,
+              184.480662,
+              320.2789270833333
+            ],
+            [
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+              2528,
+              178.078281,
+              70.44235799050632
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT",
+              448,
+              167.157157,
+              373.1186540178572
+            ],
+            [
+              "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+              1664,
+              157.744099,
+              94.79813641826924
+            ],
+            [
+              "requantize_grouped_kernel(unsigned char const*, float const*, int const*, int const*, unsigned char*, float*, int, int, long, long)",
+              896,
+              149.803747,
+              167.19168191964286
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              417,
+              147.806819,
+              354.45280335731417
+            ],
+            [
+              "void hybrid_ep::dispatch_kernel<unsigned char, hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, 10, 10, 8, 8, 128, 6, 64, 4096, 8192, 16, 8, 1, 16, 108, false>(hybrid_ep::dispatch_kernel_param_t<unsigned char>)",
+              224,
+              142.801236,
+              637.5055178571429
+            ],
+            [
+              "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 1536u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+              224,
+              142.318021,
+              635.3483080357144
+            ],
+            [
+              "cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0_0",
+              192,
+              135.033686,
+              703.3004479166666
+            ],
+            [
+              "_block_quantization_kernel",
+              832,
+              133.129966,
+              160.01197836538464
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              768,
+              123.317712,
+              160.5699375
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT",
+              320,
+              118.014398,
+              368.79499375
+            ],
+            [
+              "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+              2496,
+              109.455402,
+              43.85232451923076
+            ],
+            [
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+              1280,
+              109.263591,
+              85.36218046875
+            ],
+            [
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0",
+              1270,
+              107.859889,
+              84.92904645669292
+            ],
+            [
+              "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+              128,
+              102.886956,
+              803.80434375
+            ],
+            [
+              "chunk_fwd_kernel_o",
+              576,
+              102.091907,
+              177.2428940972222
+            ],
+            [
+              "void at::native::(anonymous namespace)::CatArrayBatchedCopy_vectorized<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 1, 128, 1, 16, 8>(char*, at::native::(anonymous namespace)::CatArrInputTensorMetadata<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 128, 1>, at::native::(anonymous namespace)::TensorSizeStride<unsigned int, 4u>, int, unsigned int)",
+              96,
+              95.512199,
+              994.9187395833334
+            ],
+            [
+              "kernel_kernel",
+              192,
+              93.326747,
+              486.0768072916667
+            ],
+            [
+              "_swiglu_quant_fwd_kernel",
+              448,
+              93.010666,
+              207.61309375
+            ],
+            [
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0",
+              2219,
+              91.904843,
+              41.4172343397927
+            ],
+            [
+              "triton_red_fused__log_softmax__to_copy_prepare_softmax_online_view_0",
+              128,
+              91.580353,
+              715.4715078125
+            ],
+            [
+              "sm80_xmma_gemm_f32f32_f32f32_f32_tn_n_tilesize128x128x8_stage3_warpsize2x2x1_ffma_aligna4_alignc4_execute_kernel__5x_cublas",
+              448,
+              83.750615,
+              186.9433370535714
+            ],
+            [
+              "recompute_w_u_fwd_kernel",
+              768,
+              79.186314,
+              103.1071796875
+            ],
+            [
+              "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+              2592,
+              77.494778,
+              29.897676697530862
+            ],
+            [
+              "_swiglu_quant_bwd_kernel",
+              224,
+              75.559718,
+              337.32016964285714
+            ],
+            [
+              "void at::native::unrolled_elementwise_kernel<at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, 4, TrivialOffsetCalculator<2, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<2>, at::native::memory::StoreWithCast<1> >(int, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, TrivialOffsetCalculator<2, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<2>, at::native::memory::StoreWithCast<1>)",
+              32,
+              73.551007,
+              2298.46896875
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "item_ancestors",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT p.name parent,g.name grandparent,gg.name ancestor,count(*) n,sum(s.dur)/1e6 sum_ms,max(s.dur)/1e6 max_ms FROM slice s LEFT JOIN slice p ON p.id=s.parent_id LEFT JOIN slice g ON g.id=p.parent_id LEFT JOIN slice gg ON gg.id=g.parent_id WHERE s.name='aten::item' GROUP BY 1,2,3 ORDER BY sum(s.dur) DESC LIMIT 18",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "parent",
+            "grandparent",
+            "ancestor",
+            "n",
+            "sum_ms",
+            "max_ms"
+          ],
+          "row_count": 9,
+          "returned_rows": 9,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              64,
+              3748.597338,
+              106.121968
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              96,
+              1155.943817,
+              15.870429
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph frdatkwn6tolp6hh3aslk3ujk46mplfobwzqcg5ra6e6zviuk4ow ##",
+              32,
+              538.024693,
+              17.818951
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph ftgivqdm7njytv5py4s2qlf4za6p22lplzjhqlmmdgkbe7nzvvmo ##",
+              32,
+              390.808995,
+              12.822995
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph fx5ejd3n3ugo6znkw2heniftdrk3bev7k2j77p7mlzkwplppwiob ##",
+              96,
+              312.458319,
+              4.200607
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph f77fdo33452eul5m7tfnstffobkw5uvdyha4g2zvxc7jxaat35zi ##",
+              64,
+              221.351389,
+              4.829394
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph f7mop6wjaruhbfm5mqsmf5tirhxn3qfd5jtqfejdogypopqmwiyg ##",
+              32,
+              147.75007,
+              7.812828
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph fk4ehgdsp3qa7tnexqm74grcai526o2kwepi57dgye7xpwkfdqv4 ##",
+              32,
+              108.607146,
+              3.53295
+            ],
+            [
+              "task.profile_update.11.train_step.rank0",
+              "ProfilerStep#10",
+              null,
+              6,
+              84.930631,
+              48.393717
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "top_gaps",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "WITH r AS(SELECT id,ts,ts+dur en,max(ts+dur)OVER(ORDER BY ts,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prevmax FROM slice WHERE category IN('kernel','gpu_memcpy','gpu_memset')AND dur>0),g AS(SELECT id,prevmax a,ts b FROM r WHERE ts>prevmax) SELECT g.a start_ns,g.b end_ns,(g.b-g.a)/1e6 gap_ms,s.name next_device,h.name launch,p.name parent,(h.ts-g.a)/1e6 launch_start_ms,(h.ts+h.dur-g.a)/1e6 launch_end_ms FROM g JOIN slice s USING(id)LEFT JOIN flow f ON f.slice_in=s.id LEFT JOIN slice h ON h.id=f.slice_out LEFT JOIN slice p ON p.id=h.parent_id ORDER BY gap_ms DESC LIMIT 12",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "start_ns",
+            "end_ns",
+            "gap_ms",
+            "next_device",
+            "launch",
+            "parent",
+            "launch_start_ms",
+            "launch_end_ms"
+          ],
+          "row_count": 12,
+          "returned_rows": 12,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              3708862829408598,
+              3708863801891397,
+              972.482799,
+              "Memcpy HtoD (Pageable -> Device)",
+              "cudaMemcpyAsync",
+              "aten::copy_",
+              972.44897,
+              972.4828
+            ],
+            [
+              3708874712920201,
+              3708874714644267,
+              1.724066,
+              "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 3072u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+              "cuLaunchKernelEx",
+              "## Call CompiledFxGraph f77fdo33452eul5m7tfnstffobkw5uvdyha4g2zvxc7jxaat35zi ##",
+              1.715333,
+              1.722544
+            ],
+            [
+              3708873809047122,
+              3708873809486612,
+              0.43949,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.407577,
+              0.440757
+            ],
+            [
+              3708867585862632,
+              3708867586286826,
+              0.424194,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.391766,
+              0.425357
+            ],
+            [
+              3708865501001559,
+              3708865501415032,
+              0.413473,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.381707,
+              0.414998
+            ],
+            [
+              3708864665089430,
+              3708864665501432,
+              0.412002,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.380393,
+              0.413184
+            ],
+            [
+              3708875054821135,
+              3708875055229873,
+              0.408738,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.377797,
+              0.410037
+            ],
+            [
+              3708868415462190,
+              3708868415868783,
+              0.406593,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.37494,
+              0.40827
+            ],
+            [
+              3708872565351384,
+              3708872565757177,
+              0.405793,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.373725,
+              0.407106
+            ],
+            [
+              3708867168318787,
+              3708867168722468,
+              0.403681,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.372064,
+              0.404635
+            ],
+            [
+              3708875882992251,
+              3708875883394909,
+              0.402658,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.371016,
+              0.404146
+            ],
+            [
+              3708865083039695,
+              3708865083442192,
+              0.402497,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.37087,
+              0.40349
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "kernel_hosts",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "WITH l AS(SELECT slice_in,min(slice_out) h FROM flow GROUP BY slice_in) SELECT g.name,p.name parent,q.name grandparent,count(*) n,sum(g.dur)/1e6 sum_ms FROM slice g JOIN l ON l.slice_in=g.id JOIN slice h ON h.id=l.h LEFT JOIN slice p ON p.id=h.parent_id LEFT JOIN slice q ON q.id=p.parent_id WHERE g.category='kernel' AND(g.name GLOB 'nvjet_sm90_tst*' OR g.name GLOB '*hybrid_ep*notify*')GROUP BY 1,2,3 ORDER BY sum(g.dur)DESC LIMIT 20",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "parent",
+            "grandparent",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 20,
+          "returned_rows": 20,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+              "aten::mm",
+              "aten::matmul",
+              64,
+              759.771613
+            ],
+            [
+              "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+              "aten::mm",
+              "MmBackward0",
+              64,
+              718.119659
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+              "aten::mm",
+              "MmBackward0",
+              64,
+              715.957502
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+              "aten::mm",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              256,
+              65.575004
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT",
+              "aten::mm",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              192,
+              60.426106
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT",
+              "aten::mm",
+              "## Call CompiledFxGraph faszywbeqlhy6l74pfngzucsxp75jfn6se4rf4riafwci3mbacwy ##",
+              128,
+              57.588292
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT",
+              "aten::mm",
+              "## Call CompiledFxGraph faszywbeqlhy6l74pfngzucsxp75jfn6se4rf4riafwci3mbacwy ##",
+              96,
+              56.025929
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT",
+              "aten::mm",
+              "## Call CompiledFxGraph fpvarvdtf353ysfwm5ixoiztsfwevhd7tjdgeeikou6mabglmvdq ##",
+              96,
+              45.758747
+            ],
+            [
+              "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+              "aten::mm",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              64,
+              39.977491
+            ],
+            [
+              "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+              "aten::mm",
+              "## Call CompiledFxGraph f77fdo33452eul5m7tfnstffobkw5uvdyha4g2zvxc7jxaat35zi ##",
+              64,
+              36.480707
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT",
+              "aten::mm",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              128,
+              36.401091
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+              "aten::mm",
+              "## Call CompiledFxGraph faszywbeqlhy6l74pfngzucsxp75jfn6se4rf4riafwci3mbacwy ##",
+              128,
+              35.945114
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT",
+              "aten::mm",
+              "## Call CompiledFxGraph f77fdo33452eul5m7tfnstffobkw5uvdyha4g2zvxc7jxaat35zi ##",
+              128,
+              28.97139
+            ],
+            [
+              "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NNT",
+              "aten::mm",
+              "## Call CompiledFxGraph faszywbeqlhy6l74pfngzucsxp75jfn6se4rf4riafwci3mbacwy ##",
+              32,
+              24.98521
+            ],
+            [
+              "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+              "aten::mm",
+              "## Call CompiledFxGraph faszywbeqlhy6l74pfngzucsxp75jfn6se4rf4riafwci3mbacwy ##",
+              32,
+              24.683063
+            ],
+            [
+              "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+              "aten::mm",
+              "## Call CompiledFxGraph fpvarvdtf353ysfwm5ixoiztsfwevhd7tjdgeeikou6mabglmvdq ##",
+              32,
+              21.864655
+            ],
+            [
+              "nvjet_sm90_tst_192x192_64x4_1x2_h_bz_coopB_TNN",
+              "aten::mm",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              64,
+              6.766774
+            ],
+            [
+              "nvjet_sm90_tst_192x192_64x4_1x2_h_bz_coopB_TNN",
+              "aten::mm",
+              "## Call CompiledFxGraph faszywbeqlhy6l74pfngzucsxp75jfn6se4rf4riafwci3mbacwy ##",
+              32,
+              3.749739
+            ],
+            [
+              "nvjet_sm90_tst_128x160_64x5_2x1_v_bz_NTT",
+              "aten::mm",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              64,
+              3.531434
+            ],
+            [
+              "nvjet_sm90_tst_64x64_64x13_1x2_h_bz_TNT",
+              "aten::mm",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              96,
+              3.355052
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "scope_union",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "WITH frame AS (SELECT ts a,ts+dur b FROM slice WHERE category='user_annotation' AND name='task.profile_update.11.train_step.rank0'),\ne AS (SELECT max(s.ts,a) ts,min(s.ts+s.dur,b) en,CASE WHEN category='kernel' AND name GLOB 'ncclDevKernel*' THEN 'nccl' WHEN category='kernel' AND instr(name,'hybrid_ep::')>0 THEN 'ep' WHEN category='kernel' THEN 'compute_other' ELSE category END fam FROM slice s,frame WHERE category IN ('kernel','gpu_memcpy','gpu_memset') AND dur>0 AND ts<b AND ts+dur>a),\np AS (SELECT ts t,fam,1 d FROM e UNION ALL SELECT en,fam,-1 FROM e UNION ALL SELECT a,'boundary',0 FROM frame UNION ALL SELECT b,'boundary',0 FROM frame),\na AS (SELECT t,sum(d) bd,sum(CASE WHEN fam='nccl' THEN d ELSE 0 END) nd,sum(CASE WHEN fam='ep' THEN d ELSE 0 END) ed,sum(CASE WHEN fam='compute_other' THEN d ELSE 0 END) cd,sum(CASE WHEN fam='gpu_memcpy' THEN d ELSE 0 END) md,sum(CASE WHEN fam='gpu_memset' THEN d ELSE 0 END) zd FROM p GROUP BY t),\nz AS (SELECT t,lead(t)OVER(ORDER BY t)-t dt,sum(bd)OVER(ORDER BY t) busy,sum(nd)OVER(ORDER BY t)n,sum(ed)OVER(ORDER BY t)ep,sum(cd)OVER(ORDER BY t)c,sum(md)OVER(ORDER BY t)m,sum(zd)OVER(ORDER BY t)memset FROM a)\nSELECT (SELECT(b-a)/1e6 FROM frame) frame_ms,sum(CASE WHEN busy>0 THEN dt ELSE 0 END)/1e6 busy_ms,sum(CASE WHEN busy=0 THEN dt ELSE 0 END)/1e6 idle_ms,sum(CASE WHEN c>0 THEN dt ELSE 0 END)/1e6 compute_other_ms,sum(CASE WHEN n>0 THEN dt ELSE 0 END)/1e6 nccl_ms,sum(CASE WHEN ep>0 THEN dt ELSE 0 END)/1e6 hybrid_ep_mixed_ms,sum(CASE WHEN m>0 THEN dt ELSE 0 END)/1e6 memcpy_ms,sum(CASE WHEN n>0 AND c=0 AND ep=0 AND m=0 AND memset=0 THEN dt ELSE 0 END)/1e6 nccl_exclusive_ms,sum(CASE WHEN(n>0 OR ep>0)AND c=0 THEN dt ELSE 0 END)/1e6 comm_without_compute_ms FROM z",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "frame_ms",
+            "busy_ms",
+            "idle_ms",
+            "compute_other_ms",
+            "nccl_ms",
+            "hybrid_ep_mixed_ms",
+            "memcpy_ms",
+            "nccl_exclusive_ms",
+            "comm_without_compute_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              14337.954319,
+              12911.142232,
+              1426.812087,
+              10769.873223,
+              2328.471823,
+              1327.828033,
+              191.583002,
+              723.334011,
+              2055.980664
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ce_and_attention",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT name,count(*) n,sum(dur)/1e6 sum_ms FROM slice WHERE category='kernel' AND(name GLOB '*log_softmax*' OR name GLOB '*nll_loss*' OR name GLOB '*cudnn*sdpa*' OR name GLOB '*delta*' OR name GLOB '*recompute_w*')GROUP BY name ORDER BY sum(dur)DESC LIMIT 25",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 9,
+          "returned_rows": 9,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "cudnn_generated_fort_native_sdpa_sm90_flash_bprop_wgmma_f16_knob_2_64x64x192_1x4x1_cga1x1x1_kernel0_0",
+              96,
+              187.67877
+            ],
+            [
+              "cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0_0",
+              192,
+              135.033686
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              768,
+              123.317712
+            ],
+            [
+              "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+              128,
+              102.886956
+            ],
+            [
+              "triton_red_fused__log_softmax__to_copy_prepare_softmax_online_view_0",
+              128,
+              91.580353
+            ],
+            [
+              "recompute_w_u_fwd_kernel",
+              768,
+              79.186314
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              576,
+              63.604292
+            ],
+            [
+              "chunk_gated_delta_rule_bwd_kernel_dhu_blockdim64",
+              192,
+              43.855998
+            ],
+            [
+              "triton_red_fused__log_softmax__to_copy_nll_loss_forward_view_1",
+              128,
+              0.752936
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "copies",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT name,count(*)n,sum(dur)/1e6 sum_ms,sum(CAST(EXTRACT_ARG(arg_set_id,'args.bytes') AS INT)) bytes FROM slice WHERE category='gpu_memcpy' GROUP BY name ORDER BY sum(dur)DESC",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms",
+            "bytes"
+          ],
+          "row_count": 5,
+          "returned_rows": 5,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "Memcpy DtoD (Device -> Device)",
+              1870,
+              189.697166,
+              281327725728
+            ],
+            [
+              "Memcpy DtoH (Device -> Pinned)",
+              454,
+              0.996068,
+              484
+            ],
+            [
+              "Memcpy HtoD (Pinned -> Device)",
+              416,
+              0.471274,
+              53248
+            ],
+            [
+              "Memcpy HtoD (Pageable -> Device)",
+              97,
+              0.41379,
+              5242888
+            ],
+            [
+              "Memcpy DtoH (Device -> Pageable)",
+              2,
+              0.004704,
+              68
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "loader_in_frame",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "WITH f AS(SELECT ts a,ts+dur b FROM slice WHERE category='user_annotation' AND name='task.profile_update.11.train_step.rank0') SELECT count(*) n,sum(s.dur)/1e6 host_sum_ms,min(s.ts-f.a)/1e6 first_ms,max(s.ts+s.dur-f.a)/1e6 last_ms,max(s.dur)/1e6 max_ms FROM slice s,f WHERE s.name GLOB 'enumerate(DataLoader)*' AND s.ts>=f.a AND s.ts+s.dur<=f.b",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "n",
+            "host_sum_ms",
+            "first_ms",
+            "last_ms",
+            "max_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              33,
+              959.38451,
+              0.412374,
+              972.113771,
+              786.874459
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "head_ancestry",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT g.id,g.name,p.name p,q.name q,r.name r,u.name u,v.name v,w.name w FROM slice g JOIN flow f ON f.slice_in=g.id JOIN slice h ON h.id=f.slice_out LEFT JOIN slice p ON p.id=h.parent_id LEFT JOIN slice q ON q.id=p.parent_id LEFT JOIN slice r ON r.id=q.parent_id LEFT JOIN slice u ON u.id=r.parent_id LEFT JOIN slice v ON v.id=u.parent_id LEFT JOIN slice w ON w.id=v.parent_id WHERE g.name='nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN' AND q.name='aten::matmul' LIMIT 1",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "id",
+            "name",
+            "p",
+            "q",
+            "r",
+            "u",
+            "v",
+            "w"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              7260,
+              "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+              "aten::mm",
+              "aten::matmul",
+              "aten::linear",
+              "task.profile_update.11.microbatch.rank0",
+              "task.profile_update.11.train_step.rank0",
+              "ProfilerStep#10"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "capacity_api",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT s.name,count(*) n,sum(s.dur)/1e6 host_sum_ms,sum(CASE WHEN s.name='cudaStreamSynchronize' THEN s.dur ELSE 0 END)/1e6 sync_ms FROM slice s LEFT JOIN slice p ON p.id=s.parent_id WHERE s.name='torchtitan::conditional_capacity_mask' OR(s.name='cudaStreamSynchronize' AND p.name='aten::_local_scalar_dense') GROUP BY s.name",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "host_sum_ms",
+            "sync_ms"
+          ],
+          "row_count": 2,
+          "returned_rows": 2,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "cudaStreamSynchronize",
+              454,
+              6695.645015,
+              6695.645015
+            ],
+            [
+              "torchtitan::conditional_capacity_mask",
+              448,
+              6656.0502,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "scope_union_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "WITH frame AS (SELECT ts a,ts+dur b FROM slice WHERE category='user_annotation' AND name='task.profile_update.11.train_step.rank0'),\ne AS (SELECT max(s.ts,a) ts,min(s.ts+s.dur,b) en,CASE WHEN category='kernel' AND name GLOB 'ncclDevKernel*' THEN 'nccl' WHEN category='kernel' AND instr(name,'hybrid_ep::')>0 THEN 'ep' WHEN category='kernel' THEN 'compute_other' ELSE category END fam FROM slice s,frame WHERE category IN ('kernel','gpu_memcpy','gpu_memset') AND dur>0 AND ts<b AND ts+dur>a),\np AS (SELECT ts t,fam,1 d FROM e UNION ALL SELECT en,fam,-1 FROM e UNION ALL SELECT a,'boundary',0 FROM frame UNION ALL SELECT b,'boundary',0 FROM frame),\na AS (SELECT t,sum(d) bd,sum(CASE WHEN fam='nccl' THEN d ELSE 0 END) nd,sum(CASE WHEN fam='ep' THEN d ELSE 0 END) ed,sum(CASE WHEN fam='compute_other' THEN d ELSE 0 END) cd,sum(CASE WHEN fam='gpu_memcpy' THEN d ELSE 0 END) md,sum(CASE WHEN fam='gpu_memset' THEN d ELSE 0 END) zd FROM p GROUP BY t),\nz AS (SELECT t,lead(t)OVER(ORDER BY t)-t dt,sum(bd)OVER(ORDER BY t) busy,sum(nd)OVER(ORDER BY t)n,sum(ed)OVER(ORDER BY t)ep,sum(cd)OVER(ORDER BY t)c,sum(md)OVER(ORDER BY t)m,sum(zd)OVER(ORDER BY t)memset FROM a)\nSELECT (SELECT(b-a)/1e6 FROM frame) frame_ms,sum(CASE WHEN busy>0 THEN dt ELSE 0 END)/1e6 busy_ms,sum(CASE WHEN busy=0 THEN dt ELSE 0 END)/1e6 idle_ms,sum(CASE WHEN c>0 THEN dt ELSE 0 END)/1e6 compute_other_ms,sum(CASE WHEN n>0 THEN dt ELSE 0 END)/1e6 nccl_ms,sum(CASE WHEN ep>0 THEN dt ELSE 0 END)/1e6 hybrid_ep_mixed_ms,sum(CASE WHEN m>0 THEN dt ELSE 0 END)/1e6 memcpy_ms,sum(CASE WHEN n>0 AND c=0 AND ep=0 AND m=0 AND memset=0 THEN dt ELSE 0 END)/1e6 nccl_exclusive_ms,sum(CASE WHEN(n>0 OR ep>0)AND c=0 THEN dt ELSE 0 END)/1e6 comm_without_compute_ms FROM z",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "frame_ms",
+            "busy_ms",
+            "idle_ms",
+            "compute_other_ms",
+            "nccl_ms",
+            "hybrid_ep_mixed_ms",
+            "memcpy_ms",
+            "nccl_exclusive_ms",
+            "comm_without_compute_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              14337.954319,
+              12911.142232,
+              1426.812087,
+              10769.873223,
+              2328.471823,
+              1327.828033,
+              191.583002,
+              723.334011,
+              2055.980664
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "integrity_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "SELECT category,count(*) n,sum(dur)/1e6 sum_ms,sum(CASE WHEN dur<0 THEN 1 ELSE 0 END) incomplete,min(ts) first_ns,max(ts+dur) last_ns FROM slice GROUP BY category ORDER BY n DESC",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms",
+            "incomplete",
+            "first_ns",
+            "last_ns"
+          ],
+          "row_count": 10,
+          "returned_rows": 10,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "cpu_op",
+              410349,
+              70349.594887,
+              0,
+              3708862829375722,
+              3708877164581900
+            ],
+            [
+              "cuda_runtime",
+              126938,
+              8109.404773,
+              0,
+              3708862829392122,
+              3708877213866807
+            ],
+            [
+              "kernel",
+              94019,
+              14597.163096,
+              0,
+              3708862829407605,
+              3708877164539159
+            ],
+            [
+              "cuda_driver",
+              44588,
+              259.491019,
+              0,
+              3708863802256732,
+              3708877164432389
+            ],
+            [
+              "user_annotation",
+              11119,
+              42986.27113,
+              0,
+              3708862828905676,
+              3708877167450553
+            ],
+            [
+              "gpu_memset",
+              9184,
+              10.295457,
+              0,
+              3708863844826492,
+              3708877119321497
+            ],
+            [
+              "gpu_memcpy",
+              2839,
+              191.583002,
+              0,
+              3708863801891397,
+              3708877164576887
+            ],
+            [
+              "overhead",
+              26,
+              25.696201,
+              0,
+              3708864207540600,
+              3708876099809152
+            ],
+            [
+              null,
+              2,
+              0,
+              0,
+              3708862828462800,
+              3708877528136316
+            ],
+            [
+              "Trace",
+              1,
+              14339.134462,
+              0,
+              3708862828462800,
+              3708877167597262
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "capacity_sync_context_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "WITH c AS(SELECT id,ts,ts+dur en,dur FROM slice WHERE name='torchtitan::conditional_capacity_mask')\nSELECT count(DISTINCT c.id) predicate_n,sum(s.dur)/1e6 nested_sync_ms,count(s.id) sync_n FROM c JOIN slice s ON s.ts>=c.ts AND s.ts+s.dur<=c.en WHERE s.name='cudaStreamSynchronize'",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "predicate_n",
+            "nested_sync_ms",
+            "sync_n"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              448,
+              6611.222591,
+              448
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "kernel_families_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "SELECT CASE WHEN name GLOB 'ncclDevKernel*AllGather*' THEN 'NCCL AllGather' WHEN name GLOB 'ncclDevKernel*ReduceScatter*' THEN 'NCCL ReduceScatter' WHEN name GLOB 'ncclDevKernel*' THEN 'NCCL other' WHEN instr(name,'hybrid_ep::dispatch_kernel')>0 THEN 'HybridEP dispatch mixed' WHEN instr(name,'hybrid_ep::combine_kernel')>0 THEN 'HybridEP combine mixed' WHEN instr(name,'hybrid_ep::')>0 THEN 'HybridEP other mixed' WHEN instr(name,'deep_gemm::')>0 THEN 'DeepGEMM' WHEN name GLOB 'nvjet*' THEN 'nvjet GEMM' WHEN name GLOB '*log_softmax*' THEN 'CE' WHEN name GLOB '*quant*' THEN 'quantization' WHEN name GLOB '*cudnn*sdpa*' THEN 'cuDNN SDPA' WHEN name GLOB '*cutlass*norm*' THEN 'CuTe norms' ELSE 'other compute/unknown' END family,count(*) n,sum(dur)/1e6 sum_ms FROM slice WHERE category='kernel' GROUP BY 1 ORDER BY sum(dur)DESC",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "family",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 13,
+          "returned_rows": 13,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "nvjet GEMM",
+              8768,
+              4353.037573
+            ],
+            [
+              "other compute/unknown",
+              51452,
+              3102.961152
+            ],
+            [
+              "DeepGEMM",
+              2688,
+              1683.974719
+            ],
+            [
+              "NCCL AllGather",
+              736,
+              1138.830235
+            ],
+            [
+              "NCCL ReduceScatter",
+              384,
+              1041.403568
+            ],
+            [
+              "HybridEP combine mixed",
+              640,
+              875.534793
+            ],
+            [
+              "quantization",
+              11392,
+              759.009958
+            ],
+            [
+              "CuTe norms",
+              13247,
+              523.947137
+            ],
+            [
+              "HybridEP dispatch mixed",
+              640,
+              416.127927
+            ],
+            [
+              "cuDNN SDPA",
+              288,
+              322.712456
+            ],
+            [
+              "CE",
+              384,
+              195.220245
+            ],
+            [
+              "NCCL other",
+              424,
+              148.23802
+            ],
+            [
+              "HybridEP other mixed",
+              2976,
+              36.165313
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "copies_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "SELECT name,count(*)n,sum(dur)/1e6 sum_ms,sum(CAST(EXTRACT_ARG(arg_set_id,'args.bytes') AS INT)) bytes FROM slice WHERE category='gpu_memcpy' GROUP BY name ORDER BY sum(dur)DESC",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms",
+            "bytes"
+          ],
+          "row_count": 5,
+          "returned_rows": 5,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "Memcpy DtoD (Device -> Device)",
+              1870,
+              189.697166,
+              281327725728
+            ],
+            [
+              "Memcpy DtoH (Device -> Pinned)",
+              454,
+              0.996068,
+              484
+            ],
+            [
+              "Memcpy HtoD (Pinned -> Device)",
+              416,
+              0.471274,
+              53248
+            ],
+            [
+              "Memcpy HtoD (Pageable -> Device)",
+              97,
+              0.41379,
+              5242888
+            ],
+            [
+              "Memcpy DtoH (Device -> Pageable)",
+              2,
+              0.004704,
+              68
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ce_and_attention_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "SELECT name,count(*) n,sum(dur)/1e6 sum_ms FROM slice WHERE category='kernel' AND(name GLOB '*log_softmax*' OR name GLOB '*nll_loss*' OR name GLOB '*cudnn*sdpa*' OR name GLOB '*delta*' OR name GLOB '*recompute_w*')GROUP BY name ORDER BY sum(dur)DESC LIMIT 25",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 9,
+          "returned_rows": 9,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "cudnn_generated_fort_native_sdpa_sm90_flash_bprop_wgmma_f16_knob_2_64x64x192_1x4x1_cga1x1x1_kernel0_0",
+              96,
+              187.67877
+            ],
+            [
+              "cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0_0",
+              192,
+              135.033686
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              768,
+              123.317712
+            ],
+            [
+              "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+              128,
+              102.886956
+            ],
+            [
+              "triton_red_fused__log_softmax__to_copy_prepare_softmax_online_view_0",
+              128,
+              91.580353
+            ],
+            [
+              "recompute_w_u_fwd_kernel",
+              768,
+              79.186314
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              576,
+              63.604292
+            ],
+            [
+              "chunk_gated_delta_rule_bwd_kernel_dhu_blockdim64",
+              192,
+              43.855998
+            ],
+            [
+              "triton_red_fused__log_softmax__to_copy_nll_loss_forward_view_1",
+              128,
+              0.752936
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "item_ancestors_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "SELECT p.name parent,g.name grandparent,gg.name ancestor,count(*) n,sum(s.dur)/1e6 sum_ms,max(s.dur)/1e6 max_ms FROM slice s LEFT JOIN slice p ON p.id=s.parent_id LEFT JOIN slice g ON g.id=p.parent_id LEFT JOIN slice gg ON gg.id=g.parent_id WHERE s.name='aten::item' GROUP BY 1,2,3 ORDER BY sum(s.dur) DESC LIMIT 18",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "parent",
+            "grandparent",
+            "ancestor",
+            "n",
+            "sum_ms",
+            "max_ms"
+          ],
+          "row_count": 9,
+          "returned_rows": 9,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              64,
+              3748.597338,
+              106.121968
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              96,
+              1155.943817,
+              15.870429
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph frdatkwn6tolp6hh3aslk3ujk46mplfobwzqcg5ra6e6zviuk4ow ##",
+              32,
+              538.024693,
+              17.818951
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph ftgivqdm7njytv5py4s2qlf4za6p22lplzjhqlmmdgkbe7nzvvmo ##",
+              32,
+              390.808995,
+              12.822995
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph fx5ejd3n3ugo6znkw2heniftdrk3bev7k2j77p7mlzkwplppwiob ##",
+              96,
+              312.458319,
+              4.200607
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph f77fdo33452eul5m7tfnstffobkw5uvdyha4g2zvxc7jxaat35zi ##",
+              64,
+              221.351389,
+              4.829394
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph f7mop6wjaruhbfm5mqsmf5tirhxn3qfd5jtqfejdogypopqmwiyg ##",
+              32,
+              147.75007,
+              7.812828
+            ],
+            [
+              "aten::is_nonzero",
+              "torchtitan::conditional_capacity_mask",
+              "## Call CompiledFxGraph fk4ehgdsp3qa7tnexqm74grcai526o2kwepi57dgye7xpwkfdqv4 ##",
+              32,
+              108.607146,
+              3.53295
+            ],
+            [
+              "task.profile_update.11.train_step.rank0",
+              "ProfilerStep#10",
+              null,
+              6,
+              84.930631,
+              48.393717
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "loader_in_frame_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "WITH f AS(SELECT ts a,ts+dur b FROM slice WHERE category='user_annotation' AND name='task.profile_update.11.train_step.rank0') SELECT count(*) n,sum(s.dur)/1e6 host_sum_ms,min(s.ts-f.a)/1e6 first_ms,max(s.ts+s.dur-f.a)/1e6 last_ms,max(s.dur)/1e6 max_ms FROM slice s,f WHERE s.name GLOB 'enumerate(DataLoader)*' AND s.ts>=f.a AND s.ts+s.dur<=f.b",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "n",
+            "host_sum_ms",
+            "first_ms",
+            "last_ms",
+            "max_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              33,
+              959.38451,
+              0.412374,
+              972.113771,
+              786.874459
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "markers_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "SELECT category,name,count(*) n,min(ts) start_ns,max(ts+dur) end_ns,sum(dur)/1e6 sum_ms FROM slice WHERE name GLOB 'task.profile_update.*' OR name GLOB 'ProfilerStep*' GROUP BY 1,2",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "name",
+            "n",
+            "start_ns",
+            "end_ns",
+            "sum_ms"
+          ],
+          "row_count": 4,
+          "returned_rows": 4,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "user_annotation",
+              "ProfilerStep#10",
+              1,
+              3708862828905676,
+              3708877167450553,
+              14338.544877
+            ],
+            [
+              "user_annotation",
+              "task.profile_update.11.microbatch.rank0",
+              32,
+              3708863838920006,
+              3708877099201832,
+              12351.78158
+            ],
+            [
+              "user_annotation",
+              "task.profile_update.11.optimizer_step.rank0",
+              1,
+              3708877111431180,
+              3708877113154199,
+              1.723019
+            ],
+            [
+              "user_annotation",
+              "task.profile_update.11.train_step.rank0",
+              1,
+              3708862829197270,
+              3708877167151589,
+              14337.954319
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stats_complete",
+      "trace_id": "trace_cee2983a842c428a",
+      "sql": "SELECT name,severity,value FROM stats WHERE value!=0 AND severity IN('error','data_loss')",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "severity",
+            "value"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "slice_drop_overlapping_complete_event",
+              "error",
+              417
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "r1_capacity",
+      "trace_id": "trace_d64072c4a30ae977",
+      "sql": "SELECT count(*) n,sum(s.dur)/1e6 host_sum_ms FROM slice s WHERE name='torchtitan::conditional_capacity_mask'",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "n",
+            "host_sum_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              448,
+              6612.258182
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "r1_ce",
+      "trace_id": "trace_d64072c4a30ae977",
+      "sql": "SELECT name,count(*) n,sum(dur)/1e6 sum_ms FROM slice WHERE category='kernel'AND name GLOB '*log_softmax*'GROUP BY name",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "returned_rows": 3,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0",
+              128,
+              103.715267
+            ],
+            [
+              "triton_red_fused__log_softmax__to_copy_nll_loss_forward_view_1",
+              128,
+              0.757382
+            ],
+            [
+              "triton_red_fused__log_softmax__to_copy_prepare_softmax_online_view_0",
+              128,
+              93.224008
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "r1_frame",
+      "trace_id": "trace_d64072c4a30ae977",
+      "sql": "SELECT name,count(*) n,min(ts)start_ns,max(ts+dur)end_ns,sum(dur)/1e6 sum_ms FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*'GROUP BY name",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "start_ns",
+            "end_ns",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "returned_rows": 3,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "task.profile_update.11.microbatch.rank1",
+              32,
+              3708863839125746,
+              3708877099189219,
+              12351.157122
+            ],
+            [
+              "task.profile_update.11.optimizer_step.rank1",
+              1,
+              3708877111125274,
+              3708877112695511,
+              1.570237
+            ],
+            [
+              "task.profile_update.11.train_step.rank1",
+              1,
+              3708862828390448,
+              3708877166096595,
+              14337.706147
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "r1_integrity",
+      "trace_id": "trace_d64072c4a30ae977",
+      "sql": "SELECT name,severity,value FROM stats WHERE value!=0 AND severity IN('error','data_loss')",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "severity",
+            "value"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "slice_drop_overlapping_complete_event",
+              "error",
+              537
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "r1_loader",
+      "trace_id": "trace_d64072c4a30ae977",
+      "sql": "SELECT count(*) n,sum(dur)/1e6 sum_ms,max(dur)/1e6 max_ms FROM slice WHERE category='user_annotation' AND name GLOB 'enumerate(DataLoader)*'",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "n",
+            "sum_ms",
+            "max_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              33,
+              838.785096,
+              685.991199
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "loader_calls",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT row_number()OVER(ORDER BY ts) call,(ts-(SELECT ts FROM slice WHERE category='user_annotation'AND name='task.profile_update.11.train_step.rank0'))/1e6 rel_ms,dur/1e6 dur_ms FROM slice WHERE category='user_annotation'AND name GLOB 'enumerate(DataLoader)*'ORDER BY ts",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "call",
+            "rel_ms",
+            "dur_ms"
+          ],
+          "row_count": 33,
+          "returned_rows": 33,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              1,
+              0.412374,
+              0.036341
+            ],
+            [
+              2,
+              0.87672,
+              1.104252
+            ],
+            [
+              3,
+              2.228035,
+              1.419216
+            ],
+            [
+              4,
+              3.871994,
+              0.03055
+            ],
+            [
+              5,
+              4.104456,
+              13.107378
+            ],
+            [
+              6,
+              17.630809,
+              12.654573
+            ],
+            [
+              7,
+              30.550955,
+              0.0225
+            ],
+            [
+              8,
+              30.779287,
+              2.098484
+            ],
+            [
+              9,
+              33.380877,
+              21.019757
+            ],
+            [
+              10,
+              54.950031,
+              0.02463
+            ],
+            [
+              11,
+              55.473346,
+              20.103478
+            ],
+            [
+              12,
+              76.094229,
+              0.023801
+            ],
+            [
+              13,
+              76.505664,
+              0.982811
+            ],
+            [
+              14,
+              77.708938,
+              0.02108
+            ],
+            [
+              15,
+              77.91377,
+              12.179808
+            ],
+            [
+              16,
+              90.33619,
+              0.021081
+            ],
+            [
+              17,
+              90.543523,
+              0.04625
+            ],
+            [
+              18,
+              90.966047,
+              786.874459
+            ],
+            [
+              19,
+              878.751177,
+              45.233711
+            ],
+            [
+              20,
+              924.416953,
+              0.03119
+            ],
+            [
+              21,
+              924.928338,
+              3.51959
+            ],
+            [
+              22,
+              928.681621,
+              0.02157
+            ],
+            [
+              23,
+              928.908643,
+              3.902644
+            ],
+            [
+              24,
+              933.296903,
+              1.048772
+            ],
+            [
+              25,
+              934.762119,
+              1.527308
+            ],
+            [
+              26,
+              936.715381,
+              11.375159
+            ],
+            [
+              27,
+              948.778948,
+              0.03071
+            ],
+            [
+              28,
+              949.286883,
+              2.945724
+            ],
+            [
+              29,
+              952.734492,
+              1.436257
+            ],
+            [
+              30,
+              954.636324,
+              12.348889
+            ],
+            [
+              31,
+              967.475169,
+              0.02204
+            ],
+            [
+              32,
+              967.695071,
+              4.149747
+            ],
+            [
+              33,
+              972.093021,
+              0.02075
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gfsdp_gathers",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "SELECT name,count(*) n,sum(dur)/1e6 host_ms FROM slice WHERE category='user_annotation'AND name GLOB 'GFSDP::all_gather*'GROUP BY name ORDER BY name",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "host_ms"
+          ],
+          "row_count": 19,
+          "returned_rows": 19,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "GFSDP::all_gather (layers.0)",
+              64,
+              9.983402
+            ],
+            [
+              "GFSDP::all_gather (layers.1[efsdp])",
+              64,
+              9.760341
+            ],
+            [
+              "GFSDP::all_gather (layers.1[fsdp])",
+              64,
+              10.357603
+            ],
+            [
+              "GFSDP::all_gather (layers.2[efsdp])",
+              64,
+              9.355863
+            ],
+            [
+              "GFSDP::all_gather (layers.2[fsdp])",
+              64,
+              10.398765
+            ],
+            [
+              "GFSDP::all_gather (layers.3[efsdp])",
+              64,
+              9.3976
+            ],
+            [
+              "GFSDP::all_gather (layers.3[fsdp])",
+              64,
+              10.667836
+            ],
+            [
+              "GFSDP::all_gather (layers.4[efsdp])",
+              64,
+              9.396479
+            ],
+            [
+              "GFSDP::all_gather (layers.4[fsdp])",
+              64,
+              10.574179
+            ],
+            [
+              "GFSDP::all_gather (layers.5[efsdp])",
+              64,
+              9.545861
+            ],
+            [
+              "GFSDP::all_gather (layers.5[fsdp])",
+              64,
+              10.858702
+            ],
+            [
+              "GFSDP::all_gather (layers.6[efsdp])",
+              64,
+              9.152035
+            ],
+            [
+              "GFSDP::all_gather (layers.6[fsdp])",
+              64,
+              10.387557
+            ],
+            [
+              "GFSDP::all_gather (layers.7[efsdp])",
+              64,
+              9.524726
+            ],
+            [
+              "GFSDP::all_gather (layers.7[fsdp])",
+              64,
+              10.477282
+            ],
+            [
+              "GFSDP::all_gather (lm_head)",
+              32,
+              5.325501
+            ],
+            [
+              "GFSDP::all_gather (mtp.layers.0)",
+              64,
+              13.565932
+            ],
+            [
+              "GFSDP::all_gather (norm)",
+              64,
+              10.257027
+            ],
+            [
+              "GFSDP::all_gather (tok_embeddings)",
+              64,
+              13.946583
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "capacity_idle_overlap",
+      "trace_id": "trace_6d2ec67f96a83162",
+      "sql": "WITH d AS(SELECT ts,ts+dur en,max(ts+dur)OVER(ORDER BY ts,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prevmax FROM slice WHERE category IN('kernel','gpu_memcpy','gpu_memset')AND dur>0),g AS(SELECT prevmax a,ts b FROM d WHERE ts>prevmax),c AS(SELECT ts a,ts+dur b FROM slice WHERE name='torchtitan::conditional_capacity_mask') SELECT count(*) intersecting_gap_predicate_pairs,sum(min(c.b,g.b)-max(c.a,g.a))/1e6 gpu_idle_inside_capacity_ms FROM c JOIN g ON g.a<c.b AND g.b>c.a",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "intersecting_gap_predicate_pairs",
+            "gpu_idle_inside_capacity_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              33114,
+              92.242207
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stats_lanes",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT name,severity,value FROM stats WHERE value!=0 AND severity IN('error','data_loss')",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "severity",
+            "value"
+          ],
+          "row_count": 0,
+          "returned_rows": 0,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": []
+        }
+      ]
+    },
+    {
+      "name": "integrity_lanes",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT category,count(*) n,sum(dur)/1e6 sum_ms,sum(CASE WHEN dur<0 THEN 1 ELSE 0 END) incomplete,min(ts) first_ns,max(ts+dur) last_ns FROM slice GROUP BY category ORDER BY n DESC",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms",
+            "incomplete",
+            "first_ns",
+            "last_ns"
+          ],
+          "row_count": 10,
+          "returned_rows": 10,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "cpu_op",
+              410349,
+              70349.594887,
+              0,
+              3708862829375722,
+              3708877164581900
+            ],
+            [
+              "cuda_runtime",
+              126938,
+              8109.404773,
+              0,
+              3708862829392122,
+              3708877213866807
+            ],
+            [
+              "kernel",
+              94436,
+              14619.40257,
+              0,
+              3708862829407605,
+              3708877164539159
+            ],
+            [
+              "cuda_driver",
+              44588,
+              259.491019,
+              0,
+              3708863802256732,
+              3708877164432389
+            ],
+            [
+              "user_annotation",
+              11119,
+              42986.27113,
+              0,
+              3708862828905676,
+              3708877167450553
+            ],
+            [
+              "gpu_memset",
+              9184,
+              10.295457,
+              0,
+              3708863844826492,
+              3708877119321497
+            ],
+            [
+              "gpu_memcpy",
+              2839,
+              191.583002,
+              0,
+              3708863801891397,
+              3708877164576887
+            ],
+            [
+              "overhead",
+              26,
+              25.696201,
+              0,
+              3708864207540600,
+              3708876099809152
+            ],
+            [
+              null,
+              2,
+              0,
+              0,
+              3708862828462800,
+              3708877528136316
+            ],
+            [
+              "Trace",
+              1,
+              14339.134462,
+              0,
+              3708862828462800,
+              3708877167597262
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "kernel_families_lanes",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT CASE WHEN name GLOB 'ncclDevKernel*AllGather*' THEN 'NCCL AllGather' WHEN name GLOB 'ncclDevKernel*ReduceScatter*' THEN 'NCCL ReduceScatter' WHEN name GLOB 'ncclDevKernel*' THEN 'NCCL other' WHEN instr(name,'hybrid_ep::dispatch_kernel')>0 THEN 'HybridEP dispatch mixed' WHEN instr(name,'hybrid_ep::combine_kernel')>0 THEN 'HybridEP combine mixed' WHEN instr(name,'hybrid_ep::')>0 THEN 'HybridEP other mixed' WHEN instr(name,'deep_gemm::')>0 THEN 'DeepGEMM' WHEN name GLOB 'nvjet*' THEN 'nvjet GEMM' WHEN name GLOB '*log_softmax*' THEN 'CE' WHEN name GLOB '*quant*' THEN 'quantization' WHEN name GLOB '*cudnn*sdpa*' THEN 'cuDNN SDPA' WHEN name GLOB '*cutlass*norm*' THEN 'CuTe norms' ELSE 'other compute/unknown' END family,count(*) n,sum(dur)/1e6 sum_ms FROM slice WHERE category='kernel' GROUP BY 1 ORDER BY sum(dur)DESC",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "family",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 13,
+          "returned_rows": 13,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "nvjet GEMM",
+              8768,
+              4353.037573
+            ],
+            [
+              "other compute/unknown",
+              51452,
+              3102.961152
+            ],
+            [
+              "DeepGEMM",
+              2688,
+              1683.974719
+            ],
+            [
+              "NCCL AllGather",
+              736,
+              1138.830235
+            ],
+            [
+              "NCCL ReduceScatter",
+              384,
+              1041.403568
+            ],
+            [
+              "HybridEP combine mixed",
+              640,
+              875.534793
+            ],
+            [
+              "quantization",
+              11392,
+              759.009958
+            ],
+            [
+              "CuTe norms",
+              13664,
+              546.186611
+            ],
+            [
+              "HybridEP dispatch mixed",
+              640,
+              416.127927
+            ],
+            [
+              "cuDNN SDPA",
+              288,
+              322.712456
+            ],
+            [
+              "CE",
+              384,
+              195.220245
+            ],
+            [
+              "NCCL other",
+              424,
+              148.23802
+            ],
+            [
+              "HybridEP other mixed",
+              2976,
+              36.165313
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "scope_union_lanes",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH frame AS (SELECT ts a,ts+dur b FROM slice WHERE category='user_annotation' AND name='task.profile_update.11.train_step.rank0'),\ne AS (SELECT max(s.ts,a) ts,min(s.ts+s.dur,b) en,CASE WHEN category='kernel' AND name GLOB 'ncclDevKernel*' THEN 'nccl' WHEN category='kernel' AND instr(name,'hybrid_ep::')>0 THEN 'ep' WHEN category='kernel' THEN 'compute_other' ELSE category END fam FROM slice s,frame WHERE category IN ('kernel','gpu_memcpy','gpu_memset') AND dur>0 AND ts<b AND ts+dur>a),\np AS (SELECT ts t,fam,1 d FROM e UNION ALL SELECT en,fam,-1 FROM e UNION ALL SELECT a,'boundary',0 FROM frame UNION ALL SELECT b,'boundary',0 FROM frame),\na AS (SELECT t,sum(d) bd,sum(CASE WHEN fam='nccl' THEN d ELSE 0 END) nd,sum(CASE WHEN fam='ep' THEN d ELSE 0 END) ed,sum(CASE WHEN fam='compute_other' THEN d ELSE 0 END) cd,sum(CASE WHEN fam='gpu_memcpy' THEN d ELSE 0 END) md,sum(CASE WHEN fam='gpu_memset' THEN d ELSE 0 END) zd FROM p GROUP BY t),\nz AS (SELECT t,lead(t)OVER(ORDER BY t)-t dt,sum(bd)OVER(ORDER BY t) busy,sum(nd)OVER(ORDER BY t)n,sum(ed)OVER(ORDER BY t)ep,sum(cd)OVER(ORDER BY t)c,sum(md)OVER(ORDER BY t)m,sum(zd)OVER(ORDER BY t)memset FROM a)\nSELECT (SELECT(b-a)/1e6 FROM frame) frame_ms,sum(CASE WHEN busy>0 THEN dt ELSE 0 END)/1e6 busy_ms,sum(CASE WHEN busy=0 THEN dt ELSE 0 END)/1e6 idle_ms,sum(CASE WHEN c>0 THEN dt ELSE 0 END)/1e6 compute_other_ms,sum(CASE WHEN n>0 THEN dt ELSE 0 END)/1e6 nccl_ms,sum(CASE WHEN ep>0 THEN dt ELSE 0 END)/1e6 hybrid_ep_mixed_ms,sum(CASE WHEN m>0 THEN dt ELSE 0 END)/1e6 memcpy_ms,sum(CASE WHEN n>0 AND c=0 AND ep=0 AND m=0 AND memset=0 THEN dt ELSE 0 END)/1e6 nccl_exclusive_ms,sum(CASE WHEN(n>0 OR ep>0)AND c=0 THEN dt ELSE 0 END)/1e6 comm_without_compute_ms FROM z",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "frame_ms",
+            "busy_ms",
+            "idle_ms",
+            "compute_other_ms",
+            "nccl_ms",
+            "hybrid_ep_mixed_ms",
+            "memcpy_ms",
+            "nccl_exclusive_ms",
+            "comm_without_compute_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              14337.954319,
+              12911.264472,
+              1426.689847,
+              10791.649873,
+              2328.471823,
+              1327.828033,
+              191.583002,
+              701.699089,
+              2034.345742
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "flow_coverage_lanes",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT g.category,count(DISTINCT g.id)n FROM slice g JOIN flow f ON f.slice_in=g.id JOIN slice h ON h.id=f.slice_out WHERE g.category IN('kernel','gpu_memcpy','gpu_memset')AND h.category IN('cuda_runtime','cuda_driver')GROUP BY g.category",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n"
+          ],
+          "row_count": 3,
+          "returned_rows": 3,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "gpu_memcpy",
+              2839
+            ],
+            [
+              "gpu_memset",
+              9184
+            ],
+            [
+              "kernel",
+              94436
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "queue_by_stream",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH g AS(SELECT id,category,ts,dur,CAST(EXTRACT_ARG(arg_set_id,'args.stream')AS INT)stream FROM slice WHERE category IN('kernel','gpu_memcpy','gpu_memset')),p AS(SELECT *,max(ts+dur)OVER(PARTITION BY stream ORDER BY ts,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)prev_end FROM g),l AS(SELECT f.slice_in id,min(h.ts)launch_start,max(h.ts+h.dur)launch_end,count(*)links FROM flow f JOIN slice h ON h.id=f.slice_out WHERE h.category IN('cuda_runtime','cuda_driver')GROUP BY f.slice_in) SELECT stream,category,count(*)n,sum(CASE WHEN launch_end<=prev_end THEN 1 ELSE 0 END)already_queued_n,sum(CASE WHEN launch_start>prev_end THEN 1 ELSE 0 END)late_launch_n,sum(CASE WHEN links>1 THEN 1 ELSE 0 END)multiple_flows_n FROM p JOIN l USING(id)GROUP BY stream,category ORDER BY stream,category",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "stream",
+            "category",
+            "n",
+            "already_queued_n",
+            "late_launch_n",
+            "multiple_flows_n"
+          ],
+          "row_count": 6,
+          "returned_rows": 6,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              7,
+              "gpu_memcpy",
+              2384,
+              1410,
+              974,
+              0
+            ],
+            [
+              7,
+              "gpu_memset",
+              9184,
+              9184,
+              0,
+              0
+            ],
+            [
+              7,
+              "kernel",
+              91696,
+              84398,
+              6891,
+              0
+            ],
+            [
+              23,
+              "kernel",
+              423,
+              1,
+              421,
+              0
+            ],
+            [
+              24,
+              "gpu_memcpy",
+              455,
+              448,
+              7,
+              0
+            ],
+            [
+              24,
+              "kernel",
+              2317,
+              1778,
+              537,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "exposed_communication",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH f AS(SELECT ts a,ts+dur b FROM slice WHERE category='user_annotation'AND name='task.profile_update.11.train_step.rank0'),\ne AS(SELECT ts,ts+dur en,CASE WHEN name GLOB 'ncclDevKernel*AllGather*'THEN'ag'WHEN name GLOB 'ncclDevKernel*ReduceScatter*'THEN'rs'WHEN name GLOB 'ncclDevKernel*'THEN'ar'WHEN name GLOB '*hybrid_ep::*'THEN'ep'ELSE'other'END fam FROM slice,f WHERE category IN('kernel','gpu_memcpy','gpu_memset')AND dur>0 AND ts>=a AND ts+dur<=b),\np AS(SELECT ts t,fam,1 d FROM e UNION ALL SELECT en,fam,-1 FROM e),\na AS(SELECT t,sum(CASE WHEN fam='ag'THEN d ELSE 0 END)da,sum(CASE WHEN fam='rs'THEN d ELSE 0 END)dr,sum(CASE WHEN fam='ar'THEN d ELSE 0 END)dn,sum(CASE WHEN fam='ep'THEN d ELSE 0 END)de,sum(CASE WHEN fam='other'THEN d ELSE 0 END)do FROM p GROUP BY t),\nz AS(SELECT t,lead(t)OVER(ORDER BY t)-t dt,sum(da)OVER(ORDER BY t)ag,sum(dr)OVER(ORDER BY t)rs,sum(dn)OVER(ORDER BY t)ar,sum(de)OVER(ORDER BY t)ep,sum(do)OVER(ORDER BY t)o FROM a)\nSELECT sum(CASE WHEN ag>0 AND o=0 AND ep=0 THEN dt ELSE 0 END)/1e6 ag_no_other_device_ms,sum(CASE WHEN rs>0 AND o=0 AND ep=0 THEN dt ELSE 0 END)/1e6 rs_no_other_device_ms,sum(CASE WHEN ar>0 AND o=0 AND ep=0 THEN dt ELSE 0 END)/1e6 ar_no_other_device_ms,sum(CASE WHEN ag>0 AND rs>0 THEN dt ELSE 0 END)/1e6 ag_rs_overlap_ms FROM z",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "ag_no_other_device_ms",
+            "rs_no_other_device_ms",
+            "ar_no_other_device_ms",
+            "ag_rs_overlap_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              180.372809,
+              374.683275,
+              146.643005,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gdn_call_context",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT p.name parent,q.name grandparent,r.name greatgrandparent,g.name,count(*)n,sum(g.dur)/1e6 sum_ms FROM slice g JOIN flow f ON f.slice_in=g.id JOIN slice h ON h.id=f.slice_out LEFT JOIN slice p ON p.id=h.parent_id LEFT JOIN slice q ON q.id=p.parent_id LEFT JOIN slice r ON r.id=q.parent_id WHERE g.category='kernel' AND(g.name='recompute_w_u_fwd_kernel'OR g.name='chunk_gated_delta_rule_fwd_kernel_h_blockdim64'OR g.name='chunk_gated_delta_rule_fwd_kkt_solve_kernel')GROUP BY 1,2,3,4 ORDER BY sum(g.dur)DESC LIMIT 22",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "parent",
+            "grandparent",
+            "greatgrandparent",
+            "name",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 22,
+          "returned_rows": 22,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "ChunkGatedDeltaRuleFunctionBackward",
+              "autograd::engine::evaluate_function: ChunkGatedDeltaRuleFunctionBackward",
+              "torchtitan::fla_vjp",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              192,
+              24.904893
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              96,
+              24.184185
+            ],
+            [
+              "ChunkGatedDeltaRuleFunctionBackward",
+              "autograd::engine::evaluate_function: ChunkGatedDeltaRuleFunctionBackward",
+              "torchtitan::fla_vjp",
+              "recompute_w_u_fwd_kernel",
+              192,
+              18.482936
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              96,
+              13.099374
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::fla_vjp",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              96,
+              12.464648
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fx5ejd3n3ugo6znkw2heniftdrk3bev7k2j77p7mlzkwplppwiob ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              96,
+              12.441965
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              "recompute_w_u_fwd_kernel",
+              96,
+              11.35233
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::fla_vjp",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              96,
+              9.448804
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fx5ejd3n3ugo6znkw2heniftdrk3bev7k2j77p7mlzkwplppwiob ##",
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              96,
+              9.325054
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::fla_vjp",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              "recompute_w_u_fwd_kernel",
+              96,
+              9.312193
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fx5ejd3n3ugo6znkw2heniftdrk3bev7k2j77p7mlzkwplppwiob ##",
+              "recompute_w_u_fwd_kernel",
+              96,
+              9.276068
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph ftgivqdm7njytv5py4s2qlf4za6p22lplzjhqlmmdgkbe7nzvvmo ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              32,
+              8.234429
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fixdg5b7q5vp2qvfiggoiq2zmnh5pe3y4bu5xmcj6mjrn5dkd3rh ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              32,
+              8.162106
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph frdatkwn6tolp6hh3aslk3ujk46mplfobwzqcg5ra6e6zviuk4ow ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              32,
+              8.000088
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fixdg5b7q5vp2qvfiggoiq2zmnh5pe3y4bu5xmcj6mjrn5dkd3rh ##",
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              32,
+              4.627247
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fixdg5b7q5vp2qvfiggoiq2zmnh5pe3y4bu5xmcj6mjrn5dkd3rh ##",
+              "recompute_w_u_fwd_kernel",
+              32,
+              4.286063
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph frdatkwn6tolp6hh3aslk3ujk46mplfobwzqcg5ra6e6zviuk4ow ##",
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              32,
+              4.207887
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::fla_vjp",
+              "## Call CompiledFxGraph frdatkwn6tolp6hh3aslk3ujk46mplfobwzqcg5ra6e6zviuk4ow ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              32,
+              4.170287
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fb7xs3fuixvjhyddomuwu77hudgczwb72cwwhkmyboaeitidzxwd ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              32,
+              4.167827
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph f7mop6wjaruhbfm5mqsmf5tirhxn3qfd5jtqfejdogypopqmwiyg ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              32,
+              4.161995
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::fla_vjp",
+              "## Call CompiledFxGraph ftgivqdm7njytv5py4s2qlf4za6p22lplzjhqlmmdgkbe7nzvvmo ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              32,
+              4.148878
+            ],
+            [
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              "## Call CompiledFxGraph fk4ehgdsp3qa7tnexqm74grcai526o2kwepi57dgye7xpwkfdqv4 ##",
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              32,
+              4.1428
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "head_device_cost",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH l AS(SELECT slice_in,min(slice_out)host_id FROM flow GROUP BY slice_in),g AS(SELECT s.*,p.name parent,q.name grandparent,r.name greatgrandparent FROM slice s JOIN l ON l.slice_in=s.id JOIN slice h ON h.id=l.host_id LEFT JOIN slice p ON p.id=h.parent_id LEFT JOIN slice q ON q.id=p.parent_id LEFT JOIN slice r ON r.id=q.parent_id WHERE s.category='kernel')\nSELECT name,parent,grandparent,count(*)n,sum(dur)/1e6 sum_ms FROM g WHERE (name='nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN'AND grandparent='aten::matmul')OR(name IN('nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT','nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT')AND grandparent='MmBackward0')GROUP BY 1,2,3",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "parent",
+            "grandparent",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "returned_rows": 3,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+              "aten::mm",
+              "aten::matmul",
+              64,
+              759.771613
+            ],
+            [
+              "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+              "aten::mm",
+              "MmBackward0",
+              64,
+              715.957502
+            ],
+            [
+              "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+              "aten::mm",
+              "MmBackward0",
+              64,
+              718.119659
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dense_swiglu_active",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT name,count(*)n,sum(dur)/1e6 sum_ms FROM slice WHERE category='kernel'AND(name GLOB '*swiglu*'OR name GLOB '*z_loss*')GROUP BY name ORDER BY sum(dur)DESC LIMIT 15",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 4,
+          "returned_rows": 4,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "_swiglu_quant_fwd_kernel",
+              448,
+              93.010666
+            ],
+            [
+              "_swiglu_quant_bwd_kernel",
+              224,
+              75.559718
+            ],
+            [
+              "void (anonymous namespace)::swiglu_forward_kernel<8, 2, true, true, false, false>(__nv_bfloat16 const*, __nv_bfloat16 const*, unsigned char*, float*, unsigned char*, unsigned char*, float*, float*, int, int, int, int, float, long*)",
+              576,
+              49.570124
+            ],
+            [
+              "void (anonymous namespace)::swiglu_backward_kernel<8, 2, true, true, false>(__nv_bfloat16 const*, __nv_bfloat16 const*, unsigned char const*, unsigned char const*, float const*, float const*, __nv_bfloat16 const*, unsigned char*, unsigned char*, float*, float*, int, int, int, int, float)",
+              288,
+              22.369383
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "microbatch_stats",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT count(*)n,min(dur)/1e6 min_ms,max(dur)/1e6 max_ms,avg(dur)/1e6 mean_ms FROM slice WHERE category='user_annotation'AND name='task.profile_update.11.microbatch.rank0'",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "n",
+            "min_ms",
+            "max_ms",
+            "mean_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              32,
+              383.337491,
+              393.339344,
+              385.993174375
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "metadata_other_sync",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT p.name parent,q.name grandparent,count(*)n,sum(s.dur)/1e6 sum_ms,max(s.dur)/1e6 max_ms FROM slice s LEFT JOIN slice p ON p.id=s.parent_id LEFT JOIN slice q ON q.id=p.parent_id WHERE s.name='cudaStreamSynchronize'GROUP BY 1,2 ORDER BY sum(s.dur)DESC LIMIT 15",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "parent",
+            "grandparent",
+            "n",
+            "sum_ms",
+            "max_ms"
+          ],
+          "row_count": 10,
+          "returned_rows": 10,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "aten::_local_scalar_dense",
+              "aten::item",
+              451,
+              6659.579158,
+              106.070568
+            ],
+            [
+              "aten::copy_",
+              "aten::_to_copy",
+              99,
+              888.701071,
+              29.539434
+            ],
+            [
+              "aten::_local_scalar_dense",
+              "PythonSubclass",
+              3,
+              36.065857,
+              36.051217
+            ],
+            [
+              "hybridep::dispatch",
+              "## Call CompiledFxGraph fj3jy3vy6j2efpis6z7fxhtx6i3z57itivoif2mniiykmivwr5wn ##",
+              96,
+              24.67123,
+              1.940962
+            ],
+            [
+              "hybridep::dispatch",
+              "## Call CompiledFxGraph fx5ejd3n3ugo6znkw2heniftdrk3bev7k2j77p7mlzkwplppwiob ##",
+              96,
+              24.640873,
+              0.433125
+            ],
+            [
+              "hybridep::dispatch",
+              "## Call CompiledFxGraph fdrmuyfekc3mdgngafo2no4igbwlfypkre2kwb5wajkl43uxheo4 ##",
+              64,
+              18.60615,
+              1.173204
+            ],
+            [
+              "hybridep::dispatch",
+              "## Call CompiledFxGraph f77fdo33452eul5m7tfnstffobkw5uvdyha4g2zvxc7jxaat35zi ##",
+              64,
+              16.037933,
+              0.316723
+            ],
+            [
+              "hybridep::dispatch",
+              "## Call CompiledFxGraph fk4ehgdsp3qa7tnexqm74grcai526o2kwepi57dgye7xpwkfdqv4 ##",
+              32,
+              8.041469,
+              0.302264
+            ],
+            [
+              "hybridep::dispatch",
+              "## Call CompiledFxGraph f7mop6wjaruhbfm5mqsmf5tirhxn3qfd5jtqfejdogypopqmwiyg ##",
+              32,
+              7.815196,
+              0.740088
+            ],
+            [
+              "hybridep::dispatch",
+              "## Call CompiledFxGraph ftgivqdm7njytv5py4s2qlf4za6p22lplzjhqlmmdgkbe7nzvvmo ##",
+              32,
+              7.725535,
+              0.286813
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gdn_replay_summary",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH l AS(SELECT slice_in,min(slice_out)h FROM flow GROUP BY slice_in),g AS(SELECT s.*,p.name parent,q.name grandparent FROM slice s JOIN l ON l.slice_in=s.id JOIN slice h ON h.id=l.h LEFT JOIN slice p ON p.id=h.parent_id LEFT JOIN slice q ON q.id=p.parent_id WHERE s.category='kernel')\nSELECT name,parent,grandparent,count(*)n,sum(dur)/1e6 sum_ms FROM g WHERE name IN('recompute_w_u_fwd_kernel','chunk_gated_delta_rule_fwd_kernel_h_blockdim64','chunk_gated_delta_rule_fwd_kkt_solve_kernel')GROUP BY name,parent,grandparent ORDER BY name,parent,grandparent",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "parent",
+            "grandparent",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 8,
+          "returned_rows": 8,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::fla_vjp",
+              192,
+              24.917424
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              384,
+              73.495395
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+              "ChunkGatedDeltaRuleFunctionBackward",
+              "autograd::engine::evaluate_function: ChunkGatedDeltaRuleFunctionBackward",
+              192,
+              24.904893
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::fla_vjp",
+              192,
+              18.801729
+            ],
+            [
+              "chunk_gated_delta_rule_fwd_kkt_solve_kernel",
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              384,
+              44.802563
+            ],
+            [
+              "recompute_w_u_fwd_kernel",
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::fla_vjp",
+              192,
+              18.581183
+            ],
+            [
+              "recompute_w_u_fwd_kernel",
+              "ChunkGatedDeltaRuleFunction",
+              "torchtitan::gdn_chunk",
+              384,
+              42.122195
+            ],
+            [
+              "recompute_w_u_fwd_kernel",
+              "ChunkGatedDeltaRuleFunctionBackward",
+              "autograd::engine::evaluate_function: ChunkGatedDeltaRuleFunctionBackward",
+              192,
+              18.482936
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "capacity_predicate_details",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT s.name,count(*)n,sum(s.dur)/1e6 ms FROM slice s LEFT JOIN slice p ON p.id=s.parent_id LEFT JOIN slice q ON q.id=p.parent_id LEFT JOIN slice r ON r.id=q.parent_id WHERE s.name='torchtitan::conditional_capacity_mask' OR(s.name='aten::item'AND q.name='torchtitan::conditional_capacity_mask')OR(s.name='cudaStreamSynchronize'AND r.name='aten::is_nonzero'AND q.name='aten::item')GROUP BY s.name",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "ms"
+          ],
+          "row_count": 3,
+          "returned_rows": 3,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "aten::item",
+              448,
+              6623.541767
+            ],
+            [
+              "cudaStreamSynchronize",
+              448,
+              6611.222591
+            ],
+            [
+              "torchtitan::conditional_capacity_mask",
+              448,
+              6656.0502
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "capacity_idle_overlap_lanes",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH d AS(SELECT ts,ts+dur en,max(ts+dur)OVER(ORDER BY ts,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prevmax FROM slice WHERE category IN('kernel','gpu_memcpy','gpu_memset')AND dur>0),g AS(SELECT prevmax a,ts b FROM d WHERE ts>prevmax),c AS(SELECT ts a,ts+dur b FROM slice WHERE name='torchtitan::conditional_capacity_mask') SELECT count(*) intersecting_gap_predicate_pairs,sum(min(c.b,g.b)-max(c.a,g.a))/1e6 gpu_idle_inside_capacity_ms FROM c JOIN g ON g.a<c.b AND g.b>c.a",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "intersecting_gap_predicate_pairs",
+            "gpu_idle_inside_capacity_ms"
+          ],
+          "row_count": 1,
+          "returned_rows": 1,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              33112,
+              92.148703
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "attention_conversion",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "SELECT p.name parent,q.name grandparent,count(*)n,sum(g.dur)/1e6 sum_ms FROM slice g JOIN flow f ON f.slice_in=g.id JOIN slice h ON h.id=f.slice_out LEFT JOIN slice p ON p.id=h.parent_id LEFT JOIN slice q ON q.id=p.parent_id WHERE g.category='kernel'AND(g.name GLOB '*CatArrayBatchedCopy*'OR g.name GLOB '*bfloat16_copy*')GROUP BY 1,2 ORDER BY sum(g.dur)DESC LIMIT 12",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "parent",
+            "grandparent",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 12,
+          "returned_rows": 12,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "aten::cat",
+              "SplitBackward0",
+              64,
+              92.555615
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (layers.4[efsdp])",
+              32,
+              19.380357
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (layers.5[efsdp])",
+              32,
+              18.756515
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (layers.6[efsdp])",
+              32,
+              18.744829
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (layers.2[efsdp])",
+              32,
+              18.735138
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (layers.1[efsdp])",
+              32,
+              18.719331
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (layers.7[efsdp])",
+              32,
+              18.717058
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (layers.3[efsdp])",
+              32,
+              18.699328
+            ],
+            [
+              "aten::cat",
+              "task.profile_update.11.microbatch.rank0",
+              128,
+              9.982494
+            ],
+            [
+              "aten::copy_",
+              "aten::_to_copy",
+              1056,
+              8.143309
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (tok_embeddings)",
+              32,
+              4.587921
+            ],
+            [
+              "aten::copy_",
+              "GFSDP::all_gather (lm_head)",
+              32,
+              4.165714
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "kernel_gaps_lanes",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH r AS(SELECT id,ts,ts+dur en,max(ts+dur)OVER(ORDER BY ts,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prevmax FROM slice WHERE category IN('kernel','gpu_memcpy','gpu_memset')AND dur>0),g AS(SELECT id,prevmax a,ts b FROM r WHERE ts>prevmax) SELECT g.a start_ns,g.b end_ns,(g.b-g.a)/1e6 gap_ms,s.name next_device,h.name launch,p.name parent,(h.ts-g.a)/1e6 launch_start_ms,(h.ts+h.dur-g.a)/1e6 launch_end_ms FROM g JOIN slice s USING(id)LEFT JOIN flow f ON f.slice_in=s.id LEFT JOIN slice h ON h.id=f.slice_out LEFT JOIN slice p ON p.id=h.parent_id ORDER BY gap_ms DESC LIMIT 12",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "start_ns",
+            "end_ns",
+            "gap_ms",
+            "next_device",
+            "launch",
+            "parent",
+            "launch_start_ms",
+            "launch_end_ms"
+          ],
+          "row_count": 12,
+          "returned_rows": 12,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              3708862829408598,
+              3708863801891397,
+              972.482799,
+              "Memcpy HtoD (Pageable -> Device)",
+              "cudaMemcpyAsync",
+              "aten::copy_",
+              972.44897,
+              972.4828
+            ],
+            [
+              3708874712920201,
+              3708874714644267,
+              1.724066,
+              "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 3072u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+              "cuLaunchKernelEx",
+              "## Call CompiledFxGraph f77fdo33452eul5m7tfnstffobkw5uvdyha4g2zvxc7jxaat35zi ##",
+              1.715333,
+              1.722544
+            ],
+            [
+              3708873809047122,
+              3708873809486612,
+              0.43949,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.407577,
+              0.440757
+            ],
+            [
+              3708867585862632,
+              3708867586286826,
+              0.424194,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.391766,
+              0.425357
+            ],
+            [
+              3708865501001559,
+              3708865501415032,
+              0.413473,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.381707,
+              0.414998
+            ],
+            [
+              3708864665089430,
+              3708864665501432,
+              0.412002,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.380393,
+              0.413184
+            ],
+            [
+              3708875054821135,
+              3708875055229873,
+              0.408738,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.377797,
+              0.410037
+            ],
+            [
+              3708868415462190,
+              3708868415868783,
+              0.406593,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.37494,
+              0.40827
+            ],
+            [
+              3708872565351384,
+              3708872565757177,
+              0.405793,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.373725,
+              0.407106
+            ],
+            [
+              3708867168318787,
+              3708867168722468,
+              0.403681,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.372064,
+              0.404635
+            ],
+            [
+              3708875882992251,
+              3708875883394909,
+              0.402658,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.371016,
+              0.404146
+            ],
+            [
+              3708865083039695,
+              3708865083442192,
+              0.402497,
+              "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+              "cudaLaunchKernel",
+              "aten::arange",
+              0.37087,
+              0.40349
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "input_prefix",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH f AS(SELECT ts a FROM slice WHERE category='user_annotation'AND name='task.profile_update.11.train_step.rank0')SELECT s.name,(s.ts-a)/1e6 rel_ms,s.dur/1e6 ms FROM slice s,f WHERE s.ts>=a AND s.ts<a+1020000000 AND s.name IN('torchtitan::conditional_capacity_mask','aten::item','c10d::allreduce_','_c10d_functional::all_reduce','c10d::allreduce')ORDER BY s.ts",
+      "tool_is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "rel_ms",
+            "ms"
+          ],
+          "row_count": 3,
+          "returned_rows": 3,
+          "truncated": false,
+          "row_count_known": true,
+          "string_truncated": false,
+          "redacted": false,
+          "note": "row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.",
+          "rows": [
+            [
+              "_c10d_functional::all_reduce",
+              972.84074,
+              0.277983
+            ],
+            [
+              "c10d::allreduce_",
+              972.91942,
+              0.189153
+            ],
+            [
+              "aten::item",
+              973.183783,
+              36.23446
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gdn_total_device",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH launches AS(SELECT h.id,h.ts,h.dur,h.track_id,f.slice_in FROM slice h JOIN flow f ON f.slice_out=h.id WHERE h.category IN('cuda_runtime','cuda_driver')),roots AS(SELECT id,ts,dur,track_id,name FROM slice WHERE name IN('torchtitan::gdn_chunk','torchtitan::fla_vjp'))\nSELECT r.name,count(DISTINCT r.id)cpu_calls,count(*)gpu_kernels,sum(g.dur)/1e6 kernel_sum_ms FROM roots r JOIN launches l ON l.track_id=r.track_id AND l.ts>=r.ts AND l.ts+l.dur<=r.ts+r.dur JOIN slice g ON g.id=l.slice_in WHERE g.category='kernel'GROUP BY r.name",
+      "tool_is_error": true,
+      "outputs": [
+        "Query failed: RPC error: error decoding response body"
+      ]
+    },
+    {
+      "name": "gdn_vjp_forward_kernels",
+      "trace_id": "trace_fb8d93262d864d34",
+      "sql": "WITH l AS(SELECT slice_in,min(slice_out)h FROM flow GROUP BY slice_in),x AS(SELECT g.*,p.name parent,q.name grandparent FROM slice g JOIN l ON l.slice_in=g.id JOIN slice h ON h.id=l.h LEFT JOIN slice p ON p.id=h.parent_id LEFT JOIN slice q ON q.id=p.parent_id WHERE g.category='kernel') SELECT parent,grandparent,count(*)n,sum(dur)/1e6 kernel_sum_ms FROM x WHERE grandparent='torchtitan::fla_vjp' AND parent='ChunkGatedDeltaRuleFunction'GROUP BY parent,grandparent",
+      "tool_is_error": true,
+      "outputs": [
+        "Query failed: RPC error: error sending request for url (http://127.0.0.1:9005/query)"
+      ]
+    }
+  ],
+  "verification": {
+    "original_rank0_sha256": "PASS f8532db191edb226385409ef5f707769db58c6db0bac47b07d1b24252d7c6360",
+    "retained_event_payload_and_trace_metadata_parity": "PASS; only 420 device tids and 420 matching GPU flow endpoint tids differ",
+    "normalized_mcp_device_census_and_flow_coverage": "PASS; 94436 kernels, 2839 copies, 9184 memsets, all linked to runtime/driver launches",
+    "normalized_mcp_error_or_data_loss_statistics": "PASS; empty",
+    "maintained_local_links_and_fragments": "PASS;126",
+    "json_parsing": "PASS;results.json and monitorfree-update11-perfetto.json",
+    "ruff_command": "ruff check --select F821,F811,F841 --no-cache runs/overnight-streaming-perf/monitorfree-perfetto-prepare.py",
+    "ruff_result": "PASS",
+    "diff_check": "PASS",
+    "production_bytes_unchanged": "PASS;git diff --exit-code -- gift runs/overnight-streaming-perf/run.py",
+    "failed_optional_queries": [
+      "gdn_total_device",
+      "gdn_vjp_forward_kernels"
+    ]
+  }
+}

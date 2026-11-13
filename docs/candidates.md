@@ -3,8 +3,13 @@
 This is the entry point for three proposed research directions. The default is
 still the [verified 100B crop](baseline.md). The sources below are
 reference material for future experiments, not enabled changes or measured
-speedups on that baseline. The original campaign is cancelled/incomplete; the
-current assignment is [cleanup only](../planning/overnight-streaming-perf.md).
+speedups on that baseline. The original campaign is cancelled/incomplete. The
+newly requested read-only [update-11 Perfetto analysis](../runs/overnight-streaming-perf/report.md#update-11-candidate-analysis-with-perfetto-mcp)
+maps these mechanisms to the fresh monitoring-off trace and native logs. It ranks
+streaming prefetch first for directly exposed latency, identifies a larger
+linear/CE boundary and recurring MoE capacity synchronization, and retains the
+compatibility/memory limits of the other directions. Costs and source-derived
+constraints are established; no candidate gain is measured or accepted.
 Future separately authorized candidates follow the short monitoring-off,
 performance-first [validation protocol](../planning/validation.md).
 
