@@ -120,8 +120,45 @@ run scratch paths were removed by the runner after group exit; no task temporary
 children remain. A scoped process/environment check found no remaining owned
 training, loader or compiler-cache consumer. MDS index identity is unchanged.
 Compact evidence, candidate sources, the existing untracked V2 helper and the
-historical canonical G3 traces are preserved. At capture handoff, no candidate
-experiment, full-model numerical comparison or bottleneck analysis was performed.
+historical canonical G3 traces are preserved. Stop here; no candidate experiment,
+full-model numerical comparison or new bottleneck analysis was performed during
+the measurement/cleanup assignment.
+
+## Baseline input preparation analysis
+
+Subsequent read-only Perfetto inspection of the monitoring-free baseline trace
+`monitorfree-profile-update11-001`, rank 0, confirms exposed input preparation
+before forward. The CPU train step lasts **14.337954319 s**. From its start to
+the first CPU token-count all-reduce call, **0.972840740 s** elapses; underlying
+DataLoader `__next__` calls account for **0.959384510 s** of that interval.
+The [trainer](../../gift/torchtitan/trainer.py) collects all 32 CPU microbatches
+and counts valid targets before reducing the global count and starting forward.
+Existing two-worker prefetch does not materialize that whole burst in advance.
+
+The first GPU `nccl:all_reduce` (Perfetto slice 666) starts at 0.973804118 s
+and lasts 36.300705 ms. It sums one int64 valid-token count across eight ranks
+for loss normalization; the host waits through `.item()` in
+[`dist_sum` / `_dist_reduce`](../../gift/torchtitan/distributed/utils.py).
+This communication remains necessary under V2.
+
+This is a real overlap opportunity, **not a measured speedup**. Hiding the entire
+pre-reduction interval with everything else unchanged would give a **7.3% TPS
+increase for this traced step**. One DataLoader call alone lasts 0.786874459 s
+(slice 306), at the expected epoch boundary; worker-side causality is not captured.
+If that call remains exposed and all other preparation is hidden, the same
+arithmetic gives only **1.3%**. Neither scenario predicts sustained V2 gain.
+The [V2 contract](reference-coverage.md#queue-depth-and-what-the-trace-can-establish)
+keeps epoch entry synchronous and cannot prefetch across that boundary. The
+[first planned experiment](../../planning/README.md#first-future-experiment-v2-input-prefetch)
+therefore starts with V2 and a queue of 32 CPU microbatches, with actual benefit
+and queue memory still to be measured.
+
+Follow-up results: the [completed V2 comparison](../v2-prefetch-baseline/report.md#long-logical-epoch-comparison--complete)
+uses a long logical epoch and measures updates 21–60. V2 gained 2.12% input TPS
+in that single matched pair. The owner subsequently
+[accepted V2 at depth 32](../v2-prefetch-baseline/report.md#mcp-perfetto-comparison-and-acceptance)
+based on that result and the MCP trace comparison; the report owns exact values
+and limitations.
 
 ## Update 11: candidate analysis with Perfetto MCP
 

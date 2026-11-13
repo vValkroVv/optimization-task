@@ -79,10 +79,13 @@ records the callable packing recipe, identities, hashes and all-rank loader chec
 This repeated local fixture supports a controlled performance study, not a
 production data mixture or quality evaluation.
 
-CPU materialized-batch prefetch defaults to `num_prefetch_batches: 0`. The
-separately authorized [V2 comparison](../runs/v2-prefetch-baseline/report.md)
-overrides only this setting to 32 for the candidate; the baseline default stays
-zero. Consumer-owned epoch entry and accumulation 32 remain part of the contract.
+CPU materialized-batch prefetch retains the loader API and canonical control
+default `num_prefetch_batches: 0`. On 13 November 2026 the owner accepted the
+[V2 variant](../runs/v2-prefetch-baseline/report.md#mcp-perfetto-comparison-and-acceptance)
+with the explicit override `num_prefetch_batches: 32` for the current long-epoch
+workload, based on the TPS pair and MCP Perfetto comparison. Consumer-owned epoch
+entry and accumulation 32 remain part of the contract. The acceptance record
+does not change source or canonical configuration bytes.
 
 The [native MDS receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json)
 passed the ten-update/monitor5 smoke on all eight ranks. That run used the

@@ -1,9 +1,15 @@
 # V2 CPU prefetch above the monitoring-free baseline
 
-Status: the long-epoch follow-up passed its matched TPS pair and four bounded
-trace gates. V2 measured 2.12% higher input TPS in this provisional pair; the
-original short-epoch pair measured 2.08% lower TPS and remains separate. No
-general gain or production adoption is established. The default remains zero.
+**[IMPORTANT] V2 CPU prefetch at depth 32 is accepted for the current long-epoch crop workload.**
+
+The owner's decision on 13 November 2026 is based on the matched TPS results and
+subsequent MCP Perfetto comparison. The measured gain is
+2.12% in one pair; traces confirm substantially less exposed input waiting and
+no material regression in the sampled three-microbatch execution. This acceptance
+does not establish repeatability, convergence or production-scale behavior.
+The original short-epoch pair measured 2.08% lower TPS and remains separate.
+The loader API and canonical control configuration retain default depth zero;
+the accepted V2 variant uses the explicit override `num_prefetch_batches: 32`.
 
 Publication: the subsequent user request authorizes committing these recorded
 results with the supporting V2 source, runners and tests, then pushing to
@@ -119,12 +125,14 @@ rank has an actual capacity-32 iterator, 32 ready batches and a live
 resolved A/B configuration diff is exactly `dataloader.num_prefetch_batches`
 and operational `dump_folder`; source/config hashes are unchanged across runs.
 
-This **single pair remains provisional**. There is no identical-control repeat,
-run-to-run noise estimate, confidence interval or established causal explanation
-for the full TPS difference. It supports neither general speedup nor production
-adoption. The default remains zero. The earlier 2.08% TPS regression below is
-preserved as a separate short-epoch experiment. The cause of that earlier
-candidate update-16 outlier remains unassigned.
+This **single-pair magnitude remains provisional**. There is no identical-control
+repeat, run-to-run noise estimate, confidence interval or established causal
+explanation for the full TPS difference. The owner accepts V2 for this workload
+using the measured pair and the trace mechanism evidence below; a general
+speedup, convergence and production-scale behavior remain unestablished. The
+earlier 2.08% TPS regression below is preserved as a separate short-epoch
+experiment. The cause of that earlier candidate update-16 outlier remains
+unassigned.
 
 ### Bounded traces and mechanism
 
@@ -149,10 +157,10 @@ analysis receipts were persisted before redundant plain files were removed,
 after every runner/parser consumer stopped. Both compressed and uncompressed
 hashes, sidecar hashes, trace identities and full coverage counts are retained.
 
-The [native JSON analysis](trace-analysis-long-epoch-001.json) reads every
-canonical event: each trace has 8,795 kernels, 274 copies and 861 memsets. No
-Perfetto import or analysis service was used for this follow-up; native JSON
-avoids the importer event loss seen in the earlier experiment.
+The initial [native JSON analysis](trace-analysis-long-epoch-001.json) reads every
+canonical event: each trace has 8,795 kernels, 274 copies and 861 memsets. That
+analysis used no Perfetto service. The subsequent MCP Perfetto comparison below
+independently checks rank 0 with reconciled imports and complete device tails.
 
 | Observed input prefix, ms | A rank 0 | A rank 1 | B rank 0 | B rank 1 |
 | --- | ---: | ---: | ---: | ---: |
@@ -198,6 +206,85 @@ Only two ranks and the first three microbatches are visible; profiling and peer
 waiting can perturb the prefix. Convergence, numerical candidate acceptance and
 production-scale behavior remain outside this assignment.
 
+### MCP Perfetto comparison and acceptance
+
+The [MCP query receipt](trace-analysis-long-epoch-perfetto.json) retains actual
+SQL/results for historical monitoring-free baseline rank 0 update 11, fresh
+long-epoch baseline rank 0 update 21 and V2 rank 0 update 21. It also records
+canonical/derived identities, import coverage, timing boundaries and limitations.
+The existing display-lane repair preserves device timestamps, durations,
+arguments and actual CUDA stream IDs, removes GPU annotation projections and
+places overlapping device events on separate display lanes. Canonical files
+remain unchanged. All device events survive import and have host launch-flow
+links; final imports have no errors. Three initial queries attempted to modify
+an immutable Perfetto table; separate derived tables corrected the queries.
+
+| Rank-0 input observation, ms | Historical baseline, update 11 | Matched baseline, update 21 | V2, update 21 |
+| --- | ---: | ---: | ---: |
+| Loader-next / queue-pop total for 32 delivered batches | 959.385 | 645.431 | 0.564 |
+| Input start to first CPU forward/backward | 1009.723 | 675.782 | 8.446 |
+| First global-token NCCL kernel | 36.300703 | 15.323223 | 0.007200 |
+
+The historical loader total includes one exhaustion call (33 calls for 32
+deliveries). Its finite-epoch transition and different input/update position
+make it unsuitable for assigning the entire historical input difference to V2.
+The matched update-21 comparison saves **667.337 ms** before first F/B. The queue
+is already populated, so the consumer retrieves materialized CPU batches rather
+than waiting for ordinary loader delivery. This demonstrates readiness, not
+faster workers or a measurement of their preceding CPU cost. Counting valid
+labels, token normalization and per-microbatch H2D transfers remain necessary.
+
+The first collective still reduces one `Long` across eight ranks. Its device
+duration is not isolated network-transfer time and can include peer waiting;
+the shorter observed span does not establish an improved NCCL algorithm.
+
+For the following comparison, the window starts at first CPU F/B entry and ends
+at the last device completion linked to launches before the third CPU F/B
+returns. This includes the asynchronous third-microbatch tail omitted by the
+earlier CPU-return-clipped table. Busy values use interval unions across local
+streams; rows overlap and must not be added. The remaining-kernel class excludes
+explicit NCCL and EP families but may contain unclassified waits.
+
+| Complete first-three-microbatch observation, rank 0, ms | Matched baseline | V2 |
+| --- | ---: | ---: |
+| Integrated elapsed span through device completion | 1294.519 | 1293.713 |
+| Remaining-kernel busy union | 1006.470 | 1013.093 |
+| EP dispatch/combine busy union | 157.963 | 157.627 |
+| Other NCCL busy union, excluding initial token reduction | 232.379 | 223.499 |
+| Copy busy union, excluding input-prefix copies | 23.771 | 23.528 |
+| Internal local-device event-free intervals | 45.790 | 42.899 |
+| Largest internal local-device event-free interval | 0.419 | 0.382 |
+| Host launch API union | 57.768 | 47.880 |
+| Host synchronization API union, including terminal drain | 687.577 | 746.938 |
+| Synchronization API overlap with recorded local-device idle | 6.939 | 7.783 |
+
+Both full captures retain exactly 8,795 kernels, 274 copies and 861 memsets.
+The complete F/B window contains 438 EP kernels and 144 other NCCL kernels in
+each variant; launch counts match. Remaining-kernel occupancy rises by 6.623 ms,
+but integrated elapsed time falls by 0.806 ms. The synchronization union rises
+by 59.361 ms while its GPU-idle intersection rises by only 0.844 ms; host API
+time includes waiting and scheduling, not CPU utilization or an additive stall
+budget. The longest gaps are linked to the following host launches; there is
+no internal all-device gap of at least 1 ms in either matched trace. No material
+execution regression is observed in this sampled prefix.
+
+Historical baseline first-three-microbatch elapsed time is 1243.940 ms, about
+50 ms shorter than both new variants. The same increase in the fresh depth-0
+control prevents assigning that historical difference to prefetch. These traces
+alone do not identify its cause.
+
+Acceptance decision, 13 November 2026: accept V2 with an explicit queue depth of
+32 for the current long-epoch crop workload. The basis is the complete
+unprofiled update-21–60 TPS pair (+2.1181%), verified ready input and the matched
+trace comparison above. GPU allocator peaks increase by 21.253 MiB allocated /
+40 MiB reserved in that pair, with zero retry/OOM deltas. The original negative
+short-epoch result and consumer-owned epoch-boundary limitation remain recorded.
+Acceptance is an owner decision from this evidence; it does not turn one pair
+into a repeatability estimate. The remaining 29 microbatches, optimizer,
+preceding producer work and memory peaks cannot be assessed from the bounded
+V2 trace. No new training run or source/configuration change accompanies this
+documentation and evidence update.
+
 ### Failures, release and stop decision
 
 The affected test/runner receipts retain corrected import/default-serialization
@@ -217,11 +304,11 @@ memory and no compute applications. Allocation infrastructure and old analysis
 services were preserved. Task-local logs, caches, MDS and compact evidence remain;
 redundant plain traces and exact run-local temporary directories were removed.
 
-The finite follow-up is complete. No repeat was needed to report this provisional
-pair; resolving repeatability or making an adoption decision would require a
-separate comparison. No installation, download or new allocation was performed.
-Default depth remains zero and no further execution follows. Publication is now
-authorized by the subsequent user request noted above.
+The finite follow-up is complete. The subsequent MCP comparison and owner
+decision accept V2 at depth 32 for this workload. Repeatability and broader
+production behavior remain unmeasured. No new allocation or training run follows
+this documentation update. The owner authorizes committing and pushing these
+conclusions and the acceptance decision to `origin/main`.
 
 The following sections retain the **original short-epoch experiment**. Their
 20-update TPS commands, update-11 traces, execution hashes and process-release
@@ -607,8 +694,10 @@ analysis services were preserved. Short run-local temporary directories were
 removed; the existing MDS data, tiny loader checkpoints, logs and verified gzip
 artifacts are retained.
 
-V2 is integrated default-off and reviewable without a commit. This single pair
-does not support adopting depth 32 for a performance gain. Repeatability, other
-data mixtures/topologies, convergence and long-run stability are not established
+At the end of the original short-epoch assignment, V2 was integrated default-off
+and this negative pair did not support adopting depth 32 for a performance gain.
+The subsequent long-epoch acceptance above supersedes that adoption decision.
+Repeatability, other data mixtures/topologies, convergence and long-run stability
+are not established
 by this finite assignment. No further experiment follows; publication is
 covered by the subsequent user request above.

@@ -1,0 +1,599 @@
+{
+  "purpose": "Read-only MCP Perfetto comparison requested by the user: historical baseline rank0 update11, fresh baseline rank0 update21, V2 rank0 update21.",
+  "canonical_paths": {
+    "old": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/native/profiling/traces/iteration_11/rank0_trace.json",
+    "base": "runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+    "v2": "runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank0_trace.json"
+  },
+  "derived_paths": {
+    "old": "runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/old-rank0.perfetto.json.gz",
+    "base": "runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/base-rank0.perfetto.json.gz",
+    "v2": "runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/v2-rank0.perfetto.json.gz"
+  },
+  "method": {
+    "import": "Existing monitorfree-perfetto-prepare.py preserves all device events via display lanes; GPU user projections excluded. Canonical inputs unchanged.",
+    "scope": "Rank0 input phase plus exactly first three complete forward/backward microbatches.",
+    "gpu_tail": "End is max GPU completion among device events linked to host launch APIs before CPU microbatch3 return. All device events have host launch flow linkage.",
+    "units": "milliseconds",
+    "busy": "Interval unions across local device streams. Communication includes peer/spin waiting and is not useful compute.",
+    "classification": "NCCL; HybridEP/explicit DeepEP families; copy; memset; remaining kernels. Remaining kernels may include unclassified waits.",
+    "limits": [
+      "No worker stacks or complete preceding producer activity.",
+      "No remaining29 microbatches, optimizer, full-step runtime or memory inference from V2 trace.",
+      "Historical update11 and new update21 use different epoch length/input position and profiling duration; fresh matched baseline controls attribution.",
+      "Host API duration includes waiting and scheduling, not CPU utilization.",
+      "Single traces cannot establish noise, general speedup or absence of all regressions."
+    ]
+  },
+  "initial_annotation_queries": [
+    {
+      "label": "old",
+      "trace_path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/native/profiling/traces/iteration_11/rank0_trace.json",
+      "sql": "INCLUDE PERFETTO MODULE slices.with_context; SELECT category,name,count(*) n,round(sum(dur)/1e6,3) sum_ms,round(max(dur)/1e6,3) max_ms FROM thread_slice WHERE (category IN ('user_annotation','gpu_user_annotation') AND (name GLOB 'task.profile_update.*' OR name GLOB 'task.prefetch.*' OR name GLOB 'task.token_count*' OR name GLOB 'enumerate(DataLoader)*')) GROUP BY category,name ORDER BY category,name;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"gpu_user_annotation\",\n    \"max_ms\": 174.008,\n    \"n\": 32,\n    \"name\": \"task.profile_update.11.microbatch.rank0\",\n    \"sum_ms\": 5443.554\n  },\n  {\n    \"category\": \"gpu_user_annotation\",\n    \"max_ms\": 14335.169,\n    \"n\": 1,\n    \"name\": \"task.profile_update.11.train_step.rank0\",\n    \"sum_ms\": 14335.169\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 786.874,\n    \"n\": 33,\n    \"name\": \"enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__\",\n    \"sum_ms\": 959.385\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 393.339,\n    \"n\": 32,\n    \"name\": \"task.profile_update.11.microbatch.rank0\",\n    \"sum_ms\": 12351.782\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 1.723,\n    \"n\": 1,\n    \"name\": \"task.profile_update.11.optimizer_step.rank0\",\n    \"sum_ms\": 1.723\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 14337.954,\n    \"n\": 1,\n    \"name\": \"task.profile_update.11.train_step.rank0\",\n    \"sum_ms\": 14337.954\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "trace_path": "runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+      "sql": "INCLUDE PERFETTO MODULE slices.with_context; SELECT category,name,count(*) n,round(sum(dur)/1e6,3) sum_ms,round(max(dur)/1e6,3) max_ms FROM thread_slice WHERE (category IN ('user_annotation','gpu_user_annotation') AND (name GLOB 'task.profile_update.*' OR name GLOB 'task.prefetch.*' OR name GLOB 'task.token_count*' OR name GLOB 'enumerate(DataLoader)*')) GROUP BY category,name ORDER BY category,name;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"gpu_user_annotation\",\n    \"max_ms\": 172.918,\n    \"n\": 3,\n    \"name\": \"task.profile_update.21.microbatch.rank0\",\n    \"sum_ms\": 518.215\n  },\n  {\n    \"category\": \"gpu_user_annotation\",\n    \"max_ms\": 1536.809,\n    \"n\": 1,\n    \"name\": \"task.profile_update.21.train_step.rank0\",\n    \"sum_ms\": 1536.809\n  },\n  {\n    \"category\": \"gpu_user_annotation\",\n    \"max_ms\": 15.532,\n    \"n\": 1,\n    \"name\": \"task.token_count.global_reduction\",\n    \"sum_ms\": 15.532\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 104.202,\n    \"n\": 32,\n    \"name\": \"enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__\",\n    \"sum_ms\": 645.431\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 406.073,\n    \"n\": 3,\n    \"name\": \"task.profile_update.21.microbatch.rank0\",\n    \"sum_ms\": 1214.766\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 1970.35,\n    \"n\": 1,\n    \"name\": \"task.profile_update.21.train_step.rank0\",\n    \"sum_ms\": 1970.35\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 15.765,\n    \"n\": 1,\n    \"name\": \"task.token_count.global_reduction\",\n    \"sum_ms\": 15.765\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "trace_path": "runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank0_trace.json",
+      "sql": "INCLUDE PERFETTO MODULE slices.with_context; SELECT category,name,count(*) n,round(sum(dur)/1e6,3) sum_ms,round(max(dur)/1e6,3) max_ms FROM thread_slice WHERE (category IN ('user_annotation','gpu_user_annotation') AND (name GLOB 'task.profile_update.*' OR name GLOB 'task.prefetch.*' OR name GLOB 'task.token_count*' OR name GLOB 'enumerate(DataLoader)*')) GROUP BY category,name ORDER BY category,name;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"gpu_user_annotation\",\n    \"max_ms\": 175.852,\n    \"n\": 3,\n    \"name\": \"task.profile_update.21.microbatch.rank0\",\n    \"sum_ms\": 520.724\n  },\n  {\n    \"category\": \"gpu_user_annotation\",\n    \"max_ms\": 870.463,\n    \"n\": 1,\n    \"name\": \"task.profile_update.21.train_step.rank0\",\n    \"sum_ms\": 870.463\n  },\n  {\n    \"category\": \"gpu_user_annotation\",\n    \"max_ms\": 0.306,\n    \"n\": 1,\n    \"name\": \"task.token_count.global_reduction\",\n    \"sum_ms\": 0.306\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 0.104,\n    \"n\": 32,\n    \"name\": \"task.prefetch.queue_pop_wait\",\n    \"sum_ms\": 0.564\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 405.531,\n    \"n\": 3,\n    \"name\": \"task.profile_update.21.microbatch.rank0\",\n    \"sum_ms\": 1207.938\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 1302.201,\n    \"n\": 1,\n    \"name\": \"task.profile_update.21.train_step.rank0\",\n    \"sum_ms\": 1302.201\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"max_ms\": 0.396,\n    \"n\": 1,\n    \"name\": \"task.token_count.global_reduction\",\n    \"sum_ms\": 0.396\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "queries": [
+    {
+      "label": "base",
+      "sql": "INCLUDE PERFETTO MODULE slices.with_context;\nCREATE PERFETTO TABLE analysis_mb AS\n SELECT row_number() OVER(ORDER BY ts) mb,id,ts,dur,ts+dur end_ts FROM thread_slice\n WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.microbatch.rank0';\nCREATE PERFETTO TABLE analysis_windows AS\n WITH bounds AS (SELECT (SELECT min(ts) FROM thread_slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.rank0') t0,\n (SELECT ts FROM analysis_mb WHERE mb=1) f0,(SELECT end_ts FROM analysis_mb WHERE mb=3) f3)\n SELECT 'input' win,t0 lo,f0 hi FROM bounds UNION ALL SELECT 'three_fb',f0,f3 FROM bounds UNION ALL SELECT 'input_plus_three_fb',t0,f3 FROM bounds\n UNION ALL SELECT 'mb'||mb,ts,end_ts FROM analysis_mb WHERE mb<=3;\nCREATE PERFETTO TABLE analysis_device AS\n SELECT *, CASE WHEN category='gpu_memcpy' THEN 'copy' WHEN category='gpu_memset' THEN 'memset'\n WHEN lower(name) GLOB '*nccl*' THEN 'nccl' WHEN name GLOB '*ag_nvl*' OR name GLOB '*rs_nvl*' OR lower(name) GLOB '*deep_ep*' OR lower(name) GLOB '*deepep*' THEN 'ep'\n ELSE 'other_kernel' END family FROM thread_slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset');\nSELECT win,round((hi-lo)/1e6,6) ms FROM analysis_windows;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"ms\": 675.782334,\n    \"win\": \"input\"\n  },\n  {\n    \"ms\": 1267.429211,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"ms\": 1943.211545,\n    \"win\": \"input_plus_three_fb\"\n  },\n  {\n    \"ms\": 405.126028,\n    \"win\": \"mb1\"\n  },\n  {\n    \"ms\": 403.56645,\n    \"win\": \"mb2\"\n  },\n  {\n    \"ms\": 406.073439,\n    \"win\": \"mb3\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "sql": "INCLUDE PERFETTO MODULE slices.with_context;\nCREATE PERFETTO TABLE analysis_mb AS\n SELECT row_number() OVER(ORDER BY ts) mb,id,ts,dur,ts+dur end_ts FROM thread_slice\n WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.microbatch.rank0';\nCREATE PERFETTO TABLE analysis_windows AS\n WITH bounds AS (SELECT (SELECT min(ts) FROM thread_slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.rank0') t0,\n (SELECT ts FROM analysis_mb WHERE mb=1) f0,(SELECT end_ts FROM analysis_mb WHERE mb=3) f3)\n SELECT 'input' win,t0 lo,f0 hi FROM bounds UNION ALL SELECT 'three_fb',f0,f3 FROM bounds UNION ALL SELECT 'input_plus_three_fb',t0,f3 FROM bounds\n UNION ALL SELECT 'mb'||mb,ts,end_ts FROM analysis_mb WHERE mb<=3;\nCREATE PERFETTO TABLE analysis_device AS\n SELECT *, CASE WHEN category='gpu_memcpy' THEN 'copy' WHEN category='gpu_memset' THEN 'memset'\n WHEN lower(name) GLOB '*nccl*' THEN 'nccl' WHEN name GLOB '*ag_nvl*' OR name GLOB '*rs_nvl*' OR lower(name) GLOB '*deep_ep*' OR lower(name) GLOB '*deepep*' THEN 'ep'\n ELSE 'other_kernel' END family FROM thread_slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset');\nSELECT win,round((hi-lo)/1e6,6) ms FROM analysis_windows;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"ms\": 1009.722736,\n    \"win\": \"input\"\n  },\n  {\n    \"ms\": 1214.293308,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"ms\": 2224.016044,\n    \"win\": \"input_plus_three_fb\"\n  },\n  {\n    \"ms\": 387.312035,\n    \"win\": \"mb1\"\n  },\n  {\n    \"ms\": 384.551754,\n    \"win\": \"mb2\"\n  },\n  {\n    \"ms\": 388.070564,\n    \"win\": \"mb3\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "sql": "INCLUDE PERFETTO MODULE slices.with_context;\nCREATE PERFETTO TABLE analysis_mb AS\n SELECT row_number() OVER(ORDER BY ts) mb,id,ts,dur,ts+dur end_ts FROM thread_slice\n WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.microbatch.rank0';\nCREATE PERFETTO TABLE analysis_windows AS\n WITH bounds AS (SELECT (SELECT min(ts) FROM thread_slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.train_step.rank0') t0,\n (SELECT ts FROM analysis_mb WHERE mb=1) f0,(SELECT end_ts FROM analysis_mb WHERE mb=3) f3)\n SELECT 'input' win,t0 lo,f0 hi FROM bounds UNION ALL SELECT 'three_fb',f0,f3 FROM bounds UNION ALL SELECT 'input_plus_three_fb',t0,f3 FROM bounds\n UNION ALL SELECT 'mb'||mb,ts,end_ts FROM analysis_mb WHERE mb<=3;\nCREATE PERFETTO TABLE analysis_device AS\n SELECT *, CASE WHEN category='gpu_memcpy' THEN 'copy' WHEN category='gpu_memset' THEN 'memset'\n WHEN lower(name) GLOB '*nccl*' THEN 'nccl' WHEN name GLOB '*ag_nvl*' OR name GLOB '*rs_nvl*' OR lower(name) GLOB '*deep_ep*' OR lower(name) GLOB '*deepep*' THEN 'ep'\n ELSE 'other_kernel' END family FROM thread_slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset');\nSELECT win,round((hi-lo)/1e6,6) ms FROM analysis_windows;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"ms\": 8.445556,\n    \"win\": \"input\"\n  },\n  {\n    \"ms\": 1263.683189,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"ms\": 1272.128745,\n    \"win\": \"input_plus_three_fb\"\n  },\n  {\n    \"ms\": 405.530527,\n    \"win\": \"mb1\"\n  },\n  {\n    \"ms\": 401.013574,\n    \"win\": \"mb2\"\n  },\n  {\n    \"ms\": 401.394399,\n    \"win\": \"mb3\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "sql": "DROP TABLE analysis_device;\nCREATE PERFETTO TABLE analysis_device AS\n SELECT *, CASE WHEN category='gpu_memcpy' THEN 'copy' WHEN category='gpu_memset' THEN 'memset'\n WHEN lower(name) GLOB '*nccl*' THEN 'nccl' WHEN name GLOB '*hybrid_ep::*' OR name GLOB '*ag_nvl*' OR name GLOB '*rs_nvl*' OR lower(name) GLOB '*deep_ep*' OR lower(name) GLOB '*deepep*' THEN 'ep'\n ELSE 'other_kernel' END family FROM thread_slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset');\nCREATE PERFETTO TABLE analysis_clipped AS\n SELECT w.win,d.id,d.category,d.name,d.family,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e\n FROM analysis_device d JOIN analysis_windows w ON d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_union AS\n WITH expanded AS (SELECT * FROM analysis_clipped UNION ALL SELECT win,id,category,name,'all_device',b,e FROM analysis_clipped),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY win,family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM expanded)\n SELECT win,family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(previous_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY win,family;\nSELECT win,family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_union\nWHERE win IN ('input','three_fb') ORDER BY win,family;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 36.301,\n    \"n\": 9,\n    \"sum_ms\": 36.32,\n    \"union_ms\": 36.32,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.005,\n    \"n\": 6,\n    \"sum_ms\": 0.017,\n    \"union_ms\": 0.017,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 36.301,\n    \"n\": 1,\n    \"sum_ms\": 36.301,\n    \"union_ms\": 36.301,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 0.001,\n    \"n\": 2,\n    \"sum_ms\": 0.002,\n    \"union_ms\": 0.002,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 13.731,\n    \"n\": 9707,\n    \"sum_ms\": 1350.882,\n    \"union_ms\": 1173.082,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.924,\n    \"n\": 268,\n    \"sum_ms\": 23.53,\n    \"union_ms\": 23.53,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"ep\",\n    \"max_ms\": 1.909,\n    \"n\": 438,\n    \"sum_ms\": 127.45,\n    \"union_ms\": 127.45,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"memset\",\n    \"max_ms\": 0.004,\n    \"n\": 836,\n    \"sum_ms\": 0.926,\n    \"union_ms\": 0.926,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 13.568,\n    \"n\": 140,\n    \"sum_ms\": 209.769,\n    \"union_ms\": 209.769,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 13.731,\n    \"n\": 8025,\n    \"sum_ms\": 989.208,\n    \"union_ms\": 977.951,\n    \"win\": \"three_fb\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "sql": "DROP TABLE analysis_device;\nCREATE PERFETTO TABLE analysis_device AS\n SELECT *, CASE WHEN category='gpu_memcpy' THEN 'copy' WHEN category='gpu_memset' THEN 'memset'\n WHEN lower(name) GLOB '*nccl*' THEN 'nccl' WHEN name GLOB '*hybrid_ep::*' OR name GLOB '*ag_nvl*' OR name GLOB '*rs_nvl*' OR lower(name) GLOB '*deep_ep*' OR lower(name) GLOB '*deepep*' THEN 'ep'\n ELSE 'other_kernel' END family FROM thread_slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset');\nCREATE PERFETTO TABLE analysis_clipped AS\n SELECT w.win,d.id,d.category,d.name,d.family,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e\n FROM analysis_device d JOIN analysis_windows w ON d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_union AS\n WITH expanded AS (SELECT * FROM analysis_clipped UNION ALL SELECT win,id,category,name,'all_device',b,e FROM analysis_clipped),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY win,family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM expanded)\n SELECT win,family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(previous_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY win,family;\nSELECT win,family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_union\nWHERE win IN ('input','three_fb') ORDER BY win,family;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 15.323,\n    \"n\": 9,\n    \"sum_ms\": 15.342,\n    \"union_ms\": 15.342,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.005,\n    \"n\": 6,\n    \"sum_ms\": 0.016,\n    \"union_ms\": 0.016,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 15.323,\n    \"n\": 1,\n    \"sum_ms\": 15.323,\n    \"union_ms\": 15.323,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 0.001,\n    \"n\": 2,\n    \"sum_ms\": 0.002,\n    \"union_ms\": 0.002,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 14.008,\n    \"n\": 9721,\n    \"sum_ms\": 1398.112,\n    \"union_ms\": 1221.68,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.952,\n    \"n\": 268,\n    \"sum_ms\": 23.771,\n    \"union_ms\": 23.771,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"ep\",\n    \"max_ms\": 2.678,\n    \"n\": 438,\n    \"sum_ms\": 157.963,\n    \"union_ms\": 157.963,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"memset\",\n    \"max_ms\": 0.005,\n    \"n\": 837,\n    \"sum_ms\": 0.909,\n    \"union_ms\": 0.909,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 14.008,\n    \"n\": 141,\n    \"sum_ms\": 218.927,\n    \"union_ms\": 218.927,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 13.256,\n    \"n\": 8037,\n    \"sum_ms\": 996.543,\n    \"union_ms\": 987.356,\n    \"win\": \"three_fb\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "sql": "DROP TABLE analysis_device;\nCREATE PERFETTO TABLE analysis_device AS\n SELECT *, CASE WHEN category='gpu_memcpy' THEN 'copy' WHEN category='gpu_memset' THEN 'memset'\n WHEN lower(name) GLOB '*nccl*' THEN 'nccl' WHEN name GLOB '*hybrid_ep::*' OR name GLOB '*ag_nvl*' OR name GLOB '*rs_nvl*' OR lower(name) GLOB '*deep_ep*' OR lower(name) GLOB '*deepep*' THEN 'ep'\n ELSE 'other_kernel' END family FROM thread_slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset');\nCREATE PERFETTO TABLE analysis_clipped AS\n SELECT w.win,d.id,d.category,d.name,d.family,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e\n FROM analysis_device d JOIN analysis_windows w ON d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_union AS\n WITH expanded AS (SELECT * FROM analysis_clipped UNION ALL SELECT win,id,category,name,'all_device',b,e FROM analysis_clipped),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY win,family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM expanded)\n SELECT win,family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(previous_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY win,family;\nSELECT win,family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_union\nWHERE win IN ('input','three_fb') ORDER BY win,family;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 0.007,\n    \"n\": 9,\n    \"sum_ms\": 0.026,\n    \"union_ms\": 0.026,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.005,\n    \"n\": 6,\n    \"sum_ms\": 0.016,\n    \"union_ms\": 0.016,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 0.007,\n    \"n\": 1,\n    \"sum_ms\": 0.007,\n    \"union_ms\": 0.007,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 0.001,\n    \"n\": 2,\n    \"sum_ms\": 0.002,\n    \"union_ms\": 0.002,\n    \"win\": \"input\"\n  },\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 14.407,\n    \"n\": 9707,\n    \"sum_ms\": 1391.863,\n    \"union_ms\": 1220.894,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.915,\n    \"n\": 268,\n    \"sum_ms\": 23.528,\n    \"union_ms\": 23.528,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"ep\",\n    \"max_ms\": 2.525,\n    \"n\": 438,\n    \"sum_ms\": 157.627,\n    \"union_ms\": 157.627,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"memset\",\n    \"max_ms\": 0.004,\n    \"n\": 836,\n    \"sum_ms\": 0.892,\n    \"union_ms\": 0.892,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 13.618,\n    \"n\": 140,\n    \"sum_ms\": 209.967,\n    \"union_ms\": 209.967,\n    \"win\": \"three_fb\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 14.407,\n    \"n\": 8025,\n    \"sum_ms\": 999.849,\n    \"union_ms\": 990.893,\n    \"win\": \"three_fb\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "sql": "CREATE PERFETTO TABLE analysis_link AS\n SELECT d.*,h.id host_id,h.ts host_ts,h.dur host_dur,h.name host_name,h.tid host_tid\n FROM analysis_device d JOIN flow f ON f.slice_in=d.id JOIN thread_slice h ON h.id=f.slice_out\n WHERE h.category IN ('cuda_runtime','cuda_driver');\nSELECT (SELECT count(*) FROM analysis_device) device_events,(SELECT count(DISTINCT id) FROM analysis_link) linked_events,\n (SELECT count(*) FROM stats WHERE severity='error' AND value>0) importer_errors,\n (SELECT round((max(ts+dur)-(SELECT lo FROM analysis_windows WHERE win='three_fb'))/1e6,6) FROM analysis_link WHERE host_ts<(SELECT hi FROM analysis_windows WHERE win='three_fb') AND host_ts>=(SELECT lo FROM analysis_windows WHERE win='three_fb')) full_three_device_span_ms,\n (SELECT round((max(ts+dur)-(SELECT hi FROM analysis_windows WHERE win='three_fb'))/1e6,6) FROM analysis_link WHERE host_ts<(SELECT hi FROM analysis_windows WHERE win='three_fb') AND host_ts>=(SELECT lo FROM analysis_windows WHERE win='three_fb')) tail_after_cpu_ms;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"device_events\": 106459,\n    \"full_three_device_span_ms\": 1243.939913,\n    \"importer_errors\": 0,\n    \"linked_events\": 106459,\n    \"tail_after_cpu_ms\": 29.646605\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "sql": "CREATE PERFETTO TABLE analysis_link AS\n SELECT d.*,h.id host_id,h.ts host_ts,h.dur host_dur,h.name host_name,h.tid host_tid\n FROM analysis_device d JOIN flow f ON f.slice_in=d.id JOIN thread_slice h ON h.id=f.slice_out\n WHERE h.category IN ('cuda_runtime','cuda_driver');\nSELECT (SELECT count(*) FROM analysis_device) device_events,(SELECT count(DISTINCT id) FROM analysis_link) linked_events,\n (SELECT count(*) FROM stats WHERE severity='error' AND value>0) importer_errors,\n (SELECT round((max(ts+dur)-(SELECT lo FROM analysis_windows WHERE win='three_fb'))/1e6,6) FROM analysis_link WHERE host_ts<(SELECT hi FROM analysis_windows WHERE win='three_fb') AND host_ts>=(SELECT lo FROM analysis_windows WHERE win='three_fb')) full_three_device_span_ms,\n (SELECT round((max(ts+dur)-(SELECT hi FROM analysis_windows WHERE win='three_fb'))/1e6,6) FROM analysis_link WHERE host_ts<(SELECT hi FROM analysis_windows WHERE win='three_fb') AND host_ts>=(SELECT lo FROM analysis_windows WHERE win='three_fb')) tail_after_cpu_ms;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"device_events\": 9930,\n    \"full_three_device_span_ms\": 1294.518675,\n    \"importer_errors\": 0,\n    \"linked_events\": 9930,\n    \"tail_after_cpu_ms\": 27.089464\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "sql": "CREATE PERFETTO TABLE analysis_link AS\n SELECT d.*,h.id host_id,h.ts host_ts,h.dur host_dur,h.name host_name,h.tid host_tid\n FROM analysis_device d JOIN flow f ON f.slice_in=d.id JOIN thread_slice h ON h.id=f.slice_out\n WHERE h.category IN ('cuda_runtime','cuda_driver');\nSELECT (SELECT count(*) FROM analysis_device) device_events,(SELECT count(DISTINCT id) FROM analysis_link) linked_events,\n (SELECT count(*) FROM stats WHERE severity='error' AND value>0) importer_errors,\n (SELECT round((max(ts+dur)-(SELECT lo FROM analysis_windows WHERE win='three_fb'))/1e6,6) FROM analysis_link WHERE host_ts<(SELECT hi FROM analysis_windows WHERE win='three_fb') AND host_ts>=(SELECT lo FROM analysis_windows WHERE win='three_fb')) full_three_device_span_ms,\n (SELECT round((max(ts+dur)-(SELECT hi FROM analysis_windows WHERE win='three_fb'))/1e6,6) FROM analysis_link WHERE host_ts<(SELECT hi FROM analysis_windows WHERE win='three_fb') AND host_ts>=(SELECT lo FROM analysis_windows WHERE win='three_fb')) tail_after_cpu_ms;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"device_events\": 9930,\n    \"full_three_device_span_ms\": 1293.712761,\n    \"importer_errors\": 0,\n    \"linked_events\": 9930,\n    \"tail_after_cpu_ms\": 30.029572\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "sql": "INSERT INTO analysis_windows\nSELECT 'full_three_fb',w.lo,(SELECT max(ts+dur) FROM analysis_link WHERE host_ts>=w.lo AND host_ts<w.hi) FROM analysis_windows w WHERE win='three_fb';\nCREATE PERFETTO TABLE analysis_full_device AS\n SELECT d.*,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM analysis_device d JOIN analysis_windows w ON w.win='full_three_fb' AND d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_full_union AS\n WITH expanded AS (SELECT id,family,b,e FROM analysis_full_device UNION ALL SELECT id,'all_device',b,e FROM analysis_full_device),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM expanded)\n SELECT family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY family;\nCREATE PERFETTO TABLE analysis_full_gaps AS\n WITH prev AS (SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM analysis_full_device)\n SELECT id,b,e,prev_end,b-prev_end gap FROM prev WHERE b>prev_end;\nSELECT family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_full_union;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "SQL error: Traceback (most recent call last):\n  File \"stdin\" line 1 col 1\n    INSERT INTO analysis_windows\n    ^\ntable analysis_windows may not be modified"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "label": "base",
+      "sql": "INSERT INTO analysis_windows\nSELECT 'full_three_fb',w.lo,(SELECT max(ts+dur) FROM analysis_link WHERE host_ts>=w.lo AND host_ts<w.hi) FROM analysis_windows w WHERE win='three_fb';\nCREATE PERFETTO TABLE analysis_full_device AS\n SELECT d.*,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM analysis_device d JOIN analysis_windows w ON w.win='full_three_fb' AND d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_full_union AS\n WITH expanded AS (SELECT id,family,b,e FROM analysis_full_device UNION ALL SELECT id,'all_device',b,e FROM analysis_full_device),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM expanded)\n SELECT family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY family;\nCREATE PERFETTO TABLE analysis_full_gaps AS\n WITH prev AS (SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM analysis_full_device)\n SELECT id,b,e,prev_end,b-prev_end gap FROM prev WHERE b>prev_end;\nSELECT family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_full_union;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "SQL error: Traceback (most recent call last):\n  File \"stdin\" line 1 col 1\n    INSERT INTO analysis_windows\n    ^\ntable analysis_windows may not be modified"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "label": "v2",
+      "sql": "INSERT INTO analysis_windows\nSELECT 'full_three_fb',w.lo,(SELECT max(ts+dur) FROM analysis_link WHERE host_ts>=w.lo AND host_ts<w.hi) FROM analysis_windows w WHERE win='three_fb';\nCREATE PERFETTO TABLE analysis_full_device AS\n SELECT d.*,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM analysis_device d JOIN analysis_windows w ON w.win='full_three_fb' AND d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_full_union AS\n WITH expanded AS (SELECT id,family,b,e FROM analysis_full_device UNION ALL SELECT id,'all_device',b,e FROM analysis_full_device),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM expanded)\n SELECT family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY family;\nCREATE PERFETTO TABLE analysis_full_gaps AS\n WITH prev AS (SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM analysis_full_device)\n SELECT id,b,e,prev_end,b-prev_end gap FROM prev WHERE b>prev_end;\nSELECT family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_full_union;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "SQL error: Traceback (most recent call last):\n  File \"stdin\" line 1 col 1\n    INSERT INTO analysis_windows\n    ^\ntable analysis_windows may not be modified"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "label": "base",
+      "sql": "CREATE PERFETTO TABLE analysis_full_window AS\nSELECT 'full_three_fb' win,w.lo,(SELECT max(ts+dur) FROM analysis_link WHERE host_ts>=w.lo AND host_ts<w.hi) hi FROM analysis_windows w WHERE win='three_fb';\nCREATE PERFETTO TABLE analysis_full_device AS\n SELECT d.*,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM analysis_device d JOIN analysis_full_window w ON d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_full_union AS\n WITH expanded AS (SELECT id,family,b,e FROM analysis_full_device UNION ALL SELECT id,'all_device',b,e FROM analysis_full_device),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM expanded)\n SELECT family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY family;\nCREATE PERFETTO TABLE analysis_full_gaps AS\n WITH prev AS (SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM analysis_full_device)\n SELECT id,b,e,prev_end,b-prev_end gap FROM prev WHERE b>prev_end;\nSELECT family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_full_union;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 14.008,\n    \"n\": 9921,\n    \"sum_ms\": 1430.768,\n    \"union_ms\": 1248.454\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.952,\n    \"n\": 268,\n    \"sum_ms\": 23.771,\n    \"union_ms\": 23.771\n  },\n  {\n    \"family\": \"ep\",\n    \"max_ms\": 2.678,\n    \"n\": 438,\n    \"sum_ms\": 157.963,\n    \"union_ms\": 157.963\n  },\n  {\n    \"family\": \"memset\",\n    \"max_ms\": 0.005,\n    \"n\": 861,\n    \"sum_ms\": 0.946,\n    \"union_ms\": 0.946\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 14.008,\n    \"n\": 144,\n    \"sum_ms\": 232.379,\n    \"union_ms\": 232.379\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 13.256,\n    \"n\": 8210,\n    \"sum_ms\": 1015.709,\n    \"union_ms\": 1006.47\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "sql": "CREATE PERFETTO TABLE analysis_full_window AS\nSELECT 'full_three_fb' win,w.lo,(SELECT max(ts+dur) FROM analysis_link WHERE host_ts>=w.lo AND host_ts<w.hi) hi FROM analysis_windows w WHERE win='three_fb';\nCREATE PERFETTO TABLE analysis_full_device AS\n SELECT d.*,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM analysis_device d JOIN analysis_full_window w ON d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_full_union AS\n WITH expanded AS (SELECT id,family,b,e FROM analysis_full_device UNION ALL SELECT id,'all_device',b,e FROM analysis_full_device),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM expanded)\n SELECT family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY family;\nCREATE PERFETTO TABLE analysis_full_gaps AS\n WITH prev AS (SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM analysis_full_device)\n SELECT id,b,e,prev_end,b-prev_end gap FROM prev WHERE b>prev_end;\nSELECT family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_full_union;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 13.731,\n    \"n\": 9921,\n    \"sum_ms\": 1386.9,\n    \"union_ms\": 1202.386\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.924,\n    \"n\": 268,\n    \"sum_ms\": 23.53,\n    \"union_ms\": 23.53\n  },\n  {\n    \"family\": \"ep\",\n    \"max_ms\": 1.909,\n    \"n\": 438,\n    \"sum_ms\": 127.45,\n    \"union_ms\": 127.45\n  },\n  {\n    \"family\": \"memset\",\n    \"max_ms\": 0.004,\n    \"n\": 861,\n    \"sum_ms\": 0.964,\n    \"union_ms\": 0.964\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 13.568,\n    \"n\": 144,\n    \"sum_ms\": 222.824,\n    \"union_ms\": 222.824\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 13.731,\n    \"n\": 8210,\n    \"sum_ms\": 1012.133,\n    \"union_ms\": 999.611\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "sql": "CREATE PERFETTO TABLE analysis_full_window AS\nSELECT 'full_three_fb' win,w.lo,(SELECT max(ts+dur) FROM analysis_link WHERE host_ts>=w.lo AND host_ts<w.hi) hi FROM analysis_windows w WHERE win='three_fb';\nCREATE PERFETTO TABLE analysis_full_device AS\n SELECT d.*,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM analysis_device d JOIN analysis_full_window w ON d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE analysis_full_union AS\n WITH expanded AS (SELECT id,family,b,e FROM analysis_full_device UNION ALL SELECT id,'all_device',b,e FROM analysis_full_device),\n prev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM expanded)\n SELECT family,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms,max(e-b)/1e6 max_ms FROM prev GROUP BY family;\nCREATE PERFETTO TABLE analysis_full_gaps AS\n WITH prev AS (SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM analysis_full_device)\n SELECT id,b,e,prev_end,b-prev_end gap FROM prev WHERE b>prev_end;\nSELECT family,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms,round(max_ms,3) max_ms FROM analysis_full_union;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"all_device\",\n    \"max_ms\": 14.407,\n    \"n\": 9921,\n    \"sum_ms\": 1427.692,\n    \"union_ms\": 1250.601\n  },\n  {\n    \"family\": \"copy\",\n    \"max_ms\": 0.915,\n    \"n\": 268,\n    \"sum_ms\": 23.528,\n    \"union_ms\": 23.528\n  },\n  {\n    \"family\": \"ep\",\n    \"max_ms\": 2.525,\n    \"n\": 438,\n    \"sum_ms\": 157.627,\n    \"union_ms\": 157.627\n  },\n  {\n    \"family\": \"memset\",\n    \"max_ms\": 0.004,\n    \"n\": 861,\n    \"sum_ms\": 0.929,\n    \"union_ms\": 0.929\n  },\n  {\n    \"family\": \"nccl\",\n    \"max_ms\": 13.618,\n    \"n\": 144,\n    \"sum_ms\": 223.499,\n    \"union_ms\": 223.499\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"max_ms\": 14.407,\n    \"n\": 8210,\n    \"sum_ms\": 1022.108,\n    \"union_ms\": 1013.093\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "kind": "gaps",
+      "sql": "SELECT (SELECT round((hi-lo)/1e6,3) FROM analysis_full_window) full_three_fb_ms,\nround(sum(gap)/1e6,3) interior_idle_ms,round(max(gap)/1e6,3) max_gap_ms,\nsum(gap>=1000000) gaps_ge1ms,round(sum(CASE WHEN gap>=1000000 THEN gap ELSE 0 END)/1e6,3) gaps_ge1ms_sum FROM analysis_full_gaps;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"full_three_fb_ms\": 1243.94,\n    \"gaps_ge1ms\": 0,\n    \"gaps_ge1ms_sum\": 0.0,\n    \"interior_idle_ms\": 41.252,\n    \"max_gap_ms\": 0.412\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "kind": "gap_detail",
+      "sql": "SELECT round(g.gap/1e6,3) gap_ms,round((g.b-w.lo)/1e6,3) next_at_ms,substr(d.name,1,85) next_name,d.family,h.host_name,round((h.host_ts-g.prev_end)/1e6,3) launch_after_gap_start_ms,round((g.b-h.host_ts-h.host_dur)/1e6,3) gpu_start_after_host_api_end_ms\nFROM analysis_full_gaps g JOIN analysis_full_device d ON d.id=g.id CROSS JOIN analysis_full_window w LEFT JOIN analysis_link h ON h.id=g.id ORDER BY g.gap DESC LIMIT 5;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.412,\n    \"gpu_start_after_host_api_end_ms\": -0.001,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.38,\n    \"next_at_ms\": 826.581,\n    \"next_name\": \"void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cud\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.344,\n    \"gpu_start_after_host_api_end_ms\": -0.001,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.312,\n    \"next_at_ms\": 411.885,\n    \"next_name\": \"void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cud\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.287,\n    \"gpu_start_after_host_api_end_ms\": 0.002,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.275,\n    \"next_at_ms\": 827.313,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cu\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.281,\n    \"gpu_start_after_host_api_end_ms\": 0.002,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.269,\n    \"next_at_ms\": 412.611,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cu\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.263,\n    \"gpu_start_after_host_api_end_ms\": 0.002,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.251,\n    \"next_at_ms\": 0.97,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cu\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "kind": "host",
+      "sql": "SELECT category,name,count(*) n,round(sum(MIN(s.ts+s.dur,w.hi)-MAX(s.ts,w.lo))/1e6,3) host_sum_ms FROM thread_slice s JOIN analysis_full_window w ON s.ts<w.hi AND s.ts+s.dur>w.lo WHERE category IN ('cuda_runtime','cuda_driver') AND (name GLOB '*Synchronize*' OR name GLOB '*Launch*') GROUP BY category,name ORDER BY host_sum_ms DESC LIMIT 12;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 701.243,\n    \"n\": 88,\n    \"name\": \"cudaStreamSynchronize\"\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 16.621,\n    \"n\": 3188,\n    \"name\": \"cudaLaunchKernel\"\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"host_sum_ms\": 14.056,\n    \"n\": 2175,\n    \"name\": \"cuLaunchKernelEx\"\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"host_sum_ms\": 10.285,\n    \"n\": 2004,\n    \"name\": \"cuLaunchKernel\"\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 7.664,\n    \"n\": 1425,\n    \"name\": \"cudaLaunchKernelExC\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "kind": "gaps",
+      "sql": "SELECT (SELECT round((hi-lo)/1e6,3) FROM analysis_full_window) full_three_fb_ms,\nround(sum(gap)/1e6,3) interior_idle_ms,round(max(gap)/1e6,3) max_gap_ms,\nsum(gap>=1000000) gaps_ge1ms,round(sum(CASE WHEN gap>=1000000 THEN gap ELSE 0 END)/1e6,3) gaps_ge1ms_sum FROM analysis_full_gaps;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"full_three_fb_ms\": 1294.519,\n    \"gaps_ge1ms\": 0,\n    \"gaps_ge1ms_sum\": 0.0,\n    \"interior_idle_ms\": 45.79,\n    \"max_gap_ms\": 0.419\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "kind": "prefix",
+      "sql": "SELECT s.category,s.name,count(*) n,round(sum(s.dur)/1e6,3) host_sum_ms FROM thread_slice s JOIN analysis_windows w ON w.win='input' AND s.ts>=w.lo AND s.ts+s.dur<=w.hi WHERE s.category='cpu_op' OR (s.category='user_annotation' AND (s.name GLOB '*DataLoader*' OR s.name GLOB 'task.prefetch*' OR s.name GLOB 'task.token_count*')) GROUP BY s.category,s.name ORDER BY host_sum_ms DESC LIMIT 10;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"user_annotation\",\n    \"host_sum_ms\": 959.385,\n    \"n\": 33,\n    \"name\": \"enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 72.317,\n    \"n\": 2,\n    \"name\": \"aten::_local_scalar_dense\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 36.234,\n    \"n\": 1,\n    \"name\": \"aten::item\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 36.224,\n    \"n\": 1,\n    \"name\": \"PythonSubclass\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 1.468,\n    \"n\": 66,\n    \"name\": \"aten::sum\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.678,\n    \"n\": 37,\n    \"name\": \"aten::to\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.657,\n    \"n\": 32,\n    \"name\": \"aten::ne\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.64,\n    \"n\": 36,\n    \"name\": \"aten::_to_copy\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.381,\n    \"n\": 37,\n    \"name\": \"aten::copy_\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.278,\n    \"n\": 1,\n    \"name\": \"_c10d_functional::all_reduce\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "kind": "gap_detail",
+      "sql": "SELECT round(g.gap/1e6,3) gap_ms,round((g.b-w.lo)/1e6,3) next_at_ms,substr(d.name,1,85) next_name,d.family,h.host_name,round((h.host_ts-g.prev_end)/1e6,3) launch_after_gap_start_ms,round((g.b-h.host_ts-h.host_dur)/1e6,3) gpu_start_after_host_api_end_ms\nFROM analysis_full_gaps g JOIN analysis_full_device d ON d.id=g.id CROSS JOIN analysis_full_window w LEFT JOIN analysis_link h ON h.id=g.id ORDER BY g.gap DESC LIMIT 5;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.419,\n    \"gpu_start_after_host_api_end_ms\": -0.002,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.389,\n    \"next_at_ms\": 861.723,\n    \"next_name\": \"void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cud\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.374,\n    \"gpu_start_after_host_api_end_ms\": -0.002,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.344,\n    \"next_at_ms\": 429.639,\n    \"next_name\": \"void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cud\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.36,\n    \"gpu_start_after_host_api_end_ms\": -0.0,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.345,\n    \"next_at_ms\": 430.517,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cu\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.336,\n    \"gpu_start_after_host_api_end_ms\": 0.001,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.322,\n    \"next_at_ms\": 862.522,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cu\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.314,\n    \"gpu_start_after_host_api_end_ms\": -0.005,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.299,\n    \"next_at_ms\": 1.104,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cu\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "kind": "host",
+      "sql": "SELECT category,name,count(*) n,round(sum(MIN(s.ts+s.dur,w.hi)-MAX(s.ts,w.lo))/1e6,3) host_sum_ms FROM thread_slice s JOIN analysis_full_window w ON s.ts<w.hi AND s.ts+s.dur>w.lo WHERE category IN ('cuda_runtime','cuda_driver') AND (name GLOB '*Synchronize*' OR name GLOB '*Launch*') GROUP BY category,name ORDER BY host_sum_ms DESC LIMIT 12;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 660.571,\n    \"n\": 87,\n    \"name\": \"cudaStreamSynchronize\"\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 27.006,\n    \"n\": 1,\n    \"name\": \"cudaDeviceSynchronize\"\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 21.047,\n    \"n\": 3188,\n    \"name\": \"cudaLaunchKernel\"\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"host_sum_ms\": 15.281,\n    \"n\": 2175,\n    \"name\": \"cuLaunchKernelEx\"\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"host_sum_ms\": 13.145,\n    \"n\": 2004,\n    \"name\": \"cuLaunchKernel\"\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 8.296,\n    \"n\": 1425,\n    \"name\": \"cudaLaunchKernelExC\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "kind": "prefix",
+      "sql": "SELECT s.category,s.name,count(*) n,round(sum(s.dur)/1e6,3) host_sum_ms FROM thread_slice s JOIN analysis_windows w ON w.win='input' AND s.ts>=w.lo AND s.ts+s.dur<=w.hi WHERE s.category='cpu_op' OR (s.category='user_annotation' AND (s.name GLOB '*DataLoader*' OR s.name GLOB 'task.prefetch*' OR s.name GLOB 'task.token_count*')) GROUP BY s.category,s.name ORDER BY host_sum_ms DESC LIMIT 10;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"user_annotation\",\n    \"host_sum_ms\": 645.431,\n    \"n\": 32,\n    \"name\": \"enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 30.279,\n    \"n\": 2,\n    \"name\": \"aten::_local_scalar_dense\"\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"host_sum_ms\": 15.765,\n    \"n\": 1,\n    \"name\": \"task.token_count.global_reduction\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 15.226,\n    \"n\": 1,\n    \"name\": \"aten::item\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 15.215,\n    \"n\": 1,\n    \"name\": \"PythonSubclass\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 1.971,\n    \"n\": 66,\n    \"name\": \"aten::sum\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.865,\n    \"n\": 37,\n    \"name\": \"aten::to\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.824,\n    \"n\": 32,\n    \"name\": \"aten::ne\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.813,\n    \"n\": 36,\n    \"name\": \"aten::_to_copy\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.47,\n    \"n\": 37,\n    \"name\": \"aten::copy_\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "kind": "gaps",
+      "sql": "SELECT (SELECT round((hi-lo)/1e6,3) FROM analysis_full_window) full_three_fb_ms,\nround(sum(gap)/1e6,3) interior_idle_ms,round(max(gap)/1e6,3) max_gap_ms,\nsum(gap>=1000000) gaps_ge1ms,round(sum(CASE WHEN gap>=1000000 THEN gap ELSE 0 END)/1e6,3) gaps_ge1ms_sum FROM analysis_full_gaps;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"full_three_fb_ms\": 1293.713,\n    \"gaps_ge1ms\": 0,\n    \"gaps_ge1ms_sum\": 0.0,\n    \"interior_idle_ms\": 42.899,\n    \"max_gap_ms\": 0.382\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "kind": "host",
+      "sql": "SELECT category,name,count(*) n,round(sum(MIN(s.ts+s.dur,w.hi)-MAX(s.ts,w.lo))/1e6,3) host_sum_ms FROM thread_slice s JOIN analysis_full_window w ON s.ts<w.hi AND s.ts+s.dur>w.lo WHERE category IN ('cuda_runtime','cuda_driver') AND (name GLOB '*Synchronize*' OR name GLOB '*Launch*') GROUP BY category,name ORDER BY host_sum_ms DESC LIMIT 12;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 716.983,\n    \"n\": 87,\n    \"name\": \"cudaStreamSynchronize\"\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 29.955,\n    \"n\": 1,\n    \"name\": \"cudaDeviceSynchronize\"\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 17.632,\n    \"n\": 3188,\n    \"name\": \"cudaLaunchKernel\"\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"host_sum_ms\": 13.232,\n    \"n\": 2175,\n    \"name\": \"cuLaunchKernelEx\"\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"host_sum_ms\": 9.813,\n    \"n\": 2004,\n    \"name\": \"cuLaunchKernel\"\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"host_sum_ms\": 7.204,\n    \"n\": 1425,\n    \"name\": \"cudaLaunchKernelExC\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "kind": "gap_detail",
+      "sql": "SELECT round(g.gap/1e6,3) gap_ms,round((g.b-w.lo)/1e6,3) next_at_ms,substr(d.name,1,85) next_name,d.family,h.host_name,round((h.host_ts-g.prev_end)/1e6,3) launch_after_gap_start_ms,round((g.b-h.host_ts-h.host_dur)/1e6,3) gpu_start_after_host_api_end_ms\nFROM analysis_full_gaps g JOIN analysis_full_device d ON d.id=g.id CROSS JOIN analysis_full_window w LEFT JOIN analysis_link h ON h.id=g.id ORDER BY g.gap DESC LIMIT 5;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.382,\n    \"gpu_start_after_host_api_end_ms\": -0.001,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.351,\n    \"next_at_ms\": 862.622,\n    \"next_name\": \"void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cud\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.336,\n    \"gpu_start_after_host_api_end_ms\": -0.001,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.308,\n    \"next_at_ms\": 431.217,\n    \"next_name\": \"void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cud\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.28,\n    \"gpu_start_after_host_api_end_ms\": 0.002,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.269,\n    \"next_at_ms\": 431.962,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cu\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.274,\n    \"gpu_start_after_host_api_end_ms\": 0.002,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.263,\n    \"next_at_ms\": 863.432,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cu\"\n  },\n  {\n    \"family\": \"other_kernel\",\n    \"gap_ms\": 0.26,\n    \"gpu_start_after_host_api_end_ms\": -0.001,\n    \"host_name\": \"cuLaunchKernel\",\n    \"launch_after_gap_start_ms\": 0.246,\n    \"next_at_ms\": 209.102,\n    \"next_name\": \"triton_poi_fused__unsafe_view_add_bitwise_not_dispatch_div_gather_masked_fill_mul_sig\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "kind": "prefix",
+      "sql": "SELECT s.category,s.name,count(*) n,round(sum(s.dur)/1e6,3) host_sum_ms FROM thread_slice s JOIN analysis_windows w ON w.win='input' AND s.ts>=w.lo AND s.ts+s.dur<=w.hi WHERE s.category='cpu_op' OR (s.category='user_annotation' AND (s.name GLOB '*DataLoader*' OR s.name GLOB 'task.prefetch*' OR s.name GLOB 'task.token_count*')) GROUP BY s.category,s.name ORDER BY host_sum_ms DESC LIMIT 10;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.905,\n    \"n\": 66,\n    \"name\": \"aten::sum\"\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"host_sum_ms\": 0.564,\n    \"n\": 32,\n    \"name\": \"task.prefetch.queue_pop_wait\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.546,\n    \"n\": 32,\n    \"name\": \"aten::ne\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.397,\n    \"n\": 37,\n    \"name\": \"aten::to\"\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"host_sum_ms\": 0.396,\n    \"n\": 1,\n    \"name\": \"task.token_count.global_reduction\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.372,\n    \"n\": 36,\n    \"name\": \"aten::_to_copy\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.232,\n    \"n\": 37,\n    \"name\": \"aten::copy_\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.201,\n    \"n\": 1,\n    \"name\": \"_c10d_functional::all_reduce\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.135,\n    \"n\": 2,\n    \"name\": \"aten::_local_scalar_dense\"\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"host_sum_ms\": 0.132,\n    \"n\": 1,\n    \"name\": \"c10d::allreduce_\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "kind": "host_unions",
+      "sql": "CREATE PERFETTO TABLE analysis_host_intervals AS\nWITH clipped AS (\nSELECT s.id,CASE WHEN s.name GLOB '*Synchronize*' THEN 'sync' ELSE 'launch' END family,MAX(s.ts,w.lo) b,MIN(s.ts+s.dur,w.hi) e\nFROM thread_slice s JOIN analysis_full_window w ON s.ts<w.hi AND s.ts+s.dur>w.lo\nWHERE s.category IN ('cuda_runtime','cuda_driver') AND (s.name GLOB '*Synchronize*' OR s.name GLOB '*Launch*')),\nprev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped),\nnumbered AS (SELECT *,SUM(CASE WHEN b>coalesce(previous_end,b-1) THEN 1 ELSE 0 END) OVER(PARTITION BY family ORDER BY b,e,id) grp FROM prev)\nSELECT family,grp,min(b) b,max(e) e FROM numbered GROUP BY family,grp;\nWITH gaps AS (SELECT prev_end b,b e FROM analysis_full_gaps UNION ALL SELECT lo,(SELECT min(b) FROM analysis_full_device) FROM analysis_full_window),\noverlap AS (SELECT h.family,sum(MIN(h.e,g.e)-MAX(h.b,g.b))/1e6 idle_ms FROM analysis_host_intervals h JOIN gaps g ON h.b<g.e AND h.e>g.b GROUP BY h.family)\nSELECT h.family,round(sum(h.e-h.b)/1e6,3) union_ms,round(coalesce(o.idle_ms,0),3) overlap_recorded_gpu_idle_ms\nFROM analysis_host_intervals h LEFT JOIN overlap o ON o.family=h.family GROUP BY h.family;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"launch\",\n    \"overlap_recorded_gpu_idle_ms\": 4.228,\n    \"union_ms\": 48.626\n  },\n  {\n    \"family\": \"sync\",\n    \"overlap_recorded_gpu_idle_ms\": 7.262,\n    \"union_ms\": 701.243\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "kind": "host_unions",
+      "sql": "CREATE PERFETTO TABLE analysis_host_intervals AS\nWITH clipped AS (\nSELECT s.id,CASE WHEN s.name GLOB '*Synchronize*' THEN 'sync' ELSE 'launch' END family,MAX(s.ts,w.lo) b,MIN(s.ts+s.dur,w.hi) e\nFROM thread_slice s JOIN analysis_full_window w ON s.ts<w.hi AND s.ts+s.dur>w.lo\nWHERE s.category IN ('cuda_runtime','cuda_driver') AND (s.name GLOB '*Synchronize*' OR s.name GLOB '*Launch*')),\nprev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped),\nnumbered AS (SELECT *,SUM(CASE WHEN b>coalesce(previous_end,b-1) THEN 1 ELSE 0 END) OVER(PARTITION BY family ORDER BY b,e,id) grp FROM prev)\nSELECT family,grp,min(b) b,max(e) e FROM numbered GROUP BY family,grp;\nWITH gaps AS (SELECT prev_end b,b e FROM analysis_full_gaps UNION ALL SELECT lo,(SELECT min(b) FROM analysis_full_device) FROM analysis_full_window),\noverlap AS (SELECT h.family,sum(MIN(h.e,g.e)-MAX(h.b,g.b))/1e6 idle_ms FROM analysis_host_intervals h JOIN gaps g ON h.b<g.e AND h.e>g.b GROUP BY h.family)\nSELECT h.family,round(sum(h.e-h.b)/1e6,3) union_ms,round(coalesce(o.idle_ms,0),3) overlap_recorded_gpu_idle_ms\nFROM analysis_host_intervals h LEFT JOIN overlap o ON o.family=h.family GROUP BY h.family;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"launch\",\n    \"overlap_recorded_gpu_idle_ms\": 5.122,\n    \"union_ms\": 57.768\n  },\n  {\n    \"family\": \"sync\",\n    \"overlap_recorded_gpu_idle_ms\": 6.939,\n    \"union_ms\": 687.577\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "kind": "host_unions",
+      "sql": "CREATE PERFETTO TABLE analysis_host_intervals AS\nWITH clipped AS (\nSELECT s.id,CASE WHEN s.name GLOB '*Synchronize*' THEN 'sync' ELSE 'launch' END family,MAX(s.ts,w.lo) b,MIN(s.ts+s.dur,w.hi) e\nFROM thread_slice s JOIN analysis_full_window w ON s.ts<w.hi AND s.ts+s.dur>w.lo\nWHERE s.category IN ('cuda_runtime','cuda_driver') AND (s.name GLOB '*Synchronize*' OR s.name GLOB '*Launch*')),\nprev AS (SELECT *,MAX(e) OVER(PARTITION BY family ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped),\nnumbered AS (SELECT *,SUM(CASE WHEN b>coalesce(previous_end,b-1) THEN 1 ELSE 0 END) OVER(PARTITION BY family ORDER BY b,e,id) grp FROM prev)\nSELECT family,grp,min(b) b,max(e) e FROM numbered GROUP BY family,grp;\nWITH gaps AS (SELECT prev_end b,b e FROM analysis_full_gaps UNION ALL SELECT lo,(SELECT min(b) FROM analysis_full_device) FROM analysis_full_window),\noverlap AS (SELECT h.family,sum(MIN(h.e,g.e)-MAX(h.b,g.b))/1e6 idle_ms FROM analysis_host_intervals h JOIN gaps g ON h.b<g.e AND h.e>g.b GROUP BY h.family)\nSELECT h.family,round(sum(h.e-h.b)/1e6,3) union_ms,round(coalesce(o.idle_ms,0),3) overlap_recorded_gpu_idle_ms\nFROM analysis_host_intervals h LEFT JOIN overlap o ON o.family=h.family GROUP BY h.family;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"launch\",\n    \"overlap_recorded_gpu_idle_ms\": 4.053,\n    \"union_ms\": 47.88\n  },\n  {\n    \"family\": \"sync\",\n    \"overlap_recorded_gpu_idle_ms\": 7.783,\n    \"union_ms\": 746.938\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "old",
+      "kind": "token_reduction",
+      "sql": "SELECT d.name,round(d.dur/1e6,6) kernel_ms,round((d.ts-w.lo)/1e6,6) after_input_start_ms,\nEXTRACT_ARG(d.arg_set_id,'args.In msg nelems') nelems,EXTRACT_ARG(d.arg_set_id,'args.Group size') group_size,EXTRACT_ARG(d.arg_set_id,'args.dtype') dtype,\nround(h.host_dur/1e6,6) launch_api_ms,h.host_name,round((d.ts-h.host_ts)/1e6,6) launch_start_to_gpu_ms\nFROM analysis_device d JOIN analysis_windows w ON w.win='input' AND d.ts>=w.lo AND d.ts<w.hi LEFT JOIN analysis_link h ON h.id=d.id WHERE d.family='nccl';",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"after_input_start_ms\": 973.069649,\n    \"dtype\": \"Long\",\n    \"group_size\": 8,\n    \"host_name\": \"cuLaunchKernelEx\",\n    \"kernel_ms\": 36.300703,\n    \"launch_api_ms\": 0.00868,\n    \"launch_start_to_gpu_ms\": 0.010187,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"nelems\": 1\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "base",
+      "kind": "token_reduction",
+      "sql": "SELECT d.name,round(d.dur/1e6,6) kernel_ms,round((d.ts-w.lo)/1e6,6) after_input_start_ms,\nEXTRACT_ARG(d.arg_set_id,'args.In msg nelems') nelems,EXTRACT_ARG(d.arg_set_id,'args.Group size') group_size,EXTRACT_ARG(d.arg_set_id,'args.dtype') dtype,\nround(h.host_dur/1e6,6) launch_api_ms,h.host_name,round((d.ts-h.host_ts)/1e6,6) launch_start_to_gpu_ms\nFROM analysis_device d JOIN analysis_windows w ON w.win='input' AND d.ts>=w.lo AND d.ts<w.hi LEFT JOIN analysis_link h ON h.id=d.id WHERE d.family='nccl';",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"after_input_start_ms\": 660.118895,\n    \"dtype\": \"Long\",\n    \"group_size\": 8,\n    \"host_name\": \"cuLaunchKernelEx\",\n    \"kernel_ms\": 15.323223,\n    \"launch_api_ms\": 0.01227,\n    \"launch_start_to_gpu_ms\": 0.012151,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"nelems\": 1\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "v2",
+      "kind": "token_reduction",
+      "sql": "SELECT d.name,round(d.dur/1e6,6) kernel_ms,round((d.ts-w.lo)/1e6,6) after_input_start_ms,\nEXTRACT_ARG(d.arg_set_id,'args.In msg nelems') nelems,EXTRACT_ARG(d.arg_set_id,'args.Group size') group_size,EXTRACT_ARG(d.arg_set_id,'args.dtype') dtype,\nround(h.host_dur/1e6,6) launch_api_ms,h.host_name,round((d.ts-h.host_ts)/1e6,6) launch_start_to_gpu_ms\nFROM analysis_device d JOIN analysis_windows w ON w.win='input' AND d.ts>=w.lo AND d.ts<w.hi LEFT JOIN analysis_link h ON h.id=d.id WHERE d.family='nccl';",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"after_input_start_ms\": 8.076691,\n    \"dtype\": \"Long\",\n    \"group_size\": 8,\n    \"host_name\": \"cuLaunchKernelEx\",\n    \"kernel_ms\": 0.0072,\n    \"launch_api_ms\": 0.00777,\n    \"launch_start_to_gpu_ms\": 0.009229,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"nelems\": 1\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "analysis_date": "2026-11-13",
+  "schema_version": 1,
+  "import_receipts": {
+    "old": {
+      "source": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/native/profiling/traces/iteration_11/rank0_trace.json.gz",
+      "source_sha256": "f8532db191edb226385409ef5f707769db58c6db0bac47b07d1b24252d7c6360",
+      "output": "runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/old-rank0.perfetto.json.gz",
+      "output_sha256": "3232f18b2da8e77a4b9f75812c111e6f486fd5dbd449422c74574dd375605671",
+      "transformation": "Remove GPU user ranges; color overlapping device events into nonoverlapping synthetic display tids and move their matching flow endpoints. Keep original timestamps, durations, names, arguments (including actual args.stream), CPU events and trace metadata. Source bytes are unchanged.",
+      "device_census": {
+        "kernel": {
+          "count": 94436,
+          "sum_duration_us": 14619402.570000047
+        },
+        "gpu_memcpy": {
+          "count": 2839,
+          "sum_duration_us": 191583.0020000001
+        },
+        "gpu_memset": {
+          "count": 9184,
+          "sum_duration_us": 10295.456999999911
+        }
+      },
+      "moved_device_events": 420,
+      "moved_flow_endpoints": 420,
+      "removed_gpu_ranges": 3871
+    },
+    "base": {
+      "source": "runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+      "source_sha256": "5b2a23c893e59d7317dca46468b9d8416435245ebbcb865dfa3f81344c760576",
+      "output": "runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/base-rank0.perfetto.json.gz",
+      "output_sha256": "4f9ad62099a0d03c7f770f3f9f9dbc9a7632a1f01056c1d8e3bd17a5a801e26a",
+      "transformation": "Remove GPU user ranges; color overlapping device events into nonoverlapping synthetic display tids and move their matching flow endpoints. Keep original timestamps, durations, names, arguments (including actual args.stream), CPU events and trace metadata. Source bytes are unchanged.",
+      "device_census": {
+        "kernel": {
+          "count": 8795,
+          "sum_duration_us": 1421376.441999999
+        },
+        "gpu_memcpy": {
+          "count": 274,
+          "sum_duration_us": 23787.665999999994
+        },
+        "gpu_memset": {
+          "count": 861,
+          "sum_duration_us": 945.9919999999987
+        }
+      },
+      "moved_device_events": 51,
+      "moved_flow_endpoints": 51,
+      "removed_gpu_ranges": 354
+    },
+    "v2": {
+      "source": "runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+      "source_sha256": "196806cee1fe857e97e4d80f3b7aa5961e323860f5fa1274d3e4b59a6f522c94",
+      "output": "runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/v2-rank0.perfetto.json.gz",
+      "output_sha256": "876696a98da197a3b1ac4bb22e6ccac869db6ecd5ff9fd4d931ea8244f7397bd",
+      "transformation": "Remove GPU user ranges; color overlapping device events into nonoverlapping synthetic display tids and move their matching flow endpoints. Keep original timestamps, durations, names, arguments (including actual args.stream), CPU events and trace metadata. Source bytes are unchanged.",
+      "device_census": {
+        "kernel": {
+          "count": 8795,
+          "sum_duration_us": 1403243.8399999973
+        },
+        "gpu_memcpy": {
+          "count": 274,
+          "sum_duration_us": 23544.01999999999
+        },
+        "gpu_memset": {
+          "count": 861,
+          "sum_duration_us": 929.4439999999979
+        }
+      },
+      "moved_device_events": 59,
+      "moved_flow_endpoints": 59,
+      "removed_gpu_ranges": 354
+    }
+  },
+  "corrected_query_failures": "Three INSERT attempts against immutable Perfetto tables failed before metrics were produced; corrected by creating separate derived tables. Final queries and imports succeeded.",
+  "decision": "Owner accepts V2 at explicit depth 32 for the current long-epoch crop workload based on the unprofiled TPS pair and MCP trace findings; one-pair magnitude remains provisional."
+}

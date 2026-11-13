@@ -4,7 +4,16 @@ Updated: 13 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
 
-## V2 follow-up: long-epoch pair and four traces complete
+## V2 accepted: depth 32 for the long-epoch crop workload
+
+On 13 November 2026 the owner accepted V2 CPU prefetch at depth 32 based on the
+long-epoch TPS pair and the subsequent
+[MCP Perfetto comparison](../runs/v2-prefetch-baseline/report.md#mcp-perfetto-comparison-and-acceptance).
+Rank-0 input-to-first-F/B falls from 675.782 to 8.446 ms. The complete three-F/B
+device span is 1294.519 / 1293.713 ms; no material execution regression is
+observed in that sampled prefix. The accepted variant uses the explicit
+`num_prefetch_batches: 32` override; the generic loader and canonical control
+default remain zero. No source/configuration change accompanies this decision.
 
 The separately authorized follow-up removes frequent fixture epoch transitions
 with a native logical-epoch override. The fresh matched pair over updates 21–60
@@ -18,7 +27,8 @@ Input-to-first-F/B spans were about 676–678 ms for A and 8–9 ms for B; the V
 queue stayed ready. Prior-producer cost/overlap is outside capture. All owned
 training groups exited and all eight GPUs are idle. Original short-epoch results
 below are preserved separately. This single new pair has no repeat/noise estimate
-and establishes no general gain or adoption; the default remains zero.
+and establishes no general speedup, convergence or production-scale behavior.
+Acceptance is scoped to the current long-epoch workload.
 
 ## V2 CPU prefetch: integrated and measured, default off
 
@@ -43,7 +53,8 @@ The matched unprofiled pair measured **147,402.84 global input tokens/s at depth
 peaks were effectively unchanged; the report distinguishes GPU peaks and host
 boundary memory. A single pair has no run-to-run noise estimate, and the retained
 candidate update-16 outlier has no established cause. No general performance
-gain is accepted; the default stays zero.
+gain was accepted at that assignment's completion. The subsequent long-epoch
+acceptance above supersedes that decision for the current workload.
 
 Four canonical gzip traces passed coverage and lossless verification: ranks 0/1
 for each variant, input prefix/token reduction and exactly three complete

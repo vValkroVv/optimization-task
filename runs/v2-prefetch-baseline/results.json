@@ -1,4 +1,23 @@
 {
+  "acceptance": {
+    "basis": [
+      "runs/v2-prefetch-baseline/pair-long-epoch-001.json",
+      "runs/v2-prefetch-baseline/trace-analysis-long-epoch-perfetto.json"
+    ],
+    "decision_date": "2026-11-13",
+    "decision_owner": "repository owner, explicit user request",
+    "limitations": [
+      "One matched TPS pair; no identical-control noise or repeatability estimate.",
+      "Three-microbatch rank-0 MCP comparison; remaining microbatches and optimizer outside V2 capture.",
+      "Consumer-owned epoch entry remains synchronous; original short-epoch regression retained.",
+      "No new convergence or production-scale evidence."
+    ],
+    "loader_api_and_canonical_control_default": 0,
+    "num_prefetch_batches": 32,
+    "scope": "V2 CPU prefetch for the current long-epoch single-node eight-H100 100B-crop workload",
+    "source_or_canonical_configuration_changed_by_this_decision": false,
+    "status": "accepted"
+  },
   "assignment": "V2 CPU prefetch above current monitoring-free baseline",
   "completion": {
     "canonical_lossless_gzip_verified_before_plain_removal": true,
@@ -85,7 +104,7 @@
     },
     "report.md": {
       "path": "runs/v2-prefetch-baseline/report.md",
-      "sha256": "7da5f3646af4cc011ffc953a6f6d77ac0ef5f8b1df93061ecdd77b6012a555e5"
+      "sha256": "cfd6ff9829e0c8f01d65daafa3dbe431dab71225dcadf5480d91e705a670eb0d"
     },
     "runner-verification.json": {
       "path": "runs/v2-prefetch-baseline/runner-verification.json",
@@ -98,6 +117,10 @@
     "trace-analysis-long-epoch-001.json": {
       "path": "runs/v2-prefetch-baseline/trace-analysis-long-epoch-001.json",
       "sha256": "fe35e2b7cf00f2e05da92c4ea01ff8f95e53b91c5856f7a1382d07a959e722d3"
+    },
+    "trace-analysis-long-epoch-perfetto.json": {
+      "path": "runs/v2-prefetch-baseline/trace-analysis-long-epoch-perfetto.json",
+      "sha256": "0a935526608bb112da14053f820f26ee392571b2c05e0485904fbd6f3a741260"
     },
     "trace-analysis.json": {
       "path": "runs/v2-prefetch-baseline/trace-analysis.json",
@@ -529,7 +552,7 @@
         "candidate": 17612.32974887921
       }
     },
-    "conclusion": "One provisional pair: V2 input TPS +2.1181%; ready-queue traces show reduced exposed input wait without rollover. No general gain or production adoption established. Default remains zero.",
+    "conclusion": "Owner accepts V2 at explicit depth 32 for the current long-epoch workload based on +2.1181% input TPS in one matched pair and MCP Perfetto confirmation of ready input without material sampled execution regression. Repeatability and general production behavior remain unestablished; loader API/canonical control default remains zero.",
     "default_num_prefetch_batches": 0,
     "execution_receipt": "runs/v2-prefetch-baseline/artifacts/raw/long-epoch-001-execution.json",
     "failed_and_skipped_checks": {
@@ -553,6 +576,7 @@
           "phase": "final artifact-pointer verification after analyst compression"
         }
       ],
+      "initial_analysis_note": "Actual Perfetto skipped; complete native JSON analysis used; superseded for rank 0 by the subsequent MCP analysis receipt.",
       "measurement_suite_result": {
         "disposition": "Unchanged cache-route fixtures use unsupported nested paths; affected epoch/queue/timer tests pass; independent review found no launch blocker.",
         "failed": 5,
@@ -564,8 +588,7 @@
       "unavailable": [
         "No repeated or identical-control noise estimate",
         "Prior-update producer/worker cost and CPU/GPU overlap outside trace capture",
-        "No diagnostic TPS, convergence or production-scale acceptance",
-        "Actual Perfetto skipped; complete native JSON analysis used"
+        "No diagnostic TPS, convergence or production-scale acceptance"
       ]
     },
     "final_verification_path": "runs/v2-prefetch-baseline/artifacts/raw/long-epoch-001-final-verification.json",
@@ -724,6 +747,7 @@
       ]
     },
     "status": "complete",
+    "subsequent_mcp_analysis_receipt": "runs/v2-prefetch-baseline/trace-analysis-long-epoch-perfetto.json",
     "trace_analysis_receipt": "runs/v2-prefetch-baseline/trace-analysis-long-epoch-001.json",
     "trace_capture_receipt": "runs/v2-prefetch-baseline/trace-captures-long-epoch-001.json"
   },
@@ -775,9 +799,10 @@
   },
   "publication_request": {
     "authorization": "Subsequent user request: write down results of tps and commit and push",
+    "latest_authorization": "User requests recording the trace conclusions and V2 acceptance, then commit and push to origin/main.",
     "measurement_receipt_flags": "commit_or_push_performed fields describe the prepublication measurement assignments.",
     "new_compute_authorized_or_performed": false,
-    "scope": "Completed V2 integration, supporting runners/tests, maintained documentation and compact results; raw payloads remain ignored.",
+    "scope": "Documentation, accepted V2 decision and compact MCP evidence; raw trace payloads stay outside Git.",
     "target": "origin/main"
   },
   "schema_version": 1,

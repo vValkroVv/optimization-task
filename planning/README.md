@@ -9,6 +9,19 @@ implementation, runners, tests and recorded results, then pushing to
 `origin/main`. Earlier no-publication statements and receipt flags describe the
 measurement assignments before this authorization. No new compute is requested.
 
+## Accepted optimization: V2 CPU prefetch, depth 32
+
+Owner decision, 13 November 2026: V2 is accepted for the current long-epoch
+100B-crop workload based on the matched +2.1181% input TPS result and the
+[MCP Perfetto comparison](../runs/v2-prefetch-baseline/report.md#mcp-perfetto-comparison-and-acceptance).
+Input-to-first-F/B falls by 667.337 ms on rank 0; the full three-microbatch
+device span remains 1294.519 / 1293.713 ms with no material sampled execution
+regression. The accepted variant uses an explicit prefetch depth of 32; the
+canonical depth-0 control and loader API default remain available unchanged.
+The one-pair magnitude remains provisional; no general production-scale claim
+or additional compute follows from this decision. The raw historical plans
+below retain their original nonacceptance statements as history.
+
 ## Completed assignment: V2 long logical epoch comparison
 
 The follow-up goal authorizes task-local benchmark configuration, runner and
@@ -56,8 +69,9 @@ torchrun groups exited and all eight GPUs are idle. The
 [report](../runs/v2-prefetch-baseline/report.md#long-logical-epoch-comparison--complete)
 and [new pair receipt](../runs/v2-prefetch-baseline/pair-long-epoch-001.json)
 own exact results, commands, identities, full series, memory and failed/skipped
-checks. No general speedup or adoption is established by this single pair;
-default depth remains zero. No further run follows; publication is authorized.
+checks. The subsequent owner decision above accepts V2 for this workload after
+the MCP trace comparison. General speedup and repeatability are not established
+by this single pair. No further run follows; publication is authorized.
 
 ## Completed assignment: V2 CPU prefetch above the monitoring-free baseline
 
@@ -132,6 +146,10 @@ change was made. Future comparisons remain separately authorized; streaming
 prefetch is the first directly exposed opportunity, followed by linear/CE and
 the specific MoE synchronization path. No candidate is accepted.
 
+The sections below preserve the earlier assignments and original V2 plan.
+Their V2 open-gate and future-execution statements are historical; the
+completed results above own the current experiment status.
+
 ## Completed assignment: monitoring-free baseline and fresh traces
 
 The [execution plan](overnight-streaming-perf.md) records completion: one valid
@@ -142,8 +160,7 @@ configuration/source identities, artifact hashes and limits. Owned training
 processes exited, GPUs were released and obsolete task caches/temporary copies
 were removed. MDS and useful compact evidence are preserved. Results/documentation
 are published through the requested normal `origin/main` commit/push. Stop here;
-candidates other than the separately reopened V2 assignment above and full-model
-numerical validation remain cancelled.
+candidates and full-model numerical validation remain cancelled.
 
 ## Completed assignment: cleanup and protocol revision
 
@@ -161,12 +178,30 @@ candidate continuation may run during this assignment.
 | Revised documentation | Complete; link/fragment, JSON and whitespace checks passed | Preserve the revised policy and historical evidence |
 | Publication | Complete: `aa45e3cd` pushed to `origin/main` | Stop; do not continue the campaign |
 
+## First future experiment: V2 input prefetch
+
+The [baseline trace inspection](../runs/overnight-streaming-perf/report.md#baseline-input-preparation-analysis)
+establishes exposed input preparation and a real opportunity to overlap it with
+previous GPU work. Start with preserved **V2**, revision
+`21c1891dda531a1222e6c350802f2765758794f9`, setting
+`num_prefetch_batches: 32` in the candidate override; retain default 0 elsewhere.
+This selects a ready queue for one full 32-microbatch fetch burst, not a proven
+optimal depth. Follow the preserved [queue and checkpoint contract](../runs/overnight-streaming-perf/reference-coverage.md#queue-depth-and-what-the-trace-can-establish)
+and [open V2 acceptance gates](../runs/overnight-streaming-perf/v2-prefetch-review.md).
+Epoch entry remains synchronous; do not promise removal of the entire input gap.
+
+Keep the [baseline configuration](../docs/baseline.md) and original TPS procedure:
+10 warmup plus 10 measured full optimizer updates, with 32 microbatches per update.
+Diagnostic traces capture at most 3 complete microbatches per rank, as specified
+in [validation](validation.md#trace-capture-window). Verify activation, exposed
+waits and queue memory in the matched comparison; no V2 gain is accepted yet.
+
 ## Preserved future questions — no execution authorization
 
 The validated MDS fixture, historical HF/MDS smokes, monitoring-inclusive G2
 controls, G3 Perfetto analysis and candidate sources remain useful evidence.
-No general candidate performance gain is accepted. V2 source was preserved at
-`21c1891d`; its current gates are owned by the completed V2 assignment above. Future authorized work starts
+No candidate is accepted. V2 source is preserved at `21c1891d`; actual Gloo/DCP
+and performance gates were not executed/completed. Future authorized work starts
 with a fresh short **monitoring-off** baseline/candidate comparison, then local
 numerical assessment of a candidate worth retaining. Historical monitoring-on TPS
 cannot serve as its baseline. Single-pair effects remain provisional; repeat only
