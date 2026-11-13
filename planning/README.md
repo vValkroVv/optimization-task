@@ -4,6 +4,18 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+## Completed assignment: monitoring-free baseline and fresh traces
+
+The [execution plan](overnight-streaming-perf.md) records completion: one valid
+10-warmup/10-measured unprofiled baseline and exactly two verified, losslessly
+compressed traces of optimizer update 11 on ranks 0/1. The [report](../runs/overnight-streaming-perf/report.md)
+and [results](../runs/overnight-streaming-perf/results.json) own exact TPS,
+configuration/source identities, artifact hashes and limits. Owned training
+processes exited, GPUs were released and obsolete task caches/temporary copies
+were removed. MDS and useful compact evidence are preserved. Results/documentation
+are published through the requested normal `origin/main` commit/push. Stop here;
+candidates and full-model numerical validation remain cancelled.
+
 ## Completed assignment: cleanup and protocol revision
 
 The [cleanup plan](overnight-streaming-perf.md) contains the finite acceptance

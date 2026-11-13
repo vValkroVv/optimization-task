@@ -4,6 +4,42 @@ Updated: 13 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
 
+## Monitoring-free baseline: TPS and fresh traces verified
+
+The new unprofiled baseline passed at execution revision
+`16b13c2548317945712ded2e66f136b169130d95`: **145,163.84 global input tokens/s**,
+**18,145.48 per GPU**, 10 warmup updates followed by updates 11–20.
+The complete window was 144.467936499 s including normal loading/transfers.
+Rank-0 host update cadence: median 14.562491 s, range 13.542409–15.803554 s.
+Maximum sampled allocator peaks across ranks were 69.667068 GiB allocated/active
+and 70.181641 GiB reserved; retry/OOM deltas were zero. The rounded all-rank
+native composite maximum was 72.73 GiB. The [report](../runs/overnight-streaming-perf/report.md)
+and [results](../runs/overnight-streaming-perf/results.json) define these scopes,
+retain exact values and own source/config/data/runtime identities.
+
+Warmup stayed at 10; no compilation-scale stall appeared in the measured window.
+This is one provisional run with observed timing variation, not a repeatability
+or production-scale claim. Historical monitoring-inclusive TPS is explicitly
+historical and not directly comparable; no candidate optimization gain is claimed.
+
+The separate trace run passed: exactly two canonical gzip traces cover optimizer
+update 11 on global ranks 0/1 after warmup 10. All eight ranks trained; each trace
+contains 32 microbatches and the optimizer. Parse/coverage and lossless round trips
+passed; shapes/stacks/profiler memory/snapshots were off. Trace paths and hashes
+are in the report/results. Owned training processes exited and all GPUs are free.
+Owned obsolete caches, redundant plain traces and temporary files are removed;
+MDS data and compact evidence are preserved. Results/documentation publication
+uses `origin/main` and the existing repository identity. This assignment stops
+after publication; no candidate or numerical comparison follows.
+
+GIFT/model/data settings are unchanged from `eadcc6ac`. Necessary runner repairs
+serialize existing wall timestamps with observation off and keep scratch/per-rank
+Triton caches inside this task directory. Their scoped checks and costs are in
+the results. First attempt `001` failed on a stale Triton handle before a complete
+update; its compact receipt is retained, and its process group stopped. Candidate
+experiments and full-model numerical validation remain cancelled. The
+[execution plan](../planning/overnight-streaming-perf.md) records completed acceptance.
+
 ## Baseline: selected; campaign cancelled
 
 The [canonical baseline](baseline.md) is a GIFT 3.5 100B-dev crop: eight trunk
@@ -80,20 +116,20 @@ Decision: keep CUDA Graphs off in the default. This is not proof that all graph
 boundaries fail, nor that the 3B trace predicts the current crop's performance.
 Revisit only with a concrete crop bottleneck and a finite comparison plan.
 
-## Cleanup-only assignment and preserved campaign results
+## Completed cleanup and preserved campaign results
 
 The original [overnight campaign](../planning/overnight-streaming-perf.md) is
-cancelled and incomplete. The current assignment removes full-model numerical
-machinery, disables detailed performance monitoring and records the revised
-short-run/local-block protocol. Cleanup is complete. Do not resume candidate experiments, training,
-benchmarks, new traces or numerical block comparisons. The active plan owns the
-finite cleanup checklist. Numerical machinery is removed. Canonical/generated
+cancelled and incomplete. The completed cleanup removed full-model numerical
+machinery, disabled detailed performance monitoring and recorded the revised
+short-run/local-block protocol. Its finite checklist is retained in the execution
+plan; the new baseline-only authorization above does not reopen candidate work. Numerical machinery is removed. Canonical/generated
 configuration and short-run behavior passed 101 scoped CPU/config checks and an
 independent integration/runtime-cost review. The [cleanup receipt](../runs/overnight-streaming-perf/cancellation-cleanup.json)
 confirms no owned numerical processes or reference tensor blobs remain; 40,650
 files totaling 381,915,112,855 logical bytes were deleted, without attributing NFS
 free-space changes. Compact history, MDS, candidate source and Perfetto evidence
-remain. No training, benchmark, new trace or local numerical block run occurred.
+remain. No training, benchmark, new trace or local numerical block run occurred
+during that completed cleanup assignment.
 
 Preserved completed evidence:
 

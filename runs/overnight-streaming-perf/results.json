@@ -1,54 +1,7 @@
 {
-  "status": "ORIGINAL_CAMPAIGN_CANCELLED_INCOMPLETE_CLEANUP_ONLY",
+  "status": "MONITORING_FREE_BASELINE_AND_FRESH_TRACES_COMPLETE",
   "entry_revision": "a2a59e14545b55ca777f94a28e332759e7c06087",
   "start_moscow": "2026-11-13T02:18:00+03:00",
-  "baseline": {
-    "status": "HISTORICAL_PASS_MONITORING_INCLUSIVE",
-    "run_ids": [
-      "g2-baseline-a1-w110",
-      "g2-baseline-a2-w110"
-    ],
-    "source_revision": "87230b5bb075795abc30e96db32e4eb7cccce3ed",
-    "dataset_index_sha256": "7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2",
-    "aggregation": "median of two complete-window run throughputs; two controls do not establish a confidence interval",
-    "warmup_updates": 110,
-    "measured_updates": [
-      111,
-      160
-    ],
-    "normal_monitoring_updates": [
-      150
-    ],
-    "physical_input_tokens_per_window_global": 104857600,
-    "supervised_tokens_per_window_global": 104832000,
-    "median_input_tps_global": 124454.81175967702,
-    "median_input_tps_per_gpu": 15556.851469959627,
-    "median_supervised_tps_global": 124424.42728414976,
-    "median_supervised_tps_per_gpu": 15553.05341051872,
-    "aa_a2_vs_a1_percent": -0.07417281757778893,
-    "aa_range_over_mean_percent": 0.07420033581765234,
-    "input_tps_global_range": [
-      124408.63881554357,
-      124500.98470381048
-    ],
-    "memory_allocated_peak_gib_max": 67.4005537033081,
-    "memory_reserved_peak_gib_max": 68.494140625,
-    "memory_scope": "native allocator reset epochs covering updates101-160; not an exact-window or simultaneous device-wide peak",
-    "allocation_retries": 0,
-    "ooms": 0,
-    "native_resolved_config_only_difference": "run-specific dump_folder",
-    "compilation_coverage": "observed stable all8; async worker completion and native JIT outside tested grouped APIs remain unverified",
-    "excluded_costs": [
-      "validation",
-      "checkpointing",
-      "profiling",
-      "numerical diagnostic payloads"
-    ],
-    "candidate_gain_accepted": false,
-    "runtime_and_initial_config_helper_data_hashes_match": true,
-    "native_parameter_and_rng_repeatability_verified": false,
-    "comparability": "Historical monitoring-inclusive result; not directly comparable to future monitoring-off measurements."
-  },
   "candidates": [
     {
       "id": "K1",
@@ -354,6 +307,17 @@
       "elementwise_error_floor_measured": false,
       "clean_teardown": true,
       "retained_reference_namespace": "artifacts/raw/native-numerics-reference-c1-001"
+    },
+    {
+      "run_id": "monitorfree-baseline-w10-m10-001",
+      "source_revision": "162ad63ae87800997b60daef272b3342c3412f7c",
+      "status": "FAILED_NO_COMPLETED_OPTIMIZER_UPDATE_OR_TPS",
+      "reason": "Rank 5 Triton binary-cache read raised OSError 116 ESTALE in the first forward; exact binary pathname/cause unproven.",
+      "receipt": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-001/acceptance.json",
+        "sha256": "4fa604268ce17805887ff65966b9e54eeb6f9056393fc8b04e37a0596bc7d95d"
+      },
+      "owned_process_group_stopped_and_gpus_released": true
     }
   ],
   "cleanup_events": [
@@ -660,226 +624,6 @@
     "local_numerical_contract": "Matched boundary inputs and needed weights/state; outputs and affected backward with matched activations/incoming gradients; precision/casts/rounding/reductions/fusion analysis; higher-precision local reference as needed; no universal tolerance or assumed bitwise equality",
     "whole_model_parameter_gradient_adam_capture": false
   },
-  "baseline_controls": [
-    {
-      "run_id": "g2-baseline-a1-w110",
-      "status": "PASS",
-      "source_revision": "87230b5b",
-      "raw_evidence": "artifacts/raw/g2-baseline-a1-w110",
-      "summary": "artifacts/raw/g2-baseline-a1-w110/summary.json",
-      "resolved_config_sha256": "aa2c792ce61e88717c2171f6fad8e8d4f20f8a5b54675de2887524b5305a7007",
-      "tokens": {
-        "physical_input_tokens_global": 104857600,
-        "physical_input_tokens_per_gpu": 13107200.0,
-        "physical_input_tokens_per_second_global": 124500.98470381048,
-        "physical_input_tokens_per_second_per_gpu": 15562.62308797631,
-        "supervised_tokens_global": 104832000,
-        "supervised_tokens_per_gpu": 13104000.0,
-        "supervised_tokens_per_second_global": 124470.58895559177,
-        "supervised_tokens_per_second_per_gpu": 15558.823619448971
-      },
-      "window": {
-        "end_after_update": 160,
-        "end_skew_ns": 595686,
-        "end_skew_s": 0.000595686,
-        "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
-        "max_local_elapsed_s": 842.222675894,
-        "min_local_elapsed_s": 842.221359899,
-        "monitor_interval": 50,
-        "monitoring_updates": [
-          150
-        ],
-        "primary_elapsed_s": 842.223057508,
-        "start_after_update": 110,
-        "start_skew_ns": 1697609,
-        "start_skew_s": 0.001697609,
-        "updates": 50,
-        "warmup_updates": 110
-      },
-      "memory_maximum_peak_gib_across_ranks": {
-        "active_bytes.all.peak": 67.4005537033081,
-        "allocated_bytes.all.peak": 67.4005537033081,
-        "reserved_bytes.all.peak": 68.466796875
-      },
-      "compilation_observer": "observed_stable all8; partial coverage limits retained",
-      "deepgemm_guard": "complete all8 literal0 after110 through160",
-      "native_updates_per_rank": 160,
-      "finite_metric_pairs_per_rank": 160,
-      "source_and_config_unchanged": true,
-      "local_temp_removed_and_gpus_released": true,
-      "rank0_ordinary_bin_median_seconds": {
-        "111-120": 13.878361,
-        "121-130": 13.852676,
-        "131-140": 13.649992,
-        "141-149": 13.785003,
-        "151-160": 13.791524
-      },
-      "settling_judgment": "No continuing monotonic settling; root accepted first complete window",
-      "interpretation": "Accepted identical-control pair; no candidate gain"
-    },
-    {
-      "run_id": "g2-baseline-a2-w110",
-      "status": "PASS",
-      "source_revision": "87230b5b",
-      "raw_evidence": "artifacts/raw/g2-baseline-a2-w110",
-      "summary": "artifacts/raw/g2-baseline-a2-w110/summary.json",
-      "resolved_config_sha256": "099734af6018ecbe8d7b2b67337a43b82f68628e5c7651de592bfc995768f2e1",
-      "tokens": {
-        "physical_input_tokens_global": 104857600,
-        "physical_input_tokens_per_gpu": 13107200.0,
-        "physical_input_tokens_per_second_global": 124408.63881554357,
-        "physical_input_tokens_per_second_per_gpu": 15551.079851942946,
-        "supervised_tokens_global": 104832000,
-        "supervised_tokens_per_gpu": 13104000.0,
-        "supervised_tokens_per_second_global": 124378.26561270775,
-        "supervised_tokens_per_second_per_gpu": 15547.283201588469
-      },
-      "window": {
-        "end_after_update": 160,
-        "end_skew_ns": 773779,
-        "end_skew_s": 0.000773779,
-        "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
-        "max_local_elapsed_s": 842.847532324,
-        "min_local_elapsed_s": 842.843346246,
-        "monitor_interval": 50,
-        "monitoring_updates": [
-          150
-        ],
-        "primary_elapsed_s": 842.848221782,
-        "start_after_update": 110,
-        "start_skew_ns": 4619063,
-        "start_skew_s": 0.004619063,
-        "updates": 50,
-        "warmup_updates": 110
-      },
-      "memory_maximum_peak_gib_across_ranks": {
-        "active_bytes.all.peak": 67.38717365264893,
-        "allocated_bytes.all.peak": 67.38717365264893,
-        "reserved_bytes.all.peak": 68.494140625
-      },
-      "compilation_observer": "observed_stable all8; partial coverage limits retained",
-      "deepgemm_guard": "complete all8 literal0 after110 through160",
-      "native_updates_per_rank": 160,
-      "finite_metric_pairs_per_rank": 160,
-      "source_and_config_unchanged": true,
-      "local_temp_removed_and_gpus_released": true,
-      "rank0_ordinary_bin_median_seconds": {
-        "111-120": 13.930675,
-        "121-130": 13.805102,
-        "131-140": 13.638698,
-        "141-149": 13.816832,
-        "151-160": 13.787526
-      },
-      "settling_judgment": "No continuing monotonic settling; root accepted complete pair",
-      "interpretation": "Accepted identical-control pair; no candidate gain",
-      "native_source_config_yaml_sha256": "c0080a1356e333500cf666b6a5c72f9908202ffbe42d7091139c9fca212423f0"
-    }
-  ],
-  "baseline_profile_capture": {
-    "status": "PASS_POSTHOC",
-    "run_id": "g3-baseline-update111-001",
-    "source_revision": "6123a24f",
-    "runtime_code_equivalent_pin": "87230b5b",
-    "native_updates_per_rank": 111,
-    "training_steps": 111,
-    "finite_metrics_all_ranks": true,
-    "deep_gemm_guard_value_all_ranks": "0",
-    "native_profiler_created_ranks": [
-      0,
-      1
-    ],
-    "actual_target_call_counts_per_rank": {
-      "train_step": 1,
-      "microbatch": 32,
-      "optimizer_step": 1
-    },
-    "original_runner_result": {
-      "status": "FAIL",
-      "exit_code": 1,
-      "meaning": "post-run trace parser failure only; all111 native updates completed",
-      "cause": "name-only counting double-counted CPU logical user_annotation events and GPU gpu_user_annotation projections",
-      "evidence": "artifacts/raw/g3-baseline-update111-001/failure.json and summary.json"
-    },
-    "posthoc_reparse": {
-      "status": "PASS",
-      "summary": "artifacts/raw/g3-baseline-update111-001/summary.reparsed.json",
-      "receipt": "artifacts/raw/g3-baseline-update111-001/reparse-receipt.json",
-      "cpu_category": "user_annotation",
-      "cpu_logical_counts_per_rank": {
-        "train_step": 1,
-        "microbatch": 32,
-        "optimizer_step": 1
-      },
-      "gpu_projection_category": "gpu_user_annotation",
-      "gpu_projection_counts_per_rank": {
-        "train_step": 1,
-        "microbatch": 32,
-        "optimizer_step": 0
-      },
-      "incomplete_slices": 0,
-      "microbatches_outside_cpu_train_frame": 0,
-      "recapture_performed": false
-    },
-    "perfetto_mcp": {
-      "status": "PASS",
-      "tool": "actual Perfetto MCP load_trace/list_tables/list_table_structure/list_stdlib_modules/execute_sql",
-      "canonical_result": "g3-baseline-perfetto.json",
-      "strict_nccl_memset_overlap_corrected": true,
-      "all_device_events_inside_cpu_frame": true,
-      "no_trace_derived_tps_claim": true,
-      "optimizer_cuda_flow_fused_adamw_kernels_per_rank": 17
-    },
-    "trace_artifacts": [
-      {
-        "rank": 0,
-        "historical_mcp_input_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json",
-        "historical_sha256": "49a58c1f6df639b9fdb26e40e2ba079f0a5e4f37d2e9d592233750664e2aac01",
-        "historical_size_bytes": 301241287,
-        "current_compressed_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json.gz",
-        "current_compressed_sha256": "6d40b5fd51d22ab084075ade2daa99009dd84c48076817277f8e4fd6bc1cb5fb",
-        "current_compressed_size_bytes": 22782123,
-        "trace_id": "trace_d9e7ae24dd735c55"
-      },
-      {
-        "rank": 1,
-        "historical_mcp_input_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json",
-        "historical_sha256": "f7a0c61a4fc8893b0d703419ca453f00d2264f1a4d53225cdf4af5964df146cf",
-        "historical_size_bytes": 301258808,
-        "current_compressed_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json.gz",
-        "current_compressed_sha256": "f258f36648ecac43d0c10e08a345a63d4c66fb89ee5c63b9899642bafc4c5488",
-        "current_compressed_size_bytes": 22791142,
-        "trace_id": "trace_40a5092f8f0c7a38"
-      }
-    ],
-    "compression_receipt": "artifacts/raw/g3-baseline-update111-001/trace-compression.json",
-    "compression_totals": {
-      "original_bytes": 602500095,
-      "compressed_bytes_retained": 45573265,
-      "logical_bytes_removed": 556926830,
-      "full_roundtrip_size_and_sha256_verified": true,
-      "non_cache_non_trace_raw_artifacts_unchanged": true,
-      "observed_nfs_available_bytes_delta": 0,
-      "observed_nfs_available_inodes_delta": 0
-    },
-    "cache_retention": {
-      "path": "artifacts/raw/g3-baseline-update111-001/cache",
-      "status_at_compression_receipt": "preserved",
-      "cleanup_status_after_receipt": "removed_after_minimal_evidence_preserved",
-      "completion_receipt_available": true,
-      "bytes_at_compression_receipt": 604978569,
-      "files_at_compression_receipt": 9217,
-      "reason": "four exact compiled CE wrappers retained; obsolete cache removed after stop/ownership/preservation checks",
-      "cleanup_receipt": "artifacts/raw/g3-baseline-update111-001/obsolete-cache-cleanup.json",
-      "retained_wrapper_manifest": "artifacts/raw/g3-baseline-update111-001/k1a-compiled-ce-evidence/manifest.json",
-      "retained_wrapper_manifest_sha256": "df0ef838c59ed84e199cba5defb279e7d6ff050aa099d1c0e20c79fe8af9465f",
-      "retained_wrapper_bytes": 73504
-    },
-    "clean_teardown_and_all_gpus_idle": true,
-    "candidate_interpretation": {
-      "input_prefetch": "trace-grounded hypothesis near local epoch transition; no measured gain",
-      "compiled_ce": "baseline avoids full-vocabulary FP32 intermediates; removing its one-hot-gradient reduction remains independent and unmeasured"
-    }
-  },
   "native_numerical_calibration": {
     "status": "ABANDONED_C1_PASS_C2_A_TERMINAL_EXPORT_B_C50_CANCELLED",
     "source_revision": "f29581c4dcae78928cb940313b13893826f4e10c",
@@ -1055,6 +799,847 @@
       "branch": "main",
       "status": "PUSHED",
       "scope": "verified cleanup source/config/protocol and receipts"
+    }
+  },
+  "historical_monitoring_inclusive_baseline": {
+    "status": "HISTORICAL_PASS_MONITORING_INCLUSIVE",
+    "run_ids": [
+      "g2-baseline-a1-w110",
+      "g2-baseline-a2-w110"
+    ],
+    "source_revision": "87230b5bb075795abc30e96db32e4eb7cccce3ed",
+    "dataset_index_sha256": "7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2",
+    "aggregation": "median of two complete-window run throughputs; two controls do not establish a confidence interval",
+    "warmup_updates": 110,
+    "measured_updates": [
+      111,
+      160
+    ],
+    "normal_monitoring_updates": [
+      150
+    ],
+    "physical_input_tokens_per_window_global": 104857600,
+    "supervised_tokens_per_window_global": 104832000,
+    "median_input_tps_global": 124454.81175967702,
+    "median_input_tps_per_gpu": 15556.851469959627,
+    "median_supervised_tps_global": 124424.42728414976,
+    "median_supervised_tps_per_gpu": 15553.05341051872,
+    "aa_a2_vs_a1_percent": -0.07417281757778893,
+    "aa_range_over_mean_percent": 0.07420033581765234,
+    "input_tps_global_range": [
+      124408.63881554357,
+      124500.98470381048
+    ],
+    "memory_allocated_peak_gib_max": 67.4005537033081,
+    "memory_reserved_peak_gib_max": 68.494140625,
+    "memory_scope": "native allocator reset epochs covering updates101-160; not an exact-window or simultaneous device-wide peak",
+    "allocation_retries": 0,
+    "ooms": 0,
+    "native_resolved_config_only_difference": "run-specific dump_folder",
+    "compilation_coverage": "observed stable all8; async worker completion and native JIT outside tested grouped APIs remain unverified",
+    "excluded_costs": [
+      "validation",
+      "checkpointing",
+      "profiling",
+      "numerical diagnostic payloads"
+    ],
+    "candidate_gain_accepted": false,
+    "runtime_and_initial_config_helper_data_hashes_match": true,
+    "native_parameter_and_rng_repeatability_verified": false,
+    "comparability": "Historical monitoring-inclusive result; not directly comparable to future monitoring-off measurements."
+  },
+  "historical_monitoring_inclusive_profile_capture": {
+    "status": "PASS_POSTHOC",
+    "run_id": "g3-baseline-update111-001",
+    "source_revision": "6123a24f",
+    "runtime_code_equivalent_pin": "87230b5b",
+    "native_updates_per_rank": 111,
+    "training_steps": 111,
+    "finite_metrics_all_ranks": true,
+    "deep_gemm_guard_value_all_ranks": "0",
+    "native_profiler_created_ranks": [
+      0,
+      1
+    ],
+    "actual_target_call_counts_per_rank": {
+      "train_step": 1,
+      "microbatch": 32,
+      "optimizer_step": 1
+    },
+    "original_runner_result": {
+      "status": "FAIL",
+      "exit_code": 1,
+      "meaning": "post-run trace parser failure only; all111 native updates completed",
+      "cause": "name-only counting double-counted CPU logical user_annotation events and GPU gpu_user_annotation projections",
+      "evidence": "artifacts/raw/g3-baseline-update111-001/failure.json and summary.json"
+    },
+    "posthoc_reparse": {
+      "status": "PASS",
+      "summary": "artifacts/raw/g3-baseline-update111-001/summary.reparsed.json",
+      "receipt": "artifacts/raw/g3-baseline-update111-001/reparse-receipt.json",
+      "cpu_category": "user_annotation",
+      "cpu_logical_counts_per_rank": {
+        "train_step": 1,
+        "microbatch": 32,
+        "optimizer_step": 1
+      },
+      "gpu_projection_category": "gpu_user_annotation",
+      "gpu_projection_counts_per_rank": {
+        "train_step": 1,
+        "microbatch": 32,
+        "optimizer_step": 0
+      },
+      "incomplete_slices": 0,
+      "microbatches_outside_cpu_train_frame": 0,
+      "recapture_performed": false
+    },
+    "perfetto_mcp": {
+      "status": "PASS",
+      "tool": "actual Perfetto MCP load_trace/list_tables/list_table_structure/list_stdlib_modules/execute_sql",
+      "canonical_result": "g3-baseline-perfetto.json",
+      "strict_nccl_memset_overlap_corrected": true,
+      "all_device_events_inside_cpu_frame": true,
+      "no_trace_derived_tps_claim": true,
+      "optimizer_cuda_flow_fused_adamw_kernels_per_rank": 17
+    },
+    "trace_artifacts": [
+      {
+        "rank": 0,
+        "historical_mcp_input_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json",
+        "historical_sha256": "49a58c1f6df639b9fdb26e40e2ba079f0a5e4f37d2e9d592233750664e2aac01",
+        "historical_size_bytes": 301241287,
+        "current_compressed_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank0_trace.json.gz",
+        "current_compressed_sha256": "6d40b5fd51d22ab084075ade2daa99009dd84c48076817277f8e4fd6bc1cb5fb",
+        "current_compressed_size_bytes": 22782123,
+        "trace_id": "trace_d9e7ae24dd735c55"
+      },
+      {
+        "rank": 1,
+        "historical_mcp_input_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json",
+        "historical_sha256": "f7a0c61a4fc8893b0d703419ca453f00d2264f1a4d53225cdf4af5964df146cf",
+        "historical_size_bytes": 301258808,
+        "current_compressed_path": "runs/overnight-streaming-perf/artifacts/raw/g3-baseline-update111-001/native/profiling/traces/iteration_111/rank1_trace.json.gz",
+        "current_compressed_sha256": "f258f36648ecac43d0c10e08a345a63d4c66fb89ee5c63b9899642bafc4c5488",
+        "current_compressed_size_bytes": 22791142,
+        "trace_id": "trace_40a5092f8f0c7a38"
+      }
+    ],
+    "compression_receipt": "artifacts/raw/g3-baseline-update111-001/trace-compression.json",
+    "compression_totals": {
+      "original_bytes": 602500095,
+      "compressed_bytes_retained": 45573265,
+      "logical_bytes_removed": 556926830,
+      "full_roundtrip_size_and_sha256_verified": true,
+      "non_cache_non_trace_raw_artifacts_unchanged": true,
+      "observed_nfs_available_bytes_delta": 0,
+      "observed_nfs_available_inodes_delta": 0
+    },
+    "cache_retention": {
+      "path": "artifacts/raw/g3-baseline-update111-001/cache",
+      "status_at_compression_receipt": "preserved",
+      "cleanup_status_after_receipt": "removed_after_minimal_evidence_preserved",
+      "completion_receipt_available": true,
+      "bytes_at_compression_receipt": 604978569,
+      "files_at_compression_receipt": 9217,
+      "reason": "four exact compiled CE wrappers retained; obsolete cache removed after stop/ownership/preservation checks",
+      "cleanup_receipt": "artifacts/raw/g3-baseline-update111-001/obsolete-cache-cleanup.json",
+      "retained_wrapper_manifest": "artifacts/raw/g3-baseline-update111-001/k1a-compiled-ce-evidence/manifest.json",
+      "retained_wrapper_manifest_sha256": "df0ef838c59ed84e199cba5defb279e7d6ff050aa099d1c0e20c79fe8af9465f",
+      "retained_wrapper_bytes": 73504
+    },
+    "clean_teardown_and_all_gpus_idle": true,
+    "candidate_interpretation": {
+      "input_prefetch": "trace-grounded hypothesis near local epoch transition; no measured gain",
+      "compiled_ce": "baseline avoids full-vocabulary FP32 intermediates; removing its one-hot-gradient reduction remains independent and unmeasured"
+    }
+  },
+  "historical_monitoring_inclusive_controls": [
+    {
+      "run_id": "g2-baseline-a1-w110",
+      "status": "PASS",
+      "source_revision": "87230b5b",
+      "raw_evidence": "artifacts/raw/g2-baseline-a1-w110",
+      "summary": "artifacts/raw/g2-baseline-a1-w110/summary.json",
+      "resolved_config_sha256": "aa2c792ce61e88717c2171f6fad8e8d4f20f8a5b54675de2887524b5305a7007",
+      "tokens": {
+        "physical_input_tokens_global": 104857600,
+        "physical_input_tokens_per_gpu": 13107200.0,
+        "physical_input_tokens_per_second_global": 124500.98470381048,
+        "physical_input_tokens_per_second_per_gpu": 15562.62308797631,
+        "supervised_tokens_global": 104832000,
+        "supervised_tokens_per_gpu": 13104000.0,
+        "supervised_tokens_per_second_global": 124470.58895559177,
+        "supervised_tokens_per_second_per_gpu": 15558.823619448971
+      },
+      "window": {
+        "end_after_update": 160,
+        "end_skew_ns": 595686,
+        "end_skew_s": 0.000595686,
+        "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+        "max_local_elapsed_s": 842.222675894,
+        "min_local_elapsed_s": 842.221359899,
+        "monitor_interval": 50,
+        "monitoring_updates": [
+          150
+        ],
+        "primary_elapsed_s": 842.223057508,
+        "start_after_update": 110,
+        "start_skew_ns": 1697609,
+        "start_skew_s": 0.001697609,
+        "updates": 50,
+        "warmup_updates": 110
+      },
+      "memory_maximum_peak_gib_across_ranks": {
+        "active_bytes.all.peak": 67.4005537033081,
+        "allocated_bytes.all.peak": 67.4005537033081,
+        "reserved_bytes.all.peak": 68.466796875
+      },
+      "compilation_observer": "observed_stable all8; partial coverage limits retained",
+      "deepgemm_guard": "complete all8 literal0 after110 through160",
+      "native_updates_per_rank": 160,
+      "finite_metric_pairs_per_rank": 160,
+      "source_and_config_unchanged": true,
+      "local_temp_removed_and_gpus_released": true,
+      "rank0_ordinary_bin_median_seconds": {
+        "111-120": 13.878361,
+        "121-130": 13.852676,
+        "131-140": 13.649992,
+        "141-149": 13.785003,
+        "151-160": 13.791524
+      },
+      "settling_judgment": "No continuing monotonic settling; root accepted first complete window",
+      "interpretation": "Accepted identical-control pair; no candidate gain"
+    },
+    {
+      "run_id": "g2-baseline-a2-w110",
+      "status": "PASS",
+      "source_revision": "87230b5b",
+      "raw_evidence": "artifacts/raw/g2-baseline-a2-w110",
+      "summary": "artifacts/raw/g2-baseline-a2-w110/summary.json",
+      "resolved_config_sha256": "099734af6018ecbe8d7b2b67337a43b82f68628e5c7651de592bfc995768f2e1",
+      "tokens": {
+        "physical_input_tokens_global": 104857600,
+        "physical_input_tokens_per_gpu": 13107200.0,
+        "physical_input_tokens_per_second_global": 124408.63881554357,
+        "physical_input_tokens_per_second_per_gpu": 15551.079851942946,
+        "supervised_tokens_global": 104832000,
+        "supervised_tokens_per_gpu": 13104000.0,
+        "supervised_tokens_per_second_global": 124378.26561270775,
+        "supervised_tokens_per_second_per_gpu": 15547.283201588469
+      },
+      "window": {
+        "end_after_update": 160,
+        "end_skew_ns": 773779,
+        "end_skew_s": 0.000773779,
+        "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+        "max_local_elapsed_s": 842.847532324,
+        "min_local_elapsed_s": 842.843346246,
+        "monitor_interval": 50,
+        "monitoring_updates": [
+          150
+        ],
+        "primary_elapsed_s": 842.848221782,
+        "start_after_update": 110,
+        "start_skew_ns": 4619063,
+        "start_skew_s": 0.004619063,
+        "updates": 50,
+        "warmup_updates": 110
+      },
+      "memory_maximum_peak_gib_across_ranks": {
+        "active_bytes.all.peak": 67.38717365264893,
+        "allocated_bytes.all.peak": 67.38717365264893,
+        "reserved_bytes.all.peak": 68.494140625
+      },
+      "compilation_observer": "observed_stable all8; partial coverage limits retained",
+      "deepgemm_guard": "complete all8 literal0 after110 through160",
+      "native_updates_per_rank": 160,
+      "finite_metric_pairs_per_rank": 160,
+      "source_and_config_unchanged": true,
+      "local_temp_removed_and_gpus_released": true,
+      "rank0_ordinary_bin_median_seconds": {
+        "111-120": 13.930675,
+        "121-130": 13.805102,
+        "131-140": 13.638698,
+        "141-149": 13.816832,
+        "151-160": 13.787526
+      },
+      "settling_judgment": "No continuing monotonic settling; root accepted complete pair",
+      "interpretation": "Accepted identical-control pair; no candidate gain",
+      "native_source_config_yaml_sha256": "c0080a1356e333500cf666b6a5c72f9908202ffbe42d7091139c9fca212423f0"
+    }
+  ],
+  "baseline": {
+    "status": "PASS_PROVISIONAL_SINGLE_UNPROFILED_RUN",
+    "run_ids": [
+      "monitorfree-baseline-w10-m10-002"
+    ],
+    "source_revision": "16b13c2548317945712ded2e66f136b169130d95",
+    "starting_cleanup_revision": "eadcc6ac2ca5e7a24389e03416327fa8712e44da",
+    "gift_source_unchanged_from_cleanup": true,
+    "gift_manifest_sha256": "3257ca6fd225668045ce3f2838c82da72bed121d8e9d43a4315dae028c8f365e",
+    "source_and_config_unchanged_during_run": true,
+    "dataset_index_sha256": "7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2",
+    "resolved_config_sha256": "94e32fa61596e4c3dd2e5f9d5582988fc9c3ef641c6b737e61194c72781fdb39",
+    "detailed_monitoring": "disabled: EMA only callback; ordinary loss 2 chunks",
+    "warmup_updates": 10,
+    "measured_updates": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "warmup_extended": false,
+    "gradient_accumulation": 32,
+    "scheduler_total_steps": 65000,
+    "scheduler_warmup_steps": 2000,
+    "seed": 2048,
+    "complete_window_elapsed_s": 144.467936499,
+    "aggregation": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+    "input_tps_global": 145163.83709921106,
+    "input_tps_per_gpu": 18145.479637401382,
+    "tokens": {
+      "physical_input_tokens_global": 20971520,
+      "physical_input_tokens_per_gpu": 2621440.0,
+      "physical_input_tokens_per_second_global": 145163.83709921106,
+      "physical_input_tokens_per_second_per_gpu": 18145.479637401382,
+      "supervised_tokens_global": 20966400,
+      "supervised_tokens_per_gpu": 2620800.0,
+      "supervised_tokens_per_second_global": 145128.39670929423,
+      "supervised_tokens_per_second_per_gpu": 18141.04958866178
+    },
+    "rank0_update_timing": {
+      "intervals": [
+        {
+          "interval_s": 14.58497356,
+          "monitoring_step": false,
+          "step": 11,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 13.542409329,
+          "monitoring_step": false,
+          "step": 12,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 14.540008678,
+          "monitoring_step": false,
+          "step": 13,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 13.555195516,
+          "monitoring_step": false,
+          "step": 14,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 14.592839101,
+          "monitoring_step": false,
+          "step": 15,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 14.61470504,
+          "monitoring_step": false,
+          "step": 16,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 13.794971066,
+          "monitoring_step": false,
+          "step": 17,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 15.803554488,
+          "monitoring_step": false,
+          "step": 18,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 14.090509082,
+          "monitoring_step": false,
+          "step": 19,
+          "window_boundary": null
+        },
+        {
+          "interval_s": 15.347496835,
+          "monitoring_step": false,
+          "step": 20,
+          "window_boundary": "end"
+        }
+      ],
+      "summary": {
+        "max_s": 15.803554488,
+        "median_s": 14.562491119,
+        "min_s": 13.542409329
+      }
+    },
+    "all_rank_update_timing_summary": {
+      "max_s": 15.803554488,
+      "median_s": 14.5623438775,
+      "min_s": 13.542409329
+    },
+    "timing_scope": "host interval between native Profiler.step returns; adapter does not synchronize each update, and the final interval includes the end-boundary drain",
+    "memory_maximum_peak_gib_across_ranks": {
+      "active_bytes.all.peak": 69.667067527771,
+      "allocated_bytes.all.peak": 69.667067527771,
+      "reserved_bytes.all.peak": 70.181640625
+    },
+    "allocator_counter_deltas_by_rank": {
+      "0": {
+        "num_alloc_retries": 0,
+        "num_ooms": 0
+      },
+      "1": {
+        "num_alloc_retries": 0,
+        "num_ooms": 0
+      },
+      "2": {
+        "num_alloc_retries": 0,
+        "num_ooms": 0
+      },
+      "3": {
+        "num_alloc_retries": 0,
+        "num_ooms": 0
+      },
+      "4": {
+        "num_alloc_retries": 0,
+        "num_ooms": 0
+      },
+      "5": {
+        "num_alloc_retries": 0,
+        "num_ooms": 0
+      },
+      "6": {
+        "num_alloc_retries": 0,
+        "num_ooms": 0
+      },
+      "7": {
+        "num_alloc_retries": 0,
+        "num_ooms": 0
+      }
+    },
+    "memory_definitions": {
+      "allocator": "Max sampled allocated/active/reserved allocator peaks across eight ranks and native reset epochs observed at window start, before native resets, and window end; boundary epoch can include adjacent warmup. Not a simultaneous device-wide maximum.",
+      "native_total": "Rank-0 reserved peak since native reset plus report-time (total - free - currently reserved) non-PyTorch memory. This sum is not a simultaneous device-wide peak.",
+      "allocator_counter_deltas": "Per-rank cumulative retry/OOM counter at end minus start of complete window."
+    },
+    "rank0_native_composite_memory_gib_range_in_window": [
+      72.0887451171875,
+      72.2449951171875
+    ],
+    "rank0_native_non_torch_memory_gib_in_window": 2.5555419921875,
+    "rank0_native_global_loss_and_gradient_metrics_finite_updates": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "settling_judgment": "Cold startup/compilation was excluded. Update 2 cadence was 17.303 s; warmup updates 3\u201310 were 13.514\u201314.907 s. Measured cadence overlaps this range and has no compilation-scale stall. No explicit recompilation/error was recorded in the measured interval; optional compiler observer/guard stayed off. Ordinary variation remains in this single provisional run.",
+    "included_costs": [
+      "normal MDS loading and transfers",
+      "native forward/backward, communication, optimizer, scheduler, lightweight native logging/callbacks",
+      "two complete-window boundary CUDA synchronizations"
+    ],
+    "excluded_lifecycle_costs": [
+      "initialization/cold compilation/startup",
+      "10 warmup updates",
+      "process teardown"
+    ],
+    "disabled": [
+      "detailed monitoring",
+      "validation",
+      "checkpoint saving",
+      "numerical capture",
+      "memory snapshots",
+      "profiling",
+      "CUDA Graphs",
+      "optional compiler observer and guard"
+    ],
+    "cache_and_scratch_policy": {
+      "scratch": "short task-root .tmp/run-* on NFS; removed only after process group stops",
+      "triton": "fresh attempt/cache/triton/rank_<GLOBAL_RANK>, selected before Torch import",
+      "other_caches": "existing fresh task-owned per-attempt caches",
+      "cost_and_limit": "rank isolation can duplicate identical compiler artifacts up to eight times and reduce cross-rank cache reuse; incremental cold-start cost is unknown; original ESTALE cause unproven"
+    },
+    "reproduction_command": [
+      "/opt/torchtitan-venv/bin/python3.12",
+      "-u",
+      "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/run.py",
+      "--run-id",
+      "monitorfree-baseline-w10-m10-002",
+      "--steps",
+      "20",
+      "--warmup",
+      "10",
+      "--window",
+      "10",
+      "--timeout-seconds",
+      "7200"
+    ],
+    "artifacts": {
+      "metadata": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/metadata.json",
+        "sha256": "ab07b8907f3dbd3bc6dedb587271ef0b01a234c4042b01f14cde332c16031982"
+      },
+      "summary": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/summary.json",
+        "sha256": "b9588b4f38d6ac69ea444fffbff3c311c7a923ceaf6a3ef52486def06f19d10b"
+      },
+      "acceptance": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/acceptance.json",
+        "sha256": "c7fb43683a146cb5080718e3ef958f42cbe8e481da4fc859b63dce92c0d3154f"
+      },
+      "completion": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/completion.json",
+        "sha256": "f1b55dfa376e92bee9791f1928984575dfaa65f28d7a74b613a6727aa597249e"
+      },
+      "source_final": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/source-final.json",
+        "sha256": "7c3cd8ba22e49491da6df1590fb613ecfdd2e2811f0fa8160b00a49ae1c9467c"
+      },
+      "config_hashes_final": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/config-hashes-final.json",
+        "sha256": "71800cf6af33aba413363b8b3eea04c6eb1b91bcbc93327b70375e11b1c108ae"
+      },
+      "resolved_config": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/native/config/resolved_config.yaml",
+        "sha256": "94e32fa61596e4c3dd2e5f9d5582988fc9c3ef641c6b737e61194c72781fdb39"
+      },
+      "process": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/process.json",
+        "sha256": "a241c371cfa376d75b363bed69cc956e95bfbdf2d79d67384c588c606f163247"
+      },
+      "native_console_metrics": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-baseline-w10-m10-002/native-console-metrics.json",
+        "sha256": "073c1d71682d31c3713ec3d12763784db0371be9796e1ff49b4d16418b45bf65"
+      }
+    },
+    "limitations": [
+      "One unprofiled run; repeatability/noise confidence not established.",
+      "Repeated local 896-row MDS fixture and eight-layer single-node crop, not production data/scale or convergence.",
+      "No comparison to historical monitoring-inclusive TPS.",
+      "Optional compiler instrumentation is disabled; no exhaustive compilation-absence proof."
+    ],
+    "comparability": "Historical monitoring-inclusive measurements are not directly comparable; no candidate optimization gain is claimed.",
+    "finite_native_metric_pairs_per_rank": {
+      "0": 20,
+      "1": 20,
+      "2": 20,
+      "3": 20,
+      "4": 20,
+      "5": 20,
+      "6": 20,
+      "7": 20
+    },
+    "maximum_native_composite_memory_gib_across_ranks_in_window_rounded": 72.73,
+    "memory_unit": "GiB = 2^30 bytes"
+  },
+  "baseline_profile_capture": {
+    "status": "PASS_ONE_COMPLETE_WARMED_UPDATE_TWO_CANONICAL_TRACES",
+    "run_id": "monitorfree-profile-update11-001",
+    "source_revision": "16b13c2548317945712ded2e66f136b169130d95",
+    "gift_manifest_sha256": "3257ca6fd225668045ce3f2838c82da72bed121d8e9d43a4315dae028c8f365e",
+    "source_and_config_unchanged_during_run": true,
+    "resolved_config_sha256": "c1ac05654c4dfe72721b110dddb2221aab8bad016e001e3a18d53920994da19f",
+    "warmup_updates": 10,
+    "target_update": 11,
+    "training_updates_per_rank": 11,
+    "active_updates": 1,
+    "profile_ranks": [
+      0,
+      1
+    ],
+    "native_profiler_created_ranks": [
+      0,
+      1
+    ],
+    "actual_target_call_counts_per_rank": {
+      "0": {
+        "microbatch_calls": 32,
+        "native_profiler_build_calls": 1,
+        "native_profiler_created": true,
+        "optimizer_step_calls": 1,
+        "train_step_calls": 1
+      },
+      "1": {
+        "microbatch_calls": 32,
+        "native_profiler_build_calls": 1,
+        "native_profiler_created": true,
+        "optimizer_step_calls": 1,
+        "train_step_calls": 1
+      },
+      "2": {
+        "microbatch_calls": 32,
+        "native_profiler_build_calls": 1,
+        "native_profiler_created": false,
+        "optimizer_step_calls": 1,
+        "train_step_calls": 1
+      },
+      "3": {
+        "microbatch_calls": 32,
+        "native_profiler_build_calls": 1,
+        "native_profiler_created": false,
+        "optimizer_step_calls": 1,
+        "train_step_calls": 1
+      },
+      "4": {
+        "microbatch_calls": 32,
+        "native_profiler_build_calls": 1,
+        "native_profiler_created": false,
+        "optimizer_step_calls": 1,
+        "train_step_calls": 1
+      },
+      "5": {
+        "microbatch_calls": 32,
+        "native_profiler_build_calls": 1,
+        "native_profiler_created": false,
+        "optimizer_step_calls": 1,
+        "train_step_calls": 1
+      },
+      "6": {
+        "microbatch_calls": 32,
+        "native_profiler_build_calls": 1,
+        "native_profiler_created": false,
+        "optimizer_step_calls": 1,
+        "train_step_calls": 1
+      },
+      "7": {
+        "microbatch_calls": 32,
+        "native_profiler_build_calls": 1,
+        "native_profiler_created": false,
+        "optimizer_step_calls": 1,
+        "train_step_calls": 1
+      }
+    },
+    "profile_settings": {
+      "profiler.enable_memory_snapshot": false,
+      "profiler.enable_profiling": true,
+      "profiler.profile_freq": 2,
+      "profiler.profile_ranks": [
+        0,
+        1
+      ],
+      "profiler.profiler_active": 1,
+      "profiler.profiler_repeat": 1,
+      "profiler.profiler_skip_first": 9,
+      "profiler.profiler_skip_first_wait": 0,
+      "profiler.profiler_warmup": 1,
+      "profiler.record_shapes": false,
+      "profiler.save_traces_folder": "profiling/traces"
+    },
+    "native_hardcoded": {
+      "profile_memory": false,
+      "with_stack": false
+    },
+    "actual_schedule": {
+      "wait": 0,
+      "warmup": 1,
+      "active": 1,
+      "repeat": 1,
+      "skip_first": 9,
+      "skip_first_wait": 0,
+      "updates_1_through_9": "not recorded",
+      "update_10": "Kineto warmup",
+      "update_11": "one active update",
+      "trace_annotation": "ProfilerStep#10 is zero-based; target task annotations and filename identify optimizer update 11"
+    },
+    "benchmark_tps": null,
+    "interpretation": "Profiled TPS is not a benchmark. Only coverage and artifact validity were checked; no new bottleneck analysis or candidate selection.",
+    "traces": [
+      {
+        "rank": 0,
+        "optimizer_update": 11,
+        "cpu_markers": {
+          "task.profile_update.11.microbatch.rank0": 32,
+          "task.profile_update.11.train_step.rank0": 1,
+          "task.profile_update.11.optimizer_step.rank0": 1
+        },
+        "microbatches_and_optimizer_nested_in_train_step": true,
+        "profiler_step_names": [
+          "ProfilerStep#10"
+        ],
+        "cuda_kernel_count": 94436,
+        "adam_cuda_kernel_count": 17,
+        "nonempty_cpu_input_shape_records": 0,
+        "nonempty_stack_records": 0,
+        "profiler_memory_events": 0,
+        "trace_event_count": 986970,
+        "canonical_path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/native/profiling/traces/iteration_11/rank0_trace.json.gz",
+        "compressed_sha256": "f8532db191edb226385409ef5f707769db58c6db0bac47b07d1b24252d7c6360",
+        "compressed_bytes": 30393413,
+        "uncompressed_sha256": "ec1361845a964a126f6ce82f728e601ac67e97e73bc3fedb886c3525cdd2f5b2",
+        "uncompressed_bytes": 297079146,
+        "lossless_roundtrip_verified": true
+      },
+      {
+        "rank": 1,
+        "optimizer_update": 11,
+        "cpu_markers": {
+          "task.profile_update.11.microbatch.rank1": 32,
+          "task.profile_update.11.train_step.rank1": 1,
+          "task.profile_update.11.optimizer_step.rank1": 1
+        },
+        "microbatches_and_optimizer_nested_in_train_step": true,
+        "profiler_step_names": [
+          "ProfilerStep#10"
+        ],
+        "cuda_kernel_count": 94438,
+        "adam_cuda_kernel_count": 17,
+        "nonempty_cpu_input_shape_records": 0,
+        "nonempty_stack_records": 0,
+        "profiler_memory_events": 0,
+        "trace_event_count": 987006,
+        "canonical_path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/native/profiling/traces/iteration_11/rank1_trace.json.gz",
+        "compressed_sha256": "42a074fc3b1b9910d1057fda3d2bd4f0506a8756a03f4dbde9a2468917295111",
+        "compressed_bytes": 30383635,
+        "uncompressed_sha256": "9d85e5d2eb294af38735fc01a14a46e7f34a13d54cecaed17a67a9644e64dd79",
+        "uncompressed_bytes": 297064044,
+        "lossless_roundtrip_verified": true
+      }
+    ],
+    "compression": {
+      "format": "gzip",
+      "level": 1,
+      "mtime": 0,
+      "filename_header": "omitted",
+      "reason": "Fast lossless compression; byte-identical decoded payload verified by SHA256 and size."
+    },
+    "plain_trace_copies_removed": true,
+    "reproduction_command": [
+      "/opt/torchtitan-venv/bin/python3.12",
+      "-u",
+      "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/run.py",
+      "--run-id",
+      "monitorfree-profile-update11-001",
+      "--steps",
+      "11",
+      "--warmup",
+      "10",
+      "--window",
+      "0",
+      "--profile-update",
+      "11",
+      "--timeout-seconds",
+      "7200"
+    ],
+    "artifacts": {
+      "metadata": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/metadata.json",
+        "sha256": "2cc40089576edc2201e4bdbdaf14a1c68bcf753cd6bd67bf7b04af295e706c58"
+      },
+      "original_plain_trace_parse_summary": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/summary.json",
+        "sha256": "45432c547aa169145c8dbfcf75c32cb67b75980ba9b88e7aece02d68f8af1d70"
+      },
+      "completion": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/completion.json",
+        "sha256": "27522f29fe1e9ff296dbe8627f68c3e7e532eeb0169963e0425b549bdca2ccc4"
+      },
+      "source_final": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/source-final.json",
+        "sha256": "7c3cd8ba22e49491da6df1590fb613ecfdd2e2811f0fa8160b00a49ae1c9467c"
+      },
+      "config_hashes_final": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/config-hashes-final.json",
+        "sha256": "71800cf6af33aba413363b8b3eea04c6eb1b91bcbc93327b70375e11b1c108ae"
+      },
+      "resolved_config": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/native/config/resolved_config.yaml",
+        "sha256": "c1ac05654c4dfe72721b110dddb2221aab8bad016e001e3a18d53920994da19f"
+      },
+      "resolved_config_differences": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/resolved-config-differences.json",
+        "sha256": "d28aa62b3e766c57d78e654e1ee71d68a6203cde03d303e1fc2b8593deb0529d"
+      },
+      "verification_compression": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/trace-verification-compression.json",
+        "sha256": "c3f03ef6e7cc74cac3d6758f410cc725687c09aa6bcf879489a752ee1327bbc2"
+      },
+      "process": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-profile-update11-001/process.json",
+        "sha256": "7402ca6d2cd5d6f08b411d137ae87150bc62980f07d6475bc57d1f6b76990cc0"
+      }
+    },
+    "original_parse_summary_path_note": "The parser verified plain JSON before compression; its original paths/hashes remain immutable. Canonical gzip paths and byte-identical decoded hashes are listed in traces and verification_compression."
+  },
+  "monitorfree_runner_repairs": {
+    "timing_receipt_commit": "162ad63ae87800997b60daef272b3342c3412f7c",
+    "inside_directory_cache_commit": "16b13c2548317945712ded2e66f136b169130d95",
+    "runtime_impact": "No GIFT/model/data changes or added timed operations. Startup paths and post-run receipts only; rank cache isolation may duplicate artifacts and affect cold startup.",
+    "checks": "81 scoped tests passed after timestamp fix. After storage repair: 94 passed / 2 new fixture errors; both corrected fixtures passed targeted recheck, covering all 96 tests. Ruff F821/F811/F841 and whitespace checks pass.",
+    "evidence": [
+      "runs/overnight-streaming-perf/artifacts/raw/monitorfree-wall-timestamp-fix/CHECKS.md",
+      "runs/overnight-streaming-perf/artifacts/raw/monitorfree-task-directory-fix/CHECKS.md"
+    ]
+  },
+  "monitorfree_assignment": {
+    "scope": "baseline measurement and two-rank complete-update trace capture only",
+    "status": "RUNTIME_ARTIFACT_CLEANUP_ACCEPTANCE_COMPLETE",
+    "valid_unprofiled_runs": 1,
+    "failed_unprofiled_attempts": 1,
+    "profile_capture_runs": 1,
+    "candidate_experiments": 0,
+    "full_model_numerical_comparisons": 0,
+    "new_allocations_or_package_installations": 0,
+    "explicit_task_scratch_caches_and_outputs": "inside /workspace-SR008.nfs2/vkropotin/optimization-task",
+    "publication": {
+      "target": "origin/main",
+      "identity": "existing repository-local user identity",
+      "source_revision_is_execution_revision_not_final_documentation_commit": true,
+      "record": "The final results/documentation commit and verified origin/main SHA are reported in the completion response."
+    },
+    "cleanup": {
+      "receipt": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-cleanup.json",
+        "sha256": "f8a9335bb0c45b9a7b32c0b19b095e04e6999d9579d4bde082b3f7ad37f84b2e"
+      },
+      "stopped_consumers": {
+        "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-consumers-stopped.json",
+        "sha256": "3f19719d5107b4d4ad1c001fda23285cade661e7621400cd8b2018599bebbc9e"
+      },
+      "cache_and_helper_bytecode_files_removed": 75313,
+      "cache_and_helper_bytecode_logical_bytes_removed": 2339828158,
+      "plain_trace_files_removed": 2,
+      "plain_trace_logical_bytes_removed": 594143190,
+      "canonical_new_compressed_traces": 2,
+      "temporary_directories_remaining": [],
+      "all_owned_training_controllers_and_process_groups_exited": true,
+      "mds_preserved": true,
+      "space_scope": "Logical bytes removed; no NFS reclaimed-space claim."
+    },
+    "final_verification": {
+      "path": "runs/overnight-streaming-perf/artifacts/raw/monitorfree-final-verification.json",
+      "sha256": "d6c5376694e7e1b9a2c4ea8600c7f31e9a8afb6dff0a00d015f75b7fc56e8151",
+      "artifact_hashes_verified": 22,
+      "local_links_checked": 83,
+      "broken_links": 0,
+      "all_eight_gpus_idle_zero_mib_no_compute_applications": true,
+      "verified_at_utc": "2026-11-13T10:38:51.770973+00:00"
     }
   }
 }

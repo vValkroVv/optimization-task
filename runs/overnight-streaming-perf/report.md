@@ -1,3 +1,132 @@
+# Monitoring-free baseline measurement — 13 November 2026
+
+Status: unprofiled TPS PASS (provisional single run); complete-update traces PASS.
+Owned-cache cleanup is complete. The final results/documentation commit publishes
+this record to `origin/main` using the existing repository-local identity.
+The [results](results.json) own exact values, identities and artifact hashes.
+The original candidate campaign remains cancelled; no candidate or numerical
+comparison was run. All new scratch/cache/output paths stay inside the task root.
+
+## Unprofiled result
+
+`monitorfree-baseline-w10-m10-002` completed 10 warmup updates and measured
+updates 11–20, each with 32 microbatches. The complete eight-rank window was
+**144.467936499 s** for **20,971,520 physical input tokens**:
+**145,163.837099 global input tokens/s**, **18,145.479637 per GPU** (global/8).
+The native supervised-token counter gives 145,128.396709 global tokens/s;
+physical input and supervised tokens have distinct denominators.
+
+Rank-0 per-update host cadence had median **14.562491119 s** and range
+**13.542409329–15.803554488 s**. These are intervals between native
+`Profiler.step` returns, with no adapter synchronization each update; the last
+interval includes the end drain. The primary TPS uses max(rank end) minus
+min(rank start) on the verified single host, with two CUDA boundary drains.
+Normal MDS loading, transfers, compute, communication, optimizer and native
+lightweight logging are included. Initialization, cold compilation, warmup and
+teardown are excluded. Profiling, validation, checkpoints, numerical capture,
+monitoring and snapshots were off.
+
+Warmup was not extended. Update 2 took 17.303 s; warmup updates 3–10 were
+13.514–14.907 s. The measured window has ordinary variation and no recorded
+compilation-scale stall. Optional compiler observation/guard stayed off; this
+is not an exhaustive proof of compilation absence or a repeatability estimate.
+
+Maximum sampled allocator peaks across eight ranks were **69.667068 GiB
+allocated/active** and **70.181641 GiB reserved**. The sampler observes native
+reset epochs at start, before resets and at end; a boundary epoch can include
+adjacent warmup. These are not simultaneous device-wide peaks. Every rank had
+zero allocation-retry and OOM counter deltas. Rank-0 native composite memory
+was **72.088745–72.244995 GiB** in updates 11–20: reserved peak since its reset
+plus report-time non-PyTorch memory (**2.555542 GiB**). This sum is also not a
+simultaneous device-wide peak. The all-rank native console maximum composite
+was **72.73 GiB** (rounded). All eight ranks logged finite loss/gradient values
+for all 20 updates; rank-0 TensorBoard scalars retain full logged precision.
+No numerical equivalence or convergence claim is made. GiB means 2^30 bytes.
+
+## Reproduction and scope
+
+Both runs use execution revision `16b13c2548317945712ded2e66f136b169130d95`.
+GIFT/config/data bytes are unchanged from cleanup `eadcc6ac`; the necessary
+runner repairs serialize already-captured wall timestamps with observation off,
+keep scratch in short `.tmp/run-*` paths, and isolate Triton writers by global
+rank within each attempt. No timed-window operation was added. Rank isolation
+can duplicate artifacts and cold startup work; NFS scratch is required by the
+user. The first attempt failed with Triton `ESTALE` before any complete update;
+its compact failure receipt remains. The cause is unproven.
+
+The baseline resolved-config SHA256 is
+`94e32fa61596e4c3dd2e5f9d5582988fc9c3ef641c6b737e61194c72781fdb39`;
+GIFT manifest SHA256 is
+`3257ca6fd225668045ce3f2838c82da72bed121d8e9d43a4315dae028c8f365e`.
+Metadata, commands, exact runtime/package identities, helper/config hashes,
+all-rank sidecars, startup receipts and native scalars are retained under
+`artifacts/raw/monitorfree-baseline-w10-m10-002/`. The existing MDS index SHA256
+is `7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2`.
+FP8, compile, CuTe, SAC, MTP, EMA, fused AdamW, EP8, batch/accumulation, seed and
+65,000/2,000 LR schedule are preserved. See [baseline defaults](../../docs/baseline.md).
+
+This is one short run on a repeated 896-row local fixture and an eight-layer,
+single-node crop. Noise confidence, production scale/data, convergence and
+continuation are untested. Historical monitoring-inclusive TPS is retained below
+and in explicitly historical results keys; it is not directly comparable and no
+candidate optimization gain is claimed.
+
+## Fresh traces and cleanup
+
+`monitorfree-profile-update11-001` passed at the same execution revision.
+All eight ranks completed 11 updates; only global ranks **0 and 1** constructed
+actual profilers. The supported schedule used wait 0, warmup 1, active 1,
+repeat 1, skip-first 9 and skip-first-wait 0: updates 1–9 were skipped, update 10
+warmed Kineto and **optimizer update 11** was active. The sole trace annotation
+`ProfilerStep#10` is zero-based; target task markers and `iteration_11` identify
+the actual optimizer update. Profiled TPS was not used as the benchmark.
+
+Each trace parsed and contains exactly 32 complete CPU microbatch markers,
+one train-step marker and one optimizer marker, nested within that single
+ProfilerStep. CUDA kernels are present (94,436 / 94,438), including 17 Adam
+kernels on each rank. All eight target receipts record 32 microbatches and one
+optimizer call. Shapes, stacks, profiler memory and snapshots were off; traces
+contain no nonempty CPU input-shape or stack records or profiler memory events.
+No checkpoint or numerical payload was created.
+
+The profile resolved-config SHA256 is
+`c1ac05654c4dfe72721b110dddb2221aab8bad016e001e3a18d53920994da19f`.
+The [resolved-config difference receipt](artifacts/raw/monitorfree-profile-update11-001/resolved-config-differences.json)
+confirms only profiler controls, training stop and output path differ from the
+unprofiled configuration. Source/runtime/data identities are retained in each
+run's metadata and the [results](results.json).
+
+Canonical traces, relative to this campaign directory:
+
+| Rank | Canonical trace | Compressed SHA256 |
+| --- | --- | --- |
+| 0 | [rank0_trace.json.gz](artifacts/raw/monitorfree-profile-update11-001/native/profiling/traces/iteration_11/rank0_trace.json.gz) | `f8532db191edb226385409ef5f707769db58c6db0bac47b07d1b24252d7c6360` |
+| 1 | [rank1_trace.json.gz](artifacts/raw/monitorfree-profile-update11-001/native/profiling/traces/iteration_11/rank1_trace.json.gz) | `42a074fc3b1b9910d1057fda3d2bd4f0506a8756a03f4dbde9a2468917295111` |
+
+The [verification/compression receipt](artifacts/raw/monitorfree-profile-update11-001/trace-verification-compression.json)
+records original hashes/sizes and coverage. Gzip level 1, zero timestamp and no
+filename header produced 30,393,413 / 30,383,635 bytes. Decoding reproduced the
+original 297,079,146 / 297,064,044 bytes and SHA256 values exactly. Both redundant
+plain JSON copies were removed after their parser consumers exited; one canonical
+copy per rank remains. The original parse summary is retained unchanged and maps
+to canonical gzip files through this receipt.
+
+Owned training controllers/process groups have exited, and all eight GPUs show
+0 MiB with no compute applications. The [cleanup receipt](artifacts/raw/monitorfree-cleanup.json) records removal of
+75,313 obsolete cache/helper-bytecode files (2,339,828,158 logical bytes), both
+controller scratch directories and the already-verified redundant plain traces
+(594,143,190 logical bytes). These are not NFS reclaimed-space claims. The exact
+run scratch paths were removed by the runner after group exit; no task temporary
+children remain. A scoped process/environment check found no remaining owned
+training, loader or compiler-cache consumer. MDS index identity is unchanged.
+Compact evidence, candidate sources, the existing untracked V2 helper and the
+historical canonical G3 traces are preserved. Stop here; no candidate experiment,
+full-model numerical comparison or new bottleneck analysis was performed.
+
+---
+
+# Historical cleanup and original campaign record
+
 # Streaming performance campaign: cancellation and cleanup
 
 Status: ORIGINAL_CAMPAIGN_CANCELLED_INCOMPLETE; cleanup assignment COMPLETE.

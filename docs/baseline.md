@@ -8,7 +8,7 @@
 - CuTe/runtime donor reference: `cute_norm_prodrun` at `ec47fb8e40a9a1e55d3c18dfa704ca104ae773af`, a descendant of the 100B-dev revision.
 - Training source base: task-local GIFT `main` at `6fd9a3230ab6361f11bbbf0b6ec5a5f125b78fc2`, recorded in the [source provenance](../references/provenance.json). The selected implementation route is to port only the required 100B-dev mechanisms into this base; it does not replace the base with the donor branch.
 - The ports include per-layer SAC, adaptive routing, development packed initialization, and loss-monitoring support. A functional grouped-FP8 output also fixes the donor's eager SAC result-caching defect; the smoke report records its regressions and source review.
-- This is an eight-trunk-layer crop of the referenced model. It is a smoke and development baseline, not a production-scale run or a measured throughput baseline.
+- This is an eight-trunk-layer crop of the referenced model. It is a controlled single-node development workload. Current throughput evidence and its limits are recorded in [current state](status.md).
 - Keep architecture, donor and trainer-base identities distinct. Historical [CUDA Graph conclusions](cuda-graphs.md) are from another workload.
 
 ## Model and training configuration
