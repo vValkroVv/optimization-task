@@ -176,7 +176,8 @@ fusion source changes and their dispositions are recorded in the linked report.
 
 ## Other hypotheses retained from earlier reviews
 
-These are source-inspection questions, not measured improvements. The earlier
+These are source-inspection questions and theoretical estimates, not measured
+improvements. The earlier
 700B-specific analyses remain in [Git history](../references/README.md); their
 settings and performance expectations do not describe the crop.
 
@@ -187,7 +188,119 @@ settings and performance expectations do not describe the crop.
 | GFSDP reshard/prefetch | [GFSDP](../gift/torchtitan/distributed/gfsdp/) | Exposed all-gather/reduce-scatter waits versus live-buffer memory; compare already present behavior before porting vision runtime changes |
 | MoE metadata and quantization overlap | [Experts](../gift/torchtitan/models/common/moe/experts/), [FP8](../gift/torchtitan/ops/float8/) | Whether host count transfers or synchronization are exposed on the critical path; preserve capacity, ordering, scores, scales and collective dependencies |
 | GDN recomputation | [FLA implementation](../gift/contrib/flash-linear-attention/fla/ops/gated_delta_rule/) | Distinguish block SAC replay from internal backward recomputation, measure saved-state/memory tradeoff and preserve scan/RNG semantics |
-| Norm/residual fusion | [Norm implementations](../gift/torchtitan/models/common/norms/) | CuTe is already enabled in the crop. First show a remaining unfused boundary; do not count enabling existing CuTe as a new candidate |
+| Norm/residual fusion | [Norm implementations](../gift/torchtitan/models/common/norms/), [V2 theoretical estimate](#normresidual-fusion-theoretical-v2-estimate) | Remaining boundaries confirmed: CuTe post-norm output -> residual-add, and pre-norm input-gradient -> skip-gradient addition. Theoretical elapsed-time reduction about 0.4–0.5% with both forward and backward fusion, or 0.2–0.3% with forward fusion alone. Based on V2 rank-0 trace costs and a memory-traffic model; no fused implementation or A/B speedup measurement. CuTe is already enabled |
+
+## Norm/residual fusion: theoretical V2 estimate
+
+### Confirmed remaining boundaries
+
+CuTe gated norm is already active. In
+[TransformerBlock.forward](../gift/torchtitan/models/common/decoder_blocks/transformer_block.py#L93),
+post-attention norm and residual addition remain separate:
+
+```python
+attn_out = self.post_attn_norm(attn_out)  # CuTe gated norm
+x = x + attn_out                        # separate Triton add kernel
+ffn_in = self.ffn_norm(x)
+```
+
+The same boundary remains after `post_ffn_norm`. The
+[CuTe custom operator](../gift/torchtitan/models/common/norms/cute_gated_norm/op.py#L64)
+does not accept a residual input. MCP Perfetto launch correlations and the run's
+generated Inductor code confirm standalone BF16 additions over
+`2 * 4096 * 4096 = 33,554,432` elements. Examples include
+`triton_poi_fused_add_4` and
+`triton_poi_fused__to_copy_add_cute_gated_norm_fwd_view_19`: the latter's name
+does not mean its addition is inside the CuTe norm kernel.
+
+The proposed forward fusion adds the residual in the
+[GnFwdOut epilogue](../gift/torchtitan/models/common/norms/cute_gated_norm/forward.py),
+writing the final sum directly. A separate backward fusion would add the skip
+gradient in the
+[GnBwdDx epilogue](../gift/torchtitan/models/common/norms/cute_gated_norm/backward.py).
+Backward fusion does not follow automatically from fusing the post-norm forward.
+Shared/routed-expert output sums, other gradient accumulations and norm-weight
+preparation are excluded from the residual budget below.
+
+### Trace scope and observed costs
+
+Evidence: MCP Perfetto analysis of `v2-long-epoch-candidate-trace-001`, optimizer
+update 21 after 20 warmup updates, rank 0, the first three complete microbatches.
+The [V2 report](../runs/v2-prefetch-baseline/report.md#bounded-traces-and-mechanism)
+owns run identities and canonical trace provenance. The canonical rank-0 gzip
+SHA-256 is
+`196806cee1fe857e97e4d80f3b7aa5961e323860f5fa1274d3e4b59a6f522c94`.
+The imported [derived trace](../runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/v2-rank0.perfetto.json.gz)
+has SHA-256
+`876696a98da197a3b1ac4bb22e6ccac869db6ecd5ff9fd4d931ea8244f7397bd`.
+It retains device timings, actual stream IDs and CPU launch flows.
+
+Generated-code attribution uses the run's retained `cache/torchinductor/`,
+including AOT `0_forward` at
+`uj/cujukvwrrzdbcfxj3ivgzlgm535hoyoodeyclfrlyfmbhm6mhtn5.py`
+(SHA-256 `9531c7c45e8f197b1da4bfe4c6e7b276a35eb90df0cb573b9a156d022b216000`)
+and AOT `0_backward` at
+`3w/c3wtxk6bafhnymdij56wojjaxjwytd46eb3wez2ui4yc6xpm64hv.py`
+(SHA-256 `7db649e75cee8695ac451efed34cccd5857dca7e97bd116ba5bfc2e71cfcfa91`).
+Kernel names are reused across forward, recompute and backward; attribution
+uses the call's source operation and CuTe producer/consumer, not its name alone.
+
+The denominator is **1,293.712761 ms**, from the first CPU microbatch entry
+through completion of GPU work launched by the third microbatch. It excludes
+the input prefix, remaining 29 microbatches and optimizer execution; it is not a
+full optimizer-update or training-time denominator.
+
+| Attributed standalone additions | Kernel count | Device execution, ms |
+| --- | ---: | ---: |
+| Forward residual-add | 54 | 3.631920 |
+| Residual-add during SAC recomputation | 30 | 2.677896 |
+| Backward norm input-gradient + skip-gradient | 54 | 3.520434 |
+| Total | 138 | 9.830250 |
+
+These kernels execute serially on actual CUDA stream 7, so their duration sum
+also equals their interval union. Their **0.75985%** share of the sampled window
+is the existing add-kernel budget, not an established end-to-end gain or bound.
+Of that work, **2.194949 ms** overlaps recorded device activity on other streams,
+all within the forward/recompute group. Corresponding host CUDA launch API
+durations total **0.669151 ms** and overlap GPU execution; do not add them to the
+device budget. No independent Python/dispatcher/allocation or synchronization
+savings, recoverable idle gaps, or peak-memory reduction have been established.
+
+### Theoretical calculation and interpretation
+
+A separate BF16 add reads two operands and writes one result: **6 bytes per
+element**. Moving it into the norm output epilogue removes the intermediate
+norm-output write and read, saving **4 bytes per element**; the fused norm still
+needs an extra residual read. The same accounting applies to the proposed
+backward input-gradient epilogue. Across 138 additions, this models **17.25 GiB**
+less memory traffic, not a reduction in peak allocated memory.
+
+Assuming comparable effective memory bandwidth and unchanged CuTe occupancy,
+the modeled saving is `4 / 6` of the standalone-add execution budget:
+
+```text
+No overlap discount:
+  9.830250 ms * 4/6 = 6.553500 ms
+  6.553500 / 1293.712761 * 100 = 0.5066% elapsed-time reduction
+
+Discounting the observed overlapping device intervals:
+  (9.830250 - 2.194949) ms * 4/6 = 5.090201 ms
+  5.090201 / 1293.712761 * 100 = 0.3935% elapsed-time reduction
+```
+
+Thus **about 0.4–0.5%** is a theoretical planning estimate for combined forward
+and backward fusion. Applying the same model only to the **6.309816 ms**
+forward/recompute budget gives **0.2–0.3%**. These are model scenarios, not
+statistical bounds, measured speedups or a complete critical-path analysis;
+observed overlap does not prove that all overlapping work hides the saving.
+
+Preserve the existing BF16 rounding of the norm output and input gradient before
+adding the residual/skip gradient, FP32 internal arithmetic, gated-norm parameter
+gradients, compilation and SAC semantics. SAC may recompute a fused residual
+epilogue where the current graph recomputes only the norm, adding work omitted
+by this simple model. Added residual loads can also change occupancy and kernel
+time. Numerical checks and matched unprofiled A/B measurements remain open; no
+training source, configuration or runner changed for this estimate.
 
 Priorities and model-shape/token-drop diagnostics live in
 [the editable work plan](../planning/README.md), not in a second backlog.
