@@ -120,7 +120,7 @@ configuration, all `gift/` source/config/tokenizer bytes, MDS index/shards and
 installed dependencies while the run is active. The runner hashes the parser
 even in smoke mode. Documentation outside those inputs may be maintained.
 
-Final helper SHA256 values:
+G1 validated helper SHA256 values (G3 changes below have separate run hashes):
 
 | File | SHA256 |
 | --- | --- |
@@ -131,3 +131,68 @@ Final helper SHA256 values:
 
 Census regression test SHA256:
 `4c0df5c0e49abcc95330bd43c59ede243a36ebdc4f46d37b20b13eaa392c293b`.
+
+## G3 profile-only update capture adapter
+
+The task-local runner now accepts `--profile-update N` for `window=0`,
+`monitor_interval=50`, positive warmup `W`, `N >= 2`, `N > W`, `N % 50 != 0`,
+and `steps == N`. The resolved profiler config selects global ranks 0 and 1,
+uses the native `wait=0 / warmup=1 / active=1 / repeat=1` schedule with
+`skip_first=N-2` and `skip_first_wait=0`, disables shapes and memory snapshots,
+and writes under `profiling/traces/iteration_N`. Native source still hardcodes
+`with_stack=False` and `profile_memory=False`.
+
+The adapter observes native `Profiler.build_torch_profiler` on all ranks. In
+profile mode it temporarily delegates the actual `Trainer.train_step`,
+`Trainer.forward_backward_step`, and `OptimizersContainer.step`; successful
+target-update calls are counted on all eight ranks. Kineto `record_function`
+scopes are created only on ranks 0 and 1 for the target update: 32 microbatch
+scopes, one `train_step` scope, and one optimizer scope. The train-step scope
+excludes `Trainer.train` GC, checkpoint, validation, and outer `sl.step` work.
+No `sl.log_trace_span` bridge is added because native `Profiler.step` exports
+while that scope is open.
+
+Runtime cost is opt-in. With `--profile-update` unset, no new delegation wrappers
+or per-update checks are installed, the unprofiled profiler overrides remain
+false, and sidecars do not gain profile fields. Profile mode adds a target-step
+and rank check at these native calls on all ranks so the receipt can verify
+successful calls; only ranks 0 and 1 open record scopes. It adds no CUDA
+synchronization, tensor copy, or collective. Native profiling and trace export
+still perturb the captured update, so profile runs do not produce TPS evidence.
+
+Focused verification used the task interpreter: **22 passed**, with one existing
+pynvml deprecation warning. The exact pytest, selective Ruff, `py_compile`, and
+`git diff --check` commands passed. Tests cover TorchTitan CLI override parsing
+and typed config decoding, each resolved profile field, invalid CLI cases,
+wrapper arguments/returns/exceptions/restoration, selected-rank scopes and
+all-rank counts. The CPU lifecycle test uses the native TorchTitan `Profiler`
+and actual `OptimizersContainer`; it captures update 7 with 32 microbatch
+markers plus one train-step and optimizer marker, exports exactly one native
+trace, and makes no adapter synchronization. Parser tests require exactly the
+selected-rank traces with hashes, sizes, markers, and all-rank call counts;
+missing, extra, wrong-rank, wrong-count, and wrong-build receipts fail.
+
+The real eight-GPU/NCCL profile run, selected-rank trace pair, and Perfetto
+analysis remain campaign gates. CPU lifecycle evidence does not establish
+CUDA/NCCL integration or profile-run performance.
+
+### Independent G3 review: one open profile-only finding
+
+The independent review found no unprofiled regression. Native schedule,
+selected-rank construction, actual delegation, scope boundaries, exception
+restoration and lifecycle/config/source gates match the contract by inspection.
+The reviewer inspected tests but did not repeat their reported execution.
+
+P2: the parser currently filters only the target-update prefix and checks required
+marker keys individually. An in-memory reproduction added a wrong-update marker
+and an extra wrong-rank target marker to otherwise valid traces; status remained
+complete with no errors. Required remedy is exact marker-map equality across
+all `task.profile_update.*` scopes, with these two negative regression cases.
+This is profile-only; the correction waits until active calibration exits so
+the hashed parser remains frozen. G3 capture acceptance remains open until the
+finding is fixed and affected tests pass.
+
+During CPU test development, an initial mocked-distributed fixture failed because
+Kineto requires a real process group. The owner replaced that test setup with a
+single-rank native CPU lifecycle check. It is a retained test-fixture failure,
+not a native training or candidate verdict.

@@ -30,6 +30,7 @@ RAW_ROOT = HELPER_DIR / "artifacts/raw"
 SHARED_HF_CACHE = RAW_ROOT / "shared-cache/huggingface"
 DEFAULT_TIMEOUT_SECONDS = 4 * 60 * 60
 MIN_SHM_FREE_BYTES = 512 * 1024 * 1024
+PROFILE_RANKS = [0, 1]
 
 EXPECTED = {
     "python": "3.12.3",
@@ -238,12 +239,27 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("monitor-interval must be 5 (short smoke) or 50 (campaign default)")
     if args.warmup < 0 or args.window not in {0, 50}:
         raise ValueError("warmup must be nonnegative and window must be 0 or 50 updates")
-    if args.window == 0 and args.warmup != 0:
+    if args.window == 0 and args.warmup != 0 and args.profile_update is None:
         raise ValueError("warmup must be zero when window is disabled")
     if args.window == 50 and (args.warmup <= 0 or args.steps != args.warmup + args.window):
         raise ValueError("measured runs require warmup>0 and steps == warmup + 50")
     if args.window == 50 and args.monitor_interval != 50:
         raise ValueError("measured campaign runs require monitoring interval 50")
+    if args.profile_update is not None:
+        if args.window != 0:
+            raise ValueError("profile-update requires window 0")
+        if args.monitor_interval != 50:
+            raise ValueError("profile-update requires monitor interval 50")
+        if args.warmup <= 0:
+            raise ValueError("profile-update requires warmup > 0")
+        if args.profile_update < 2:
+            raise ValueError("profile-update must be at least 2")
+        if args.profile_update <= args.warmup:
+            raise ValueError("profile-update must be greater than warmup")
+        if args.profile_update % 50 == 0:
+            raise ValueError("profile-update must not be a monitoring update")
+        if args.steps != args.profile_update:
+            raise ValueError("profile-update requires steps == profile-update")
     if args.monitor_interval == 5 and args.steps > 10:
         raise ValueError("monitoring interval 5 is reserved for the ten-update smoke")
     if args.timeout_seconds <= 0:
@@ -257,6 +273,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--monitor-interval", type=int, default=50)
     parser.add_argument("--warmup", type=int, default=0, help="complete updates before the measured window")
     parser.add_argument("--window", type=int, default=0, help="0 disables timing; campaign measurements use 50")
+    parser.add_argument(
+        "--profile-update",
+        type=int,
+        help="capture one native profiler update on global ranks 0 and 1",
+    )
     parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     args = parser.parse_args(argv)
     try:
@@ -521,8 +542,45 @@ def _write_experiment_config(path: Path) -> None:
         yaml.safe_dump(document, handle, sort_keys=False)
 
 
+def _profile_config_values(args: argparse.Namespace) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "profiler.enable_profiling": args.profile_update is not None,
+        "profiler.enable_memory_snapshot": False,
+    }
+    if args.profile_update is not None:
+        values.update(
+            {
+                "profiler.profile_ranks": PROFILE_RANKS,
+                "profiler.save_traces_folder": "profiling/traces",
+                "profiler.record_shapes": False,
+                "profiler.profile_freq": 2,
+                "profiler.profiler_warmup": 1,
+                "profiler.profiler_active": 1,
+                "profiler.profiler_repeat": 1,
+                "profiler.profiler_skip_first": args.profile_update - 2,
+                "profiler.profiler_skip_first_wait": 0,
+            }
+        )
+    return values
+
+
+def _profile_capture_spec(args: argparse.Namespace) -> dict[str, Any] | None:
+    if args.profile_update is None:
+        return None
+    return {
+        "target_update": args.profile_update,
+        "warmup_updates": args.warmup,
+        "profile_ranks": PROFILE_RANKS,
+        "settings": _profile_config_values(args),
+        "native_hardcoded": {"with_stack": False, "profile_memory": False},
+        "trace_directory": (
+            f"native/profiling/traces/iteration_{args.profile_update}"
+        ),
+    }
+
+
 def _training_overrides(args: argparse.Namespace, paths: dict[str, Path]) -> list[str]:
-    return [
+    overrides = [
         "--training.steps",
         str(args.steps),
         "--lr_scheduler.total_steps",
@@ -540,7 +598,7 @@ def _training_overrides(args: argparse.Namespace, paths: dict[str, Path]) -> lis
         "--validator.enable",
         "false",
         "--profiler.enable_profiling",
-        "false",
+        str(args.profile_update is not None).lower(),
         "--profiler.enable_memory_snapshot",
         "false",
         "--dump_folder",
@@ -548,6 +606,20 @@ def _training_overrides(args: argparse.Namespace, paths: dict[str, Path]) -> lis
         "--hf_assets_path",
         str(TOKENIZER.resolve()),
     ]
+    for dotted, value in _profile_config_values(args).items():
+        if dotted in {
+            "profiler.enable_profiling",
+            "profiler.enable_memory_snapshot",
+        }:
+            continue
+        if isinstance(value, bool):
+            raw_value = str(value).lower()
+        elif isinstance(value, list):
+            raw_value = "[" + ", ".join(str(item) for item in value) + "]"
+        else:
+            raw_value = str(value)
+        overrides.extend((f"--{dotted}", raw_value))
+    return overrides
 
 
 def _run_environment(paths: dict[str, Path]) -> dict[str, str]:
@@ -609,6 +681,8 @@ def _command(args: argparse.Namespace, paths: dict[str, Path]) -> list[str]:
     ]
     if capture_microbatches:
         helper_args.append("--capture-microbatches")
+    if args.profile_update is not None:
+        helper_args.extend(("--profile-update", str(args.profile_update)))
     return [
         str(PYTHON),
         "-m",
@@ -730,8 +804,6 @@ def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) ->
         "metrics.log_freq": 1,
         "checkpoint.enable": False,
         "validator.enable": False,
-        "profiler.enable_profiling": False,
-        "profiler.enable_memory_snapshot": False,
         "compile.enable": True,
         "activation_checkpoint.mode": "selective",
         "parallelism.expert_parallel_degree": 8,
@@ -741,6 +813,7 @@ def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) ->
         "fp8.sparse_use_grouped_gemm": True,
         "fp8.deep_gemm_warmup_on_start": True,
     }
+    required.update(_profile_config_values(args))
     for dotted, expected in required.items():
         current: Any = resolved
         for component in dotted.split("."):
@@ -823,7 +896,11 @@ def main(argv: list[str] | None = None) -> int:
                 "cleanup": "remove this exact directory after the owned process group stops",
             },
             "runtime": runtime,
-            "profiler": "disabled",
+            "profiler": (
+                "disabled"
+                if args.profile_update is None
+                else "enabled for one update on global ranks 0 and 1"
+            ),
             "checkpointing": "disabled",
             "validation": "disabled",
             "memory_snapshots": "disabled",
@@ -833,6 +910,8 @@ def main(argv: list[str] | None = None) -> int:
             "huggingface_cache_policy": "persistent task-owned cache with offline mode",
             "started_at_utc": datetime.now(timezone.utc).isoformat(),
         }
+        if args.profile_update is not None:
+            metadata["profile_capture"] = _profile_capture_spec(args)
         command = _command(args, paths)
         metadata["argv"] = command
         _write_new_json(paths["attempt"] / "metadata.json", metadata)

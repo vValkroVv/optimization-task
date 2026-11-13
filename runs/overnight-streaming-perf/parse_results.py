@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import statistics
 import sys
@@ -15,6 +16,7 @@ MICROBATCHES_PER_UPDATE = 32
 LOCAL_PHYSICAL_TOKENS_PER_UPDATE = 2 * 4096 * MICROBATCHES_PER_UPDATE
 GLOBAL_SUPERVISED_TOKENS_PER_UPDATE = 2_096_640
 GIB = 1024**3
+PROFILE_RANKS = [0, 1]
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -75,8 +77,214 @@ def _host_cadence(records: list[dict[str, Any]], first_step: int, last_step: int
     }
 
 
+def _expected_profile_spec(target_update: int, warmup_updates: int) -> dict[str, Any]:
+    return {
+        "target_update": target_update,
+        "warmup_updates": warmup_updates,
+        "profile_ranks": PROFILE_RANKS,
+        "settings": {
+            "profiler.enable_profiling": True,
+            "profiler.enable_memory_snapshot": False,
+            "profiler.profile_ranks": PROFILE_RANKS,
+            "profiler.save_traces_folder": "profiling/traces",
+            "profiler.record_shapes": False,
+            "profiler.profile_freq": 2,
+            "profiler.profiler_warmup": 1,
+            "profiler.profiler_active": 1,
+            "profiler.profiler_repeat": 1,
+            "profiler.profiler_skip_first": target_update - 2,
+            "profiler.profiler_skip_first_wait": 0,
+        },
+        "native_hardcoded": {"with_stack": False, "profile_memory": False},
+        "trace_directory": f"native/profiling/traces/iteration_{target_update}",
+    }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _profile_update_summary(
+    run_dir: Path,
+    by_rank: dict[int, dict[str, Any]],
+    ordered: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    run_id: str | None,
+    errors: list[str],
+) -> dict[str, Any]:
+    steps = int(metadata.get("steps", 0))
+    warmup = int(metadata.get("warmup_updates", 0))
+    window = int(metadata.get("window_updates", 0))
+    monitor_interval = int(metadata.get("monitor_interval", 0))
+    spec = metadata.get("profile_capture")
+
+    if not isinstance(spec, dict):
+        errors.append("run metadata lacks a profile_capture object")
+        target_update = steps
+    else:
+        try:
+            target_update = int(spec["target_update"])
+        except (KeyError, TypeError, ValueError):
+            target_update = steps
+            errors.append("profile_capture target_update is malformed")
+
+    if window != 0:
+        errors.append("profile-update runs require window_updates == 0")
+    if monitor_interval != 50:
+        errors.append("profile-update runs require monitor_interval == 50")
+    if warmup <= 0:
+        errors.append("profile-update runs require warmup_updates > 0")
+    if target_update < 2:
+        errors.append("profile target update must be at least 2")
+    if target_update <= warmup:
+        errors.append("profile target update must be greater than warmup_updates")
+    if target_update % 50 == 0:
+        errors.append("profile target update must not be a monitoring update")
+    if steps != target_update:
+        errors.append("profile target update must equal the complete training step count")
+
+    expected_spec = _expected_profile_spec(target_update, warmup)
+    if spec != expected_spec:
+        errors.append("profile_capture settings do not match the required native schedule")
+
+    per_rank_counts: dict[str, Any] = {}
+    for rank, record in sorted(by_rank.items()):
+        if record.get("measurement_status") != "disabled" or record.get("measurement") is not None:
+            errors.append(f"rank {rank} did not leave window timing disabled")
+        cadence_steps = [int(item["step"]) for item in record.get("cadence", [])]
+        if cadence_steps != list(range(1, steps + 1)):
+            errors.append(f"rank {rank} cadence does not cover updates 1..{steps}")
+        if monitor_interval > 0:
+            for item in record.get("cadence", []):
+                step = int(item["step"])
+                expected_monitoring = step % monitor_interval == 0
+                if item.get("monitoring_step") is not expected_monitoring:
+                    errors.append(
+                        f"rank {rank} monitoring cadence is invalid at update {step}"
+                    )
+
+        receipt = record.get("profile_capture")
+        if not isinstance(receipt, dict):
+            errors.append(f"rank {rank} has no profile_capture receipt")
+            continue
+        if type(receipt.get("target_update")) is not int or receipt.get("target_update") != target_update:
+            errors.append(f"rank {rank} profile target differs from run metadata")
+        if type(receipt.get("warmup_updates")) is not int or receipt.get("warmup_updates") != warmup:
+            errors.append(f"rank {rank} profile warmup differs from run metadata")
+        for key, expected in (
+            ("microbatch_calls", MICROBATCHES_PER_UPDATE),
+            ("train_step_calls", 1),
+            ("optimizer_step_calls", 1),
+            ("native_profiler_build_calls", 1),
+        ):
+            if type(receipt.get(key)) is not int or receipt.get(key) != expected:
+                errors.append(f"rank {rank} profile receipt {key}={receipt.get(key)!r}, expected {expected}")
+        expected_constructed = rank in PROFILE_RANKS
+        if receipt.get("native_profiler_created") is not expected_constructed:
+            errors.append(
+                f"rank {rank} native profiler constructed={receipt.get('native_profiler_created')!r}; "
+                f"expected {expected_constructed}"
+            )
+        per_rank_counts[str(rank)] = {
+            "microbatch_calls": receipt.get("microbatch_calls"),
+            "train_step_calls": receipt.get("train_step_calls"),
+            "optimizer_step_calls": receipt.get("optimizer_step_calls"),
+            "native_profiler_build_calls": receipt.get("native_profiler_build_calls"),
+            "native_profiler_created": receipt.get("native_profiler_created"),
+        }
+
+    trace_root = run_dir / "native/profiling/traces"
+    expected_paths = {
+        trace_root / f"iteration_{target_update}" / f"rank{rank}_trace.json"
+        for rank in PROFILE_RANKS
+    }
+    observed_paths = (
+        {path for path in trace_root.rglob("*_trace.json") if path.is_file()}
+        if trace_root.is_dir()
+        else set()
+    )
+    if observed_paths != expected_paths:
+        expected_names = sorted(str(path.relative_to(run_dir)) for path in expected_paths)
+        observed_names = sorted(
+            str(path.relative_to(run_dir)) for path in observed_paths
+        )
+        errors.append(
+            f"expected exactly selected-rank traces {expected_names}, found {observed_names}"
+        )
+
+    traces: dict[str, Any] = {}
+    for rank in PROFILE_RANKS:
+        path = trace_root / f"iteration_{target_update}" / f"rank{rank}_trace.json"
+        if not path.is_file():
+            continue
+        marker_counts: dict[str, int] = {}
+        try:
+            with path.open(encoding="utf-8") as handle:
+                trace = json.load(handle)
+            events = trace.get("traceEvents") if isinstance(trace, dict) else None
+            if not isinstance(events, list):
+                raise ValueError("traceEvents must be a list")
+            for event in events:
+                if isinstance(event, dict) and event.get("ph") == "X":
+                    name = event.get("name")
+                    if isinstance(name, str) and name.startswith(
+                        f"task.profile_update.{target_update}."
+                    ):
+                        marker_counts[name] = marker_counts.get(name, 0) + 1
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            errors.append(f"rank {rank} trace is not a valid Kineto JSON trace: {exc}")
+            continue
+
+        expected_markers = {
+            f"task.profile_update.{target_update}.microbatch.rank{rank}": MICROBATCHES_PER_UPDATE,
+            f"task.profile_update.{target_update}.train_step.rank{rank}": 1,
+            f"task.profile_update.{target_update}.optimizer_step.rank{rank}": 1,
+        }
+        for marker, expected in expected_markers.items():
+            observed = marker_counts.get(marker, 0)
+            if observed != expected:
+                errors.append(
+                    f"rank {rank} trace marker {marker!r} has {observed} events, expected {expected}"
+                )
+        traces[str(rank)] = {
+            "path": str(path.relative_to(run_dir)),
+            "size_bytes": path.stat().st_size,
+            "sha256": _sha256_file(path),
+            "marker_counts": marker_counts,
+        }
+
+    return {
+        "schema_version": 1,
+        "status": "complete" if not errors else "incomplete",
+        "run_id": run_id,
+        "mode": "profile_update",
+        "training_steps": steps,
+        "measurement_status": "disabled",
+        "profile_capture": {
+            "target_update": target_update,
+            "warmup_updates": warmup,
+            "profile_ranks": PROFILE_RANKS,
+            "settings": expected_spec["settings"],
+            "native_hardcoded": expected_spec["native_hardcoded"],
+            "call_counts_by_rank": per_rank_counts,
+            "traces_by_rank": traces,
+        },
+        "parameter_census_by_rank": {
+            str(record["rank"]): record.get("parameter_census") for record in ordered
+        },
+        "errors": errors,
+    }
+
+
 def summarize_records(
-    records: list[dict[str, Any]], metadata: dict[str, Any] | None = None
+    records: list[dict[str, Any]],
+    metadata: dict[str, Any] | None = None,
+    *,
+    run_dir: Path | None = None,
 ) -> dict[str, Any]:
     metadata = metadata or {}
     errors: list[str] = []
@@ -129,6 +337,27 @@ def summarize_records(
     run_id = metadata.get("run_id", ordered[0].get("run_id"))
     if any(record.get("run_id") != run_id for record in ordered):
         errors.append("rank sidecars do not share one run ID")
+
+    if metadata.get("profile_capture") is not None:
+        if run_dir is None:
+            errors.append("profile trace validation requires the run directory")
+            return {
+                "schema_version": 1,
+                "status": "incomplete",
+                "run_id": run_id,
+                "mode": "profile_update",
+                "errors": errors,
+            }
+        return _profile_update_summary(
+            run_dir,
+            by_rank,
+            ordered,
+            metadata,
+            run_id,
+            errors,
+        )
+    if any(record.get("profile_capture") is not None for record in ordered):
+        errors.append("rank profile receipts have no matching run-level profile_capture metadata")
 
     if window == 0:
         for rank, record in sorted(by_rank.items()):
@@ -359,7 +588,7 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
                     "mode": "unknown",
                     "errors": [str(exc)],
                 }
-    return summarize_records(records, metadata)
+    return summarize_records(records, metadata, run_dir=run_dir)
 
 
 def main(argv: list[str] | None = None) -> int:

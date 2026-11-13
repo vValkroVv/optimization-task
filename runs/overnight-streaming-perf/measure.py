@@ -151,6 +151,7 @@ class WindowMeasurement:
         cuda_synchronize: Callable[[], None],
         memory_stats: Callable[[], dict[str, int]],
         capture_microbatches: bool,
+        profile_update: int | None = None,
         clock_ns: Callable[[], int] = time.monotonic_ns,
     ) -> None:
         self.trainer = trainer
@@ -165,6 +166,7 @@ class WindowMeasurement:
         self.cuda_synchronize = cuda_synchronize
         self.memory_stats = memory_stats
         self.capture_microbatches = capture_microbatches
+        self.profile_update = profile_update
         self.clock_ns = clock_ns
 
         self.host_name = socket.gethostname()
@@ -175,6 +177,11 @@ class WindowMeasurement:
         self._last_timestamp_ns: int | None = None
         self._cadence: list[dict[str, Any]] = []
         self._microbatch_calls: dict[int, int] = defaultdict(int)
+        self._profile_microbatch_calls = 0
+        self._profile_train_step_calls = 0
+        self._profile_optimizer_step_calls = 0
+        self._native_profiler_build_calls = 0
+        self._native_profiler_created: bool | None = None
         self._sync_count = 0
         self._window_started = False
         self._window_finished = False
@@ -193,6 +200,22 @@ class WindowMeasurement:
     def note_microbatch_complete(self, step: int) -> None:
         if self.capture_microbatches:
             self._microbatch_calls[step] += 1
+
+    def note_profile_microbatch_complete(self, step: int) -> None:
+        if self.profile_update == step:
+            self._profile_microbatch_calls += 1
+
+    def note_profile_train_step_complete(self, step: int) -> None:
+        if self.profile_update == step:
+            self._profile_train_step_calls += 1
+
+    def note_profile_optimizer_step_complete(self, step: int) -> None:
+        if self.profile_update == step:
+            self._profile_optimizer_step_calls += 1
+
+    def note_native_profiler_build(self, created: bool) -> None:
+        self._native_profiler_build_calls += 1
+        self._native_profiler_created = created
 
     def before_interval_metrics(self, metrics_processor: Any) -> None:
         if (
@@ -400,6 +423,16 @@ class WindowMeasurement:
             },
             "capture_microbatches": self.capture_microbatches,
         }
+        if self.profile_update is not None:
+            record["profile_capture"] = {
+                "target_update": self.profile_update,
+                "warmup_updates": self.warmup_updates,
+                "microbatch_calls": self._profile_microbatch_calls,
+                "train_step_calls": self._profile_train_step_calls,
+                "optimizer_step_calls": self._profile_optimizer_step_calls,
+                "native_profiler_build_calls": self._native_profiler_build_calls,
+                "native_profiler_created": self._native_profiler_created,
+            }
         self.output_dir.mkdir(parents=True, exist_ok=True)
         destination = self.output_dir / f"rank-{self.rank:02d}.json"
         temporary = destination.with_suffix(".json.tmp")
@@ -423,6 +456,7 @@ class NativeAdapter:
         options: dict[str, Any],
         cuda_synchronize: Callable[[], None],
         memory_stats: Callable[[], dict[str, int]],
+        optimizer_class: type | None = None,
         deep_gemm_cache_redirect: DeepGemmCacheRedirect | None = None,
     ) -> None:
         self.trainer_class = trainer_class
@@ -432,6 +466,7 @@ class NativeAdapter:
         self.options = options
         self.cuda_synchronize = cuda_synchronize
         self.memory_stats = memory_stats
+        self.optimizer_class = optimizer_class
         self.deep_gemm_cache_redirect = deep_gemm_cache_redirect
         self.active: WindowMeasurement | None = None
         self._originals: list[tuple[Any, str, Any]] = []
@@ -441,11 +476,31 @@ class NativeAdapter:
         setattr(owner, name, value)
 
     def __enter__(self) -> "NativeAdapter":
+        profile_update = self.options.get("profile_update")
+        if profile_update is not None:
+            import torch
+
+        if profile_update is not None:
+            if self.optimizer_class is None:
+                raise RuntimeError("profile-update requires the native OptimizersContainer class")
+            for owner, name in (
+                (self.trainer_class, "train_step"),
+                (self.trainer_class, "forward_backward_step"),
+                (self.profiler_class, "build_torch_profiler"),
+                (self.optimizer_class, "step"),
+            ):
+                if not callable(getattr(owner, name, None)):
+                    raise RuntimeError(f"profile-update cannot wrap {owner}.{name}")
         if self.deep_gemm_cache_redirect is not None:
             self.deep_gemm_cache_redirect.__enter__()
         original_train = self.trainer_class.train
         original_profiler_step = self.profiler_class.step
         original_forward_backward = self.trainer_class.forward_backward_step
+
+        if profile_update is not None:
+            original_train_step = self.trainer_class.train_step
+            original_build_torch_profiler = self.profiler_class.build_torch_profiler
+            original_optimizer_step = self.optimizer_class.step
 
         def tracked_train(trainer: Any, *args: Any, **kwargs: Any) -> Any:
             if self.active is not None:
@@ -491,11 +546,96 @@ class NativeAdapter:
                 self.active.note_microbatch_complete(int(trainer.step))
             return result
 
+        if profile_update is not None:
+            def tracked_profile_forward_backward(
+                trainer: Any, *args: Any, **kwargs: Any
+            ) -> Any:
+                active = self.active
+                is_active_trainer = active is not None and trainer is active.trainer
+                step = int(trainer.step) if is_active_trainer else None
+                mark_profile = is_active_trainer and step == profile_update
+                if mark_profile and active.rank in (0, 1):
+                    scope = torch.profiler.record_function(
+                        f"task.profile_update.{profile_update}.microbatch.rank{active.rank}"
+                    )
+                    with scope:
+                        result = original_forward_backward(trainer, *args, **kwargs)
+                else:
+                    result = original_forward_backward(trainer, *args, **kwargs)
+                if mark_profile:
+                    active.note_profile_microbatch_complete(step)
+                return result
+
+            def tracked_train_step(trainer: Any, *args: Any, **kwargs: Any) -> Any:
+                active = self.active
+                is_active_trainer = active is not None and trainer is active.trainer
+                step = int(trainer.step) if is_active_trainer else None
+                mark_profile = (
+                    is_active_trainer and step == profile_update
+                )
+                if mark_profile and active.rank in (0, 1):
+                    scope = torch.profiler.record_function(
+                        f"task.profile_update.{profile_update}.train_step.rank{active.rank}"
+                    )
+                    with scope:
+                        result = original_train_step(trainer, *args, **kwargs)
+                else:
+                    result = original_train_step(trainer, *args, **kwargs)
+                if mark_profile:
+                    active.note_profile_train_step_complete(step)
+                return result
+
+            def tracked_optimizer_step(optimizer: Any, *args: Any, **kwargs: Any) -> Any:
+                active = self.active
+                is_active_optimizer = (
+                    active is not None
+                    and optimizer is getattr(active.trainer, "optimizers", None)
+                )
+                step = int(active.trainer.step) if is_active_optimizer else None
+                mark_profile = (
+                    is_active_optimizer and step == profile_update
+                )
+                if mark_profile and active.rank in (0, 1):
+                    scope = torch.profiler.record_function(
+                        f"task.profile_update.{profile_update}.optimizer_step.rank{active.rank}"
+                    )
+                    with scope:
+                        result = original_optimizer_step(optimizer, *args, **kwargs)
+                else:
+                    result = original_optimizer_step(optimizer, *args, **kwargs)
+                if mark_profile:
+                    active.note_profile_optimizer_step_complete(step)
+                return result
+
+            def tracked_build_torch_profiler(
+                profiler: Any, *args: Any, **kwargs: Any
+            ) -> Any:
+                result = original_build_torch_profiler(profiler, *args, **kwargs)
+                if self.active is not None:
+                    self.active.note_native_profiler_build(result is not None)
+                return result
+
         self._replace(self.trainer_class, "train", tracked_train)
         self._replace(self.profiler_class, "step", tracked_profiler_step)
-        if self.options["capture_microbatches"]:
+        if self.options["capture_microbatches"] or profile_update is not None:
             self._replace(
-                self.trainer_class, "forward_backward_step", tracked_forward_backward
+                self.trainer_class,
+                "forward_backward_step",
+                (
+                    tracked_profile_forward_backward
+                    if profile_update is not None
+                    else tracked_forward_backward
+                ),
+            )
+        if profile_update is not None:
+            self._replace(self.trainer_class, "train_step", tracked_train_step)
+            self._replace(
+                self.optimizer_class, "step", tracked_optimizer_step
+            )
+            self._replace(
+                self.profiler_class,
+                "build_torch_profiler",
+                tracked_build_torch_profiler,
             )
 
         if self.options["window_updates"]:
@@ -544,6 +684,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--window", type=int, required=True)
     parser.add_argument("--monitor-interval", type=int, required=True)
     parser.add_argument("--capture-microbatches", action="store_true")
+    parser.add_argument("--profile-update", type=int)
     args = parser.parse_args(helper_argv)
     if not train_argv:
         parser.error("a native experiment config and overrides must follow `--`")
@@ -553,8 +694,23 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         parser.error("monitor interval must be positive")
     if args.window and (args.warmup <= 0 or args.steps != args.warmup + args.window):
         parser.error("measured runs require warmup>0 and steps == warmup + window")
-    if not args.window and args.warmup:
+    if not args.window and args.warmup and args.profile_update is None:
         parser.error("warmup must be zero when measurement window is disabled")
+    if args.profile_update is not None:
+        if args.window != 0:
+            parser.error("profile-update requires window 0")
+        if args.monitor_interval != 50:
+            parser.error("profile-update requires monitor interval 50")
+        if args.warmup <= 0:
+            parser.error("profile-update requires warmup > 0")
+        if args.profile_update < 2:
+            parser.error("profile-update must be at least 2")
+        if args.profile_update <= args.warmup:
+            parser.error("profile-update must be greater than warmup")
+        if args.profile_update % 50 == 0:
+            parser.error("profile-update must not be a monitoring update")
+        if args.steps != args.profile_update:
+            parser.error("profile-update requires steps == profile-update")
     return args, train_argv
 
 
@@ -577,10 +733,12 @@ def main(argv: list[str] | None = None) -> None:
         "window_updates": args.window,
         "monitor_interval": args.monitor_interval,
         "capture_microbatches": args.capture_microbatches,
+        "profile_update": args.profile_update,
     }
     adapter = NativeAdapter(
         trainer_class=trainer_module.Trainer,
         profiler_class=profiler_module.Profiler,
+        optimizer_class=trainer_module.OptimizersContainer,
         metrics_class=metrics_module.MetricsProcessor,
         metrics_module=metrics_module,
         options=options,
