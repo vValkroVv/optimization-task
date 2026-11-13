@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import os
 import socket
@@ -153,6 +152,10 @@ class WindowMeasurement:
         capture_microbatches: bool,
         profile_update: int | None = None,
         clock_ns: Callable[[], int] = time.monotonic_ns,
+        wall_clock_ns: Callable[[], int] = time.time_ns,
+        compiler_snapshot: Callable[[], dict[str, Any]] | None = None,
+        compiler_source_metadata: dict[str, Any] | None = None,
+        compiler_guard_activate: Callable[[int, int], dict[str, Any]] | None = None,
     ) -> None:
         self.trainer = trainer
         self.run_id = run_id
@@ -168,6 +171,10 @@ class WindowMeasurement:
         self.capture_microbatches = capture_microbatches
         self.profile_update = profile_update
         self.clock_ns = clock_ns
+        self.wall_clock_ns = wall_clock_ns
+        self.compiler_snapshot = compiler_snapshot
+        self.compiler_source_metadata = compiler_source_metadata
+        self.compiler_guard_activate = compiler_guard_activate
 
         self.host_name = socket.gethostname()
         self.parameter_census = parameter_census(trainer.model_parts)
@@ -187,6 +194,12 @@ class WindowMeasurement:
         self._window_finished = False
         self._window_start_ns: int | None = None
         self._window_end_ns: int | None = None
+        self._window_start_wall_ns: int | None = None
+        self._window_end_wall_ns: int | None = None
+        self._compiler_before: dict[str, Any] | None = None
+        self._compiler_after: dict[str, Any] | None = None
+        self._compiler_guard: dict[str, Any] | None = None
+        self._compiler_guard_sync_calls = 0
         self._physical_start: int | None = None
         self._physical_end: int | None = None
         self._supervised_start: int | None = None
@@ -259,6 +272,13 @@ class WindowMeasurement:
     def _start_window(self) -> int:
         self.cuda_synchronize()
         self._sync_count += 1
+        if self.compiler_guard_activate is not None:
+            self._compiler_guard = self.compiler_guard_activate(
+                self.warmup_updates, 0
+            )
+        if self.compiler_snapshot is not None:
+            self._compiler_before = self._capture_compiler_state()
+        self._window_start_wall_ns = self.wall_clock_ns()
         start_ns = self.clock_ns()
         stats = self._sample_memory()
         self._allocator_start = self._counter_snapshot(stats)
@@ -272,6 +292,10 @@ class WindowMeasurement:
         self.cuda_synchronize()
         self._sync_count += 1
         end_ns = self.clock_ns()
+        self._window_end_wall_ns = self.wall_clock_ns()
+        self._record_compiler_guard_end(self.warmup_updates + self.window_updates)
+        if self.compiler_snapshot is not None:
+            self._compiler_after = self._capture_compiler_state()
         stats = self._sample_memory()
         self._allocator_end = self._counter_snapshot(stats)
         self._physical_end = self._physical_total()
@@ -279,6 +303,24 @@ class WindowMeasurement:
         self._window_finished = True
         self._window_end_ns = end_ns
         return end_ns
+
+    def _capture_compiler_state(self) -> dict[str, Any]:
+        assert self.compiler_snapshot is not None
+        try:
+            return self.compiler_snapshot()
+        except Exception as exc:
+            return {
+                "schema_version": 1,
+                "sources": {},
+                "snapshot_errors": [f"{type(exc).__name__}: {exc}"],
+            }
+
+    def _record_compiler_guard_end(self, step: int) -> None:
+        if self._compiler_guard is not None:
+            self._compiler_guard["end_after_update"] = step
+            self._compiler_guard["flag_at_end_boundary"] = os.environ.get(
+                self._compiler_guard["environment_variable"]
+            )
 
     def on_profiler_step(self, step: int) -> None:
         if step != self._last_step + 1:
@@ -294,6 +336,17 @@ class WindowMeasurement:
         elif self.window_updates and step == self.warmup_updates + self.window_updates:
             boundary = "end"
             timestamp_ns = self._end_window()
+        elif self.profile_update is not None and step == self.warmup_updates:
+            if self.compiler_guard_activate is not None:
+                self.cuda_synchronize()
+                self._compiler_guard_sync_calls += 1
+                self._compiler_guard = self.compiler_guard_activate(
+                    step, self._compiler_guard_sync_calls
+                )
+            timestamp_ns = self.clock_ns()
+        elif self.profile_update is not None and step == self.profile_update:
+            self._record_compiler_guard_end(step)
+            timestamp_ns = self.clock_ns()
         else:
             timestamp_ns = self.clock_ns()
 
@@ -344,7 +397,7 @@ class WindowMeasurement:
                 else end_value - start_value
             )
 
-        return {
+        result = {
             "warmup_updates": self.warmup_updates,
             "window_updates": self.window_updates,
             "start_after_update": self.warmup_updates,
@@ -372,6 +425,23 @@ class WindowMeasurement:
                 "allocator_counter_deltas": retry_deltas,
             },
         }
+        if self.compiler_snapshot is not None:
+            from compiler_stats import compare_compilation_snapshots
+
+            observer = {
+                "source_metadata": self.compiler_source_metadata,
+                "before": self._compiler_before,
+                "after": self._compiler_after,
+            }
+            observer["comparison"] = compare_compilation_snapshots(
+                self._compiler_before,
+                self._compiler_after,
+                self.compiler_source_metadata,
+            )
+            result["compilation_observer"] = observer
+            result["start_wall_time_ns"] = self._window_start_wall_ns
+            result["end_wall_time_ns"] = self._window_end_wall_ns
+        return result
 
     def finish(self, *, training_succeeded: bool, error: BaseException | None = None) -> str | None:
         if self._written:
@@ -379,6 +449,7 @@ class WindowMeasurement:
         self._written = True
         completed_steps = int(self.trainer.step)
         training_complete = training_succeeded and completed_steps == self.expected_steps
+        window_result = self._window_result()
         if training_succeeded and not training_complete:
             self._failure_reason = self._failure_reason or (
                 f"native training completed at update {completed_steps}; "
@@ -392,7 +463,7 @@ class WindowMeasurement:
                 if (
                     training_complete
                     and self._failure_reason is None
-                    and self._window_result() is not None
+                    and window_result is not None
                 )
                 else "incomplete"
             )
@@ -414,7 +485,7 @@ class WindowMeasurement:
                 None if error is None else f"{type(error).__name__}: {error}"
             ),
             "measurement_status": measurement_status,
-            "measurement": self._window_result(),
+            "measurement": window_result,
             "parameter_census": self.parameter_census,
             "cadence": self._cadence,
             "microbatch_calls_by_step": {
@@ -433,6 +504,8 @@ class WindowMeasurement:
                 "native_profiler_build_calls": self._native_profiler_build_calls,
                 "native_profiler_created": self._native_profiler_created,
             }
+        if self._compiler_guard is not None:
+            record["compiler_guard"] = self._compiler_guard
         self.output_dir.mkdir(parents=True, exist_ok=True)
         destination = self.output_dir / f"rank-{self.rank:02d}.json"
         temporary = destination.with_suffix(".json.tmp")
@@ -468,8 +541,55 @@ class NativeAdapter:
         self.memory_stats = memory_stats
         self.optimizer_class = optimizer_class
         self.deep_gemm_cache_redirect = deep_gemm_cache_redirect
+        self.compiler_guard_identity = options.get("compiler_guard_identity")
+        self.window_options = {
+            name: value
+            for name, value in options.items()
+            if name != "compiler_guard_identity"
+        }
+        self._compiler_guard_previous_value: str | None = None
+        self._compiler_guard_activated = False
         self.active: WindowMeasurement | None = None
         self._originals: list[tuple[Any, str, Any]] = []
+
+    def _activate_compiler_guard(
+        self, activation_after_update: int, activation_sync_calls: int
+    ) -> dict[str, Any]:
+        from compiler_stats import (
+            DEEP_GEMM_GUARD_ENV,
+            DEEP_GEMM_GUARD_VALUE,
+            validate_deep_gemm_guard_identity,
+        )
+
+        if self._compiler_guard_activated:
+            raise RuntimeError("DeepGEMM compilation guard was already activated")
+        errors = validate_deep_gemm_guard_identity(self.compiler_guard_identity)
+        if errors:
+            raise RuntimeError("; ".join(errors))
+        previous_value = os.environ.get(DEEP_GEMM_GUARD_ENV)
+        os.environ[DEEP_GEMM_GUARD_ENV] = DEEP_GEMM_GUARD_VALUE
+        self._compiler_guard_previous_value = previous_value
+        self._compiler_guard_activated = True
+        return {
+            "environment_variable": DEEP_GEMM_GUARD_ENV,
+            "guarded_value": DEEP_GEMM_GUARD_VALUE,
+            "activation_after_update": activation_after_update,
+            "previous_value": previous_value,
+            "flag_after_activation": os.environ.get(DEEP_GEMM_GUARD_ENV),
+            "activation_sync_calls": activation_sync_calls,
+            "binary_identity": dict(self.compiler_guard_identity),
+        }
+
+    def _restore_compiler_guard(self) -> None:
+        if not self._compiler_guard_activated:
+            return
+        from compiler_stats import DEEP_GEMM_GUARD_ENV
+
+        if self._compiler_guard_previous_value is None:
+            os.environ.pop(DEEP_GEMM_GUARD_ENV, None)
+        else:
+            os.environ[DEEP_GEMM_GUARD_ENV] = self._compiler_guard_previous_value
+        self._compiler_guard_activated = False
 
     def _replace(self, owner: Any, name: str, value: Any) -> None:
         self._originals.append((owner, name, getattr(owner, name)))
@@ -517,7 +637,12 @@ class NativeAdapter:
                 world_size=world_size,
                 cuda_synchronize=self.cuda_synchronize,
                 memory_stats=self.memory_stats,
-                **self.options,
+                compiler_guard_activate=(
+                    self._activate_compiler_guard
+                    if self.compiler_guard_identity is not None
+                    else None
+                ),
+                **self.window_options,
             )
             succeeded = False
             try:
@@ -659,11 +784,14 @@ class NativeAdapter:
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
-        for owner, name, original in reversed(self._originals):
-            setattr(owner, name, original)
-        self._originals.clear()
-        if self.deep_gemm_cache_redirect is not None:
-            self.deep_gemm_cache_redirect.__exit__(exc_type, exc_value, traceback)
+        try:
+            for owner, name, original in reversed(self._originals):
+                setattr(owner, name, original)
+            self._originals.clear()
+            if self.deep_gemm_cache_redirect is not None:
+                self.deep_gemm_cache_redirect.__exit__(exc_type, exc_value, traceback)
+        finally:
+            self._restore_compiler_guard()
 
 
 def _split_training_argv(argv: list[str]) -> tuple[list[str], list[str]]:
@@ -735,6 +863,16 @@ def main(argv: list[str] | None = None) -> None:
         "capture_microbatches": args.capture_microbatches,
         "profile_update": args.profile_update,
     }
+    if args.window:
+        from compiler_stats import CompilationWindowObserver
+
+        compiler_observer = CompilationWindowObserver()
+        options["compiler_snapshot"] = compiler_observer.snapshot
+        options["compiler_source_metadata"] = compiler_observer.source_metadata
+    if args.window or args.profile_update is not None:
+        from compiler_stats import verify_deep_gemm_guard_identity
+
+        options["compiler_guard_identity"] = verify_deep_gemm_guard_identity()
     adapter = NativeAdapter(
         trainer_class=trainer_module.Trainer,
         profiler_class=profiler_module.Profiler,

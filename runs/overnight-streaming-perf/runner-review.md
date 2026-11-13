@@ -78,6 +78,11 @@ denominators; memory resets and failure handling; final targeted owner tests.
   `torchtitan.components.metrics.reset_peak_stats` alias before native resets,
   preserving allocated/active/reserved maxima across resets. Native peak reset
   cadence remains unchanged. Retry/OOM differences retain their native lifecycle.
+  These peaks are not reset at W: the first sampled native peak can include the
+  tail after the preceding native monitoring reset (updates51–60 for W60), then
+  preserves the maxima through measured update110. Report this same lifecycle
+  for paired runs rather than calling it an exact61–110 allocator peak. Retry/OOM
+  deltas use the actual start/end boundaries.
 - Parser primary elapsed time is the conservative same-host global envelope
   `max(end)-min(start)`, explicitly labeled alongside local spans and rank skew.
   The investigation initially proposed maximum local span as primary; the final
@@ -204,6 +209,18 @@ single-rank native CPU lifecycle check. It is a retained test-fixture failure,
 not a native training or candidate verdict.
 
 ## Measured-window compilation observer contract
+
+Final guard integration: the measured path retains its two existing boundary
+synchronizations and activates `DG_CACHE_FORCE_SKIP=0` after W synchronization,
+before snapshot/timing. The separate profile path adds one synchronization at W,
+before its target update, and activates the same guard. This supersedes the earlier
+capture-only no-added-sync statement. Both paths verify the installed extension
+build/hash before training, retain the flag through the target window, store raw
+activation/end states and restore the activation-time value on adapter exit,
+including errors. Smoke/calibration mode does not import or activate this guard.
+The actual m/k-grouped miss/hit/positive controls passed; see the campaign report
+and compact `results.json` for pins and raw evidence. Final source tests:36 observer
+and26 existing measurement tests passed with explicit task imports.
 
 Calibration disabled compiler diagnostics, so cadence alone cannot close the
 no-compilation gate. The bounded design samples existing CPU state on every

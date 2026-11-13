@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import compiler_stats
 import measure
 import parse_results
 import run as runner
@@ -995,6 +996,9 @@ def _profile_parser_fixture(run_dir: Path, *, target_update: int = 2, warmup: in
         "window_updates": 0,
         "monitor_interval": 50,
         "profile_capture": runner._profile_capture_spec(args),
+        "deep_gemm_compilation_guard": compiler_stats.deep_gemm_guard_manifest(
+            enabled=True, activate_after_update=warmup
+        ),
     }
     (run_dir / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
     measurement_dir = run_dir / "measurement"
@@ -1011,6 +1015,21 @@ def _profile_parser_fixture(run_dir: Path, *, target_update: int = 2, warmup: in
             "completed_steps": target_update,
             "measurement_status": "disabled",
             "measurement": None,
+            "compiler_guard": {
+                "environment_variable": compiler_stats.DEEP_GEMM_GUARD_ENV,
+                "guarded_value": compiler_stats.DEEP_GEMM_GUARD_VALUE,
+                "activation_after_update": warmup,
+                "previous_value": None,
+                "flag_after_activation": "0",
+                "activation_sync_calls": 1,
+                "end_after_update": target_update,
+                "flag_at_end_boundary": "0",
+                "binary_identity": {
+                    "build_version": compiler_stats.DEEP_GEMM_GUARD_BUILD,
+                    "extension_path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/_C.so",
+                    "sha256": compiler_stats.DEEP_GEMM_GUARD_EXTENSION_SHA256,
+                },
+            },
             "cadence": [
                 {"step": step, "interval_s": 1.0, "monitoring_step": False}
                 for step in range(1, target_update + 1)
@@ -1068,6 +1087,8 @@ def test_profile_parser_requires_exact_rank_traces_and_markers(tmp_path: Path) -
         "wrong_rank_marker",
         "call_count",
         "profiler_rank",
+        "missing_guard",
+        "bad_guard_flag",
     ],
 )
 def test_profile_parser_rejects_incomplete_trace_receipts(
@@ -1107,10 +1128,20 @@ def test_profile_parser_rejects_incomplete_trace_receipts(
         record = json.loads(path.read_text(encoding="utf-8"))
         record["profile_capture"]["optimizer_step_calls"] = 2
         path.write_text(json.dumps(record), encoding="utf-8")
-    else:
+    elif failure == "profiler_rank":
         path = tmp_path / "measurement/rank-07.json"
         record = json.loads(path.read_text(encoding="utf-8"))
         record["profile_capture"]["native_profiler_created"] = True
+        path.write_text(json.dumps(record), encoding="utf-8")
+    elif failure == "missing_guard":
+        path = tmp_path / "measurement/rank-07.json"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record.pop("compiler_guard")
+        path.write_text(json.dumps(record), encoding="utf-8")
+    else:
+        path = tmp_path / "measurement/rank-07.json"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record["compiler_guard"]["flag_at_end_boundary"] = "1"
         path.write_text(json.dumps(record), encoding="utf-8")
 
     summary = parse_results.summarize_run(tmp_path)

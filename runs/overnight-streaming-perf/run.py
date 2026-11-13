@@ -784,6 +784,7 @@ def _config_hashes() -> dict[str, str]:
         "runner_sha256": sha256_file(HELPER_DIR / "run.py"),
         "measurement_adapter_sha256": sha256_file(HELPER_DIR / "measure.py"),
         "parser_sha256": sha256_file(HELPER_DIR / "parse_results.py"),
+        "compiler_observer_sha256": sha256_file(HELPER_DIR / "compiler_stats.py"),
     }
 
 
@@ -907,6 +908,17 @@ def main(argv: list[str] | None = None) -> int:
             "compiler_cache_policy": "fresh task-owned TorchInductor, Triton, DeepGEMM shared-kernel and rank-cache directories per run",
             "deep_gemm_rank_cache_root": str(paths["cache_deep_gemm_ranks"].resolve()),
             "deep_gemm_warmup": "enabled; adapter redirects rank cache; PROPAGATE_DG_CACHE unset",
+            "deep_gemm_compilation_guard": {
+                "enabled": bool(args.window or args.profile_update is not None),
+                "activate_after_update": (
+                    args.warmup
+                    if args.window or args.profile_update is not None
+                    else None
+                ),
+                "flag": "DG_CACHE_FORCE_SKIP",
+                "guarded_value": "0",
+                "scope": "cache misses rejected after settled warmup; startup unchanged",
+            },
             "huggingface_cache_policy": "persistent task-owned cache with offline mode",
             "started_at_utc": datetime.now(timezone.utc).isoformat(),
         }

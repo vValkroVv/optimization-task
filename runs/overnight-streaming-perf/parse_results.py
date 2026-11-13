@@ -115,6 +115,11 @@ def _profile_update_summary(
     run_id: str | None,
     errors: list[str],
 ) -> dict[str, Any]:
+    from compiler_stats import (
+        deep_gemm_guard_manifest,
+        validate_deep_gemm_guard_receipt,
+    )
+
     steps = int(metadata.get("steps", 0))
     warmup = int(metadata.get("warmup_updates", 0))
     window = int(metadata.get("window_updates", 0))
@@ -149,8 +154,14 @@ def _profile_update_summary(
     expected_spec = _expected_profile_spec(target_update, warmup)
     if spec != expected_spec:
         errors.append("profile_capture settings do not match the required native schedule")
+    expected_guard_manifest = deep_gemm_guard_manifest(
+        enabled=True, activate_after_update=warmup
+    )
+    if metadata.get("deep_gemm_compilation_guard") != expected_guard_manifest:
+        errors.append("run metadata DeepGEMM guard manifest is missing or differs from the required policy")
 
     per_rank_counts: dict[str, Any] = {}
+    guard_by_rank: dict[str, Any] = {}
     for rank, record in sorted(by_rank.items()):
         if record.get("measurement_status") != "disabled" or record.get("measurement") is not None:
             errors.append(f"rank {rank} did not leave window timing disabled")
@@ -165,6 +176,16 @@ def _profile_update_summary(
                     errors.append(
                         f"rank {rank} monitoring cadence is invalid at update {step}"
                     )
+
+        guard_receipt = record.get("compiler_guard")
+        guard_by_rank[str(rank)] = guard_receipt
+        for detail in validate_deep_gemm_guard_receipt(
+            guard_receipt,
+            activation_after_update=warmup,
+            end_after_update=target_update,
+            activation_sync_calls=1,
+        ):
+            errors.append(f"rank {rank} DeepGEMM guard: {detail}")
 
         receipt = record.get("profile_capture")
         if not isinstance(receipt, dict):
@@ -276,6 +297,13 @@ def _profile_update_summary(
             "native_hardcoded": expected_spec["native_hardcoded"],
             "call_counts_by_rank": per_rank_counts,
             "traces_by_rank": traces,
+        },
+        "deep_gemm_compilation_guard": {
+            "status": "complete" if len(guard_by_rank) == WORLD_SIZE and not any(
+                "DeepGEMM guard" in error for error in errors
+            ) else "incomplete",
+            "manifest": metadata.get("deep_gemm_compilation_guard"),
+            "by_rank": guard_by_rank,
         },
         "parameter_census_by_rank": {
             str(record["rank"]): record.get("parameter_census") for record in ordered
@@ -397,12 +425,29 @@ def summarize_records(
     if expected_steps != warmup + window:
         errors.append("measured run must stop at the end of its complete window")
 
+    from compiler_stats import (
+        compare_compilation_snapshots,
+        deep_gemm_guard_manifest,
+        validate_deep_gemm_guard_receipt,
+    )
+
+    expected_guard_manifest = deep_gemm_guard_manifest(
+        enabled=True, activate_after_update=warmup
+    )
+    if metadata.get("deep_gemm_compilation_guard") != expected_guard_manifest:
+        errors.append("run metadata DeepGEMM guard manifest is missing or differs from the required policy")
+
     starts: dict[int, int] = {}
     ends: dict[int, int] = {}
     local_elapsed: dict[int, float] = {}
     physical_local: dict[int, int] = {}
     supervised_global: dict[int, int] = {}
     measurements: dict[int, dict[str, Any]] = {}
+    compilation_by_rank: dict[int, dict[str, Any]] = {}
+    comparison_receipt_ranks: set[int] = set()
+    compiler_metadata_by_rank: dict[int, dict[str, Any]] = {}
+    wall_boundary_ranks: set[int] = set()
+    guard_by_rank: dict[int, dict[str, Any]] = {}
     expected_monitoring_updates = [
         step
         for step in range(warmup + 1, warmup + window + 1)
@@ -415,6 +460,45 @@ def summarize_records(
             errors.append(f"rank {rank} has no complete measurement window")
             continue
         measurements[rank] = measurement
+        guard_receipt = record.get("compiler_guard")
+        guard_errors = validate_deep_gemm_guard_receipt(
+            guard_receipt,
+            activation_after_update=warmup,
+            end_after_update=warmup + window,
+            activation_sync_calls=0,
+        )
+        if isinstance(guard_receipt, dict):
+            guard_by_rank[rank] = guard_receipt
+        for detail in guard_errors:
+            errors.append(f"rank {rank} DeepGEMM guard: {detail}")
+        observer = measurement.get("compilation_observer")
+        if not isinstance(observer, dict):
+            errors.append(f"rank {rank} has no before/after compiler snapshots")
+        else:
+            source_metadata = observer.get("source_metadata")
+            compiler_metadata_by_rank[rank] = source_metadata
+            comparison = compare_compilation_snapshots(
+                observer.get("before"), observer.get("after"), source_metadata
+            )
+            compilation_by_rank[rank] = comparison
+            if observer.get("comparison") != comparison:
+                errors.append(f"rank {rank} stored compiler comparison differs from its boundary snapshots")
+            else:
+                comparison_receipt_ranks.add(rank)
+            if comparison["status"] == "changes_observed":
+                errors.append(
+                    f"rank {rank} observed compiler/cache state growth in "
+                    f"{comparison['changed_sources']}"
+                )
+            elif comparison["status"] != "observed_stable":
+                detail = "; ".join(comparison.get("errors", [])) or "state is inconclusive"
+                errors.append(f"rank {rank} compiler observation is incomplete: {detail}")
+        wall_start = measurement.get("start_wall_time_ns")
+        wall_end = measurement.get("end_wall_time_ns")
+        if type(wall_start) is not int or type(wall_end) is not int or wall_end <= wall_start:
+            errors.append(f"rank {rank} has invalid wall-clock window boundary timestamps")
+        else:
+            wall_boundary_ranks.add(rank)
         if int(measurement.get("warmup_updates", -1)) != warmup:
             errors.append(f"rank {rank} warmup boundary differs from run metadata")
         if int(measurement.get("window_updates", -1)) != window:
@@ -439,6 +523,27 @@ def summarize_records(
 
     if set(measurements) != expected_ranks:
         errors.append("complete measurements are not present for all eight ranks")
+    if set(compilation_by_rank) != expected_ranks:
+        errors.append("compiler before/after observations are not present for all eight ranks")
+    metadata_consistent = bool(compiler_metadata_by_rank) and len(
+        {json.dumps(value, sort_keys=True) for value in compiler_metadata_by_rank.values()}
+    ) == 1
+    if compiler_metadata_by_rank and not metadata_consistent:
+        errors.append("compiler source metadata differs across ranks")
+    compilation_status = (
+        "incomplete"
+        if (
+            not metadata_consistent
+            or wall_boundary_ranks != expected_ranks
+            or comparison_receipt_ranks != expected_ranks
+        )
+        else "observed_stable"
+        if set(compilation_by_rank) == expected_ranks
+        and all(item.get("status") == "observed_stable" for item in compilation_by_rank.values())
+        else "changes_observed"
+        if any(item.get("status") == "changes_observed" for item in compilation_by_rank.values())
+        else "incomplete"
+    )
     if set(starts) == expected_ranks and set(ends) == expected_ranks:
         start_skew_ns = max(starts.values()) - min(starts.values())
         end_skew_ns = max(ends.values()) - min(ends.values())
@@ -563,6 +668,35 @@ def summarize_records(
             },
             "by_rank": memory_by_rank,
             "allocator_counter_deltas_by_rank": retry_deltas,
+        },
+        "compilation_observer": {
+            "status": compilation_status,
+            "coverage_status": "partial",
+            "observed_stable": compilation_status == "observed_stable",
+            "source_metadata_by_rank": {
+                str(rank): value for rank, value in sorted(compiler_metadata_by_rank.items())
+            },
+            "by_rank": {
+                str(rank): value for rank, value in sorted(compilation_by_rank.items())
+            },
+            "unverified": [
+                "asynchronous compiler worker completion",
+                "DeepGEMM native JIT paths outside the tested grouped APIs",
+            ],
+            "limits": [
+                "Asynchronous compiler workers may outlive the parent timing scope; this observer provides partial evidence.",
+                "Triton cache changes may represent a disk-cache load or specialization.",
+                "DeepGEMM cache misses are rejected for the verified binary; runtime guard behavior was probed through m_grouped and k_grouped.",
+            ],
+        },
+        "deep_gemm_compilation_guard": {
+            "status": "complete" if len(guard_by_rank) == WORLD_SIZE and not any(
+                "DeepGEMM guard" in error for error in errors
+            ) else "incomplete",
+            "manifest": metadata.get("deep_gemm_compilation_guard"),
+            "by_rank": {
+                str(rank): value for rank, value in sorted(guard_by_rank.items())
+            },
         },
         "parameter_census_by_rank": {
             str(record["rank"]): record.get("parameter_census") for record in ordered

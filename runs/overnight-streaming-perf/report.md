@@ -118,9 +118,59 @@ then measure all updates61–110 including monitor100. This is not TPS evidence:
 the calibration has no synchronized50-update window. Step1 took259.828s,
 including245.228s in its first forward/backward. Monitor50's first microbatch
 took8.477s, then median4.8147s; its173.9s cannot all be assigned to compilation.
-Diagnostic compiler logs were disabled, so later compilation is unknown. A
-minimal existing-counter boundary observer is being resolved before controls;
-monitor100 and surrounding updates must also be checked directly in A1/A2.
+Diagnostic compiler logs were disabled, so later compilation is unknown.
+Monitor100 and surrounding updates must also be checked directly in A1/A2.
+
+### Compilation gate for measured controls
+
+The task-only observer samples existing CPU state at the two synchronized
+window boundaries, outside each local timer. It reads unbounded Dynamo compile
+timing lists, existing Inductor async-cache counters, the active CuTe compiled
+object map and existing Triton JIT device caches. It never indexes a missing
+Triton device cache, inserts a defaultdict key, logs per step or synchronizes
+the GPU beyond the two existing window boundaries. Boundary scans can still
+contribute to rank-start skew in the global elapsed envelope. Runtime-only
+Dynamo timing growth is allowed; new compilation/cache entries invalidate the
+window. This is scoped evidence, not visibility into every asynchronous worker.
+
+Each rank retains raw snapshots, source pins and the computed comparison;
+the parser recomputes it and rejects missing or inconsistent results. Independent
+review found and resolved two evidence bugs: identical malformed snapshots
+could pass, and rank receipts initially lacked their comparison. Both original
+reproductions now fail closed. Final observer36 and existing measurement26 tests pass,
+with the task `gift/` explicitly on `PYTHONPATH`; the initial default-image import
+test failure is retained as a harness error. Actual CPU snapshots, scoped Ruff,
+compilation and whitespace checks pass. `run.py` pins the observer helper hash.
+
+The installed DeepGEMM extension has no exposed compilation counter. Its actual
+binary and active warmup code identify `DG_CACHE_FORCE_SKIP=0` as a cache-miss
+rejection guard; the binary reads that environment value on each compiler call.
+A serial GPU probe passed on13 November02:21 UTC. Both actual `m_grouped` and
+`k_grouped` paths compiled A with flag1, reused A with flag0 without new cache
+entries, rejected a different absent configuration B with literal `CACHE MISS`
+and unchanged cache inventories, then compiled B with flag1. The installed build
+was `2.3.0+f093a4c`, extension SHA256
+`99b7afad2e2fe7ebabd26c22afc99dc652e2e6935fcbf37324359eb5aeeefe26`.
+The frozen [probe](probe_deepgemm_guard.py) used serial GPU0 children and fresh
+private caches; both exited0 and all eight GPUs were released. Raw receipt/logs:
+`artifacts/raw/g0/deepgemm-guard-probe-001/`. This proves guard/cache behavior,
+not numerical parity or speed. Matching full fork source is unavailable, so
+upstream behavior is not substituted for installed-binary/runtime evidence.
+The thin adapter sets literal0 at W60 after synchronization and before the
+timer, preserves it through measurement and records both boundaries on every rank.
+It verifies the actual extension build/hash before training and restores the
+activation-time environment value on adapter exit, including errors. The profile
+run uses the same guard policy with one explicit synchronization at W, before the
+target update; this supersedes the earlier capture-only zero-sync cost statement.
+Plain smoke/calibration mode does not import or activate the guard. Parser checks
+require the manifest policy and complete, matching guard receipts from all ranks.
+Independent integration/runtime-cost review accepted this path; its final finding
+was missing `previous_value` being accepted as explicit null. The validator now
+requires presence; the regression reproduced the false pass and all5 affected
+cases pass. Root inspected the small fix. Post-run probe lint found E731 in a
+planner lambda; an equivalent local function now passes Ruff and produces the
+identical CPU plan. Exact GPU-tested script bytes remain with the raw receipt.
+A1/A2 and TPS remain open.
 
 ## Native profiler controls
 
@@ -351,8 +401,8 @@ actual EMA shadow buffers are uncaptured. Keep those relevant acceptance limits
 separate from the mathematical gradient/state receipt.
 
 All-parameter captures are expensive: five full FP32 parameter-sized families
-are about47.5 GB/rank/update of D2H traffic (about760 GB across8 ranks for two
-updates), plus initialization/small state. Copies synchronize and can alter
+are about47.5 GB/rank/update of D2H traffic (about1.14 TB across8 ranks for three
+updates), plus roughly76 GB initialization traffic. Copies synchronize and can alter
 scheduling; these are numerical diagnostics, never TPS. Preserve monitor50 and
 capture updates1,2,50 to cover chunks2/32 rather than treating first-two-update
 checks as monitoring coverage. A tiny real CPU AdamW test must verify observation
@@ -362,6 +412,16 @@ module implements this corrected route. Independent review's native-denominator
 blocker is resolved; all11 CPU tests, scoped/default Ruff and compile checks pass.
 Runner integration and native numerical A/A remain open. It is not active in
 calibration or TPS runs and is not accepted production numerical evidence yet.
+
+Read-only integration review selected an exclusive default-off
+`--native-numerics` mode:50 native updates, monitor50, no timing/profile window,
+observer context inside the existing adapter and before `native_main` builds the
+trainer/optimizer. Parsing must require complete unique receipts from ranks0–7,
+32 inputs/backwards per captured update, chunks2/2/32 and one clip/optimizer/state
+capture each. Capture success and exact A/A comparison are separate verdicts;
+neither produces TPS. Source/runtime/config/data identities and CPU input order
+must match before comparing logical tensor hashes. Seed2048 alone does not prove
+deterministic execution. No integration or native A/A has run yet.
 
 ## Runtime applicability: V4
 

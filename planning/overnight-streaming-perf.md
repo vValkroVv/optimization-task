@@ -109,11 +109,22 @@ Source/config hashes stayed unchanged, owned temp directory was removed and
 local GPU query was empty. The completion-only watcher/session49650 has exited;
 parent wait wrapper `g6:120` is terminated. No monitor remains.
 W60 is supported by post-monitor settling, but compile absence is not established
-by disabled diagnostic logs. A scoped existing-counter boundary observer is
-being designed to resolve this required gate before measurement. The independent
+by disabled diagnostic logs. The scoped existing-state boundary observer passed
+26 tests and independent targeted review; existing measurement24 tests pass
+with the explicit task import route. It retains raw snapshots/source pins and
+rank-local comparisons, and the parser recomputes them. GPU evidence remains
+open. The installed DeepGEMM binary's dynamic cache-miss rejection guard passed
+both m_grouped/k_grouped runtime miss/hit/positive controls at02:21 UTC, with
+unchanged caches on rejection and all GPUs released. Thin boundary integration
+passed36 observer/26 measurement tests and independent integration/runtime-cost
+review; its final missing-field regression is fixed (5 affected cases pass).
+See the campaign report/results for source pins,
+scope and resolved review findings. The independent
 G3 parser extra-marker finding is resolved: both regressions failed on `02cfb427`,
 then9 affected cases passed the fix; root reviewed that targeted delta.
-Next: accept those bounded changes, freeze W/50 and helpers, then collect A1/A2.
+Next: publish the reviewed policy, freeze W60/50 and helpers, then collect A1/A2.
+Latest published source is `25e0cb32`;
+its separate numerical receipt module is not active in TPS runs.
 
 Retry `g1-streaming-smoke-002` PASS at
 00:34 UTC /03:34 Moscow on 13 November, source `4d7689aa`, exit0. Controller

@@ -148,6 +148,17 @@
       "removed": true,
       "removed_logical_file_bytes": 604228268,
       "reason": "native002 PASS, owned processes exited and GPUs released; calibration/controls require fresh per-process caches, compact logs/config/cache-path evidence retained"
+    },
+    {
+      "class": "completed DeepGEMM guard probe private compiler/temp caches",
+      "paths": [
+        "artifacts/raw/g0/deepgemm-guard-probe-001/plan",
+        "artifacts/raw/g0/deepgemm-guard-probe-001/m_grouped",
+        "artifacts/raw/g0/deepgemm-guard-probe-001/k_grouped"
+      ],
+      "logical_bytes_removed": 1800129,
+      "receipt": "artifacts/raw/g0/deepgemm-guard-probe-001/cleanup.json",
+      "reason": "Both positive/negative controls passed, child process groups stopped; root-level source/plan/result/log evidence retained"
     }
   ],
   "streaming_smoke": {
@@ -197,5 +208,123 @@
     "tps": null,
     "source_and_config_unchanged": true,
     "owned_processes_stopped_and_gpus_released": true
+  },
+  "deepgemm_compilation_guard_probe": {
+    "run_id": "deepgemm-guard-probe-001",
+    "status": "PASS",
+    "source_revision": "25e0cb32966907dd35e16d621450f4033ab396ae",
+    "started_at_utc": "2026-11-13T02:20:41.985895+00:00",
+    "completed_at_utc": "2026-11-13T02:21:07.932856+00:00",
+    "script_sha256": "a8825186cb8fea683c474774f4d1b733d21d78efe3f9211a8e2f78ad710b2d84",
+    "warmup_source_sha256": "6e622af79199dbb181edccd15867ff0b8c2145d13321d99f9ee1654efd74d71d",
+    "raw_evidence": "artifacts/raw/g0/deepgemm-guard-probe-001",
+    "deep_gemm": {
+      "build_version": "2.3.0+f093a4c",
+      "extension": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/_C.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "99b7afad2e2fe7ebabd26c22afc99dc652e2e6935fcbf37324359eb5aeeefe26"
+    },
+    "modes": [
+      {
+        "mode": "m_grouped",
+        "exit_code": 0,
+        "process_group_stopped": true,
+        "phases": [
+          {
+            "phase": "A compile flag1",
+            "flag": "1",
+            "result": "success",
+            "cache_unchanged": false,
+            "exception_type": null,
+            "exception": null
+          },
+          {
+            "phase": "A cache hit flag0",
+            "flag": "0",
+            "result": "success",
+            "cache_unchanged": true,
+            "exception_type": null,
+            "exception": null
+          },
+          {
+            "phase": "B absent-cache flag0",
+            "flag": "0",
+            "result": "expected_cache_miss",
+            "cache_unchanged": true,
+            "exception_type": "RuntimeError",
+            "exception": "Assertion error (csrc/apis/../jit_kernels/impls/../../jit/compiler.hpp:194): false and \"CACHE MISS: set DG_CACHE_FORCE_SKIP=1 to allow runtime compilation, or warm up the cache before running. For more information about warmup, see llmfoundry/models/ops/float8/README-RU.md or torchtitan/ops/warmup/README.md\""
+          },
+          {
+            "phase": "B compile flag1",
+            "flag": "1",
+            "result": "success",
+            "cache_unchanged": false,
+            "exception_type": null,
+            "exception": null
+          }
+        ]
+      },
+      {
+        "mode": "k_grouped",
+        "exit_code": 0,
+        "process_group_stopped": true,
+        "phases": [
+          {
+            "phase": "A compile flag1",
+            "flag": "1",
+            "result": "success",
+            "cache_unchanged": false,
+            "exception_type": null,
+            "exception": null
+          },
+          {
+            "phase": "A cache hit flag0",
+            "flag": "0",
+            "result": "success",
+            "cache_unchanged": true,
+            "exception_type": null,
+            "exception": null
+          },
+          {
+            "phase": "B absent-cache flag0",
+            "flag": "0",
+            "result": "expected_cache_miss",
+            "cache_unchanged": true,
+            "exception_type": "RuntimeError",
+            "exception": "Assertion error (csrc/apis/../jit_kernels/impls/../../jit/compiler.hpp:194): false and \"CACHE MISS: set DG_CACHE_FORCE_SKIP=1 to allow runtime compilation, or warm up the cache before running. For more information about warmup, see llmfoundry/models/ops/float8/README-RU.md or torchtitan/ops/warmup/README.md\""
+          },
+          {
+            "phase": "B compile flag1",
+            "flag": "1",
+            "result": "success",
+            "cache_unchanged": false,
+            "exception_type": null,
+            "exception": null
+          }
+        ]
+      }
+    ],
+    "all_eight_gpus_released": true,
+    "interpretation": "Guard/cache behavior only; no training, numerical parity or performance claim",
+    "next_gate": "Thin measured/profile boundary integration and native A1/A2",
+    "tested_script_copy": "artifacts/raw/g0/deepgemm-guard-probe-001/tested-script.py",
+    "maintained_script_sha256": "b60b8d70a6e17464f1b9cfdabad7c1334f848061954cb0080d25a8d83e9a750b",
+    "post_run_lint_fix": "Default Ruff E731 found lambda assignment; converted to equivalent local def. CPU-only planner contract and selected calls/configs/budgets exactly match tested plan; Ruff passes. GPU proof is reused from archived tested script bytes."
+  },
+  "measurement_protocol": {
+    "warmup_updates": 60,
+    "measured_updates": [
+      61,
+      110
+    ],
+    "consecutive_updates": 50,
+    "monitor_interval": 50,
+    "monitor_update_in_window": 100,
+    "cache_policy": "fresh private caches each process, native DeepGEMM warmup retained",
+    "deepgemm_after_warmup": "DG_CACHE_FORCE_SKIP=0; tested binary pin in guard probe",
+    "compilation_observer": "existing Dynamo timing lists, Inductor async counters, CuTe compiled object map, Triton existing device caches; raw boundary snapshots and recomputed comparison",
+    "observer_helper_sha256": "f81c689f7da5c3e2a6ad9db5e9bdbc0621330caa16687f7b3100611af574d0bc",
+    "source_checks": "36 observer and 26 measurement tests passed; final missing-prior-value regression reproduced old falsepass then 5 affected cases passed; independent guard integration/runtime-cost review accepted and final tiny fix inspected by root",
+    "native_measured_validation": "OPEN: A1/A2 not launched",
+    "memory_peak_scope": "native reset epochs overlapping W60..110; initial sample can include updates51..60; retry/OOM deltas use actual W/end boundaries"
   }
 }
