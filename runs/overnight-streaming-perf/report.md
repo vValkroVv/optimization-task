@@ -210,6 +210,69 @@ config hashes match, retries/OOMs were zero, owned temp/group stopped and all GP
 were released. Its unaccepted diagnostic timing/memory remain in results with
 the explicit failure label. No baseline TPS has been accepted.
 
+After that diagnosis, the obsolete calibration001 compiler cache was removed:
+9,217 files /602,133,276 logical bytes. Stop/ownership/path/symlink checks passed;
+all non-cache artifacts remain unchanged. Its cleanup receipt is
+`artifacts/raw/g2-calibration-001/obsolete-cache-cleanup.json`. The failed A1's
+cache evidence and the new control's independent fresh caches remain retained.
+
+### Accepted W110 baseline and identical-control variation
+
+`g2-baseline-a1-w110` PASS: all eight ranks completed160 finite updates; raw
+snapshots show stable observed compiler/cache state and guard0after110 through160.
+All50 updates111–160 include monitor150. Complete-window global inputTPS is
+**124,500.985** (15,562.623/GPU), supervisedTPS124,470.589 (15,558.824/GPU), using
+104,857,600 physical and104,832,000 valid tokens over842.2231s. Source/config
+hashes match; temporary resources and GPUs were released. Root inspected the raw
+all-rank comparison/guard/counter records, not just the launch settings.
+
+Ordinary host median13.7997s, range13.4381–14.4012; monitor150 median167.1280s.
+Rank0 successive ordinary-bin medians111–120/121–130/131–140/141–149/151–160 are
+13.8784/13.8527/13.6500/13.7850/13.7915s: no continuing monotonic settling.
+Allocator peak maxima are67.401GiB allocated and68.467GiB reserved, native reset
+scope including the101–110 tail, with zero retries/OOMs. These exclude non-Torch
+device memory. Start/end rank skew1.698/0.596ms; primary elapsed uses the global
+envelope, with only two boundary synchronizations.
+
+The identical `g2-baseline-a2-w110` also PASSed, finishing05:23:46 UTC with all160
+finite updates on every rank. Source `87230b5b`, initial helper/config/data hashes,
+runtime and fresh-cache policy match A1. Root verified all eight raw window,
+counter, observer and guard records. Both runs include all50 updates111–160 and
+monitor150; ordinary cadence shows no continuing monotonic settling.
+The actual `native/config/resolved_config.yaml` files differ only in each run's
+`dump_folder`. Their SHA256 values are
+`aa2c792ce61e88717c2171f6fad8e8d4f20f8a5b54675de2887524b5305a7007` (A1) and
+`099734af6018ecbe8d7b2b67337a43b82f68628e5c7651de592bfc995768f2e1` (A2), matching
+the completion receipts. `source_config.yaml` is a separate artifact.
+
+| Complete-window metric | A1 | A2 |
+| --- | ---: | ---: |
+| Global input tokens/s | 124,500.985 | 124,408.639 |
+| Global valid-target tokens/s | 124,470.589 | 124,378.266 |
+| Global elapsed seconds | 842.223058 | 842.848222 |
+| Ordinary host median seconds | 13.799678 | 13.789450 |
+| Ordinary host range seconds | 13.438092–14.401202 | 13.423635–14.463464 |
+| Monitor150 host median seconds | 167.127963 | 167.607337 |
+| Maximum allocated/reserved GiB | 67.401 / 68.467 | 67.387 / 68.494 |
+| Allocator retries / OOMs | 0 / 0 | 0 / 0 |
+
+The fixed MDS baseline is the run-level median: **124,454.812 global input
+tokens/s (15,556.851/GPU)** and **124,424.427 valid-target tokens/s
+(15,553.053/GPU)**. A2 versus A1 is−0.074173%; the two-run range divided by
+their mean is0.074200%. These are descriptive A/A observations, not a confidence
+interval or guaranteed bound on future variation. No candidate gain is accepted.
+Memory uses native allocator reset epochs spanning101–160, including the warmup
+tail; it is not an exact-window or simultaneous device-wide peak. Validation,
+checkpointing, profiling and numerical payload capture are excluded from TPS.
+
+A2 rank0 ordinary-bin medians111–120/121–130/131–140/141–149/151–160 are
+13.930675/13.805102/13.638698/13.816832/13.787526s. Start/end rank skew is
+4.619/0.774ms. Both runs have stable observed compiler state and tested DeepGEMM
+guard coverage; asynchronous compiler-worker completion and native JIT paths
+outside the probed grouped APIs remain unverified. Both process groups stopped,
+owned temporary directories were removed and GPUs released; private run caches
+and raw receipts remain pending final storage cleanup.
+
 ## Native profiler controls
 
 Implemented generic opt-in `profile_ranks` and `record_shapes` controls in the
@@ -448,8 +511,8 @@ neutrality, exact counts/dtypes/None, mutation detection, and exception cleanup;
 it cannot close native repeatability. The isolated [numerics.py](numerics.py)
 module implements this corrected route. Independent review's native-denominator
 blocker is resolved; all11 CPU tests, scoped/default Ruff and compile checks pass.
-Runner integration and native numerical A/A remain open. It is not active in
-calibration or TPS runs and is not accepted production numerical evidence yet.
+Main runner integration and native numerical A/A remain open. It is not active
+in calibration or TPS runs and is not accepted production numerical evidence yet.
 
 Read-only integration review selected an exclusive default-off
 `--native-numerics` mode:50 native updates, monitor50, no timing/profile window,
@@ -459,7 +522,86 @@ trainer/optimizer. Parsing must require complete unique receipts from ranks0–7
 capture each. Capture success and exact A/A comparison are separate verdicts;
 neither produces TPS. Source/runtime/config/data identities and CPU input order
 must match before comparing logical tensor hashes. Seed2048 alone does not prove
-deterministic execution. No integration or native A/A has run yet.
+deterministic execution. The helper integration is now committed only in isolated
+branch `vkropotin-native-numerics` at `84b72524`; main and the controls remain
+unchanged. It passed61 affected CPU tests, then2 targeted hash/failure-path tests
+after the final freeze correction, Ruff, compilation and staged whitespace checks.
+Independent review reproduced malformed tensor payloads, missing finite markers
+and missing batch-end steps passing the first parser; targeted fixes now reject
+all three and preserve valid absent gradients. Root verified the before/after/
+failure hash call sites. The exact comparator is not a tolerance test. Apply this
+default-off mode after baseline capture; no native numerical A/A has run yet.
+
+Worktree CPU commands were `python -m pytest -q` on
+`test_native_numerics_mode.py test_numerics.py test_measure.py` (61 passed), then
+`python -m pytest -q .../test_native_numerics_mode.py -k 'config_hashes or runner_failure'`
+(2 passed). Full/scoped Ruff and `py_compile` covered the final changed runner/test.
+Exact executable and ambient `PYTHONPATH` were not captured; Torch's warning path
+was the campaign `/opt/torchtitan-venv/lib/python3.12/site-packages`, and the tests
+prepend their own worktree helper/GIFT paths before native imports. On main
+integration, verify the affected suite with the explicit campaign interpreter and
+task `PYTHONPATH`; do not treat an image-default import as equivalent. No raw CPU
+test log files were retained. Native runs still require persistent logs/receipts.
+
+The normal W110 controls already print different first-update values:
+A1 loss15.31946/norm9.5378 versus A2 loss15.31943/norm9.5374. These rounded
+metrics do not establish elementwise errors or their cause, and native input/init
+hashes are not yet attested. They do prevent assuming exact native repeatability
+for later candidates. Native numerical calibration remains open. No tolerance is
+inferred from these rounded metrics or from hashes.
+
+The selected extension exports temporary exact local reference bytes and compares
+one current tensor at a time in bounded CPU blocks. Use three fresh matched prefix
+pairs: stop/capture1, stop/capture2, and stop/capture50. This is106 native updates
+and six cold starts, versus100 updates/two starts for the hash-only route; four
+extra cold starts are a real cost. Only one update's five large tensor families
+remain on disk at once: approximately380.122 GB across eight ranks. Across the
+three reference runs, writes and comparison reads are approximately1.140 TB each;
+both sides transfer approximately2.281 TB to CPU, plus approximately456 GB of
+initial-parameter traffic across six starts. Verify free bytes/inodes, host RAM and
+largest local shard before execution. This is diagnostic cost, never throughput.
+
+Existing API research supports a thin task adapter: PyTorch's
+[assert_close](https://docs.pytorch.org/docs/main/testing.html) specifies tolerance
+and metadata checks but does not calibrate the error floor or manage streamed
+payload lifetimes; [frombuffer](https://docs.pytorch.org/docs/stable/generated/torch.frombuffer)
+interprets owned CPU bytes using an explicit dtype. Reuse PyTorch block arithmetic
+and simple rank-local byte I/O. [Distributed Checkpoint](https://docs.pytorch.org/docs/main/distributed/checkpoint.html)
+adds state-dictionary/resharding machinery and possible collectives that this
+comparison does not require. No new dependency or checkpoint path is selected.
+Current official documentation informs this choice; the campaign's pinned runtime
+source and executed checks still own API compatibility evidence.
+
+Require matching source/runtime/configuration, initialization, ownership,
+optimizer/scheduler/counter state, and hashes for all prefix CPU input batches.
+Capture RNG hashes after native `fit_start`, without advancing or changing RNG or
+determinism settings. Initial state mismatches fail the comparison gate; do not
+fold them into a numerical tolerance. Heavy captures remain at the selected update
+and preserve original precision, local shards and native update order. Report
+per-tensor maximum absolute error/index, RMS error and reference/current RMS,
+relative L2 with explicit zero-reference behavior, nonfinite counts and exact
+agreement. Post-optimizer parameter values are not parameter deltas. One A/A pair
+per capture measures an observed error floor, not a statistical upper bound. Freeze
+any later family-specific acceptance budgets from valid precision references and
+A/A evidence before comparing candidates; unsupported tolerances stay open.
+
+For monitor50, wrap the actual `MetricEmitter.emit` publication callback and retain
+the native already-reduced CPU scalar mappings plus record order/multiplicity and
+metadata before clearing. Do not add a reduction, GPU copy or per-microbatch drain.
+The active crop selects online scalar records; require the actual inventory to
+confirm no uncovered non-scalar/offline records. Keep timing, throughput and memory
+publications as resource observations, separate from mathematical values. The
+crop does not configure `MtpAccLenMonitor`; MTP coverage is its actual0.3-weighted
+loss/state and32-chunk monitoring path. EMA shadows are inactive through50.
+
+Reference namespaces must be immutable and complete. Verify byte hashes,
+identity/shape/dtype/shard metadata and complete observation coverage; write each
+compact comparison result durably before removing its temporary reference payload.
+Keep bounded failure evidence if comparison or evidence writing fails. This
+default-off extension is being implemented only in an isolated helper worktree;
+main baseline/profile source stays frozen. Source review and native execution
+remain open, and numerical diagnostics do not establish asynchronous lifetime,
+checkpoint continuation or convergence correctness.
 
 ## Runtime applicability: V4
 

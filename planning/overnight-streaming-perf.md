@@ -91,14 +91,34 @@ timestamps; on resume check recorded processes before relaunching anything.
 | --- | --- | --- |
 | G0 Environment, ownership, disk and Perfetto route | PASS | Existing master sees eight idle H100s; NFS has 2.5 TiB free and 2.9 billion free inodes. Verified Python/torch/CUDA/NCCL and installed streaming. Perfetto MCP loaded and queried a task-owned synthetic Chrome JSON via the actual absolute NFS path. |
 | G1 Full-length MDS, data contract and streaming smoke | PASS | Data checks and native002 smoke PASS: all eight ranks completed ten updates/320 microbatches, finite metrics and monitoring 5/10, then clean teardown. [Smoke receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json). Canonical data-only promotion passed the focused golden test and path/shard-hash equivalence check. |
-| G2 Warmed baseline A/A TPS and memory | RUNNING | Calibration001 PASS:60 finite updates/1920 microbatches on every rank, monitor50/post10 observed. Original W60 control invalid: rank-local SwiGLU bucket-alignment cache growth on0,2,5. All8 hold both classes by110; tail settled. New W110/111–160 selected, monitor150 retained; no accepted TPS. |
+| G2 Warmed baseline A/A TPS and memory | PASS | W110 controls both PASS:160 finite updates/rank, complete111–160 with monitor150, stable observed compiler state/guard all8. Median124454.812 globalinputTPS; valid124424.427. A2/A1−0.074173%, descriptive two-run variation. Memory/counter/source/runtime evidence in report/results. Rejected W60 retained as calibration evidence. |
 | G3 Baseline trace pair and Perfetto bottleneck analysis | NOT_STARTED | Ranks0/1, same one complete ordinary update, two files total |
 | G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 have applicable missing pieces; trace ordering and final outcomes remain open. |
 | G5 Sequential applicable experiments | NOT_STARTED | Correctness, A/B/A/B, one trace pair per executed candidate |
 | G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
 | G7 Report, state, Git publication and cleanup | RUNNING | Reviewed compiler/guard policy and runtime-probe evidence published at `72a814f2`; calibration `e8f678be`, MDS baseline `1faec419`. Final source/results, state reconciliation and cleanup remain. |
 
-Active execution: no new training launch. `g2-baseline-a1` completed110 native
+Latest execution: `g2-baseline-a2-w110` PASS, source `87230b5b`, controllerPID292349
+exited. Launched04:30:51 UTC /07:30:51 Moscow, completed05:23:46 UTC. Exact command:
+`/opt/torchtitan-venv/bin/python3.12 -u runs/overnight-streaming-perf/run.py --run-id g2-baseline-a2-w110 --steps 160 --warmup 110 --window 50 --monitor-interval 50 --timeout-seconds 7200`.
+Controller log: `runs/overnight-streaming-perf/artifacts/raw/g2-baseline-a2-w110.controller.log`;
+run receipts under sibling `g2-baseline-a2-w110/`. Source/helpers/HEAD stayed
+frozen. Owned process group stopped, temporary directory removed and all GPUs
+released. No run is active; next is separate G3 baseline profiling.
+
+First valid control `g2-baseline-a1-w110` PASS:160 complete native updates per
+rank; all eight direct observer comparisons stable, guard0after110..160, two
+boundary syncs, complete111–160 including monitor150. Global inputTPS124500.9847,
+validTPS124470.5890, elapsed842.2231s; counts104857600/104832000. Allocator peaks
+max67.401GiB allocated/68.467GiB reserved with native reset scope, zero retries/OOMs.
+Five ordinary cadence bins show no continuing monotonic settling. Source/config
+unchanged, temp/group stopped and GPUs released before A2. Root inspected raw
+all-rank guards/counters/comparisons in both controls. A2 inputTPS124408.6388,
+validTPS124378.2656, elapsed842.8482s; same counters and all8 gates pass. Pair
+accepted: median input124454.8118/valid124424.4273TPS, A2/A1−0.074173%; two controls
+do not establish a confidence interval. No candidate gain is accepted.
+
+Previous control: `g2-baseline-a1` completed110 native
 updates but FAILED required measurement acceptance at03:24:19 UTC /06:24 Moscow:
 Triton cache state grew on ranks0,2,5 during updates61–110. A2 was not launched.
 DeepGEMM guard receipts are complete on all eight ranks. No TPS is accepted.
@@ -117,8 +137,15 @@ The failed window and private caches remain for this concrete diagnosis.
 A separate helper-only worktree at
 `/workspace-SR008.nfs2/vkropotin/optimization-task-worktrees/native-numerics`
 branches from72a814f2 and does not modify main. Its default-off diagnostic mode
-passed source review after malformed-capture regressions; final CPU checks were
-released once A1 stopped. It has not been integrated or run natively.
+passed source review after malformed-capture regressions and61 affected CPU
+checks plus2 final hash/failure-path checks. It is preserved at isolated commit
+`84b72524`; main integration and native execution remain open.
+The numerical variation contract now selects three temporary-reference/streaming
+comparison prefix pairs (capture1,2,50), because hash-only mismatches cannot measure
+errors. A fresh isolated helper implementation is in progress; no numerical
+instrumentation enters the frozen controls/profile. Resource costs, initialization,
+all-prefix input and monitor-publication gates are recorded in the existing
+[campaign report](../runs/overnight-streaming-perf/report.md#native-numerical-receipt-isolated-module-integration-open).
 
 Previous calibration: `g2-calibration-001` PASS/exit0,
 finished01:28:14 UTC /04:28 Moscow on13 November; controller PID `200928` exited.
@@ -144,8 +171,8 @@ See the campaign report/results for source pins,
 scope and resolved review findings. The independent
 G3 parser extra-marker finding is resolved: both regressions failed on `02cfb427`,
 then9 affected cases passed the fix; root reviewed that targeted delta.
-Next: publish the failed-control diagnosis, then launch fresh W110/111–160 identical controls serially; second only after first passes.
-Latest published source is `72a814f2`;
+Next: capture ordinary update111 on ranks0/1 in a separate W110 profiling process,
+then analyze both traces with actual Perfetto MCP. Control source is `87230b5b`;
 its separate numerical receipt module is not active in TPS runs.
 
 Retry `g1-streaming-smoke-002` PASS at
