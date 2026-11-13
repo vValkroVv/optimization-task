@@ -383,6 +383,10 @@ class WindowMeasurement:
         if not self._window_started or not self._window_finished:
             return None
         assert self._window_start_ns is not None and self._window_end_ns is not None
+        assert (
+            self._window_start_wall_ns is not None
+            and self._window_end_wall_ns is not None
+        )
         assert self._physical_start is not None and self._physical_end is not None
         assert self._supervised_start is not None and self._supervised_end is not None
         assert self._allocator_start is not None and self._allocator_end is not None
@@ -404,6 +408,8 @@ class WindowMeasurement:
             "end_after_update": self.warmup_updates + self.window_updates,
             "start_monotonic_ns": self._window_start_ns,
             "end_monotonic_ns": self._window_end_ns,
+            "start_wall_time_ns": self._window_start_wall_ns,
+            "end_wall_time_ns": self._window_end_wall_ns,
             "local_elapsed_s": (self._window_end_ns - self._window_start_ns)
             / 1_000_000_000,
             "monitoring_updates": [
@@ -439,8 +445,6 @@ class WindowMeasurement:
                 self.compiler_source_metadata,
             )
             result["compilation_observer"] = observer
-            result["start_wall_time_ns"] = self._window_start_wall_ns
-            result["end_wall_time_ns"] = self._window_end_wall_ns
         return result
 
     def finish(self, *, training_succeeded: bool, error: BaseException | None = None) -> str | None:

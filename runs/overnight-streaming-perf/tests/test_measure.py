@@ -294,6 +294,43 @@ def test_full_window_uses_two_boundaries_and_tracks_native_resets(
     assert record["parameter_census"]["frozen"]["local_numel"] == 5
 
 
+def test_default_window_record_summarizes_without_compiler_observer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("WORLD_SIZE", "8")
+    trainer_class, adapter, _, _ = _adapter(
+        tmp_path,
+        steps=20,
+        warmup=10,
+        window=10,
+        monitor_interval=0,
+        capture_microbatches=False,
+    )
+
+    with adapter:
+        trainer_class().train()
+
+    record = json.loads((tmp_path / "measurement/rank-00.json").read_text())
+    assert "compilation_observer" not in record["measurement"]
+    records = []
+    for rank in range(parse_results.WORLD_SIZE):
+        rank_record = deepcopy(record)
+        rank_record["rank"] = rank
+        records.append(rank_record)
+    metadata = {
+        "run_id": "unit-test",
+        "steps": 20,
+        "warmup_updates": 10,
+        "window_updates": 10,
+        "monitor_interval": 0,
+    }
+
+    summary = parse_results.summarize_records(records, metadata)
+
+    assert summary["status"] == "complete", summary["errors"]
+
+
 def test_incomplete_window_is_written_as_incomplete_and_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

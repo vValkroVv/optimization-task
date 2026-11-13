@@ -1,10 +1,60 @@
-# Streaming performance tooling: cleanup and revised protocol
+# Monitoring-free baseline measurement and trace capture
+
+Status: RUNNING. The 13 November 2026 user request authorizes this bounded
+baseline measurement and fresh trace capture on the existing eight-H100
+`sr008-gpu` allocation. Starting source is
+`eadcc6ac2ca5e7a24389e03416327fa8712e44da`; the exact execution revision will be
+recorded after the necessary timing-receipt repair below. The original candidate campaign remains
+cancelled. The completed cleanup record below describes the previous assignment.
+
+## Current scope and acceptance
+
+1. Verify current source, owned processes, all eight GPUs, runtime and existing
+   MDS paths. Preserve the pre-existing untracked V2 loader-check helper.
+2. Run one unprofiled baseline with 10 warmup and 10 measured optimizer updates,
+   preserving all workload settings and the 65,000/2,000 LR schedule. Detailed
+   monitoring/hooks, validation, checkpoints, numerical capture, memory snapshots
+   and CUDA Graphs remain off. Include normal input loading and transfers.
+3. Use the actual update series and logs to assess settling. Extend warmup only
+   if real compilation or continuing settling affects the window; no exhaustive
+   cache audit or mandatory control matrix. Treat one run as provisional.
+4. In a separate run, use the supported runner/profile schedule to capture one
+   complete optimizer update after that observed warmup. All eight ranks train;
+   only ranks 0 and 1 construct a profiler. Require one active update, 32
+   microbatches and the optimizer, with shapes/stacks/profiler memory off.
+5. Parse both traces, verify update identity and coverage, retain paths/hashes,
+   resolved configurations and source/runtime/data identities. Compress losslessly
+   with verified round trips and retain exactly one canonical copy per rank.
+6. Record complete-window global/per-GPU input TPS, update median/range and
+   defined memory observations in the existing report/results and current state.
+   Historical monitoring-inclusive results remain historical and are not a
+   candidate optimization comparison. No new bottleneck analysis is required.
+7. After consumers stop, clean exact task-owned redundant traces, temporary
+   files and obsolete caches. Verify process exit and released GPUs, then commit
+   and push results/documentation using the existing identity. Stop there.
+
+No candidate experiments, full-model numerical comparisons, new allocation or
+unrelated implementation work is authorized. Use the reviewed runner and existing
+runtime; record a concrete failure before any repair needed for this measurement.
+
+## Execution ledger
+
+| Item | Current evidence / next action |
+| --- | --- |
+| Initial checkout/process inspection | HEAD `eadcc6ac`; only the existing untracked V2 helper; no training process at initial inspection |
+| Unprofiled measurement | Held before launch: the default observer-off receipt omitted wall timestamps required by the parser; `window_wall_receipt_fix` owns the minimal serialization repair and actual-output regression |
+| Profile schedule | Source contract verified: for observed warmup W, capture update W+1 with one Kineto warmup update W; only ranks 0/1 construct profilers; all eight train |
+| Results, cleanup and publication | Pending the two run receipts; coordinating owner integrates and publishes |
+
+---
+
+# Completed cleanup and revised protocol
 
 Status: CLEANUP_COMPLETE. The original G0–G7 overnight optimization campaign is
 cancelled and incomplete. This assignment changes tooling and instructions;
 it does not resume experiments. All new communication and deliverables use English.
 
-## Current assignment and finite acceptance
+## Completed cleanup assignment and finite acceptance
 
 Work in `/workspace-SR008.nfs2/vkropotin/optimization-task`. The last campaign
 execution source was `e9048f65f6a00b87c97b1e7e2cfb31fa66f56414`.
@@ -39,7 +89,7 @@ No GPU training, benchmark, candidate experiment, trace collection or numerical
 block execution is authorized by this cleanup assignment. Do not allocate jobs,
 install packages or continue the former campaign.
 
-### Current cleanup ledger
+### Completed cleanup ledger
 
 | Item | State / evidence |
 | --- | --- |
