@@ -105,8 +105,18 @@ torch `2.15.0.dev20260822+cu130`, CUDA 13.0, NCCL 2.30.7, streaming 0.13.0;
 source `/etc/profile.d/wm.sh`. Default image import resolves `/home/user/torchtitan`,
 so runners must explicitly set task `gift/` in `PYTHONPATH`. No new allocation needed.
 MDS, profiler/timer and reference inspections have separate bounded owners.
-Next action: review the task runner/measurement adapter and launch native
-ten-update integration. Prepared MDS index SHA256 is
+Next action: finish and verify the task-only native cache redirect, freeze the
+reviewed runner/adapter/parser, then launch native ten-update integration.
+Independent runner review found that inherited DeepGEMM warmup overrides the
+requested private cache with `/temp/.cache/rank_N/deepgemm`; launch is held until
+the adapter redirects the actual helper before Trainer construction and guards
+the alternate shared-cache path. Preserve native warmup. No GPU launch has
+occurred and no shared cache is being cleaned. The review also caught a missing
+measured-window attribute before execution; its fix/regression is in progress.
+Child core dumps must be disabled before launch after discovering an unlimited
+host core limit.
+See [runner review](../runs/overnight-streaming-perf/runner-review.md) for the
+consolidated findings and verification. Prepared MDS index SHA256 is
 `7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2`.
 Data checks used installed streaming0.13, not the bundled snapshot. Persistent
 workers are selected and validated across the epoch boundary; pinning stays off.
@@ -177,6 +187,14 @@ sides and rerun only affected controls. Record exact boundaries before measuring
 Collect two identical controls A1/A2, separate processes, identical data/cache
 policy. A2 can later serve as the first A of an A/B/A/B comparison only if source,
 environment, topology, window and intervening conditions remain comparable.
+
+Execution note: calibration must inspect the first normal monitoring update50
+before declaring the complete cadence warmed. The native path switches head/loss
+chunk geometry from2 to32 there; a fresh cold-cache process may compile that
+geometry for the first time. An ordinary-step plateau before50 alone cannot
+establish that the later measured monitoring event is free of startup compilation.
+Use observed compile/step evidence to select `W`; preserve interval50 in every
+performance process.
 
 Primary metric: aggregate physical input tokens per second for the complete
 optimizer-update window, including input pipeline and normal monitoring cost.

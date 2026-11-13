@@ -91,6 +91,20 @@ acceptance remain open at G3. Full-tree autofixing hooks were not run across
 the flattened task tree because their source-root path filters do not protect
 its byte-preserved reference and contrib snapshots; changed-file lint was used.
 
+## Native runner review and prelaunch repairs
+
+No GPU run was started before review. The independent reviewer found two
+material integration defects: a missing measured-window completion attribute,
+and inherited DeepGEMM startup overriding private cache variables with hardcoded
+`/temp/.cache/rank_N/deepgemm` paths. The task adapter will redirect the actual
+warmup helper before Trainer construction and fail closed on alternate shared
+cache paths, retaining native warmup and source/package bytes. Focused real
+setup/share-path checks and boundary regressions are required before handoff.
+The host CPU core limit was unlimited; task child processes will set it to zero
+and clear inherited diagnostic/core-dump flags. The
+[review](runner-review.md) owns findings and their final resolution. These are
+prelaunch harness/inherited-path repairs, not failed candidate measurements.
+
 ## Reused validation interfaces and limits
 
 The historical `CampaignNumericalProbe` is not an unchanged validation route for
@@ -101,6 +115,29 @@ campaign to that trainer or generate its full-model payloads merely to reuse
 the old probe. Candidate checks must exercise their actual affected loss, state
 or lifetime path with matched inputs and elementwise gradients/state, then native
 integration; any unresolved full-workload numerical gate stays explicit.
+
+### K1 implementation contract (design only; no candidate enabled)
+
+Keep completed-chunk release and fused CE independently selectable, default off.
+The release point is the existing chunk-loop tail after backward/gradient
+collection, preserving head calls, argmax, components, probes and flag restoration.
+For CE, select a cap-zero callable before `_maybe_compile`, retain current
+normalization and weighted MTP, and route DTensor to the current distributed CE.
+Do not copy the donor loss class or change Unembedding. The pinned donor's
+softcap tests do **not** test fused CE directly, so its CUDA/Inductor autograd
+path needs new evidence, including V128256, signed int64 ignored labels,
+all-ignored rows, noncontiguous inputs and explicit higher-order rejection.
+
+Release tests must prove output weakrefs expire before the next projection and
+compare the actual current chunked A/B paths through gradients and two AdamW
+updates (parameters, moments and steps), ordinary/monitoring chunks, MTP,
+evaluation/probes, FSDP protocol and exception restoration. For fused CE, first
+freeze baseline error/variation against an FP64 CE/analytic-gradient oracle at
+the same quantized logits and output cast; compare elementwise downstream
+gradients/state through the same projection. Different reduction rounding is
+not subject to an invented percentage or unjustified bitwise gate. Any
+uncalibrated difference stays unresolved and the feature stays disabled.
+Tiny tests do not replace fixed-crop native GPU/SAC/GFSDP integration.
 
 ## Cleanup
 
