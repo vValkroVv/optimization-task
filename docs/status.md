@@ -27,7 +27,7 @@ and a functional grouped-FP8 output compatible with SAC result caching.
 The runtime uses native `torchtitan.train`, installed DeepGEMM `2.3.0+f093a4c`
 and DeepEP `1.2.1+1b8f467`.
 
-## Executed verification
+## Historical HF smoke verification
 
 | Item | Outcome | Evidence / limit |
 | --- | --- | --- |

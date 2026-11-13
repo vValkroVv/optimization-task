@@ -1057,7 +1057,19 @@ def test_profile_parser_requires_exact_rank_traces_and_markers(tmp_path: Path) -
     assert "tokens" not in summary
 
 
-@pytest.mark.parametrize("failure", ["missing", "extra", "marker_count", "wrong_rank", "call_count", "profiler_rank"])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing",
+        "extra",
+        "marker_count",
+        "wrong_rank",
+        "wrong_update_marker",
+        "wrong_rank_marker",
+        "call_count",
+        "profiler_rank",
+    ],
+)
 def test_profile_parser_rejects_incomplete_trace_receipts(
     tmp_path: Path, failure: str
 ) -> None:
@@ -1080,6 +1092,16 @@ def test_profile_parser_rejects_incomplete_trace_receipts(
     elif failure == "wrong_rank":
         (trace_dir / "rank0_trace.json").rename(trace_dir / "rank2_trace.json")
         (trace_dir / "rank1_trace.json").rename(trace_dir / "rank3_trace.json")
+    elif failure in {"wrong_update_marker", "wrong_rank_marker"}:
+        path = trace_dir / "rank0_trace.json"
+        trace = json.loads(path.read_text(encoding="utf-8"))
+        marker = (
+            "task.profile_update.1.microbatch.rank0"
+            if failure == "wrong_update_marker"
+            else "task.profile_update.2.microbatch.rank2"
+        )
+        trace["traceEvents"].append({"ph": "X", "name": marker, "ts": 99, "dur": 1})
+        path.write_text(json.dumps(trace), encoding="utf-8")
     elif failure == "call_count":
         path = tmp_path / "measurement/rank-04.json"
         record = json.loads(path.read_text(encoding="utf-8"))

@@ -91,14 +91,31 @@ timestamps; on resume check recorded processes before relaunching anything.
 | --- | --- | --- |
 | G0 Environment, ownership, disk and Perfetto route | PASS | Existing master sees eight idle H100s; NFS has 2.5 TiB free and 2.9 billion free inodes. Verified Python/torch/CUDA/NCCL and installed streaming. Perfetto MCP loaded and queried a task-owned synthetic Chrome JSON via the actual absolute NFS path. |
 | G1 Full-length MDS, data contract and streaming smoke | PASS | Data checks and native002 smoke PASS: all eight ranks completed ten updates/320 microbatches, finite metrics and monitoring 5/10, then clean teardown. [Smoke receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json). Canonical data-only promotion passed the focused golden test and path/shard-hash equivalence check. |
-| G2 Warmed baseline A/A TPS and memory | NOT_STARTED | Fix measurement window after calibration; collect two controls |
+| G2 Warmed baseline A/A TPS and memory | RUNNING | Calibration001 PASS:60 finite updates/1920 microbatches on every rank, monitor50/post10 observed. W60/updates61–110 recommended. Direct boundary compiler evidence is being resolved before A1/A2; no TPS baseline yet. |
 | G3 Baseline trace pair and Perfetto bottleneck analysis | NOT_STARTED | Ranks0/1, same one complete ordinary update, two files total |
 | G4 All reference mechanisms reconciled | RUNNING | All 109 reference hashes verified and source applicability inspected; see campaign reference evidence. K1/K2/V2/V3/V5 have applicable missing pieces; trace ordering and final outcomes remain open. |
 | G5 Sequential applicable experiments | NOT_STARTED | Correctness, A/B/A/B, one trace pair per executed candidate |
 | G6 Combined qualifying result and confirmation | NOT_STARTED | Integrate winners or retain MDS baseline; verify combined runtime and cost |
-| G7 Report, state, Git publication and cleanup | RUNNING | Initial G0/source-applicability milestone committed and pushed as `d5e3d717`; final source/results, state reconciliation and cleanup remain. |
+| G7 Report, state, Git publication and cleanup | RUNNING | MDS baseline/smoke evidence published as `1faec419`; prior G0/source-applicability milestone `d5e3d717`. Final source/results, state reconciliation and cleanup remain. |
 
-Active execution: no training process. Retry `g1-streaming-smoke-002` PASS at
+Active execution: no training process. `g2-calibration-001` PASS/exit0,
+finished01:28:14 UTC /04:28 Moscow on13 November; controller PID `200928` exited.
+It launched01:05 UTC from HEAD `1faec419` plus capture-helper edits whose exact
+bytes are now preserved at `02cfb427` (hashes in run metadata). Command:
+`/opt/torchtitan-venv/bin/python3.12 -u runs/overnight-streaming-perf/run.py --run-id g2-calibration-001 --steps 60 --monitor-interval 50 --timeout-seconds 7200`.
+Controller log/PID: `runs/overnight-streaming-perf/artifacts/raw/g2-calibration-001.controller.{log,pid}`;
+native outputs/exit markers have the same run ID. No timed window/profiling.
+Source/config hashes stayed unchanged, owned temp directory was removed and
+local GPU query was empty. The completion-only watcher/session49650 has exited;
+parent wait wrapper `g6:120` is terminated. No monitor remains.
+W60 is supported by post-monitor settling, but compile absence is not established
+by disabled diagnostic logs. A scoped existing-counter boundary observer is
+being designed to resolve this required gate before measurement. The independent
+G3 parser extra-marker finding is resolved: both regressions failed on `02cfb427`,
+then9 affected cases passed the fix; root reviewed that targeted delta.
+Next: accept those bounded changes, freeze W/50 and helpers, then collect A1/A2.
+
+Retry `g1-streaming-smoke-002` PASS at
 00:34 UTC /03:34 Moscow on 13 November, source `4d7689aa`, exit0. Controller
 PID `164736` and original execution session `86376` have exited. The separate
 [receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json) verifies all
@@ -107,9 +124,8 @@ Command used `--run-id g1-streaming-smoke-002 --steps 10 --monitor-interval 5
 --timeout-seconds 3600`; raw logs remain under the same run ID. Canonical MDS
 promotion/config checks passed; the native smoke used the equivalent external
 fragment, while canonical path/shard equivalence is verified separately.
-Task-only G3 capture support is being implemented.
-Next: finish its affected checks/review, freeze helpers, then calibrate the
-ordinary monitor50 cadence before choosing W. No baseline TPS exists yet.
+Task-only G3 capture support passed22 focused checks and its unprofiled path
+review. No baseline TPS exists yet.
 
 First native smoke attempt `g1-streaming-smoke-001` FAILED,
 exit1 before any model update; controller PID `158532` exited. Launched

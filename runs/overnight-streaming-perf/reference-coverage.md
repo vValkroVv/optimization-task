@@ -57,18 +57,44 @@ Errors are stored, queued items drain first, then consumer raises (:109–120).
 `join(timeout)` raises if it still runs (:136–147). These are concrete contracts,
 not proof of correct text-loader integration.
 
-To port safely, serialize ready items, finished flag and Mosaic source state
-inside the same pause; source cursor alone skips prefetched batches. Consumer
-must own checkpoint collectives. Preserve generator/data-world context,
-reiteration and infinite-epoch behavior; close/join the old producer before
-load/reset. The selected base donor additionally has worker startup accounting
-(`dataloader.py:57–76`) but no ready-state consumer: do not assume it solves text
-resume. Tests V/tests/unit_tests/test_streaming_prefetch.py cover queue ordering,
-pause/cursor, delayed error, close and exhausted restore for generic Python
-sources; they were inspected, not executed, and do not cover Mosaic/distributed
-startup. Campaign checkpoint saves are off, so successful training would not
-prove continuation. A task-scoped integration must retain that open gate rather
-than silently weakening the existing loader state API.
+Deeper installed-source inspection changes the proposed checkpoint integration:
+use a **committed consumer cursor**, not ready-queue serialization. GIFT stores
+rank-identical `dp_rank_0` state and supports changed world size/replication;
+rank-specific queued batches do not fit that elastic contract. Installed
+`StreamingDataLoader.__iter__` advances its cursor before yielding, and its local
+`state_dict()` performs no collective. Queue `(batch,state-after-batch)` and
+commit metadata only on delivery, saving the same scalar-state format; recompute
+undelivered batches on restore. This adds a shared-memory read/JSON decode per
+produced batch and must be included in the cost comparison.
+
+Do not background-wrap the existing infinite generator: one producer can enter
+Mosaic's node-shared next-epoch barrier while another queue pauses before it,
+deadlocking checkpoint pause/join. Use a finite single-epoch producer and restart
+on the consumer only after draining. Construct/reset/prime DataLoader iterators
+on the consumer thread to preserve global CPU RNG draw timing and PyTorch's
+main-thread SIGCHLD setup. Keep generator/data-world context and checkpoint/PP
+collectives on their existing consumer paths. Same-instance load must also reset
+Mosaic epoch bookkeeping: forwarding an older saved epoch can otherwise be
+ignored after `next_epoch` advanced. Closing cannot cancel blocked `next()`;
+join timeout is a failure, not permission to reset a live source.
+
+The minimal proposed selector is default-off `num_prefetch_batches: 0`, with two
+as an initial isolated trial. At B2/S4096 its additional ready-batch tensors are
+about320 KiB/rank, excluding producer/Python/IPC overhead and existing worker
+buffers. Installed PyTorch already resolves null prefetch factor to two per
+worker (four outstanding with two workers); Mosaic also has preparation threads.
+These established paths do not supply a checkpoint-aware asynchronous main
+iterator. See official [PyTorch DataLoader](https://docs.pytorch.org/docs/main/data.html),
+[Mosaic tuning](https://docs.mosaicml.com/projects/streaming/en/latest/distributed_training/performance_tuning.html)
+and [checkpoint interface](https://docs.mosaicml.com/projects/streaming/en/stable/api_reference/generated/streaming.StreamingDataLoader.html).
+
+The donor tests cover generic queue/pause/error/exhaustion, not actual elastic
+Mosaic state. Required integration tests include queue-ahead exact continuation,
+unequal-rank epoch-boundary pause, existing changed-world-size/replication/chained
+resume, CPU RNG parity, persistent/nonpersistent workers, same-instance load,
+validation early break/reiteration and thread cleanup. The real eight-rank
+fixture must retain exact row/label/position ordering through wrap and resume.
+Campaign saves are off, so successful training alone cannot close continuation.
 
 ## V3 independent mechanisms and inherited constraints
 

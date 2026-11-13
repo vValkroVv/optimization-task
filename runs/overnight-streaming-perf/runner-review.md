@@ -176,23 +176,64 @@ The real eight-GPU/NCCL profile run, selected-rank trace pair, and Perfetto
 analysis remain campaign gates. CPU lifecycle evidence does not establish
 CUDA/NCCL integration or profile-run performance.
 
-### Independent G3 review: one open profile-only finding
+### Independent G3 review: profile-only marker finding resolved
 
 The independent review found no unprofiled regression. Native schedule,
 selected-rank construction, actual delegation, scope boundaries, exception
 restoration and lifecycle/config/source gates match the contract by inspection.
 The reviewer inspected tests but did not repeat their reported execution.
 
-P2: the parser currently filters only the target-update prefix and checks required
-marker keys individually. An in-memory reproduction added a wrong-update marker
-and an extra wrong-rank target marker to otherwise valid traces; status remained
-complete with no errors. Required remedy is exact marker-map equality across
-all `task.profile_update.*` scopes, with these two negative regression cases.
-This is profile-only; the correction waits until active calibration exits so
-the hashed parser remains frozen. G3 capture acceptance remains open until the
-finding is fixed and affected tests pass.
+P2: the frozen parser at `02cfb427` filtered only the target-update prefix and
+checked required marker keys individually. I added two negative regressions, then
+ran them against that parser: an extra previous-update marker and a wrong-rank
+marker both produced a false `complete` summary, so both tests failed as intended.
+
+**Resolved:** `parse_results.py` now collects every `task.profile_update.*` scope
+and requires exact name/count equality with the three expected target-rank
+markers. It also rejects markers whose Kineto phase is not a complete event.
+The two previously failing cases now pass along with the existing profile-parser
+cases: 9 passed. Selective Ruff, default Ruff, `py_compile`, and `git diff --check`
+pass. The change is limited to this parser, its two regression cases, and this
+review note; `run.py`, `measure.py`, GIFT, config, and HEAD are unchanged after
+the calibration. Profile-only source acceptance is closed. GPU/NCCL capture and
+Perfetto remain separate campaign gates.
 
 During CPU test development, an initial mocked-distributed fixture failed because
 Kineto requires a real process group. The owner replaced that test setup with a
 single-rank native CPU lifecycle check. It is a retained test-fixture failure,
 not a native training or candidate verdict.
+
+## Measured-window compilation observer contract
+
+Calibration disabled compiler diagnostics, so cadence alone cannot close the
+no-compilation gate. The bounded design samples existing CPU state on every
+rank after start synchronization/before the start timestamp, and immediately
+after the end timestamp. Keep snapshots in memory and serialize with the existing
+receipt; no per-step work, added synchronization, cache changes or logging.
+
+- Torch2.15 `torch._dynamo.utils.compilation_time_metrics`: record each existing
+  timing-list identity and length. Require zero growth of compile-only events
+  (`_compile.compile_inner`, `compile_attempt_*`, forward/backward compiler,
+  `fx_codegen_and_compile`, `CachingAutotuner.*`). Retain all deltas; missing,
+  replaced or decreased state is inconclusive/failure. The list is unbounded;
+  `get_compilation_metrics()` is a bounded64-entry deque and is unsuitable.
+- Existing Inductor `async_compile_cache_miss`/`hit` counters: require unchanged
+  values without creating missing defaultdict entries. They conservatively mark
+  compile-path entry, not exact compiler misses.
+- Active CuTe norm `common.COMPILED` existing keys/object identities: unchanged.
+  Its source calls `cute.compile` only on absent keys and does not clear the map.
+- Existing Triton JIT registry/function identities and existing device kernel-cache
+  keys/object identities: unchanged. Never index a missing device (CUDA binder).
+  New specializations can include disk loads, so a change conservatively opens
+  acceptance rather than proving a native compiler invocation.
+
+Pinned inspected source SHA256: Dynamo utils
+`21217311dbe8022f3793e9dfd61a2be66c50ecb97078c83b4c414e538fc5e832`;
+Triton jit `38b8151fcceec1a0210a696775b7c64d7fac5e9b69eee2dda7e93c1e2a377509`;
+task CuTe common `ab2912468af5661b0b9f23ddaaf36a829d0924a64e25b7c2455cabe70e12a205`.
+Asynchronous compiler workers can outlive parent timing scopes. DeepGEMM
+`2.3.0+f093a4c` exposes no verified compilation counter in the installed Python
+API/stubs; matching compiler/cache source is being sought to establish a
+post-run persistence audit. Wall timestamps around the timed window are needed
+for that audit. These snapshots alone cannot claim complete JIT coverage until
+the remaining source contract is resolved.

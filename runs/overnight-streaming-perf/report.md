@@ -90,6 +90,38 @@ would change the identified baseline. Exact native per-batch partition counters
 are unavailable; the prior actual eight-rank Gloo loader check plus native mesh
 and source correlation support rank partitioning.
 
+## G2 calibration
+
+`g2-calibration-001` passed60 native updates/1920 microbatches on every rank,
+with exactly32 calls/update, finite loss/gradient logs, clean teardown and released
+GPUs. Source/config stayed unchanged; no checkpoint/trace/snapshot was emitted.
+Raw evidence is under `artifacts/raw/g2-calibration-001/`; resolved config SHA256
+is `b88ffc3da42a7507fa47bb33f6f54fb22d023fa5bc0978338fce6fa9d3e9b27a`.
+Helper bytes used by calibration are preserved at `02cfb427`.
+
+Rank0 host boundary cadence medians (seconds):
+
+| Updates | Median |
+| --- | ---: |
+| 2–10 | 13.7441 |
+| 11–20 | 13.8981 |
+| 21–30 | 15.3566 |
+| 31–40 | 15.3071 |
+| 41–49 | 14.9610 |
+| 50, monitoring | 173.9149 |
+| 51–55 | 14.9717 |
+| 56–60 | 15.0141 |
+
+Updates51–60 range14.5722–15.5668s without continuing monotonic settling;
+maximum same-update host-interval spread across ranks was1.843ms. Recommend W60,
+then measure all updates61–110 including monitor100. This is not TPS evidence:
+the calibration has no synchronized50-update window. Step1 took259.828s,
+including245.228s in its first forward/backward. Monitor50's first microbatch
+took8.477s, then median4.8147s; its173.9s cannot all be assigned to compilation.
+Diagnostic compiler logs were disabled, so later compilation is unknown. A
+minimal existing-counter boundary observer is being resolved before controls;
+monitor100 and surrounding updates must also be checked directly in A1/A2.
+
 ## Native profiler controls
 
 Implemented generic opt-in `profile_ranks` and `record_shapes` controls in the
@@ -144,8 +176,8 @@ prelaunch harness/inherited-path repairs, not failed candidate measurements.
 The [runtime receipt](g1-runtime-receipt.json) records exit1 on all eight ranks:
 `parameter_census` calls `RaggedShardDTensor.to_local()` with grad enabled,
 which this wrapper explicitly rejects. Its same method returns the local shard
-under no_grad. Zero native updates or microbatch calls occurred; finite loss,
-monitoring and execution gates remain open. The scoped repair is to run metadata
+under no_grad. Zero native updates or microbatch calls occurred; at that failed
+attempt, finite loss, monitoring and execution gates were still open. The scoped repair was to run metadata
 census under no_grad, retaining original trainability and restoring caller grad
 mode, then test that real method guard before retrying.
 
@@ -179,19 +211,23 @@ The active CuTe JIT exports a function pointer to TVM-FFI rather than invoking
 is not the norm path. This qualifies the cache policy without changing kernels
 or introducing another experiment. Shared/personal unrelated caches are intact.
 
-### G3 capture integration still required
+### G3 capture adapter: source checks accepted; GPU gate open
 
-The native rank/shape controls are implemented, but the initial runner forces
-profiling off. Before G3 it needs a small opt-in target-update mode with the
-native schedule, profile-only actual-call markers and two-trace receipt checks.
+The native rank/shape controls and task runner's opt-in target-update mode are
+implemented, with native scheduling, actual-call markers and two-trace checks.
+The owner reports22 focused checks passed. Independent review's profile-only
+parser false acceptance for extra wrong-update/rank markers is resolved by exact
+marker-map equality. Both new regressions failed against `02cfb427` and all9
+affected parser cases pass on the fix; scoped/default Ruff and compile checks
+pass. Root inspected the targeted delta. No unprofiled regression was found.
 The actual local `structured_logging.log_trace_span` emits JSONL logging events,
 not Kineto `record_function` scopes. Its native `fwd_bwd` events attest calls in
 structured logs; manual markers from the profiler CPU test do not establish
 native Kineto microbatch/optimizer coverage. The task adapter must add those
 scopes around delegated calls on ranks0/1 at the one selected ordinary update,
 without wrapping the outer structured step context across its in-scope export.
-G1 has exited, and the task-only capture integration is being implemented before
-freezing helpers for the controls. Profile timing cannot enter primary TPS.
+G1 has exited, and the task helpers are frozen for unprofiled calibration.
+Profile timing cannot enter primary TPS.
 This is a known remaining integration item, not a passed G3. Profile mode installs
 temporary delegated-call counters/checks on all eight ranks; only selected ranks
 enter scopes at the one selected update (32 successful microbatch calls, one
@@ -261,6 +297,54 @@ elementwise losses/gradients/two optimizer updates. Exact callback/state checks
 are justified; native FP8/HybridEP floating-point repeatability is not yet
 established. Calibrate unchanged numerical A/A before setting native tolerances;
 timing A/A and rounded norms do not establish numerical equivalence.
+
+### Native numerical receipt route (design only)
+
+The smallest identified production-path route is a separate task-only numerical
+run, with no instrumentation in TPS runs. Wrappers can observe native
+`after_dataloader` callback-mutated CPU inputs/labels, `forward_backward_step`
+metadata/denominator and loss, project
+`dist_utils.clip_grad_norm_` before/after gradients, `OptimizersContainer.step`
+after actual AdamW, and callback `after_load`/`batch_end` state. Preserve all
+arguments, returns, hooks and wrapper restoration. Adaptive load balancing is
+an optimizer-container **pre-hook**: capture incoming counts/bias before clipping
+and updated bias/reset counts after step. Its counts are currently FP32,
+nonpersistent; `ntokens_seen` is int64. Do not silently change either dtype.
+
+Optimizer param groups own the sharded parameters actually consumed by fused
+AdamW; RaggedShardDTensor local access under no_grad returns its exact shard.
+Map identities/FQNs/aliases at sharded boundaries and capture logical local
+elements without padding, gathering or casting. One-tensor-at-a-time CPU hashes
+plus dtype/shape/shard metadata can establish elementwise byte equality only
+when unchanged native A/A repeats exactly. Hash mismatches need bounded temporary
+payloads and calibrated elementwise error comparisons, not a tolerance inferred
+from hashes. Include actual pre/postclip gradients, params, moments/steps,
+loss/components, normalization and routing/counter state. The clipping return is
+the norm; an independently computed clip coefficient is derived, not an observed
+native coefficient. Actual postclip tensors attest the applied result.
+
+The first isolated observer copied every microbatch to CPU, which would serialize
+the next microbatch and could mask asynchronous buffer-lifetime faults. The
+source-grounded correction hashes CPU batches after `after_dataloader` (all32
+are fetched before GPU compute), retains only detached native scalar losses and
+one immutable denominator reference during forward/backward, then hashes those
+at preclip. Native loss component totals and mutable aux totals/current scale
+are sampled once at preclip, before next-update reset. No per-microbatch D2H,
+aux clones or graph-bearing references are needed. The native loss provides one
+normalized scalar per microbatch; component tests own elementwise CE evidence.
+This preserves microbatch overlap but still perturbs update boundaries. Hash
+runs alone cannot validate V3 asynchronous ownership: uninstrumented native
+integration and the separate representative trace remain required.
+
+All-parameter captures are expensive: five full FP32 parameter-sized families
+are about47.5 GB/rank/update of D2H traffic (about760 GB across8 ranks for two
+updates), plus initialization/small state. Copies synchronize and can alter
+scheduling; these are numerical diagnostics, never TPS. Preserve monitor50 and
+capture updates1,2,50 to cover chunks2/32 rather than treating first-two-update
+checks as monitoring coverage. A tiny real CPU AdamW test must verify observation
+neutrality, exact counts/dtypes/None, mutation detection, and exception cleanup;
+it cannot close native repeatability. This design is not implemented or accepted
+as production numerical evidence yet.
 
 ## Runtime applicability: V4
 

@@ -7,7 +7,6 @@ import argparse
 import hashlib
 import json
 import statistics
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -222,6 +221,7 @@ def _profile_update_summary(
         if not path.is_file():
             continue
         marker_counts: dict[str, int] = {}
+        non_complete_markers: set[str] = set()
         try:
             with path.open(encoding="utf-8") as handle:
                 trace = json.load(handle)
@@ -229,12 +229,12 @@ def _profile_update_summary(
             if not isinstance(events, list):
                 raise ValueError("traceEvents must be a list")
             for event in events:
-                if isinstance(event, dict) and event.get("ph") == "X":
+                if isinstance(event, dict):
                     name = event.get("name")
-                    if isinstance(name, str) and name.startswith(
-                        f"task.profile_update.{target_update}."
-                    ):
+                    if isinstance(name, str) and name.startswith("task.profile_update."):
                         marker_counts[name] = marker_counts.get(name, 0) + 1
+                        if event.get("ph") != "X":
+                            non_complete_markers.add(name)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             errors.append(f"rank {rank} trace is not a valid Kineto JSON trace: {exc}")
             continue
@@ -244,12 +244,16 @@ def _profile_update_summary(
             f"task.profile_update.{target_update}.train_step.rank{rank}": 1,
             f"task.profile_update.{target_update}.optimizer_step.rank{rank}": 1,
         }
-        for marker, expected in expected_markers.items():
-            observed = marker_counts.get(marker, 0)
-            if observed != expected:
-                errors.append(
-                    f"rank {rank} trace marker {marker!r} has {observed} events, expected {expected}"
-                )
+        if marker_counts != expected_markers:
+            errors.append(
+                f"rank {rank} trace task.profile_update marker set/counts {marker_counts!r}; "
+                f"expected exactly {expected_markers!r}"
+            )
+        if non_complete_markers:
+            errors.append(
+                f"rank {rank} trace task.profile_update markers are not complete events: "
+                f"{sorted(non_complete_markers)}"
+            )
         traces[str(rank)] = {
             "path": str(path.relative_to(run_dir)),
             "size_bytes": path.stat().st_size,
