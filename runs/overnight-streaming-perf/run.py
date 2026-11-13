@@ -260,6 +260,42 @@ def validate_args(args: argparse.Namespace) -> None:
             raise ValueError("profile-update must not be a monitoring update")
         if args.steps != args.profile_update:
             raise ValueError("profile-update requires steps == profile-update")
+    if args.native_numerics and (
+        args.steps != 50
+        or args.warmup != 0
+        or args.window != 0
+        or args.monitor_interval != 50
+        or args.profile_update is not None
+    ):
+        raise ValueError(
+            "native-numerics requires steps=50, warmup=0, window=0, "
+            "monitor-interval=50, and no profile-update"
+        )
+    reference_requested = (
+        args.native_reference_output is not None
+        or args.native_reference_input is not None
+        or args.native_capture_update is not None
+    )
+    if args.native_reference_output is not None and args.native_reference_input is not None:
+        raise ValueError("native reference output and input are mutually exclusive")
+    if reference_requested:
+        if args.native_numerics:
+            raise ValueError("native hash receipts and reference calibration are exclusive modes")
+        if args.native_reference_output is None and args.native_reference_input is None:
+            raise ValueError("native-capture-update requires a reference output or input")
+        if args.native_capture_update not in {1, 2, 50}:
+            raise ValueError("reference calibration requires native-capture-update 1, 2, or 50")
+        if (
+            args.steps != args.native_capture_update
+            or args.warmup != 0
+            or args.window != 0
+            or args.monitor_interval != 50
+            or args.profile_update is not None
+        ):
+            raise ValueError(
+                "reference calibration requires steps=capture-update, warmup=0, "
+                "window=0, monitor-interval=50, and no profile-update"
+            )
     if args.monitor_interval == 5 and args.steps > 10:
         raise ValueError("monitoring interval 5 is reserved for the ten-update smoke")
     if args.timeout_seconds <= 0:
@@ -277,6 +313,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--profile-update",
         type=int,
         help="capture one native profiler update on global ranks 0 and 1",
+    )
+    parser.add_argument(
+        "--native-numerics",
+        action="store_true",
+        help="capture exact diagnostic receipts at updates 1, 2, and 50",
+    )
+    parser.add_argument(
+        "--native-reference-output",
+        type=Path,
+        help="export one immutable rank-local calibration namespace (reference mode only)",
+    )
+    parser.add_argument(
+        "--native-reference-input",
+        type=Path,
+        help="consume and compare one completed rank-local calibration namespace",
+    )
+    parser.add_argument(
+        "--native-capture-update",
+        type=int,
+        choices=(1, 2, 50),
+        help="reference-mode update to compare; the native run stops at this update",
     )
     parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     args = parser.parse_args(argv)
@@ -683,6 +740,14 @@ def _command(args: argparse.Namespace, paths: dict[str, Path]) -> list[str]:
         helper_args.append("--capture-microbatches")
     if args.profile_update is not None:
         helper_args.extend(("--profile-update", str(args.profile_update)))
+    if args.native_numerics:
+        helper_args.append("--native-numerics")
+    if args.native_reference_output is not None:
+        helper_args.extend(("--native-reference-output", str(args.native_reference_output)))
+    if args.native_reference_input is not None:
+        helper_args.extend(("--native-reference-input", str(args.native_reference_input)))
+    if args.native_capture_update is not None:
+        helper_args.extend(("--native-capture-update", str(args.native_capture_update)))
     return [
         str(PYTHON),
         "-m",
@@ -777,8 +842,10 @@ def _launch(
             raise RunInterrupted(process.pid, group_stopped) from None
 
 
-def _config_hashes() -> dict[str, str]:
-    return {
+def _config_hashes(
+    *, native_numerics: bool = False, native_reference: bool = False
+) -> dict[str, str]:
+    hashes = {
         "canonical_experiment_sha256": sha256_file(BASE_CONFIG),
         "mds_fragment_sha256": sha256_file(DATA_FRAGMENT),
         "runner_sha256": sha256_file(HELPER_DIR / "run.py"),
@@ -786,6 +853,33 @@ def _config_hashes() -> dict[str, str]:
         "parser_sha256": sha256_file(HELPER_DIR / "parse_results.py"),
         "compiler_observer_sha256": sha256_file(HELPER_DIR / "compiler_stats.py"),
     }
+    if native_numerics or native_reference:
+        hashes["native_numerics_sha256"] = sha256_file(HELPER_DIR / "numerics.py")
+    if native_reference:
+        hashes["native_numerics_payload_sha256"] = sha256_file(
+            HELPER_DIR / "numerics_payload.py"
+        )
+    return hashes
+
+
+def _reference_root(value: Path, label: str) -> Path:
+    path = value if value.is_absolute() else RAW_ROOT / value
+    return _inside(RAW_ROOT, path, label)
+
+
+def _prepare_reference_paths(args: argparse.Namespace) -> None:
+    if args.native_reference_output is not None:
+        root = _reference_root(args.native_reference_output, "native reference output")
+        if root.exists():
+            raise FileExistsError(f"native reference output namespace already exists: {root}")
+        root.parent.mkdir(parents=True, exist_ok=True)
+        root.mkdir(mode=0o755, exist_ok=False)
+        args.native_reference_output = root
+    if args.native_reference_input is not None:
+        root = _reference_root(args.native_reference_input, "native reference input")
+        if not root.is_dir():
+            raise FileNotFoundError(f"native reference input namespace is not a directory: {root}")
+        args.native_reference_input = root
 
 
 def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) -> str:
@@ -859,6 +953,7 @@ def main(argv: list[str] | None = None) -> int:
             if not required.is_file():
                 raise RuntimeError(f"required task input is missing: {required}")
         paths = _make_run_dirs(args.run_id)
+        _prepare_reference_paths(args)
         mds_root = _data_root(TASK_ROOT)
         filesystem = _filesystem_status(paths, mds_root)
         tmp_dir, tmp_capacity = _make_local_tmpdir(args.run_id)
@@ -872,7 +967,11 @@ def main(argv: list[str] | None = None) -> int:
         _write_experiment_config(experiment_config)
         env = _run_environment(paths)
         source_before = source_snapshot(TASK_ROOT)
-        config_before = _config_hashes()
+        reference_mode = args.native_reference_output is not None or args.native_reference_input is not None
+        config_before = _config_hashes(
+            native_numerics=args.native_numerics,
+            native_reference=reference_mode,
+        )
         config_before["generated_experiment_sha256"] = sha256_file(experiment_config)
         runtime = _runtime_preflight(env, paths)
 
@@ -922,6 +1021,33 @@ def main(argv: list[str] | None = None) -> int:
             "huggingface_cache_policy": "persistent task-owned cache with offline mode",
             "started_at_utc": datetime.now(timezone.utc).isoformat(),
         }
+        if args.native_numerics:
+            metadata["native_numerics"] = {
+                "schema": "native-numerical-receipt-v1",
+                "capture_updates": [1, 2, 50],
+                "expected_microbatches": 32,
+                "scope": "diagnostic only; no TPS",
+            }
+        if reference_mode:
+            reference_mode_name = (
+                "export" if args.native_reference_output is not None else "compare"
+            )
+            metadata["native_reference"] = {
+                "schema": "native-numerical-calibration-v1",
+                "mode": reference_mode_name,
+                "capture_update": args.native_capture_update,
+                "prefix_updates": list(range(1, args.native_capture_update + 1)),
+                "reference_namespace": str(
+                    args.native_reference_output or args.native_reference_input
+                ),
+                "expected_microbatches": 32,
+                "monitor_interval": 50,
+                "scope": "A/A numerical calibration only; no TPS, profiler capture, parameter clone, checkpoint, rollback, or extra collective",
+                "resource_estimate": (
+                    "about 47.515 GB per rank per capture; about 380.122 GB live across 8 ranks; three exports write about 1.140 TB total; both sides of six startups add about 2.281 TB D2H and about 456 GB initial-state hashing"
+                ),
+                "payload_retention": "reference tensor files are deleted one at a time only after durable per-observation comparison metrics are written",
+            }
         if args.profile_update is not None:
             metadata["profile_capture"] = _profile_capture_spec(args)
         command = _command(args, paths)
@@ -949,7 +1075,10 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         source_after = source_snapshot(TASK_ROOT)
-        config_after = _config_hashes()
+        config_after = _config_hashes(
+            native_numerics=args.native_numerics,
+            native_reference=reference_mode,
+        )
         config_after["generated_experiment_sha256"] = sha256_file(experiment_config)
         source_unchanged = (
             source_after["tracked_and_untracked_sha256"]
@@ -1036,7 +1165,13 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 try:
                     source_after = source_snapshot(TASK_ROOT)
-                    config_after = _config_hashes()
+                    config_after = _config_hashes(
+                        native_numerics=args.native_numerics,
+                        native_reference=(
+                            args.native_reference_output is not None
+                            or args.native_reference_input is not None
+                        ),
+                    )
                     experiment_path = paths["config"] / "experiment.yaml"
                     if experiment_path.is_file():
                         config_after["generated_experiment_sha256"] = sha256_file(

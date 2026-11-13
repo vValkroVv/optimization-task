@@ -1057,7 +1057,10 @@ def _profile_parser_fixture(run_dir: Path, *, target_update: int = 2, warmup: in
             f"task.profile_update.2.train_step.rank{rank}",
             f"task.profile_update.2.optimizer_step.rank{rank}",
         ]
-        events = [{"ph": "X", "name": name, "ts": index, "dur": 1} for index, name in enumerate(names)]
+        events = [
+            {"ph": "X", "cat": "user_annotation", "name": name, "ts": index, "dur": 1}
+            for index, name in enumerate(names)
+        ]
         (trace_dir / f"rank{rank}_trace.json").write_text(
             json.dumps({"traceEvents": events}), encoding="utf-8"
         )
@@ -1076,6 +1079,38 @@ def test_profile_parser_requires_exact_rank_traces_and_markers(tmp_path: Path) -
     assert "tokens" not in summary
 
 
+def test_profile_parser_separates_gpu_marker_projections_from_cpu_calls(
+    tmp_path: Path,
+) -> None:
+    _profile_parser_fixture(tmp_path)
+    trace_dir = tmp_path / "native/profiling/traces/iteration_2"
+    for rank in (0, 1):
+        path = trace_dir / f"rank{rank}_trace.json"
+        trace = json.loads(path.read_text(encoding="utf-8"))
+        gpu_projections = [
+            {**event, "cat": "gpu_user_annotation"}
+            for event in trace["traceEvents"]
+            if event["name"].endswith(("microbatch.rank" + str(rank), "train_step.rank" + str(rank)))
+        ]
+        trace["traceEvents"].extend(gpu_projections)
+        path.write_text(json.dumps(trace), encoding="utf-8")
+
+    summary = parse_results.summarize_run(tmp_path)
+
+    assert summary["status"] == "complete", summary["errors"]
+    for rank in (0, 1):
+        trace_summary = summary["profile_capture"]["traces_by_rank"][str(rank)]
+        assert trace_summary["marker_counts"] == {
+            f"task.profile_update.2.microbatch.rank{rank}": 32,
+            f"task.profile_update.2.train_step.rank{rank}": 1,
+            f"task.profile_update.2.optimizer_step.rank{rank}": 1,
+        }
+        assert trace_summary["gpu_projection_counts"] == {
+            f"task.profile_update.2.microbatch.rank{rank}": 32,
+            f"task.profile_update.2.train_step.rank{rank}": 1,
+        }
+
+
 @pytest.mark.parametrize(
     "failure",
     [
@@ -1085,6 +1120,12 @@ def test_profile_parser_requires_exact_rank_traces_and_markers(tmp_path: Path) -
         "wrong_rank",
         "wrong_update_marker",
         "wrong_rank_marker",
+        "missing_category",
+        "unknown_category",
+        "wrong_category",
+        "extra_cpu_marker",
+        "unexpected_gpu_marker",
+        "non_complete_marker",
         "call_count",
         "profiler_rank",
         "missing_guard",
@@ -1113,15 +1154,58 @@ def test_profile_parser_rejects_incomplete_trace_receipts(
     elif failure == "wrong_rank":
         (trace_dir / "rank0_trace.json").rename(trace_dir / "rank2_trace.json")
         (trace_dir / "rank1_trace.json").rename(trace_dir / "rank3_trace.json")
-    elif failure in {"wrong_update_marker", "wrong_rank_marker"}:
+    elif failure in {
+        "wrong_update_marker",
+        "wrong_rank_marker",
+        "unexpected_gpu_marker",
+    }:
         path = trace_dir / "rank0_trace.json"
         trace = json.loads(path.read_text(encoding="utf-8"))
-        marker = (
-            "task.profile_update.1.microbatch.rank0"
-            if failure == "wrong_update_marker"
-            else "task.profile_update.2.microbatch.rank2"
+        if failure == "wrong_update_marker":
+            marker = "task.profile_update.1.microbatch.rank0"
+            category = "user_annotation"
+        elif failure == "wrong_rank_marker":
+            marker = "task.profile_update.2.microbatch.rank2"
+            category = "user_annotation"
+        else:
+            marker = "task.profile_update.2.optimizer_step.rank2"
+            category = "gpu_user_annotation"
+        trace["traceEvents"].append(
+            {"ph": "X", "cat": category, "name": marker, "ts": 99, "dur": 1}
         )
-        trace["traceEvents"].append({"ph": "X", "name": marker, "ts": 99, "dur": 1})
+        path.write_text(json.dumps(trace), encoding="utf-8")
+    elif failure in {"missing_category", "unknown_category", "wrong_category"}:
+        path = trace_dir / "rank0_trace.json"
+        trace = json.loads(path.read_text(encoding="utf-8"))
+        event = next(
+            item
+            for item in trace["traceEvents"]
+            if item["name"] == "task.profile_update.2.optimizer_step.rank0"
+        )
+        if failure == "missing_category":
+            event.pop("cat")
+        elif failure == "unknown_category":
+            event["cat"] = "cpu_user_annotation"
+        else:
+            event["cat"] = "gpu_user_annotation"
+        path.write_text(json.dumps(trace), encoding="utf-8")
+    elif failure in {"extra_cpu_marker", "non_complete_marker"}:
+        path = trace_dir / "rank0_trace.json"
+        trace = json.loads(path.read_text(encoding="utf-8"))
+        if failure == "extra_cpu_marker":
+            event = next(
+                item
+                for item in trace["traceEvents"]
+                if item["name"] == "task.profile_update.2.microbatch.rank0"
+            )
+            trace["traceEvents"].append({**event, "ts": 99})
+        else:
+            event = next(
+                item
+                for item in trace["traceEvents"]
+                if item["name"] == "task.profile_update.2.train_step.rank0"
+            )
+            event["ph"] = "B"
         path.write_text(json.dumps(trace), encoding="utf-8")
     elif failure == "call_count":
         path = tmp_path / "measurement/rank-04.json"
