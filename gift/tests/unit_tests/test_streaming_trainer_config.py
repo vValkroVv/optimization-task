@@ -20,6 +20,8 @@ from tests.unit_tests.streaming_helpers import (
 from torchtitan.components.dataloader import build_replicated_dataloader
 from torchtitan.distributed import ParallelDims
 from torchtitan.distributed.data_world import DataWorld
+from torchtitan.config.decode import decode
+from torchtitan.config.errors import ConfigSchemaError
 from torchtitan.config.schema.datasets.streaming.text.configs import (
     StreamingTextDatasetConfig,
     TextStreamConfig,
@@ -71,6 +73,18 @@ def test_classvar_contract():
     assert config.use_data_world is True
     assert config.replicate_batch_over == ("pp",)
     assert config.supports_reiteration is True
+
+
+def test_prefetch_config_defaults_off_and_decodes_candidate_override():
+    config_type = StreamingTextDataLoader.Config
+    assert config_type().num_prefetch_batches == 0
+    decoded = decode(config_type, {"num_prefetch_batches": 32}, path="dataloader")
+    assert decoded.num_prefetch_batches == 32
+
+    with pytest.raises(ConfigSchemaError, match="dataloader.num_prefetch_batches"):
+        decode(config_type, {"num_prefetch_batches": -1}, path="dataloader")
+    with pytest.raises(ValueError, match="dataloader.num_prefetch_batches"):
+        config_type(num_prefetch_batches=-1)
 
 
 def test_builds_and_fetches_through_trainer_contract(tmp_path):

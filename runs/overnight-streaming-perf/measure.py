@@ -136,6 +136,38 @@ def parameter_census(model_parts: Any) -> dict[str, Any]:
     return totals
 
 
+def host_memory_snapshot() -> dict[str, Any]:
+    """Read process-tree RSS outside the timed window; no tensor/device reads."""
+    pending = [os.getpid()]
+    processes: dict[str, dict[str, int]] = {}
+    errors: list[str] = []
+    seen: set[int] = set()
+    while pending:
+        pid = pending.pop()
+        if pid in seen:
+            continue
+        seen.add(pid)
+        root = Path("/proc") / str(pid)
+        try:
+            status = root.joinpath("status").read_text()
+            values = {}
+            for line in status.splitlines():
+                name, _, value = line.partition(":")
+                if name in ("VmRSS", "VmHWM"):
+                    values[name + "_bytes"] = int(value.split()[0]) * 1024
+            processes[str(pid)] = values
+            # Workers may be spawned by the prefetch thread rather than main.
+            for thread in root.joinpath("task").iterdir():
+                pending.extend(int(child) for child in thread.joinpath("children").read_text().split())
+        except (OSError, ValueError) as error:
+            errors.append(f"pid {pid}: {type(error).__name__}")
+    own = processes.pop(str(os.getpid()), {})
+    return {"self": own, "descendants": processes,
+            "descendant_rss_sum_bytes": sum(row.get("VmRSS_bytes", 0) for row in processes.values()),
+            "errors": errors,
+            "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak"}
+
+
 class WindowMeasurement:
     """Collect one local rank's full-update window and lightweight cadence data."""
 
@@ -155,6 +187,7 @@ class WindowMeasurement:
         memory_stats: Callable[[], dict[str, int]],
         capture_microbatches: bool,
         profile_update: int | None = None,
+        profile_microbatches: int = 0,
         clock_ns: Callable[[], int] = time.monotonic_ns,
         wall_clock_ns: Callable[[], int] = time.time_ns,
         compiler_snapshot: Callable[[], dict[str, Any]] | None = None,
@@ -174,11 +207,21 @@ class WindowMeasurement:
         self.memory_stats = memory_stats
         self.capture_microbatches = capture_microbatches
         self.profile_update = profile_update
+        self.profile_microbatches = profile_microbatches
+        self.collected_microbatches = 0
+        self.collection_stopped = False
+        self.prefetch_observations: list[dict[str, Any]] = []
+        self.token_reduction_calls = 0
         self.clock_ns = clock_ns
         self.wall_clock_ns = wall_clock_ns
         self.compiler_snapshot = compiler_snapshot
         self.compiler_source_metadata = compiler_source_metadata
         self.compiler_guard_activate = compiler_guard_activate
+        self._training_boundary_receipts: dict[str, Any] = {
+            "before_train": self._capture_epoch_receipt(),
+            "before_window": None,
+            "after_train": None,
+        }
 
         self.host_name = socket.gethostname()
         self.parameter_census = parameter_census(trainer.model_parts)
@@ -211,8 +254,89 @@ class WindowMeasurement:
         self._allocator_start: dict[str, int | None] | None = None
         self._allocator_end: dict[str, int | None] | None = None
         self._peak_bytes: dict[str, int] = {}
+        self._host_memory_start: dict[str, Any] | None = None
+        self._host_memory_end: dict[str, Any] | None = None
         self._failure_reason: str | None = None
         self._written = False
+
+    @staticmethod
+    def _optional_int_attribute(owner: Any, name: str) -> int | None:
+        try:
+            value = getattr(owner, name)
+            return None if value is None else int(value)
+        except Exception:
+            return None
+
+    def _capture_epoch_receipt(self) -> dict[str, Any]:
+        try:
+            dataloader = getattr(self.trainer, "dataloader", None)
+            dataset = getattr(dataloader, "dataset", None)
+        except Exception:
+            dataset = None
+        if dataset is None:
+            return {
+                "dataset_available": False,
+                "epoch_size": None,
+                "length_samples_per_rank": None,
+                "next_epoch": None,
+            }
+
+        try:
+            length_samples_per_rank = len(dataset)
+        except Exception:
+            length_samples_per_rank = None
+        return {
+            "dataset_available": True,
+            "epoch_size": self._optional_int_attribute(dataset, "epoch_size"),
+            "length_samples_per_rank": length_samples_per_rank,
+            "next_epoch": self._optional_int_attribute(dataset, "next_epoch"),
+        }
+
+    def _capture_prefetch_queue_receipt(self) -> dict[str, Any]:
+        try:
+            dataloader = getattr(self.trainer, "dataloader", None)
+            iterator = getattr(dataloader, "_prefetch_iterator", None)
+        except Exception:
+            iterator = None
+        receipt: dict[str, Any] = {
+            "iterator_present": iterator is not None,
+            "snapshot_available": False,
+            "capacity": None,
+            "ready_count": None,
+            "producer_thread_name": None,
+            "producer_thread_alive": None,
+        }
+        if iterator is None:
+            return receipt
+
+        try:
+            condition = getattr(iterator, "_condition")
+            with condition:
+                ready = getattr(iterator, "_ready")
+                thread = getattr(iterator, "_thread")
+                capacity = self._optional_int_attribute(iterator, "_capacity")
+                ready_count = len(ready)
+                thread_name = getattr(thread, "name", None)
+                is_alive = getattr(thread, "is_alive", None)
+                thread_alive = bool(is_alive()) if callable(is_alive) else None
+                receipt.update(
+                    {
+                        "snapshot_available": True,
+                        "capacity": capacity,
+                        "ready_count": ready_count,
+                        "producer_thread_name": thread_name,
+                        "producer_thread_alive": thread_alive,
+                    }
+                )
+        except Exception:
+            # This is an observational receipt; a missing test-double or loader
+            # detail must not change native training behavior.
+            pass
+        return receipt
+
+    def capture_after_train(self) -> None:
+        """Record the dataset epoch after the native Trainer.train() call returns."""
+        self._training_boundary_receipts["after_train"] = self._capture_epoch_receipt()
 
     def note_microbatch_complete(self, step: int) -> None:
         if self.capture_microbatches:
@@ -282,6 +406,11 @@ class WindowMeasurement:
             )
         if self.compiler_snapshot is not None:
             self._compiler_before = self._capture_compiler_state()
+        self._training_boundary_receipts["before_window"] = {
+            "epoch": self._capture_epoch_receipt(),
+            "prefetch_queue": self._capture_prefetch_queue_receipt(),
+        }
+        self._host_memory_start = host_memory_snapshot()
         self._window_start_wall_ns = self.wall_clock_ns()
         start_ns = self.clock_ns()
         stats = self._sample_memory()
@@ -297,6 +426,7 @@ class WindowMeasurement:
         self._sync_count += 1
         end_ns = self.clock_ns()
         self._window_end_wall_ns = self.wall_clock_ns()
+        self._host_memory_end = host_memory_snapshot()
         self._record_compiler_guard_end(self.warmup_updates + self.window_updates)
         if self.compiler_snapshot is not None:
             self._compiler_after = self._capture_compiler_state()
@@ -430,6 +560,8 @@ class WindowMeasurement:
             "cuda_synchronize_calls": self._sync_count,
             "memory": {
                 "peak_bytes": dict(self._peak_bytes),
+                "host_before_start_timestamp": self._host_memory_start,
+                "host_after_end_timestamp": self._host_memory_end,
                 "allocator_counters_start": self._allocator_start,
                 "allocator_counters_end": self._allocator_end,
                 "allocator_counter_deltas": retry_deltas,
@@ -495,6 +627,7 @@ class WindowMeasurement:
             "measurement_status": measurement_status,
             "measurement": window_result,
             "parameter_census": self.parameter_census,
+            "training_boundary_receipts": self._training_boundary_receipts,
             "cadence": self._cadence,
             "microbatch_calls_by_step": {
                 str(step): count
@@ -505,6 +638,13 @@ class WindowMeasurement:
         if self.profile_update is not None:
             record["profile_capture"] = {
                 "target_update": self.profile_update,
+                "profile_microbatches": self.profile_microbatches,
+                "collected_microbatches": self.collected_microbatches,
+                "collection_stopped": self.collection_stopped,
+                "early_stop_cuda_drains": int(self.collection_stopped),
+                "export_update": self.profile_update if self.collection_stopped else None,
+                "token_reduction_calls": self.token_reduction_calls,
+                "prefetch_observations": self.prefetch_observations,
                 "warmup_updates": self.warmup_updates,
                 "microbatch_calls": self._profile_microbatch_calls,
                 "train_step_calls": self._profile_train_step_calls,
@@ -539,6 +679,9 @@ class NativeAdapter:
         memory_stats: Callable[[], dict[str, int]],
         optimizer_class: type | None = None,
         deep_gemm_cache_redirect: DeepGemmCacheRedirect | None = None,
+        token_reduction_module: Any = None,
+        prefetch_class: type | None = None,
+        loader_class: type | None = None,
     ) -> None:
         self.trainer_class = trainer_class
         self.profiler_class = profiler_class
@@ -549,6 +692,9 @@ class NativeAdapter:
         self.memory_stats = memory_stats
         self.optimizer_class = optimizer_class
         self.deep_gemm_cache_redirect = deep_gemm_cache_redirect
+        self.token_reduction_module = token_reduction_module
+        self.prefetch_class = prefetch_class
+        self.loader_class = loader_class
         self.compiler_guard_identity = options.get("compiler_guard_identity")
         self.window_options = {
             name: value
@@ -559,6 +705,8 @@ class NativeAdapter:
         self._compiler_guard_activated = False
         self.active: WindowMeasurement | None = None
         self._originals: list[tuple[Any, str, Any]] = []
+        self._native_profiler: Any = None
+        self._prefix_scope: Any = None
 
     def _activate_compiler_guard(
         self, activation_after_update: int, activation_sync_calls: int
@@ -655,6 +803,7 @@ class NativeAdapter:
             succeeded = False
             try:
                 result = original_train(trainer, *args, **kwargs)
+                self.active.capture_after_train()
                 succeeded = True
             except BaseException as exc:
                 self.active.finish(training_succeeded=False, error=exc)
@@ -687,7 +836,7 @@ class NativeAdapter:
                 is_active_trainer = active is not None and trainer is active.trainer
                 step = int(trainer.step) if is_active_trainer else None
                 mark_profile = is_active_trainer and step == profile_update
-                if mark_profile and active.rank in (0, 1):
+                if mark_profile and active.rank in (0, 1) and not active.collection_stopped:
                     scope = torch.profiler.record_function(
                         f"task.profile_update.{profile_update}.microbatch.rank{active.rank}"
                     )
@@ -697,6 +846,23 @@ class NativeAdapter:
                     result = original_forward_backward(trainer, *args, **kwargs)
                 if mark_profile:
                     active.note_profile_microbatch_complete(step)
+                    if active.rank in (0, 1) and not active.collection_stopped:
+                        active.collected_microbatches += 1
+                        if active.profile_microbatches and active.collected_microbatches == active.profile_microbatches:
+                            self.cuda_synchronize()
+                            if self._prefix_scope is not None:
+                                self._prefix_scope.__exit__(None, None, None)
+                                self._prefix_scope = None
+                            native = self._native_profiler
+                            if native is None or native.torch_profiler is None:
+                                raise RuntimeError("bounded capture lacks an active native profiler")
+                            handle = native.torch_profiler
+                            # Native export names the trace from step_num; collection
+                            # ends within this update before the normal step() call.
+                            handle.step_num = profile_update
+                            native.torch_profiler = None
+                            handle.__exit__(None, None, None)
+                            active.collection_stopped = True
                 return result
 
             def tracked_train_step(trainer: Any, *args: Any, **kwargs: Any) -> Any:
@@ -710,8 +876,18 @@ class NativeAdapter:
                     scope = torch.profiler.record_function(
                         f"task.profile_update.{profile_update}.train_step.rank{active.rank}"
                     )
-                    with scope:
-                        result = original_train_step(trainer, *args, **kwargs)
+                    if active.profile_microbatches:
+                        self._prefix_scope = scope
+                        scope.__enter__()
+                        try:
+                            result = original_train_step(trainer, *args, **kwargs)
+                        finally:
+                            if self._prefix_scope is not None:
+                                self._prefix_scope.__exit__(*sys.exc_info())
+                                self._prefix_scope = None
+                    else:
+                        with scope:
+                            result = original_train_step(trainer, *args, **kwargs)
                 else:
                     result = original_train_step(trainer, *args, **kwargs)
                 if mark_profile:
@@ -728,7 +904,7 @@ class NativeAdapter:
                 mark_profile = (
                     is_active_optimizer and step == profile_update
                 )
-                if mark_profile and active.rank in (0, 1):
+                if mark_profile and active.rank in (0, 1) and not active.collection_stopped:
                     scope = torch.profiler.record_function(
                         f"task.profile_update.{profile_update}.optimizer_step.rank{active.rank}"
                     )
@@ -743,10 +919,58 @@ class NativeAdapter:
             def tracked_build_torch_profiler(
                 profiler: Any, *args: Any, **kwargs: Any
             ) -> Any:
+                self._native_profiler = profiler
                 result = original_build_torch_profiler(profiler, *args, **kwargs)
                 if self.active is not None:
                     self.active.note_native_profiler_build(result is not None)
                 return result
+
+        if profile_update is not None and self.options.get("profile_microbatches"):
+            def collecting() -> bool:
+                active = self.active
+                return (active is not None and active.rank in (0, 1)
+                        and int(active.trainer.step) == profile_update
+                        and not active.collection_stopped)
+
+            if self.token_reduction_module is not None:
+                original_dist_sum = self.token_reduction_module.dist_sum
+
+                def tracked_token_sum(*args: Any, **kwargs: Any) -> Any:
+                    if collecting() and self.active._profile_microbatch_calls == 0:
+                        with torch.profiler.record_function("task.token_count.global_reduction"):
+                            result = original_dist_sum(*args, **kwargs)
+                        self.active.token_reduction_calls += 1
+                        return result
+                    return original_dist_sum(*args, **kwargs)
+
+                self._replace(self.token_reduction_module, "dist_sum", tracked_token_sum)
+            if self.prefetch_class is not None:
+                original_next = self.prefetch_class.__next__
+
+                def tracked_queue_pop(iterator: Any) -> Any:
+                    if not collecting():
+                        return original_next(iterator)
+                    with iterator._condition:
+                        observation = {"ready_before": len(iterator._ready),
+                                       "capacity": iterator._capacity,
+                                       "producer_alive": iterator._thread.is_alive(),
+                                       "producer_name": iterator._thread.name}
+                    with torch.profiler.record_function("task.prefetch.queue_pop_wait"):
+                        result = original_next(iterator)
+                    self.active.prefetch_observations.append(observation)
+                    return result
+
+                self._replace(self.prefetch_class, "__next__", tracked_queue_pop)
+            if self.loader_class is not None:
+                original_epoch = self.loader_class.begin_prefetch_epoch
+
+                def tracked_epoch(loader: Any, *args: Any, **kwargs: Any) -> Any:
+                    if collecting():
+                        with torch.profiler.record_function("task.prefetch.consumer_epoch_entry"):
+                            return original_epoch(loader, *args, **kwargs)
+                    return original_epoch(loader, *args, **kwargs)
+
+                self._replace(self.loader_class, "begin_prefetch_epoch", tracked_epoch)
 
         self._replace(self.trainer_class, "train", tracked_train)
         self._replace(self.profiler_class, "step", tracked_profiler_step)
@@ -822,7 +1046,10 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--observe-compiler-cache", action="store_true")
     parser.add_argument("--capture-microbatches", action="store_true")
     parser.add_argument("--profile-update", type=int)
+    parser.add_argument("--profile-microbatches", type=int, default=0)
     args = parser.parse_args(helper_argv)
+    if not 0 <= args.profile_microbatches <= 3 or (args.profile_microbatches and args.profile_update is None):
+        parser.error("profile-microbatches requires profile-update and a value from 0 to 3")
     if not train_argv:
         parser.error("a native experiment config and overrides must follow `--`")
     if args.window < 0 or args.warmup < 0 or args.steps <= 0:
@@ -886,7 +1113,10 @@ def _route_rank_triton_cache(measurement_dir: Path) -> tuple[int, Path]:
 
     measurement = _task_path(Path(measurement_dir), "measurement directory")
     try:
-        measurement.relative_to(RAW_ROOT.resolve(strict=True))
+        if not measurement.is_relative_to(RAW_ROOT.resolve(strict=True)):
+            relative = measurement.relative_to(TASK_ROOT / "runs")
+            if len(relative.parts) != 5 or relative.parts[1:3] != ("artifacts", "raw"):
+                raise ValueError("unexpected artifact layout")
     except ValueError as exc:
         raise RuntimeError(
             f"measurement directory must remain under task raw artifacts: {measurement}"
@@ -991,6 +1221,7 @@ def main(argv: list[str] | None = None) -> None:
         "monitor_interval": args.monitor_interval,
         "capture_microbatches": args.capture_microbatches,
         "profile_update": args.profile_update,
+        "profile_microbatches": args.profile_microbatches,
     }
     if args.observe_compiler_cache and args.window:
         from compiler_stats import CompilationWindowObserver
@@ -998,7 +1229,16 @@ def main(argv: list[str] | None = None) -> None:
         compiler_observer = CompilationWindowObserver()
         options["compiler_snapshot"] = compiler_observer.snapshot
         options["compiler_source_metadata"] = compiler_observer.source_metadata
+    diagnostic_classes = {}
+    if args.profile_microbatches:
+        from torchtitan.datasets.streaming.core.prefetch import PrefetchIterator
+        from torchtitan.datasets.streaming.core.dataloader import _TitanStreamingDataLoader
+
+        diagnostic_classes = {"prefetch_class": PrefetchIterator,
+                              "loader_class": _TitanStreamingDataLoader,
+                              "token_reduction_module": trainer_module.dist_utils}
     adapter = NativeAdapter(
+        **diagnostic_classes,
         trainer_class=trainer_module.Trainer,
         profiler_class=profiler_module.Profiler,
         optimizer_class=trainer_module.OptimizersContainer,

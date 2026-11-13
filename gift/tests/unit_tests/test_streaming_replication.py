@@ -21,7 +21,15 @@ ROW_LEN = 4
 LOCAL_BATCH_SIZE = 2
 
 
-def _make_loader(local_dir, *, rank, world_size, replication=1, shuffle=False):
+def _make_loader(
+    local_dir,
+    *,
+    rank,
+    world_size,
+    replication=1,
+    shuffle=False,
+    num_prefetch_batches=0,
+):
     config = StreamingTextDataLoader.Config(
         dataset=StreamingTextDatasetConfig(
             streams=[TextStreamConfig(local=str(local_dir))],
@@ -30,6 +38,7 @@ def _make_loader(local_dir, *, rank, world_size, replication=1, shuffle=False):
         ),
         infinite=False,
         num_workers=0,
+        num_prefetch_batches=num_prefetch_batches,
     )
     return config.build(
         data_world=DataWorld(rank=rank, world_size=world_size, replication=replication),
@@ -85,8 +94,17 @@ def test_step_composition_invariant_to_replication(mds_dir):
             assert plain_step == replicated_step, f"step {step}, shuffle={shuffle}"
 
 
-def test_state_cursor_is_global_and_matches_pre_replication_format(mds_dir):
-    loader = _make_loader(mds_dir, rank=0, world_size=4, replication=2)
+@pytest.mark.parametrize("num_prefetch_batches", [0, 3])
+def test_state_cursor_is_global_and_matches_pre_replication_format(
+    mds_dir, num_prefetch_batches
+):
+    loader = _make_loader(
+        mds_dir,
+        rank=0,
+        world_size=4,
+        replication=2,
+        num_prefetch_batches=num_prefetch_batches,
+    )
     iterator = iter(loader)
     num_yielded = 2
     for _ in range(num_yielded):
@@ -99,8 +117,15 @@ def test_state_cursor_is_global_and_matches_pre_replication_format(mds_dir):
     assert state["dp_rank_0"]["sample_in_epoch"] == expected_cursor
 
 
-def test_resume_across_replication_change(mds_dir):
-    loader = _make_loader(mds_dir, rank=0, world_size=4, replication=2)
+@pytest.mark.parametrize("num_prefetch_batches", [0, 3])
+def test_resume_across_replication_change(mds_dir, num_prefetch_batches):
+    loader = _make_loader(
+        mds_dir,
+        rank=0,
+        world_size=4,
+        replication=2,
+        num_prefetch_batches=num_prefetch_batches,
+    )
     iterator = iter(loader)
     next(iterator)
     state = loader.state_dict()

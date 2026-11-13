@@ -1,0 +1,1066 @@
+{
+  "acceptance": [
+    "Four native rank0/1 captures of update21 after20 warmup",
+    "Complete input/token reduction and exactly three complete CPU/GPU F/B microbatches; no fourth or optimizer capture",
+    "All eight ranks continue32 microbatches and optimizer; only0/1 construct profilers",
+    "Deterministic gzip and decompressed SHA256 match before redundant plain removal"
+  ],
+  "analysis_engine": "native JSON; no Perfetto importer or service used",
+  "consumers_stopped_confirmation": true,
+  "runs": [
+    {
+      "argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "-m",
+        "torch.distributed.run",
+        "--standalone",
+        "--nnodes=1",
+        "--nproc_per_node=8",
+        "--max_restarts=0",
+        "--log_dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/logs/torchrun",
+        "--redirects=3",
+        "--tee=3",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/measure.py",
+        "--measurement-dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/measurement",
+        "--run-id",
+        "v2-long-epoch-baseline-trace-001",
+        "--steps",
+        "21",
+        "--warmup",
+        "20",
+        "--window",
+        "0",
+        "--profile-update",
+        "21",
+        "--capture-microbatches",
+        "--profile-microbatches",
+        "3",
+        "--",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/config/experiment.yaml",
+        "--dataloader.num_prefetch_batches",
+        "0",
+        "--training.steps",
+        "21",
+        "--lr_scheduler.total_steps",
+        "65000",
+        "--lr_scheduler.warmup_steps",
+        "2000",
+        "--debug.seed",
+        "2048",
+        "--metrics.log_freq",
+        "1",
+        "--checkpoint.enable",
+        "false",
+        "--validator.enable",
+        "false",
+        "--profiler.enable_profiling",
+        "true",
+        "--profiler.enable_memory_snapshot",
+        "false",
+        "--dump_folder",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/native",
+        "--hf_assets_path",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/assets/tokenizer",
+        "--dataloader.dataset.epoch_size",
+        "51200",
+        "--profiler.profile_ranks",
+        "[0, 1]",
+        "--profiler.save_traces_folder",
+        "profiling/traces",
+        "--profiler.record_shapes",
+        "false",
+        "--profiler.profile_freq",
+        "2",
+        "--profiler.profiler_warmup",
+        "1",
+        "--profiler.profiler_active",
+        "1",
+        "--profiler.profiler_repeat",
+        "1",
+        "--profiler.profiler_skip_first",
+        "19",
+        "--profiler.profiler_skip_first_wait",
+        "0"
+      ],
+      "completion": {
+        "config_unchanged": true,
+        "finished_at_utc": "2026-11-13T15:55:31.801856+00:00",
+        "resolved_config_sha256": "4db343014662ed4cd814fd02e567d01f990ccfbe4acf2382ce4a6c6e9cd29285",
+        "source_unchanged": true,
+        "status": "PASS",
+        "task_tmpdir": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-aiqnlb_3",
+        "task_tmpdir_removed": true
+      },
+      "configuration_identity": {
+        "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+        "compiler_observer_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+        "generated_experiment_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+        "mds_fragment_sha256": "9aa85c4e17d0fd813ab50e95ee14d5b6caba1b5c3e4ae9654fb28b8a047d49cc",
+        "measurement_adapter_sha256": "8288698d1495cfdfed66953e22b0e84fc8b93f4720702f979309d38e9be99194",
+        "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+        "runner_sha256": "2e55a19740f9244c7ad515f31c53c1be2a8f621aa36e7a71c42c51b82d99992f"
+      },
+      "data_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096",
+      "metadata_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/metadata.json",
+      "metadata_sha256": "887d652d1fc241d5c09c9e62eb4c8b4821a965286c186acf35912d2a6128ed1f",
+      "parser_summary": {
+        "deep_gemm_compilation_guard": {
+          "by_rank": {},
+          "manifest": null,
+          "status": "disabled"
+        },
+        "errors": [],
+        "measurement_status": "disabled",
+        "mode": "profile_update",
+        "parameter_census_by_rank": {
+          "0": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "1": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "2": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "3": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "4": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "5": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "6": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "7": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          }
+        },
+        "profile_capture": {
+          "call_counts_by_rank": {
+            "0": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": true,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "1": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": true,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "2": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "3": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "4": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "5": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "6": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "7": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            }
+          },
+          "native_hardcoded": {
+            "profile_memory": false,
+            "with_stack": false
+          },
+          "profile_ranks": [
+            0,
+            1
+          ],
+          "settings": {
+            "profiler.enable_memory_snapshot": false,
+            "profiler.enable_profiling": true,
+            "profiler.profile_freq": 2,
+            "profiler.profile_ranks": [
+              0,
+              1
+            ],
+            "profiler.profiler_active": 1,
+            "profiler.profiler_repeat": 1,
+            "profiler.profiler_skip_first": 19,
+            "profiler.profiler_skip_first_wait": 0,
+            "profiler.profiler_warmup": 1,
+            "profiler.record_shapes": false,
+            "profiler.save_traces_folder": "profiling/traces"
+          },
+          "target_update": 21,
+          "traces_by_rank": {
+            "0": {
+              "gpu_projection_counts": {
+                "task.profile_update.21.microbatch.rank0": 3,
+                "task.profile_update.21.train_step.rank0": 1
+              },
+              "marker_counts": {
+                "task.profile_update.21.microbatch.rank0": 3,
+                "task.profile_update.21.train_step.rank0": 1
+              },
+              "path": "native/profiling/traces/iteration_21/rank0_trace.json",
+              "sha256": "9e15c66822168cce006dff04a74a0635d3ed96d8af8d72f15b7e61e363f6dac8",
+              "size_bytes": 27713936
+            },
+            "1": {
+              "gpu_projection_counts": {
+                "task.profile_update.21.microbatch.rank1": 3,
+                "task.profile_update.21.train_step.rank1": 1
+              },
+              "marker_counts": {
+                "task.profile_update.21.microbatch.rank1": 3,
+                "task.profile_update.21.train_step.rank1": 1
+              },
+              "path": "native/profiling/traces/iteration_21/rank1_trace.json",
+              "sha256": "5ea2130711b59e5090f1e97c3ca9c3007cbcd2b87e0089371dd0450574aacdae",
+              "size_bytes": 27693335
+            }
+          },
+          "warmup_updates": 20
+        },
+        "run_id": "v2-long-epoch-baseline-trace-001",
+        "schema_version": 1,
+        "status": "complete",
+        "training_steps": 21
+      },
+      "run_id": "v2-long-epoch-baseline-trace-001",
+      "runtime": {
+        "core_file_limit": [
+          0,
+          0
+        ],
+        "cuda_available": true,
+        "cuda_device_count": 8,
+        "cuda_home": "/usr/local/cuda",
+        "gpus": [
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 0,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 1,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 2,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 3,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 4,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 5,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 6,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 7,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          }
+        ],
+        "nccl": [
+          2,
+          30,
+          7
+        ],
+        "packages": {
+          "cutlass_dsl": {
+            "version": "4.4.1"
+          },
+          "deep_ep": {
+            "hybrid_ep_backend": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/backend/hybrid_ep_backend.cuh",
+            "hybrid_ep_backend_sha256": "b507f65cfa4580f16342076fc2d00afe81e43f64ddefcc4a3cf43681aef11b4b",
+            "hybrid_ep_wrapper": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/hybrid_ep_buffer.py",
+            "hybrid_ep_wrapper_sha256": "63e425916b3c6b0c881ad402af35a2b00c4c84203fcde611a6715744b89210cb",
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/__init__.py",
+            "version": "1.2.1+1b8f467"
+          },
+          "deep_gemm": {
+            "build_version": "2.3.0+f093a4c",
+            "extension": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/_C.cpython-312-x86_64-linux-gnu.so",
+            "header": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh",
+            "header_sha256": "fd8a620440cc31ae7d01010fde1f914aae6998f2dcf6ede2a65e3b5e76001726",
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/__init__.py",
+            "version": "2.3.0+f093a4c"
+          },
+          "streaming": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/streaming/__init__.py",
+            "version": "0.13.0"
+          },
+          "tokenizers": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/tokenizers/__init__.py",
+            "version": "0.22.2"
+          },
+          "torchtitan": {
+            "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/__init__.py",
+            "version": "0.2.2"
+          },
+          "transformers": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/transformers/__init__.py",
+            "version": "4.57.1"
+          },
+          "tvm_ffi": {
+            "version": null
+          }
+        },
+        "python": "3.12.3",
+        "python_executable": "/usr/bin/python3.12",
+        "torch": "2.15.0.dev20260822+cu130",
+        "torch_cuda": "13.0"
+      },
+      "source_identity": {
+        "git_status_sha256": "e2ff2195a60023c3607c8b047dc16f6ff776f16e8aadfad72518c246979de2dc",
+        "head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+        "tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+        "tracked_file_count": 27627,
+        "tracked_sha256": "ca6518fa3d4ba70ca935fc2bad3aa4475f5f205b9128ae2bd9ba380130179cde",
+        "untracked_file_count": 2,
+        "untracked_sha256": "449392c81f567efcc6a7171bf5e25d667f468c38106a08de6b32131005f7a841"
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "-m",
+        "torch.distributed.run",
+        "--standalone",
+        "--nnodes=1",
+        "--nproc_per_node=8",
+        "--max_restarts=0",
+        "--log_dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/logs/torchrun",
+        "--redirects=3",
+        "--tee=3",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/measure.py",
+        "--measurement-dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/measurement",
+        "--run-id",
+        "v2-long-epoch-candidate-trace-001",
+        "--steps",
+        "21",
+        "--warmup",
+        "20",
+        "--window",
+        "0",
+        "--profile-update",
+        "21",
+        "--capture-microbatches",
+        "--profile-microbatches",
+        "3",
+        "--",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/config/experiment.yaml",
+        "--dataloader.num_prefetch_batches",
+        "32",
+        "--training.steps",
+        "21",
+        "--lr_scheduler.total_steps",
+        "65000",
+        "--lr_scheduler.warmup_steps",
+        "2000",
+        "--debug.seed",
+        "2048",
+        "--metrics.log_freq",
+        "1",
+        "--checkpoint.enable",
+        "false",
+        "--validator.enable",
+        "false",
+        "--profiler.enable_profiling",
+        "true",
+        "--profiler.enable_memory_snapshot",
+        "false",
+        "--dump_folder",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native",
+        "--hf_assets_path",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/assets/tokenizer",
+        "--dataloader.dataset.epoch_size",
+        "51200",
+        "--profiler.profile_ranks",
+        "[0, 1]",
+        "--profiler.save_traces_folder",
+        "profiling/traces",
+        "--profiler.record_shapes",
+        "false",
+        "--profiler.profile_freq",
+        "2",
+        "--profiler.profiler_warmup",
+        "1",
+        "--profiler.profiler_active",
+        "1",
+        "--profiler.profiler_repeat",
+        "1",
+        "--profiler.profiler_skip_first",
+        "19",
+        "--profiler.profiler_skip_first_wait",
+        "0"
+      ],
+      "completion": {
+        "config_unchanged": true,
+        "finished_at_utc": "2026-11-13T16:08:34.981154+00:00",
+        "resolved_config_sha256": "d7477b7a10b0b2cc6569fc9f42b1860b64dbaad8062bb26f0b9f74f8f32a794f",
+        "source_unchanged": true,
+        "status": "PASS",
+        "task_tmpdir": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-zoi0hhgt",
+        "task_tmpdir_removed": true
+      },
+      "configuration_identity": {
+        "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+        "compiler_observer_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+        "generated_experiment_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+        "mds_fragment_sha256": "9aa85c4e17d0fd813ab50e95ee14d5b6caba1b5c3e4ae9654fb28b8a047d49cc",
+        "measurement_adapter_sha256": "8288698d1495cfdfed66953e22b0e84fc8b93f4720702f979309d38e9be99194",
+        "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+        "runner_sha256": "2e55a19740f9244c7ad515f31c53c1be2a8f621aa36e7a71c42c51b82d99992f"
+      },
+      "data_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096",
+      "metadata_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/metadata.json",
+      "metadata_sha256": "b9d1d851bebd336f31dce8716c010d601804b15ff270f4bd3d477f03643dc18c",
+      "parser_summary": {
+        "deep_gemm_compilation_guard": {
+          "by_rank": {},
+          "manifest": null,
+          "status": "disabled"
+        },
+        "errors": [],
+        "measurement_status": "disabled",
+        "mode": "profile_update",
+        "parameter_census_by_rank": {
+          "0": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "1": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "2": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "3": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "4": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "5": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "6": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          },
+          "7": {
+            "frozen": {
+              "by_dtype": {},
+              "local_numel": 0,
+              "tensor_count": 0
+            },
+            "trainable": {
+              "by_dtype": {
+                "torch.float32": 2375764304
+              },
+              "local_numel": 2375764304,
+              "tensor_count": 243
+            }
+          }
+        },
+        "profile_capture": {
+          "call_counts_by_rank": {
+            "0": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": true,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "1": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": true,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "2": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "3": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "4": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "5": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "6": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "7": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            }
+          },
+          "native_hardcoded": {
+            "profile_memory": false,
+            "with_stack": false
+          },
+          "profile_ranks": [
+            0,
+            1
+          ],
+          "settings": {
+            "profiler.enable_memory_snapshot": false,
+            "profiler.enable_profiling": true,
+            "profiler.profile_freq": 2,
+            "profiler.profile_ranks": [
+              0,
+              1
+            ],
+            "profiler.profiler_active": 1,
+            "profiler.profiler_repeat": 1,
+            "profiler.profiler_skip_first": 19,
+            "profiler.profiler_skip_first_wait": 0,
+            "profiler.profiler_warmup": 1,
+            "profiler.record_shapes": false,
+            "profiler.save_traces_folder": "profiling/traces"
+          },
+          "target_update": 21,
+          "traces_by_rank": {
+            "0": {
+              "gpu_projection_counts": {
+                "task.profile_update.21.microbatch.rank0": 3,
+                "task.profile_update.21.train_step.rank0": 1
+              },
+              "marker_counts": {
+                "task.profile_update.21.microbatch.rank0": 3,
+                "task.profile_update.21.train_step.rank0": 1
+              },
+              "path": "native/profiling/traces/iteration_21/rank0_trace.json",
+              "sha256": "a817b92547a4d18aca221889ee145be87e09273de8082c035a873b570d571d82",
+              "size_bytes": 27652252
+            },
+            "1": {
+              "gpu_projection_counts": {
+                "task.profile_update.21.microbatch.rank1": 3,
+                "task.profile_update.21.train_step.rank1": 1
+              },
+              "marker_counts": {
+                "task.profile_update.21.microbatch.rank1": 3,
+                "task.profile_update.21.train_step.rank1": 1
+              },
+              "path": "native/profiling/traces/iteration_21/rank1_trace.json",
+              "sha256": "119be1a5c3c63c4e7d3f8bf191b7cef4017b65b697c174017c0cc22147506258",
+              "size_bytes": 27647323
+            }
+          },
+          "warmup_updates": 20
+        },
+        "run_id": "v2-long-epoch-candidate-trace-001",
+        "schema_version": 1,
+        "status": "complete",
+        "training_steps": 21
+      },
+      "run_id": "v2-long-epoch-candidate-trace-001",
+      "runtime": {
+        "core_file_limit": [
+          0,
+          0
+        ],
+        "cuda_available": true,
+        "cuda_device_count": 8,
+        "cuda_home": "/usr/local/cuda",
+        "gpus": [
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 0,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 1,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 2,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 3,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 4,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 5,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 6,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 7,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          }
+        ],
+        "nccl": [
+          2,
+          30,
+          7
+        ],
+        "packages": {
+          "cutlass_dsl": {
+            "version": "4.4.1"
+          },
+          "deep_ep": {
+            "hybrid_ep_backend": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/backend/hybrid_ep_backend.cuh",
+            "hybrid_ep_backend_sha256": "b507f65cfa4580f16342076fc2d00afe81e43f64ddefcc4a3cf43681aef11b4b",
+            "hybrid_ep_wrapper": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/hybrid_ep_buffer.py",
+            "hybrid_ep_wrapper_sha256": "63e425916b3c6b0c881ad402af35a2b00c4c84203fcde611a6715744b89210cb",
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/__init__.py",
+            "version": "1.2.1+1b8f467"
+          },
+          "deep_gemm": {
+            "build_version": "2.3.0+f093a4c",
+            "extension": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/_C.cpython-312-x86_64-linux-gnu.so",
+            "header": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh",
+            "header_sha256": "fd8a620440cc31ae7d01010fde1f914aae6998f2dcf6ede2a65e3b5e76001726",
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/__init__.py",
+            "version": "2.3.0+f093a4c"
+          },
+          "streaming": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/streaming/__init__.py",
+            "version": "0.13.0"
+          },
+          "tokenizers": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/tokenizers/__init__.py",
+            "version": "0.22.2"
+          },
+          "torchtitan": {
+            "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/__init__.py",
+            "version": "0.2.2"
+          },
+          "transformers": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/transformers/__init__.py",
+            "version": "4.57.1"
+          },
+          "tvm_ffi": {
+            "version": null
+          }
+        },
+        "python": "3.12.3",
+        "python_executable": "/usr/bin/python3.12",
+        "torch": "2.15.0.dev20260822+cu130",
+        "torch_cuda": "13.0"
+      },
+      "source_identity": {
+        "git_status_sha256": "e2ff2195a60023c3607c8b047dc16f6ff776f16e8aadfad72518c246979de2dc",
+        "head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+        "tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+        "tracked_file_count": 27627,
+        "tracked_sha256": "ca6518fa3d4ba70ca935fc2bad3aa4475f5f205b9128ae2bd9ba380130179cde",
+        "untracked_file_count": 2,
+        "untracked_sha256": "449392c81f567efcc6a7171bf5e25d667f468c38106a08de6b32131005f7a841"
+      },
+      "variant": "candidate"
+    }
+  ],
+  "schema_version": 1,
+  "status": "PASS",
+  "traces": [
+    {
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+      "cpu_markers": {
+        "task.profile_update.21.microbatch.rank0": 3,
+        "task.profile_update.21.train_step.rank0": 1
+      },
+      "gpu_markers": {
+        "task.profile_update.21.microbatch.rank0": 3,
+        "task.profile_update.21.train_step.rank0": 1
+      },
+      "lossless_gzip_verified": true,
+      "plain_json_removed_after_verification": true,
+      "rank": 0,
+      "sha256_gzip": "5b2a23c893e59d7317dca46468b9d8416435245ebbcb865dfa3f81344c760576",
+      "sha256_uncompressed": "9e15c66822168cce006dff04a74a0635d3ed96d8af8d72f15b7e61e363f6dac8",
+      "sidecar_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/measurement/rank-00.json",
+      "sidecar_sha256": "9246eebfe53493dcd071449c35986efe92fcdc922be01b8dd44423d79851df64",
+      "size_bytes_gzip": 1975191,
+      "size_bytes_uncompressed": 27713936,
+      "variant": "baseline"
+    },
+    {
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/native/profiling/traces/iteration_21/rank1_trace.json.gz",
+      "cpu_markers": {
+        "task.profile_update.21.microbatch.rank1": 3,
+        "task.profile_update.21.train_step.rank1": 1
+      },
+      "gpu_markers": {
+        "task.profile_update.21.microbatch.rank1": 3,
+        "task.profile_update.21.train_step.rank1": 1
+      },
+      "lossless_gzip_verified": true,
+      "plain_json_removed_after_verification": true,
+      "rank": 1,
+      "sha256_gzip": "1a09edab1e9bbdbd55deea3ad8e5280c3e523e0fa60b3474ed02f88ef9783ae5",
+      "sha256_uncompressed": "5ea2130711b59e5090f1e97c3ca9c3007cbcd2b87e0089371dd0450574aacdae",
+      "sidecar_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/measurement/rank-01.json",
+      "sidecar_sha256": "a89de01de0c240d7270efb85a728fc31c08b0637ca56dd708e8621eebe52258e",
+      "size_bytes_gzip": 1971147,
+      "size_bytes_uncompressed": 27693335,
+      "variant": "baseline"
+    },
+    {
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+      "cpu_markers": {
+        "task.profile_update.21.microbatch.rank0": 3,
+        "task.profile_update.21.train_step.rank0": 1
+      },
+      "gpu_markers": {
+        "task.profile_update.21.microbatch.rank0": 3,
+        "task.profile_update.21.train_step.rank0": 1
+      },
+      "lossless_gzip_verified": true,
+      "plain_json_removed_after_verification": true,
+      "rank": 0,
+      "sha256_gzip": "196806cee1fe857e97e4d80f3b7aa5961e323860f5fa1274d3e4b59a6f522c94",
+      "sha256_uncompressed": "a817b92547a4d18aca221889ee145be87e09273de8082c035a873b570d571d82",
+      "sidecar_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/measurement/rank-00.json",
+      "sidecar_sha256": "a06a7069c7173420c3abf33de7604703f1d39f964106deb60f57aa313999287c",
+      "size_bytes_gzip": 1966996,
+      "size_bytes_uncompressed": 27652252,
+      "variant": "candidate"
+    },
+    {
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank1_trace.json.gz",
+      "cpu_markers": {
+        "task.profile_update.21.microbatch.rank1": 3,
+        "task.profile_update.21.train_step.rank1": 1
+      },
+      "gpu_markers": {
+        "task.profile_update.21.microbatch.rank1": 3,
+        "task.profile_update.21.train_step.rank1": 1
+      },
+      "lossless_gzip_verified": true,
+      "plain_json_removed_after_verification": true,
+      "rank": 1,
+      "sha256_gzip": "6a8bcd4624f06459656db535618ddc2ae0c21f6167e2d74f5276c044de08cfc7",
+      "sha256_uncompressed": "119be1a5c3c63c4e7d3f8bf191b7cef4017b65b697c174017c0cc22147506258",
+      "sidecar_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/measurement/rank-01.json",
+      "sidecar_sha256": "53f23144907a32a9a79ff4fa167ce0d516610ebbab5da5701465519a873ce9ad",
+      "size_bytes_gzip": 1966733,
+      "size_bytes_uncompressed": 27647323,
+      "variant": "candidate"
+    }
+  ]
+}

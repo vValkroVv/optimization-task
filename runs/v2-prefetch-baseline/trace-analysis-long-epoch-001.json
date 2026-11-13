@@ -1,0 +1,1429 @@
+{
+  "analysis_engine": "native JSON; no Perfetto importer or service used",
+  "analysis_services_started": [],
+  "capture_receipt": {
+    "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/trace-captures-long-epoch-001.json",
+    "sha256": "824473c45d0f21ccf0d526711d228ad166d2c97d11136728f6e7503e5262be42"
+  },
+  "failed_checks": [],
+  "limits": [
+    "Single diagnostic prefix on ranks0/1; profiler overhead and peer waiting may affect timing.",
+    "No worker stacks or prior-update producer spans; producer readiness does not measure preceding background cost.",
+    "GPU gaps do not prove causal host dependencies; compute classification retains unknown kernels.",
+    "Remaining29 microbatches and optimizer are outside capture. No full-step latency/TPS/memory/convergence claim.",
+    "Native JSON reads every canonical event and avoids importer loss; actual Perfetto analysis intentionally skipped."
+  ],
+  "purpose": "Compare one update21 prefix per rank/variant; no benchmark TPS inferred.",
+  "schema_version": 1,
+  "status": "complete",
+  "summary": {
+    "baseline_loader_next_sum_ms": [
+      645.430654,
+      637.817079
+    ],
+    "candidate_queue_pop_wait_sum_ms": [
+      0.563745,
+      0.67767
+    ],
+    "consumer_epoch_entries_per_trace": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "input_to_first_fb_all_device_idle_ms": {
+      "baseline": [
+        660.4403271484375,
+        650.2653725585938
+      ],
+      "candidate": [
+        8.419794921875,
+        8.5608701171875
+      ]
+    },
+    "input_to_first_fb_ms": {
+      "baseline": [
+        675.782333984375,
+        677.8949970703125
+      ],
+      "candidate": [
+        8.44555615234375,
+        8.99415283203125
+      ]
+    },
+    "interpretation": [
+      "The new traces expose ready queued input without the previous consumer-owned rollover stall. This supports effective readiness in the sampled long epoch.",
+      "The captures show reduced exposed input waiting. They do not directly measure producer work before capture or prove its amount of overlap with preceding GPU computation.",
+      "No diagnostic TPS or general speedup is inferred. The separately measured unprofiled pair owns benchmark magnitude; one captured prefix cannot establish variability or full-step causal attribution."
+    ],
+    "observations": [
+      "The long-epoch update21 prefix has no consumer epoch entry on any captured rank. Baseline makes32 native loader calls; candidate makes32 queue pops with every ready_before positive and the producer alive on all32 observations per rank.",
+      "Candidate begins with32 ready batches per rank and never drains to zero in the32 observed pops (minimum ready_before5 on rank0 and4 on rank1).",
+      "Candidate input-to-first-F/B is shorter by667.337ms on rank0 and668.901ms on rank1 in these diagnostic captures. Local recorded all-device idle in this interval falls from660.440/650.265ms to8.420/8.561ms.",
+      "Baseline loader-next ranges total645.431/637.817ms with zero overlap with local recorded device work. Candidate queue-pop ranges total0.564/0.678ms, also with zero device overlap during input collection.",
+      "The input-plus-three-F/B windows are1943.212/1942.405ms baseline and1272.129/1272.802ms candidate. Corresponding device-busy unions are1237.022/1250.517ms and1220.919/1223.282ms; these include device communication and spin/peer waits.",
+      "All four captures contain8795 kernels,274 copies and861 memsets. Every canonical event is retained in lossless gzip; native JSON analysis has no importer coverage loss."
+    ]
+  },
+  "timing_scopes": {
+    "communication": "Explicit NCCL and named EP families; spin/peer-wait durations are device busy, not useful compute",
+    "compute": "Remaining kernels after explicit NCCL and ag_nvl/rs_nvl/DeepEP families; unclassified wait kernels may remain",
+    "device": "interval union on local rank across recorded kernel/memcpy/memset streams, clipped to named host window",
+    "host": "input annotation durations and host API unions; these include scheduling/wait time, not CPU utilization",
+    "integrated": "train_step CPU annotation start to first CPU F/B start, or end of third CPU F/B",
+    "overlap": "Interval intersections; scopes can overlap and must not be summed",
+    "units": "milliseconds; native Kineto ts/dur microseconds converted by1000"
+  },
+  "traces": [
+    {
+      "bounded_device_busy_ms": 1237.0224130859374,
+      "bounded_device_idle_ms": 706.1891318359376,
+      "bounded_input_plus_three_fb_ms": 1943.211544921875,
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+      "category_counts": {
+        "None": 66,
+        "Trace": 1,
+        "ac2g": 26025,
+        "cpu_op": 38459,
+        "cuda_driver": 4180,
+        "cuda_runtime": 11915,
+        "fwdbwd": 522,
+        "gpu_memcpy": 274,
+        "gpu_memset": 861,
+        "gpu_user_annotation": 354,
+        "kernel": 8795,
+        "overhead": 3,
+        "user_annotation": 1075
+      },
+      "compute_explicit_communication_overlap_ms": 151.4319580078125,
+      "copy_memset_union_ms": 24.696177734375,
+      "cpu_markers": {
+        "task.profile_update.21.microbatch.rank0": 3,
+        "task.profile_update.21.train_step.rank0": 1
+      },
+      "device_census": {
+        "gpu_memcpy": {
+          "count": 274,
+          "sum_ms": 23.787666
+        },
+        "gpu_memset": {
+          "count": 861,
+          "sum_ms": 0.9459919999999999
+        },
+        "kernel": {
+          "count": 8795,
+          "sum_ms": 1421.376442
+        }
+      },
+      "device_compute_unclassified_kernel_union_ms": 987.35860546875,
+      "distributed_info": {
+        "backend": "nccl",
+        "nccl_version": "2.30.7",
+        "pg_config": [
+          {
+            "backend_config": "cuda:nccl",
+            "pg_desc": "default_pg",
+            "pg_name": "0",
+            "pg_size": 8,
+            "ranks": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "1",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_cp",
+            "pg_name": "9",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_tp",
+            "pg_name": "17",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "25",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_dp_replicate",
+            "pg_name": "33",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_tp",
+            "pg_name": "41",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "49",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_dp_replicate",
+            "pg_name": "57",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cuda:nccl",
+            "pg_desc": "mesh_efsdp",
+            "pg_name": "65",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:gloo,cuda:gloo",
+            "pg_desc": "mesh_data_mesh",
+            "pg_name": "73",
+            "pg_size": 8,
+            "ranks": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          }
+        ],
+        "pg_count": 74,
+        "rank": 0,
+        "world_size": 8
+      },
+      "event_count": 92530,
+      "explicit_ep_union_ms": 157.96290380859375,
+      "explicit_nccl_union_ms": 234.249984375,
+      "gpu_markers": {
+        "task.profile_update.21.microbatch.rank0": 3,
+        "task.profile_update.21.train_step.rank0": 1
+      },
+      "host_input_ranges": {
+        "consumer_epoch_entry": {
+          "count": 0,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.0,
+          "sum_ms": 0.0,
+          "union_ms_in_prefix": 0.0
+        },
+        "loader_next": {
+          "count": 32,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 104.201616,
+          "sum_ms": 645.430654,
+          "union_ms_in_prefix": 645.4306547851562
+        },
+        "queue_pop_wait": {
+          "count": 0,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.0,
+          "sum_ms": 0.0,
+          "union_ms_in_prefix": 0.0
+        }
+      },
+      "host_launch_union_ms": 57.83613232421875,
+      "host_sync_api_union_ms": 676.6427426757813,
+      "input_before_token_ms": 659.7392690429688,
+      "input_to_first_fb_all_device_idle_ms": 660.4403271484375,
+      "input_to_first_fb_device_busy_ms": 15.3420068359375,
+      "input_to_first_fb_ms": 675.782333984375,
+      "lossless_gzip_verified": true,
+      "microbatch_cpu_ms": [
+        405.126028,
+        403.56645000000003,
+        406.073439
+      ],
+      "plain_json_removed_after_verification": true,
+      "prefetch_observations": [],
+      "prefetch_summary": {
+        "count": 0,
+        "producer_alive_count": 0,
+        "ready_before_counts": {}
+      },
+      "rank": 0,
+      "sha256_gzip": "5b2a23c893e59d7317dca46468b9d8416435245ebbcb865dfa3f81344c760576",
+      "sha256_uncompressed": "9e15c66822168cce006dff04a74a0635d3ed96d8af8d72f15b7e61e363f6dac8",
+      "sidecar_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/measurement/rank-00.json",
+      "sidecar_sha256": "9246eebfe53493dcd071449c35986efe92fcdc922be01b8dd44423d79851df64",
+      "size_bytes_gzip": 1975191,
+      "size_bytes_uncompressed": 27713936,
+      "token_reduction_host_ms": 15.764541,
+      "trace_host": "lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0",
+      "trace_id": "5A4AE8BDF6564052AFBACE2012B70818",
+      "variant": "baseline"
+    },
+    {
+      "bounded_device_busy_ms": 1250.5165454101561,
+      "bounded_device_idle_ms": 691.8889082031251,
+      "bounded_input_plus_three_fb_ms": 1942.4054536132812,
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/native/profiling/traces/iteration_21/rank1_trace.json.gz",
+      "category_counts": {
+        "None": 66,
+        "Trace": 1,
+        "ac2g": 25987,
+        "cpu_op": 38453,
+        "cuda_driver": 4180,
+        "cuda_runtime": 11877,
+        "fwdbwd": 522,
+        "gpu_memcpy": 274,
+        "gpu_memset": 861,
+        "gpu_user_annotation": 354,
+        "kernel": 8795,
+        "overhead": 3,
+        "user_annotation": 1075
+      },
+      "compute_explicit_communication_overlap_ms": 155.71634033203125,
+      "copy_memset_union_ms": 24.20679248046875,
+      "cpu_markers": {
+        "task.profile_update.21.microbatch.rank1": 3,
+        "task.profile_update.21.train_step.rank1": 1
+      },
+      "device_census": {
+        "gpu_memcpy": {
+          "count": 274,
+          "sum_ms": 23.325674
+        },
+        "gpu_memset": {
+          "count": 861,
+          "sum_ms": 0.915892
+        },
+        "kernel": {
+          "count": 8795,
+          "sum_ms": 1449.730624
+        }
+      },
+      "device_compute_unclassified_kernel_union_ms": 948.5089033203125,
+      "distributed_info": {
+        "backend": "nccl",
+        "nccl_version": "2.30.7",
+        "pg_config": [
+          {
+            "backend_config": "cuda:nccl",
+            "pg_desc": "default_pg",
+            "pg_name": "0",
+            "pg_size": 8,
+            "ranks": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "2",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_cp",
+            "pg_name": "10",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_tp",
+            "pg_name": "18",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "26",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_dp_replicate",
+            "pg_name": "34",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_tp",
+            "pg_name": "42",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "50",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_dp_replicate",
+            "pg_name": "58",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cuda:nccl",
+            "pg_desc": "mesh_efsdp",
+            "pg_name": "66",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:gloo,cuda:gloo",
+            "pg_desc": "mesh_data_mesh",
+            "pg_name": "73",
+            "pg_size": 8,
+            "ranks": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          }
+        ],
+        "pg_count": 74,
+        "rank": 1,
+        "world_size": 8
+      },
+      "event_count": 92448,
+      "explicit_ep_union_ms": 190.1354873046875,
+      "explicit_nccl_union_ms": 263.0520395507813,
+      "gpu_markers": {
+        "task.profile_update.21.microbatch.rank1": 3,
+        "task.profile_update.21.train_step.rank1": 1
+      },
+      "host_input_ranges": {
+        "consumer_epoch_entry": {
+          "count": 0,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.0,
+          "sum_ms": 0.0,
+          "union_ms_in_prefix": 0.0
+        },
+        "loader_next": {
+          "count": 32,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 114.998609,
+          "sum_ms": 637.817079,
+          "union_ms_in_prefix": 637.817080078125
+        },
+        "queue_pop_wait": {
+          "count": 0,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.0,
+          "sum_ms": 0.0,
+          "union_ms_in_prefix": 0.0
+        }
+      },
+      "host_launch_union_ms": 48.287884765625,
+      "host_sync_api_union_ms": 752.8220493164063,
+      "input_before_token_ms": 649.6380629882813,
+      "input_to_first_fb_all_device_idle_ms": 650.2653725585938,
+      "input_to_first_fb_device_busy_ms": 27.62962451171875,
+      "input_to_first_fb_ms": 677.8949970703125,
+      "lossless_gzip_verified": true,
+      "microbatch_cpu_ms": [
+        404.299358,
+        401.914261,
+        403.119235
+      ],
+      "plain_json_removed_after_verification": true,
+      "prefetch_observations": [],
+      "prefetch_summary": {
+        "count": 0,
+        "producer_alive_count": 0,
+        "ready_before_counts": {}
+      },
+      "rank": 1,
+      "sha256_gzip": "1a09edab1e9bbdbd55deea3ad8e5280c3e523e0fa60b3474ed02f88ef9783ae5",
+      "sha256_uncompressed": "5ea2130711b59e5090f1e97c3ca9c3007cbcd2b87e0089371dd0450574aacdae",
+      "sidecar_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-baseline-trace-001/measurement/rank-01.json",
+      "sidecar_sha256": "a89de01de0c240d7270efb85a728fc31c08b0637ca56dd708e8621eebe52258e",
+      "size_bytes_gzip": 1971147,
+      "size_bytes_uncompressed": 27693335,
+      "token_reduction_host_ms": 28.024121,
+      "trace_host": "lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0",
+      "trace_id": "2A3B1AE91C2E4FE89C50F339E5FD9D88",
+      "variant": "baseline"
+    },
+    {
+      "bounded_device_busy_ms": 1220.9194287109376,
+      "bounded_device_idle_ms": 51.209316406249854,
+      "bounded_input_plus_three_fb_ms": 1272.1287451171875,
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+      "category_counts": {
+        "None": 66,
+        "Trace": 1,
+        "ac2g": 26007,
+        "cpu_op": 38267,
+        "cuda_driver": 4180,
+        "cuda_runtime": 11897,
+        "fwdbwd": 522,
+        "gpu_memcpy": 274,
+        "gpu_memset": 861,
+        "gpu_user_annotation": 354,
+        "kernel": 8795,
+        "overhead": 3,
+        "user_annotation": 1075
+      },
+      "compute_explicit_communication_overlap_ms": 146.382734375,
+      "copy_memset_union_ms": 24.436390625,
+      "cpu_markers": {
+        "task.profile_update.21.microbatch.rank0": 3,
+        "task.profile_update.21.train_step.rank0": 1
+      },
+      "device_census": {
+        "gpu_memcpy": {
+          "count": 274,
+          "sum_ms": 23.54402
+        },
+        "gpu_memset": {
+          "count": 861,
+          "sum_ms": 0.9294439999999999
+        },
+        "kernel": {
+          "count": 8795,
+          "sum_ms": 1403.24384
+        }
+      },
+      "device_compute_unclassified_kernel_union_ms": 990.89537109375,
+      "distributed_info": {
+        "backend": "nccl",
+        "nccl_version": "2.30.7",
+        "pg_config": [
+          {
+            "backend_config": "cuda:nccl",
+            "pg_desc": "default_pg",
+            "pg_name": "0",
+            "pg_size": 8,
+            "ranks": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "1",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_cp",
+            "pg_name": "9",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_tp",
+            "pg_name": "17",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "25",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_dp_replicate",
+            "pg_name": "33",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_tp",
+            "pg_name": "41",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "49",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_dp_replicate",
+            "pg_name": "57",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cuda:nccl",
+            "pg_desc": "mesh_efsdp",
+            "pg_name": "65",
+            "pg_size": 1,
+            "ranks": [
+              0
+            ]
+          },
+          {
+            "backend_config": "cpu:gloo,cuda:gloo",
+            "pg_desc": "mesh_data_mesh",
+            "pg_name": "73",
+            "pg_size": 8,
+            "ranks": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          }
+        ],
+        "pg_count": 74,
+        "rank": 0,
+        "world_size": 8
+      },
+      "event_count": 92302,
+      "explicit_ep_union_ms": 157.62659765625,
+      "explicit_nccl_union_ms": 209.9746767578125,
+      "gpu_markers": {
+        "task.profile_update.21.microbatch.rank0": 3,
+        "task.profile_update.21.train_step.rank0": 1
+      },
+      "host_input_ranges": {
+        "consumer_epoch_entry": {
+          "count": 0,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.0,
+          "sum_ms": 0.0,
+          "union_ms_in_prefix": 0.0
+        },
+        "loader_next": {
+          "count": 0,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.0,
+          "sum_ms": 0.0,
+          "union_ms_in_prefix": 0.0
+        },
+        "queue_pop_wait": {
+          "count": 32,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.104212,
+          "sum_ms": 0.563745,
+          "union_ms_in_prefix": 0.563744140625
+        }
+      },
+      "host_launch_union_ms": 47.917005859375,
+      "host_sync_api_union_ms": 717.9258251953125,
+      "input_before_token_ms": 7.88393994140625,
+      "input_to_first_fb_all_device_idle_ms": 8.419794921875,
+      "input_to_first_fb_device_busy_ms": 0.02576123046875,
+      "input_to_first_fb_ms": 8.44555615234375,
+      "lossless_gzip_verified": true,
+      "microbatch_cpu_ms": [
+        405.530527,
+        401.013574,
+        401.39439899999996
+      ],
+      "plain_json_removed_after_verification": true,
+      "prefetch_observations": [
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 32
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 32
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 31
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 30
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 29
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 28
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 27
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 26
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 25
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 26
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 25
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 24
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 23
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 23
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 22
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 21
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 20
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 19
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 18
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 17
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 16
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 15
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 14
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 13
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 12
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 11
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 10
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 9
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 8
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 7
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 6
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 5
+        }
+      ],
+      "prefetch_summary": {
+        "count": 32,
+        "producer_alive_count": 32,
+        "ready_before_counts": {
+          "10": 1,
+          "11": 1,
+          "12": 1,
+          "13": 1,
+          "14": 1,
+          "15": 1,
+          "16": 1,
+          "17": 1,
+          "18": 1,
+          "19": 1,
+          "20": 1,
+          "21": 1,
+          "22": 1,
+          "23": 2,
+          "24": 1,
+          "25": 2,
+          "26": 2,
+          "27": 1,
+          "28": 1,
+          "29": 1,
+          "30": 1,
+          "31": 1,
+          "32": 2,
+          "5": 1,
+          "6": 1,
+          "7": 1,
+          "8": 1,
+          "9": 1
+        }
+      },
+      "rank": 0,
+      "sha256_gzip": "196806cee1fe857e97e4d80f3b7aa5961e323860f5fa1274d3e4b59a6f522c94",
+      "sha256_uncompressed": "a817b92547a4d18aca221889ee145be87e09273de8082c035a873b570d571d82",
+      "sidecar_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/measurement/rank-00.json",
+      "sidecar_sha256": "a06a7069c7173420c3abf33de7604703f1d39f964106deb60f57aa313999287c",
+      "size_bytes_gzip": 1966996,
+      "size_bytes_uncompressed": 27652252,
+      "token_reduction_host_ms": 0.395505,
+      "trace_host": "lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0",
+      "trace_id": "809FD2421A314638AFBB02D26B46DA19",
+      "variant": "candidate"
+    },
+    {
+      "bounded_device_busy_ms": 1223.2819702148438,
+      "bounded_device_idle_ms": 49.52051171874996,
+      "bounded_input_plus_three_fb_ms": 1272.8024819335938,
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank1_trace.json.gz",
+      "category_counts": {
+        "None": 66,
+        "Trace": 1,
+        "ac2g": 25994,
+        "cpu_op": 38267,
+        "cuda_driver": 4180,
+        "cuda_runtime": 11884,
+        "fwdbwd": 522,
+        "gpu_memcpy": 274,
+        "gpu_memset": 861,
+        "gpu_user_annotation": 354,
+        "kernel": 8795,
+        "overhead": 3,
+        "user_annotation": 1075
+      },
+      "compute_explicit_communication_overlap_ms": 161.36362451171874,
+      "copy_memset_union_ms": 24.44774951171875,
+      "cpu_markers": {
+        "task.profile_update.21.microbatch.rank1": 3,
+        "task.profile_update.21.train_step.rank1": 1
+      },
+      "device_census": {
+        "gpu_memcpy": {
+          "count": 274,
+          "sum_ms": 23.54597
+        },
+        "gpu_memset": {
+          "count": 861,
+          "sum_ms": 0.938016
+        },
+        "kernel": {
+          "count": 8795,
+          "sum_ms": 1423.483506
+        }
+      },
+      "device_compute_unclassified_kernel_union_ms": 945.5456538085938,
+      "distributed_info": {
+        "backend": "nccl",
+        "nccl_version": "2.30.7",
+        "pg_config": [
+          {
+            "backend_config": "cuda:nccl",
+            "pg_desc": "default_pg",
+            "pg_name": "0",
+            "pg_size": 8,
+            "ranks": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "2",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_cp",
+            "pg_name": "10",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_tp",
+            "pg_name": "18",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "26",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_dp_replicate",
+            "pg_name": "34",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_tp",
+            "pg_name": "42",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_pp",
+            "pg_name": "50",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:fake,cuda:fake,hpu:fake,xpu:fake",
+            "pg_desc": "mesh_dp_replicate",
+            "pg_name": "58",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cuda:nccl",
+            "pg_desc": "mesh_efsdp",
+            "pg_name": "66",
+            "pg_size": 1,
+            "ranks": [
+              1
+            ]
+          },
+          {
+            "backend_config": "cpu:gloo,cuda:gloo",
+            "pg_desc": "mesh_data_mesh",
+            "pg_name": "73",
+            "pg_size": 8,
+            "ranks": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          }
+        ],
+        "pg_count": 74,
+        "rank": 1,
+        "world_size": 8
+      },
+      "event_count": 92276,
+      "explicit_ep_union_ms": 189.6569296875,
+      "explicit_nccl_union_ms": 245.4004169921875,
+      "gpu_markers": {
+        "task.profile_update.21.microbatch.rank1": 3,
+        "task.profile_update.21.train_step.rank1": 1
+      },
+      "host_input_ranges": {
+        "consumer_epoch_entry": {
+          "count": 0,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.0,
+          "sum_ms": 0.0,
+          "union_ms_in_prefix": 0.0
+        },
+        "loader_next": {
+          "count": 0,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.0,
+          "sum_ms": 0.0,
+          "union_ms_in_prefix": 0.0
+        },
+        "queue_pop_wait": {
+          "count": 32,
+          "local_device_overlap_ms": 0.0,
+          "max_ms": 0.082691,
+          "sum_ms": 0.67767,
+          "union_ms_in_prefix": 0.67767041015625
+        }
+      },
+      "host_launch_union_ms": 49.1891591796875,
+      "host_sync_api_union_ms": 728.164869140625,
+      "input_before_token_ms": 8.22423388671875,
+      "input_to_first_fb_all_device_idle_ms": 8.5608701171875,
+      "input_to_first_fb_device_busy_ms": 0.43328271484375,
+      "input_to_first_fb_ms": 8.99415283203125,
+      "lossless_gzip_verified": true,
+      "microbatch_cpu_ms": [
+        405.332104,
+        401.06116499999996,
+        401.371128
+      ],
+      "plain_json_removed_after_verification": true,
+      "prefetch_observations": [
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 32
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 31
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 30
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 29
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 28
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 27
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 26
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 25
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 24
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 23
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 22
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 21
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 20
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 19
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 18
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 17
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 16
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 15
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 16
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 15
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 14
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 13
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 12
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 11
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 10
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 9
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 8
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 7
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 6
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 5
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 4
+        },
+        {
+          "capacity": 32,
+          "producer_alive": true,
+          "producer_name": "streaming-batch-prefetch",
+          "ready_before": 4
+        }
+      ],
+      "prefetch_summary": {
+        "count": 32,
+        "producer_alive_count": 32,
+        "ready_before_counts": {
+          "10": 1,
+          "11": 1,
+          "12": 1,
+          "13": 1,
+          "14": 1,
+          "15": 2,
+          "16": 2,
+          "17": 1,
+          "18": 1,
+          "19": 1,
+          "20": 1,
+          "21": 1,
+          "22": 1,
+          "23": 1,
+          "24": 1,
+          "25": 1,
+          "26": 1,
+          "27": 1,
+          "28": 1,
+          "29": 1,
+          "30": 1,
+          "31": 1,
+          "32": 1,
+          "4": 2,
+          "5": 1,
+          "6": 1,
+          "7": 1,
+          "8": 1,
+          "9": 1
+        }
+      },
+      "rank": 1,
+      "sha256_gzip": "6a8bcd4624f06459656db535618ddc2ae0c21f6167e2d74f5276c044de08cfc7",
+      "sha256_uncompressed": "119be1a5c3c63c4e7d3f8bf191b7cef4017b65b697c174017c0cc22147506258",
+      "sidecar_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/measurement/rank-01.json",
+      "sidecar_sha256": "53f23144907a32a9a79ff4fa167ce0d516610ebbab5da5701465519a873ce9ad",
+      "size_bytes_gzip": 1966733,
+      "size_bytes_uncompressed": 27647323,
+      "token_reduction_host_ms": 0.603457,
+      "trace_host": "lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0",
+      "trace_id": "257D08E403574DB5822016B8DC8911AF",
+      "variant": "candidate"
+    }
+  ],
+  "verification": {
+    "actual_perfetto_skipped": "Native JSON analysis avoids display-lane importer loss and satisfies interval-union analysis without a service.",
+    "all_eight_rank_sidecars_retained_in_capture_summary": true,
+    "existing_parser_status": "complete for both runs; errors[]",
+    "four_native_json_event_censuses_retained": true,
+    "full_accumulation32_plus_optimizer_outside_capture": true,
+    "gzip_roundtrip_hashes_verified_before_plain_removal": true,
+    "only_ranks_0_1_constructed_profilers": true
+  }
+}

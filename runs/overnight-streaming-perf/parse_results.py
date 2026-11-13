@@ -146,7 +146,13 @@ def _profile_update_summary(
     if steps != target_update:
         errors.append("profile target update must equal the complete training step count")
 
+    bounded = spec.get("profile_microbatches", 0) if isinstance(spec, dict) else 0
+    if type(bounded) is not int or not 0 <= bounded <= 3:
+        errors.append("profile_microbatches must be an integer from 0 to 3")
+        bounded = 0
     expected_spec = _expected_profile_spec(target_update, warmup)
+    if bounded:
+        expected_spec["profile_microbatches"] = bounded
     if spec != expected_spec:
         errors.append("profile_capture settings do not match the required native schedule")
     guard_enabled = metadata.get("deep_gemm_compilation_guard", {}).get("enabled", False)
@@ -201,6 +207,16 @@ def _profile_update_summary(
                 f"rank {rank} native profiler constructed={receipt.get('native_profiler_created')!r}; "
                 f"expected {expected_constructed}"
             )
+        if bounded:
+            expected_collected = bounded if expected_constructed else 0
+            for key, expected in (("profile_microbatches", bounded),
+                                  ("collected_microbatches", expected_collected),
+                                  ("collection_stopped", expected_constructed),
+                                  ("early_stop_cuda_drains", int(expected_constructed)),
+                                  ("token_reduction_calls", int(expected_constructed)),
+                                  ("export_update", target_update if expected_constructed else None)):
+                if receipt.get(key) != expected:
+                    errors.append(f"rank {rank} bounded receipt {key}={receipt.get(key)!r}, expected {expected!r}")
         per_rank_counts[str(rank)] = {
             "microbatch_calls": receipt.get("microbatch_calls"),
             "train_step_calls": receipt.get("train_step_calls"),
@@ -269,6 +285,34 @@ def _profile_update_summary(
             f"task.profile_update.{target_update}.train_step.rank{rank}": 1,
             f"task.profile_update.{target_update}.optimizer_step.rank{rank}": 1,
         }
+        if bounded:
+            expected_markers[f"task.profile_update.{target_update}.microbatch.rank{rank}"] = bounded
+            del expected_markers[f"task.profile_update.{target_update}.optimizer_step.rank{rank}"]
+            token_spans = [event for event in events if event.get("name") == "task.token_count.global_reduction"
+                           and event.get("cat") == "user_annotation" and event.get("ph") == "X"]
+            mb_spans = [event for event in events if event.get("name") == f"task.profile_update.{target_update}.microbatch.rank{rank}"
+                        and event.get("cat") == "user_annotation" and event.get("ph") == "X"]
+            if len(token_spans) != 1 or not mb_spans or token_spans[0].get("ts", 0) + token_spans[0].get("dur", 0) > min(event.get("ts", 0) for event in mb_spans):
+                errors.append(f"rank {rank} trace lacks a complete global token reduction before microbatches")
+            prefixes = [event for event in events if event.get("name") == f"task.profile_update.{target_update}.train_step.rank{rank}"
+                        and event.get("cat") == "user_annotation" and event.get("ph") == "X"]
+            if (len(prefixes) != 1 or not token_spans or not mb_spans
+                or prefixes[0].get("ts", 0) > token_spans[0].get("ts", 0)
+                or prefixes[0].get("ts", 0) + prefixes[0].get("dur", 0) < max(event.get("ts", 0) + event.get("dur", 0) for event in mb_spans)):
+                errors.append(f"rank {rank} trace lacks the complete input/three-microbatch prefix")
+            if not any(event.get("cat") == "kernel" for event in events):
+                errors.append(f"rank {rank} bounded trace lacks GPU kernel coverage")
+            if gpu_projection_counts.get(f"task.profile_update.{target_update}.microbatch.rank{rank}", 0) < bounded:
+                errors.append(f"rank {rank} bounded trace lacks GPU projections of complete microbatches")
+            if not any(event.get("cat") == "kernel" and "nccl" in event.get("name", "").lower()
+                       and "allreduce" in event.get("name", "").lower().replace("_", "") for event in events):
+                errors.append(f"rank {rank} bounded trace lacks global token-count collective kernel")
+            for span in mb_spans:
+                start, end = span.get("ts", 0), span.get("ts", 0) + span.get("dur", 0)
+                if not any(event.get("name", "").startswith("autograd::engine::evaluate_function:")
+                           and event.get("ph") == "X" and start <= event.get("ts", -1)
+                           and event.get("ts", 0) + event.get("dur", 0) <= end for event in events):
+                    errors.append(f"rank {rank} bounded microbatch lacks complete backward coverage")
         if marker_counts != expected_markers:
             errors.append(
                 f"rank {rank} trace CPU task.profile_update marker set/counts {marker_counts!r}; "

@@ -38,7 +38,10 @@ def _sample_ids(batches):
 
 @pytest.mark.parametrize("shuffle", [False, True])
 @pytest.mark.parametrize("dp_world_size", [1, 2, 4])
-def test_resume_reproduces_next_batches(tmp_path, monkeypatch, shuffle, dp_world_size):
+@pytest.mark.parametrize("num_prefetch_batches", [0, 3])
+def test_resume_reproduces_next_batches(
+    tmp_path, monkeypatch, shuffle, dp_world_size, num_prefetch_batches
+):
     """
     Canonical mid-epoch resume: a fresh loader fed the saved state must
     reproduce the original continuation bit for bit on every rank
@@ -55,6 +58,7 @@ def test_resume_reproduces_next_batches(tmp_path, monkeypatch, shuffle, dp_world
             dp_rank=dp_rank,
             dp_world_size=dp_world_size,
             shuffle=shuffle,
+            num_prefetch_batches=num_prefetch_batches,
         )
         iterator = iter(loader)
         assert len(_take(iterator, 2)) == 2
@@ -69,6 +73,7 @@ def test_resume_reproduces_next_batches(tmp_path, monkeypatch, shuffle, dp_world
             dp_rank=dp_rank,
             dp_world_size=dp_world_size,
             shuffle=shuffle,
+            num_prefetch_batches=num_prefetch_batches,
         )
         resumed.load_state_dict(states[dp_rank])
         assert _take(iter(resumed), 2) == expected
@@ -79,8 +84,9 @@ def test_resume_reproduces_next_batches(tmp_path, monkeypatch, shuffle, dp_world
 
 @pytest.mark.parametrize("shuffle", [False, True])
 @pytest.mark.parametrize("world_from,world_to", [(16, 8), (2, 4)])
+@pytest.mark.parametrize("num_prefetch_batches", [0, 3])
 def test_resume_with_changed_world_size(
-    tmp_path, monkeypatch, shuffle, world_from, world_to
+    tmp_path, monkeypatch, shuffle, world_from, world_to, num_prefetch_batches
 ):
     """
     Resharding resume must continue the global sample cursor: nothing is
@@ -101,6 +107,7 @@ def test_resume_with_changed_world_size(
             dp_rank=dp_rank,
             dp_world_size=world_from,
             shuffle=shuffle,
+            num_prefetch_batches=num_prefetch_batches,
         )
         consumed += _sample_ids(_take(iter(loader), 2))
         if dp_rank == 0:
@@ -114,6 +121,7 @@ def test_resume_with_changed_world_size(
             dp_rank=dp_rank,
             dp_world_size=world_to,
             shuffle=shuffle,
+            num_prefetch_batches=num_prefetch_batches,
         )
         resumed.load_state_dict(state)
         # drain the rest of the epoch on the new world size
@@ -123,7 +131,8 @@ def test_resume_with_changed_world_size(
     assert sorted(consumed) == [1000 + i for i in range(num_rows)]
 
 
-def test_resume_after_resume_advances_the_cursor(tmp_path):
+@pytest.mark.parametrize("num_prefetch_batches", [0, 3])
+def test_resume_after_resume_advances_the_cursor(tmp_path, num_prefetch_batches):
     """
     The second snapshot must count from the restored offset (restored + newly
     yielded samples), so chained checkpoint -> resume -> checkpoint -> resume
@@ -133,7 +142,11 @@ def test_resume_after_resume_advances_the_cursor(tmp_path):
 
     def build():
         return make_text_dataloader(
-            tmp_path, seq_len=4, local_batch_size=2, shuffle=True
+            tmp_path,
+            seq_len=4,
+            local_batch_size=2,
+            shuffle=True,
+            num_prefetch_batches=num_prefetch_batches,
         )
 
     reference = _take(iter(build()), 8)
@@ -156,8 +169,14 @@ def test_resume_after_resume_advances_the_cursor(tmp_path):
     assert _take(iter(third), 4) == reference[4:8]
 
 
-@pytest.mark.parametrize("num_workers", [0, 2])
-def test_resume_at_epoch_boundary(tmp_path, num_workers):
+@pytest.mark.parametrize(
+    "num_workers,persistent_workers",
+    [(0, False), (1, False), (1, True), (2, False), (2, True)],
+)
+@pytest.mark.parametrize("num_prefetch_batches", [0, 3])
+def test_resume_at_epoch_boundary(
+    tmp_path, num_workers, persistent_workers, num_prefetch_batches
+):
     """
     A snapshot taken exactly at the epoch end must resume into the next
     epoch, also when batches come through dataloader worker processes
@@ -172,6 +191,8 @@ def test_resume_at_epoch_boundary(tmp_path, num_workers):
             shuffle=True,
             infinite=True,
             num_workers=num_workers,
+            persistent_workers=persistent_workers,
+            num_prefetch_batches=num_prefetch_batches,
         )
 
     reference = _take(iter(build()), 8)
@@ -182,6 +203,8 @@ def test_resume_at_epoch_boundary(tmp_path, num_workers):
     iterator = iter(loader)
     assert _take(iterator, 4) == reference[:4]
     state = loader.state_dict()
+    assert state["dp_rank_0"]["epoch"] == 0
+    assert state["dp_rank_0"]["sample_in_epoch"] == 8
 
     resumed = build()
     resumed.load_state_dict(state)

@@ -4,6 +4,57 @@ Updated: 13 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
 
+## V2 follow-up: long-epoch pair and four traces complete
+
+The separately authorized follow-up removes frequent fixture epoch transitions
+with a native logical-epoch override. The fresh matched pair over updates 21–60
+passed: **138,009.86 / 140,933.05 global physical input tokens/s** at depths 0/32,
+a provisional **2.12% increase** for V2, with no epoch rollover. The
+[completed checklist](../planning/README.md#completed-assignment-v2-long-logical-epoch-comparison)
+and [report](../runs/v2-prefetch-baseline/report.md#long-logical-epoch-comparison--complete)
+own the protocol, exact results, full update series, memory and retained failures.
+All four bounded update-21 traces passed coverage and lossless compression.
+Input-to-first-F/B spans were about 676–678 ms for A and 8–9 ms for B; the V2
+queue stayed ready. Prior-producer cost/overlap is outside capture. All owned
+training groups exited and all eight GPUs are idle. Original short-epoch results
+below are preserved separately. This single new pair has no repeat/noise estimate
+and establishes no general gain or adoption; the default remains zero.
+
+## V2 CPU prefetch: integrated and measured, default off
+
+The separately authorized V2 assignment ported only CPU prefetch and required
+loader lifecycle/config/tests above the latest baseline, pulled at `3b6b8928`.
+The default is zero; candidate runs use 32. Canonical model/experiment/distributed
+source, `train_step`, accumulation, normalization and transfers are unchanged.
+The [experiment report](../runs/v2-prefetch-baseline/report.md) and
+[compact results](../runs/v2-prefetch-baseline/results.json) own identities,
+commands, exact values, retained failures and verification.
+
+The affected CPU/config suite passed 245 tests with no deselections; scoped Ruff
+and whitespace checks passed. Real eight-owner Gloo/DCP passed both worker
+persistence modes, content hashes through rollover, skewed consumer epoch entry
+and decoded scalar checkpoint restores. Independent integration/runtime-cost
+review found no unresolved material defect. Both native variants completed
+20 full updates on all eight ranks with finite logging.
+
+The matched unprofiled pair measured **147,402.84 global input tokens/s at depth
+0** and **144,333.42 at depth 32** (18,425.35 / 18,041.68 per GPU), a provisional
+**2.08% decrease**. Each ran ten warmup and ten measured updates. GPU allocator
+peaks were effectively unchanged; the report distinguishes GPU peaks and host
+boundary memory. A single pair has no run-to-run noise estimate, and the retained
+candidate update-16 outlier has no established cause. No general performance
+gain is accepted; the default stays zero.
+
+Four canonical gzip traces passed coverage and lossless verification: ranks 0/1
+for each variant, input prefix/token reduction and exactly three complete
+microbatches per trace, with all ranks still training 32 plus optimizer. Actual
+Perfetto MCP recovered all 8,795 kernels per trace after display-lane import
+repair. Queue use is verified; input-to-first-F/B was about 173 ms shorter in
+these captures, but consumer epoch entry still cost 886–953 ms. Those observations
+do not explain the separate TPS result. Owned training groups exited, all eight
+GPUs were idle at release, and task-local artifacts are retained. No commit or
+push was performed for this assignment.
+
 ## Update-11 trace analysis: complete; candidate gains unmeasured
 
 The separately requested read-only analysis used actual Perfetto MCP on the fresh

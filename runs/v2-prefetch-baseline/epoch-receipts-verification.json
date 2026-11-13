@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "scope": "Boundary-receipt implementation verification and pytest artifact relocation; no code edits or test reruns during bookkeeping.",
+  "attempts": [
+    {
+      "id": "initial_collection",
+      "command": "python -m pytest -q runs/overnight-streaming-perf/tests/test_epoch_receipts.py runs/overnight-streaming-perf/tests/test_measure.py",
+      "result": "collection error: ModuleNotFoundError: No module named 'measure'",
+      "cause": "The new test did not yet add its sibling measurement directory to sys.path. The test was corrected before later runs."
+    },
+    {
+      "id": "initial_default_environment",
+      "command": "python -m pytest -q runs/overnight-streaming-perf/tests/test_epoch_receipts.py runs/overnight-streaming-perf/tests/test_measure.py",
+      "result": {
+        "passed": 44,
+        "failed": 9
+      },
+      "observed_import": "/home/user/torchtitan/torchtitan/__init__.py",
+      "failure_summary": "Default pytest tmp_path resolved under the personal .sr008-gpu cache and failed task-root path checks; profiler tests also used the wrong Torchtitan schema.",
+      "pytest_tmp_artifacts": {
+        "original_path": "/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-119",
+        "task_copy": "runs/v2-prefetch-baseline/artifacts/raw/epoch-receipts-wrong-harness-pytest-119",
+        "ownership_confirmation": "The tree contained only pytest test-name directories from this run, including rank-00.json outputs for test_epoch_and_queue_receipts and test_adapter_records_after_train; child timestamps span 2026-11-13 14:46:39 through 14:46:47, matching the initial command. No unrelated top-level entries were present.",
+        "original_removed_after_copy_verification": true,
+        "copied_symlinks_retargeted_inside_task_copy": 28,
+        "entries": 689,
+        "regular_files": 288,
+        "directories": 373,
+        "symlinks": 28,
+        "normalized_manifest_sha256": "ee18470c1450a850c71c08d350e9738cd93cf58949181a6beb77882299ba488b"
+      }
+    },
+    {
+      "id": "corrected_native_environment",
+      "command": "TMPDIR=\"$PWD/.tmp\" TMP=\"$PWD/.tmp\" TEMP=\"$PWD/.tmp\" PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=\"$PWD/gift:$PWD/runs/overnight-streaming-perf\" /opt/torchtitan-venv/bin/python3.12 -m pytest -q -p no:cacheprovider --basetemp \"$PWD/runs/v2-prefetch-baseline/artifacts/raw/epoch-receipts-pytest-final-20261113\" runs/overnight-streaming-perf/tests/test_epoch_receipts.py runs/overnight-streaming-perf/tests/test_measure.py",
+      "interpreter": "/opt/torchtitan-venv/bin/python3.12",
+      "torchtitan_import": "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/__init__.py",
+      "result": {
+        "passed": 49,
+        "failed": 5,
+        "warnings": 1,
+        "duration_seconds": 8.74,
+        "exit_code": 1
+      },
+      "failed_tests": [
+        "test_measure_main_routes_rank_cache_before_first_torch_import[0]",
+        "test_measure_main_routes_rank_cache_before_first_torch_import[7]",
+        "test_measure_main_rejects_out_of_attempt_or_symlink_triton_root[outside]",
+        "test_measure_main_rejects_out_of_attempt_or_symlink_triton_root[symlink]",
+        "test_measure_rank_cache_routing_is_idempotent_and_rank_specific"
+      ],
+      "failure_cause": "These existing fixtures create measurement paths nested under pytest's per-test basetemp. The current path guard accepts only runs/<experiment>/artifacts/raw/<attempt>/<measurement>, so it rejects before the intended rank or TRITON_CACHE_DIR assertions.",
+      "log": "runs/v2-prefetch-baseline/artifacts/raw/epoch-receipts-pytest-final-20261113.log"
+    }
+  ],
+  "other_verification": {
+    "focused_new_and_timer_tests": {
+      "command": "python -m pytest -q --basetemp=.tmp/epoch-receipts-pytest-rerun runs/overnight-streaming-perf/tests/test_epoch_receipts.py runs/overnight-streaming-perf/tests/test_measure.py::test_smoke_mode_captures_native_updates_without_adapter_syncs runs/overnight-streaming-perf/tests/test_measure.py::test_full_window_uses_two_boundaries_and_tracks_native_resets runs/overnight-streaming-perf/tests/test_measure.py::test_default_window_record_summarizes_without_compiler_observer",
+      "result": "7 passed"
+    },
+    "ruff": "ruff check --select F821,F811,F841 --no-cache runs/overnight-streaming-perf/measure.py runs/overnight-streaming-perf/tests/test_epoch_receipts.py: passed",
+    "diff_check": "git diff --check -- runs/overnight-streaming-perf/measure.py runs/overnight-streaming-perf/tests/test_epoch_receipts.py: passed"
+  },
+  "final_sha256": {
+    "runs/overnight-streaming-perf/measure.py": "8288698d1495cfdfed66953e22b0e84fc8b93f4720702f979309d38e9be99194",
+    "runs/overnight-streaming-perf/tests/test_epoch_receipts.py": "c524f75d9e473fc717db636988223924ced925190fd33afa52d1010546113786",
+    "runs/v2-prefetch-baseline/artifacts/raw/epoch-receipts-pytest-final-20261113.log": "7f8ceeba8487ff91c69d7646a4a345f090321aebd91806738944407342d51557",
+    "runs/v2-prefetch-baseline/artifacts/raw/epoch-receipts-wrong-harness-pytest-119": "ee18470c1450a850c71c08d350e9738cd93cf58949181a6beb77882299ba488b"
+  }
+}

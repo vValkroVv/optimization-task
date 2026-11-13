@@ -1,0 +1,51 @@
+{
+  "corrected_attempts": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=\"/workspace-SR008.nfs2/vkropotin/optimization-task/gift:/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf\" /opt/torchtitan-venv/bin/python3.12 -m pytest -q -p no:cacheprovider --basetemp=/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/.pytest-tmp-epoch-runner runs/overnight-streaming-perf/tests/test_epoch_size.py",
+      "correction": "Imported run_pre_submit from torchtitan.config; this was a test import error, not a runner failure.",
+      "failure": "Test helper imported torchtitan.config.run_pre_submit from nonexistent module torchtitan.config.run.",
+      "result": "1 failed, 4 passed in 0.18s"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=\"/workspace-SR008.nfs2/vkropotin/optimization-task/gift:/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf\" /opt/torchtitan-venv/bin/python3.12 -m pytest -q -p no:cacheprovider --basetemp=/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/.pytest-tmp-epoch-runner runs/overnight-streaming-perf/tests/test_epoch_size.py",
+      "correction": "Resolved-config verification now requires epoch_size only when requested; the default assertion treats an omitted field as null. The final suite passed.",
+      "failure": "The native typed config omits dataset.epoch_size when unset; the test indexed the absent key directly.",
+      "result": "1 failed, 4 passed in 2.11s"
+    }
+  ],
+  "final_test": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=\"/workspace-SR008.nfs2/vkropotin/optimization-task/gift:/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf\" /opt/torchtitan-venv/bin/python3.12 -m pytest -q -p no:cacheprovider --basetemp=/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/.pytest-tmp-runner-final runs/overnight-streaming-perf/tests/test_epoch_size.py runs/overnight-streaming-perf/tests/test_short_performance.py runs/overnight-streaming-perf/tests/test_bounded_profile.py runs/overnight-streaming-perf/tests/test_measure.py::test_profile_update_defaults_validation_cli_decode_and_resolved_config",
+    "environment": {
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONPATH": "/workspace-SR008.nfs2/vkropotin/optimization-task/gift:/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf",
+      "basetemp": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/.pytest-tmp-runner-final",
+      "pytest_cache_plugin": "disabled",
+      "python": "/opt/torchtitan-venv/bin/python3.12"
+    },
+    "note": "The command and result are transcribed from observed tool output. Pytest temporary directories were task-local and removed after completion; no raw stdout log was saved.",
+    "persistent_log_path": null,
+    "raw_stdout_retained": false,
+    "result": "29 passed, 1 warning in 8.83s",
+    "warning": "Existing pynvml deprecation FutureWarning from test_short_performance.py::test_short_adapter_counts_optimizer_updates_without_monitoring."
+  },
+  "gpu_run": "Not performed.",
+  "other_checks": [
+    {
+      "command": "/opt/torchtitan-venv/bin/python3.12 -m ruff check --select F821,F811,F841 --no-cache runs/overnight-streaming-perf/run.py runs/overnight-streaming-perf/tests/test_epoch_size.py",
+      "exit_code": 0,
+      "result": "All checks passed!"
+    },
+    {
+      "command": "git diff --check -- runs/overnight-streaming-perf/run.py",
+      "exit_code": 0,
+      "result": "Passed with no output."
+    },
+    {
+      "command": "awk '/[[:blank:]]+$/ { print FNR \": trailing whitespace\"; bad = 1 } END { exit bad }' runs/overnight-streaming-perf/tests/test_epoch_size.py",
+      "exit_code": 0,
+      "result": "Passed with no output."
+    }
+  ],
+  "scope": "Task-local runner epoch-size and microbatch-capture verification",
+  "status": "PASS"
+}

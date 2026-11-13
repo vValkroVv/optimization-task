@@ -79,6 +79,11 @@ records the callable packing recipe, identities, hashes and all-rank loader chec
 This repeated local fixture supports a controlled performance study, not a
 production data mixture or quality evaluation.
 
+CPU materialized-batch prefetch defaults to `num_prefetch_batches: 0`. The
+separately authorized [V2 comparison](../runs/v2-prefetch-baseline/report.md)
+overrides only this setting to 32 for the candidate; the baseline default stays
+zero. Consumer-owned epoch entry and accumulation 32 remain part of the contract.
+
 The [native MDS receipt](../runs/overnight-streaming-perf/g1-smoke-002-receipt.json)
 passed the ten-update/monitor5 smoke on all eight ranks. That run used the
 equivalent external loader fragment; the subsequent canonical YAML promotion
@@ -121,7 +126,7 @@ The monitoring-inclusive G2 median input TPS was 124454.81175967702 global and
 future monitoring-off measurements. A new matched short baseline/candidate pair
 is required for a future authorized comparison; single-pair results remain
 provisional. Performance precedes local assessment of a candidate worth retaining.
-The current assignment is cleanup only and runs no experiments.
+The active [work plan](../planning/README.md) owns current execution authorization.
 
 ## Future work
 

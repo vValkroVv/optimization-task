@@ -1,0 +1,47 @@
+{
+  "gpu_probe_status": "PASS",
+  "normal": "runs/v2-prefetch-baseline/artifacts/raw/bounded-gpu-probe-001",
+  "injected_error": "runs/v2-prefetch-baseline/artifacts/raw/bounded-gpu-probe-error-001",
+  "normal_all_rank_forward_backward_calls": 64,
+  "normal_all_rank_optimizer_calls": 2,
+  "probe_count_scope": "64 forward/backward calls and 2 optimizer calls are per rank over two updates, verified on all eight ranks; target-update counts are 32 and 1 per rank. They are not aggregate totals across eight ranks.",
+  "target_update_microbatch_calls": 32,
+  "selected_ranks_collected_microbatches": 3,
+  "target_update_optimizer_calls": 1,
+  "error_probe": "failure after fourth target F/B preserves already-stopped trace; exactly two exports; all ranks clean NCCL destruction",
+  "normal_summary_status": "complete",
+  "gpu_release": "nvidia-smi compute-apps empty after both probes",
+  "initial_cpu_harness_failure": "6 path-confinement failures with pytest default personal-cache tmp path;54 passed. Fixed command --basetemp under task raw artifacts;60 passed.",
+  "targeted_host_test_failure": "missing RANK in new unit fixture;1 failed42 passed; fixture repaired with monkeypatch;12 bounded/parser/host tests passed",
+  "tests": "60 original/short tests passed before host sampler;42 targeted existing+new tests passed with1 fixture failure;12 new focused tests passed after fixture repair",
+  "limitations": "Tiny Linear/NCCL adapter diagnostic only; does not establish GIFT workload performance or numerical acceptance. No TPS computed.",
+  "sha256": {
+    "runs/overnight-streaming-perf/run.py": "fc4ca9e72f7c887188e794c7df9ea80292916965b401ace359e3361f17e97c5b",
+    "runs/overnight-streaming-perf/measure.py": "47c1fbfcfaf67446e0f1a359aeb09972eca6544b7befd4119206a1404f16d616",
+    "runs/overnight-streaming-perf/parse_results.py": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+    "runs/overnight-streaming-perf/tests/test_measure.py": "550981d8d386809307c709d63b444193dc940deb21075fee04e1aa7129981430",
+    "runs/overnight-streaming-perf/tests/test_bounded_profile.py": "e482acb572859168c61ad8af131f70e0d3f0601d0c5f2ce40c53546989e7a872",
+    "runs/v2-prefetch-baseline/bounded_profile_probe.py": "efe6f96a5ceb37268be69e6402f33a7effcd8a2a7c5fc458677633564c4bd6cf"
+  },
+  "new_output_root_test": "1 passed; new task artifacts/raw root, cache isolation rank7, all8 rank directories, task-local HF cache; original default unchanged",
+  "commands": {
+    "normal_gpu_probe": "bash -c 'source /etc/profile.d/wm.sh; export TMPDIR=\"$PWD/.tmp\" TMP=\"$PWD/.tmp\" TEMP=\"$PWD/.tmp\" PYTHONDONTWRITEBYTECODE=1; /opt/torchtitan-venv/bin/python3.12 -m torch.distributed.run --standalone --nproc_per_node=8 runs/v2-prefetch-baseline/bounded_profile_probe.py --output \"$PWD/runs/v2-prefetch-baseline/artifacts/raw/bounded-gpu-probe-001\"'",
+    "error_gpu_probe": "same normal command with --output \"$PWD/runs/v2-prefetch-baseline/artifacts/raw/bounded-gpu-probe-error-001\" --fail-microbatch 4",
+    "legacy_short_tests": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=\"$PWD/gift:$PWD/runs/overnight-streaming-perf\" /opt/torchtitan-venv/bin/python3.12 -m pytest -q --basetemp \"$PWD/runs/overnight-streaming-perf/artifacts/raw/v2-runner-pytest\" runs/overnight-streaming-perf/tests/test_measure.py runs/overnight-streaming-perf/tests/test_short_performance.py",
+    "focused_tests": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=\"$PWD/gift:$PWD/runs/overnight-streaming-perf\" /opt/torchtitan-venv/bin/python3.12 -m pytest -q --basetemp \"$PWD/runs/overnight-streaming-perf/artifacts/raw/v2-runner-pytest-host-fixed\" runs/overnight-streaming-perf/tests/test_bounded_profile.py",
+    "performance_baseline": "/opt/torchtitan-venv/bin/python3.12 runs/overnight-streaming-perf/run.py --run-id v2-baseline-perf-UNIQUE --output-root \"$PWD/runs/v2-prefetch-baseline/artifacts/raw\" --num-prefetch-batches 0",
+    "performance_candidate": "/opt/torchtitan-venv/bin/python3.12 runs/overnight-streaming-perf/run.py --run-id v2-candidate-perf-UNIQUE --output-root \"$PWD/runs/v2-prefetch-baseline/artifacts/raw\" --num-prefetch-batches 32",
+    "trace_baseline": "/opt/torchtitan-venv/bin/python3.12 runs/overnight-streaming-perf/run.py --run-id v2-baseline-trace-UNIQUE --output-root \"$PWD/runs/v2-prefetch-baseline/artifacts/raw\" --num-prefetch-batches 0 --steps 11 --warmup 10 --window 0 --profile-update 11 --profile-microbatches 3",
+    "trace_candidate": "/opt/torchtitan-venv/bin/python3.12 runs/overnight-streaming-perf/run.py --run-id v2-candidate-trace-UNIQUE --output-root \"$PWD/runs/v2-prefetch-baseline/artifacts/raw\" --num-prefetch-batches 32 --steps 11 --warmup 10 --window 0 --profile-update 11 --profile-microbatches 3"
+  },
+  "cost_review": {
+    "timed_runs": "No diagnostic wrappers, per-microbatch checks or new synchronization; depth goes through typed native configuration. Host process-tree RSS read once after warmup drain before start timestamp and once after end timestamp; inherited two CUDA drains unchanged.",
+    "trace_runs": "Only ranks0/1 create profiler; all8 retain training counters. Added profile-only queue lock snapshot/list of32 observations and epoch/global-token/queue-pop scopes; Python/GIL costs and early synchronization perturb profile timing. CPU/GPU collection stops after F/B3;32 accumulation+optimizer intact.",
+    "memory_limits": "Host reads include live descendant DataLoader/compiler processes; shared pages may be double counted in RSS sum. VmHWM is process lifetime. Boundary snapshots do not bound host peak during the window."
+  },
+  "outside_task_tmp_cleanup": {
+    "path": "/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-119",
+    "removed": true,
+    "scope": "exact first-invocation pytest directory only; no parent cache or other pytest directory changed"
+  }
+}

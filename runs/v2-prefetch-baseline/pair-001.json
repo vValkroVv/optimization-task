@@ -1,0 +1,3671 @@
+{
+  "allocation": {
+    "gpu": "8x NVIDIA H100 80GB HBM3",
+    "master": "lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0",
+    "world_size": 8
+  },
+  "authorization_and_gates": {
+    "cpu_config_gate": {
+      "evidence": "runs/v2-prefetch-baseline/artifacts/raw/cpu-checks/verification.md",
+      "status": "PASS",
+      "summary": "245 tests; scoped Ruff and diff check pass"
+    },
+    "gloo_dcp_gate": {
+      "evidence": "runs/v2-prefetch-baseline/artifacts/raw/loader-check-20261113T132448Z-435f3793/receipt.json",
+      "receipt_sha256": "d279a102e9f44ac47e079cd5fb5af6ca476cb4646dd6299063b6b96f4ff3db93",
+      "status": "PASS",
+      "summary": "Both 8-owner persistence modes; 58-batch OFF/ON hashes and 896 rows match; actual peer epoch entry overlapped rank0 paused queued56; completed before A measured window"
+    },
+    "integration_review": "runs/v2-prefetch-baseline/integration-review.md",
+    "native_perf_authorization": "goal-objective.md attachment 4e1e23cb-a372-4d58-8d0d-2cdecd6b7298; existing allocation, native TPS only; no installs/downloads/environment setup/new allocation/source changes"
+  },
+  "common_measurement_contract": {
+    "CUDA_graphs": false,
+    "accumulation_microbatches_per_update": 32,
+    "checkpointing": false,
+    "compiler_cache_observer": false,
+    "detailed_monitoring": false,
+    "global_batch_size": 512,
+    "local_batch_size": 2,
+    "measured_physical_input_tokens_global": 20971520,
+    "measured_supervised_targets_global": 20966400,
+    "measured_updates": 10,
+    "memory_snapshots": false,
+    "observations": "Physical input TPS and globally supervised-target TPS remain separate; per-GPU values are global rates divided by eight.",
+    "per_update_scope": "Native Profiler.step host interval series per rank; no per-update synchronization; the final interval includes the end-boundary drain. Overlapping scopes are not summed.",
+    "runs_unprofiled": true,
+    "sequence_length": 4096,
+    "steps": 20,
+    "timer_scope": "Full eight-rank window: max rank end monotonic timestamp minus min rank start timestamp; boundary CUDA drains included. Normal MDS input, transfers, compute, communication, optimizer and lightweight logging included; initialization/cold compilation, 10 warmup updates, and teardown excluded.",
+    "validation": false,
+    "warmup_updates": 10,
+    "world_size": 8
+  },
+  "comparison": {
+    "elapsed_seconds": {
+      "baseline": 142.273518046,
+      "candidate": 145.29913213,
+      "percent_change": 2.126617887540938
+    },
+    "interpretation": "One matched unprofiled pair only. The observed A/B difference is provisional; within-run step spread is not a run-to-run noise estimate, and no confidence interval or speedup claim is established.",
+    "max_gpu_allocated_bytes_across_ranks": {
+      "baseline": 74812576256,
+      "candidate": 74801811456,
+      "percent_change": -0.014389024598171485
+    },
+    "max_gpu_reserved_bytes_across_ranks": {
+      "baseline": 75335991296,
+      "candidate": 75356962816,
+      "percent_change": 0.02783731870945605
+    },
+    "paired_order": "A depth0 then B depth32; serial; no repetition",
+    "physical_input_tokens_per_second_global": {
+      "baseline": 147402.8356648879,
+      "candidate": 144333.41543455783,
+      "percent_change": -2.082334587720036
+    },
+    "physical_input_tokens_per_second_per_gpu": {
+      "baseline": 18425.35445811099,
+      "candidate": 18041.67692931973
+    },
+    "supervised_tokens_per_second_global": {
+      "baseline": 147366.8486444619,
+      "candidate": 144298.17778430524,
+      "percent_change": -2.082334587720025
+    },
+    "supervised_tokens_per_second_per_gpu": {
+      "baseline": 18420.856080557736,
+      "candidate": 18037.272223038155
+    }
+  },
+  "created_at_utc": "2026-11-13T13:49:04.238597+00:00",
+  "final_status": "complete",
+  "measured_window_review": {
+    "compiler_and_settling_evidence": {
+      "cache_observer_requested": false,
+      "compiler_observer_status": {
+        "v2-baseline-perf-001": "disabled",
+        "v2-candidate-perf-001": "disabled"
+      },
+      "deep_gemm_guard_status": {
+        "v2-baseline-perf-001": "disabled",
+        "v2-candidate-perf-001": "disabled"
+      },
+      "deep_gemm_startup_notice": "The preserved A launcher log reports 39 DeepGEMM kernels compiled during startup warmup and says cache misses during training may compile. This is a capability notice, not evidence that a compilation occurred in the measured window.",
+      "launcher_log_review": "Targeted existing-log search found torch.compile loss/block startup messages before \u201cTraining starts at step 1\u201d. No compile/NVCC/JIT marker was found after startup in the searched launcher and structured logs.",
+      "limits": "The logs do not prove absence of asynchronous or otherwise unlogged JIT work in updates 11\u201320 because compiler observation and guard receipts were disabled. No direct evidence of an in-window compile or continuing settling was found; step16 cause remains unassigned.",
+      "rank_measurement_sidecars": "No compiler guard/cache observation fields are present; the runner compiler observer and DeepGEMM guard are disabled."
+    },
+    "targeted_update_16_review": {
+      "baseline_step16_host_interval_s_by_rank": {
+        "0": 14.925617035,
+        "1": 14.924843864,
+        "2": 14.924967125,
+        "3": 14.925113368,
+        "4": 14.925384681,
+        "5": 14.925119447,
+        "6": 14.92526877,
+        "7": 14.925696926
+      },
+      "baseline_step16_min_median_max_s": [
+        14.924843864,
+        14.925194108500001,
+        14.925696926
+      ],
+      "candidate_step16_host_interval_s_by_rank": {
+        "0": 17.625949414,
+        "1": 17.625830613,
+        "2": 17.625631,
+        "3": 17.626078515,
+        "4": 17.625811453,
+        "5": 17.625785612,
+        "6": 17.626010105,
+        "7": 17.625952204
+      },
+      "candidate_step16_min_median_max_s": [
+        17.625631,
+        17.6258900135,
+        17.626078515
+      ],
+      "disposition": "Retained. All eight B ranks show the same step16 interval of about 17.626 s; A step16 is about 14.925 s. This is an update-level outlier relative to B\u2019s 13.304\u201315.018 s per-rank ordinary interval range. It coincides with the same 56-batch epoch boundary in both variants, but no cause is established.",
+      "fixed_data_epoch_context": {
+        "local_batches_before_epoch_entry": 24,
+        "local_batches_per_epoch": 56,
+        "microbatches_per_update": 32,
+        "same_boundary_for_A_and_B": true,
+        "step16_start_offset_local_batches": 32
+      }
+    },
+    "uncertainty": "One A/B pair only. Per-update variation describes within-run spread and is not a run-to-run noise estimate. No repeat, confidence interval, or general speedup claim."
+  },
+  "pair_id": "v2-prefetch-native-perf-001",
+  "preserved_controller_start_failure": {
+    "log": "runs/v2-prefetch-baseline/artifacts/raw/controller-logs/v2-baseline-perf-001.log",
+    "log_bytes": 0,
+    "outcome": "Outer nohup controller did not survive exec_command return; no runner attempt, torchrun, or GPU work started. Successful A used the separate setsid controller log/PID recorded in its run record.",
+    "pid": 512099
+  },
+  "runs": [
+    {
+      "actual_resolved_config": {
+        "path": "runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/native/config/resolved_config.yaml",
+        "selected_contract": {
+          "activation_checkpoint_mode": "selective",
+          "checkpoint_enabled": false,
+          "compile_enabled": true,
+          "dump_folder": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/native",
+          "ema_enabled": true,
+          "fp8": {
+            "deep_gemm_warmup_on_start": true,
+            "dense_include_linear_layers": ".*\\.(w1|w2|w3|wo|o_proj|qkv_proj|z_proj)$",
+            "dense_use_shared_quantizer": true,
+            "sparse_use_grouped_gemm": true
+          },
+          "global_batch_size": 512,
+          "local_batch_size": 2,
+          "loss_type": "mtp",
+          "memory_snapshot_enabled": false,
+          "monitoring_callbacks": {
+            "monitoring": false,
+            "system_metrics": false,
+            "timers": false
+          },
+          "num_prefetch_batches": 0,
+          "optimizer": {
+            "beta1": 0.9,
+            "beta2": 0.95,
+            "eps": 1e-20,
+            "implementation": "fused",
+            "lr": 0.00102,
+            "name": "AdamW",
+            "param_groups": [],
+            "type": "default",
+            "weight_decay": 0.1
+          },
+          "ordinary_loss_chunks": 2,
+          "parallelism": {
+            "context_parallel_degree": 1,
+            "expert_parallel_degree": 8,
+            "gfsdp_backend": "gfsdp2",
+            "pipeline_parallel_degree": 1,
+            "tensor_parallel_degree": 1
+          },
+          "profiler_enabled": false,
+          "scheduler_total_steps": 65000,
+          "scheduler_warmup_steps": 2000,
+          "seed": 2048,
+          "sequence_length": 4096,
+          "steps": 20,
+          "validator_enabled": false
+        },
+        "sha256": "9ccf9287b930f4a8c65258ce05df5e367a740bf47196d97e4c18032d2084381d"
+      },
+      "attempt_path": "runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001",
+      "cleanup": {
+        "completion": {
+          "config_unchanged": true,
+          "finished_at_utc": "2026-11-13T13:29:34.671057+00:00",
+          "resolved_config_sha256": "9ccf9287b930f4a8c65258ce05df5e367a740bf47196d97e4c18032d2084381d",
+          "source_unchanged": true,
+          "status": "PASS",
+          "task_tmpdir": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-5qwo9ket",
+          "task_tmpdir_removed": true
+        },
+        "task_tmpdir_cleanup": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-5qwo9ket",
+          "removed": true
+        }
+      },
+      "config_hashes_after": {
+        "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+        "compiler_observer_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+        "generated_experiment_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+        "mds_fragment_sha256": "9aa85c4e17d0fd813ab50e95ee14d5b6caba1b5c3e4ae9654fb28b8a047d49cc",
+        "measurement_adapter_sha256": "47c1fbfcfaf67446e0f1a359aeb09972eca6544b7befd4119206a1404f16d616",
+        "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+        "runner_sha256": "fc4ca9e72f7c887188e794c7df9ea80292916965b401ace359e3361f17e97c5b"
+      },
+      "config_hashes_before": {
+        "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+        "compiler_observer_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+        "generated_experiment_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+        "mds_fragment_sha256": "9aa85c4e17d0fd813ab50e95ee14d5b6caba1b5c3e4ae9654fb28b8a047d49cc",
+        "measurement_adapter_sha256": "47c1fbfcfaf67446e0f1a359aeb09972eca6544b7befd4119206a1404f16d616",
+        "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+        "runner_sha256": "fc4ca9e72f7c887188e794c7df9ea80292916965b401ace359e3361f17e97c5b"
+      },
+      "config_hashes_unchanged": true,
+      "controller": {
+        "log": "runs/v2-prefetch-baseline/artifacts/raw/controller-logs/v2-baseline-perf-001-setsid.log",
+        "outer_pid": 513290,
+        "owned_torchrun_process_group": {
+          "child_exit_code": 0,
+          "orphaned_process_group": false,
+          "pid": 513691,
+          "process_group_id": 513691,
+          "process_group_stopped": true,
+          "timeout": false
+        }
+      },
+      "filesystem": {
+        "attempt": {
+          "available_bytes": 16012370509824,
+          "available_inodes": 2921944528,
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001"
+        },
+        "cache": {
+          "available_bytes": 16012370509824,
+          "available_inodes": 2921944528,
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache"
+        },
+        "mds_data": {
+          "available_bytes": 16012370509824,
+          "available_inodes": 2921944528,
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096"
+        },
+        "shared_hf_cache": {
+          "available_bytes": 16012370509824,
+          "available_inodes": 2921944528,
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/shared-cache/huggingface"
+        }
+      },
+      "finished_at_utc": "2026-11-13T13:29:34.671057+00:00",
+      "num_prefetch_batches": 0,
+      "paths_and_cache_policy": {
+        "deep_gemm_rank_cache_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/deep_gemm/rank-cache",
+        "mds_data_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096",
+        "task_tmpdir": {
+          "capacity": {
+            "available_bytes_before_create": 16012370509824,
+            "available_inodes_before_create": 2921944528,
+            "total_bytes": 206273320583168
+          },
+          "cleanup": "remove this exact .tmp/run-<8 random characters> directory after the owned process group stops; preserve it if children survive",
+          "environment_variables": [
+            "TMPDIR",
+            "TMP",
+            "TEMP"
+          ],
+          "filesystem": "task-root NFS",
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-5qwo9ket"
+        },
+        "triton_cache_rank_directories": {
+          "0": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/triton/rank_0",
+          "1": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/triton/rank_1",
+          "2": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/triton/rank_2",
+          "3": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/triton/rank_3",
+          "4": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/triton/rank_4",
+          "5": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/triton/rank_5",
+          "6": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/triton/rank_6",
+          "7": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/cache/triton/rank_7"
+        }
+      },
+      "performance": {
+        "all_rank_update_receipts": {
+          "0": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "1": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "2": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "3": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "4": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "5": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "6": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "7": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          }
+        },
+        "errors": [],
+        "gpu_memory": {
+          "allocator_counter_deltas_by_rank": {
+            "0": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "1": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "2": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "3": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "4": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "5": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "6": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "7": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            }
+          },
+          "by_rank": {
+            "0": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74212672512,
+                "allocated_bytes.all.peak": 74212672512,
+                "reserved_bytes.all.peak": 74870423552
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.11593723297119,
+                "allocated_bytes.all.peak": 69.11593723297119,
+                "reserved_bytes.all.peak": 69.728515625
+              }
+            },
+            "1": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 73842867200,
+                "allocated_bytes.all.peak": 73842867200,
+                "reserved_bytes.all.peak": 74576822272
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 68.77152919769287,
+                "allocated_bytes.all.peak": 68.77152919769287,
+                "reserved_bytes.all.peak": 69.455078125
+              }
+            },
+            "2": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74115919872,
+                "allocated_bytes.all.peak": 74115919872,
+                "reserved_bytes.all.peak": 74729914368
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.02582931518555,
+                "allocated_bytes.all.peak": 69.02582931518555,
+                "reserved_bytes.all.peak": 69.59765625
+              }
+            },
+            "3": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74812576256,
+                "allocated_bytes.all.peak": 74812576256,
+                "reserved_bytes.all.peak": 75335991296
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.67464113235474,
+                "allocated_bytes.all.peak": 69.67464113235474,
+                "reserved_bytes.all.peak": 70.162109375
+              }
+            },
+            "4": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74096849920,
+                "allocated_bytes.all.peak": 74096849920,
+                "reserved_bytes.all.peak": 74836869120
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.00806903839111,
+                "allocated_bytes.all.peak": 69.00806903839111,
+                "reserved_bytes.all.peak": 69.697265625
+              }
+            },
+            "5": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74216331264,
+                "allocated_bytes.all.peak": 74216331264,
+                "reserved_bytes.all.peak": 75015127040
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.11934471130371,
+                "allocated_bytes.all.peak": 69.11934471130371,
+                "reserved_bytes.all.peak": 69.86328125
+              }
+            },
+            "6": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74145494016,
+                "allocated_bytes.all.peak": 74145494016,
+                "reserved_bytes.all.peak": 74604085248
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.05337238311768,
+                "allocated_bytes.all.peak": 69.05337238311768,
+                "reserved_bytes.all.peak": 69.48046875
+              }
+            },
+            "7": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74197360128,
+                "allocated_bytes.all.peak": 74197360128,
+                "reserved_bytes.all.peak": 74847354880
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.10167646408081,
+                "allocated_bytes.all.peak": 69.10167646408081,
+                "reserved_bytes.all.peak": 69.70703125
+              }
+            }
+          },
+          "maximum_peak_bytes_across_ranks": {
+            "active_bytes.all.peak": 74812576256,
+            "allocated_bytes.all.peak": 74812576256,
+            "reserved_bytes.all.peak": 75335991296
+          },
+          "maximum_peak_gib_across_ranks": {
+            "active_bytes.all.peak": 69.67464113235474,
+            "allocated_bytes.all.peak": 69.67464113235474,
+            "reserved_bytes.all.peak": 70.162109375
+          }
+        },
+        "host_memory_boundary_by_rank": {
+          "0": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 4,
+              "live_descendants_rss_sum_bytes": 3539099648,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3714064384,
+              "self_rss_bytes": 3714064384
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 4,
+              "live_descendants_rss_sum_bytes": 3539075072,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3702280192,
+              "self_rss_bytes": 3702280192
+            }
+          },
+          "1": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3523915776,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3714060288,
+              "self_rss_bytes": 3714060288
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3523891200,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3702272000,
+              "self_rss_bytes": 3702272000
+            }
+          },
+          "2": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3708231680,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3718713344,
+              "self_rss_bytes": 3718713344
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3708203008,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3706912768,
+              "self_rss_bytes": 3706912768
+            }
+          },
+          "3": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3516575744,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3715538944,
+              "self_rss_bytes": 3715538944
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3516522496,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3703746560,
+              "self_rss_bytes": 3703746560
+            }
+          },
+          "4": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3514220544,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3701673984,
+              "self_rss_bytes": 3701673984
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3514204160,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3689865216,
+              "self_rss_bytes": 3689865216
+            }
+          },
+          "5": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3524034560,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3703861248,
+              "self_rss_bytes": 3703861248
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3524014080,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3692052480,
+              "self_rss_bytes": 3692052480
+            }
+          },
+          "6": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3718266880,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3716820992,
+              "self_rss_bytes": 3716820992
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3718246400,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3705032704,
+              "self_rss_bytes": 3705032704
+            }
+          },
+          "7": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3511422976,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3713646592,
+              "self_rss_bytes": 3713646592
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3511324672,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3701846016,
+              "self_rss_bytes": 3701846016
+            }
+          }
+        },
+        "host_update_cadence": {
+          "all_rank_ordinary_step_distribution_s": {
+            "max_s": 14.983244234,
+            "median_s": 14.3599512125,
+            "min_s": 13.537135685
+          },
+          "cross_rank_median_interval_s_by_step": {
+            "11": 14.338571561999998,
+            "12": 13.5481629895,
+            "13": 14.381344713,
+            "14": 13.537928035499998,
+            "15": 14.4787969075,
+            "16": 14.925194108500001,
+            "17": 13.717049601500001,
+            "18": 14.454856211,
+            "19": 13.9077480735,
+            "20": 14.9825599495
+          },
+          "per_rank": {
+            "0": [
+              {
+                "interval_s": 14.339023648,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.548042273,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.381393184,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.538051577,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.478705191,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.925617035,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.716586536,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.454875641,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.907568221,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.982518644,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "1": [
+              {
+                "interval_s": 14.338770215,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.548115704,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.381296242,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.538311261,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.479024656,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.924843864,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.716973641,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.455353148,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.907782424,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.981849065,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "2": [
+              {
+                "interval_s": 14.33846324,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.547981522,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.382534579,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.537135685,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.478920575,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.924967125,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.717160224,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.454680539,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.907670182,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.982742498,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "3": [
+              {
+                "interval_s": 14.337531278,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.548269966,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.381089679,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.537771584,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.478888624,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.925113368,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.717104982,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.455432549,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.907113425,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.983244234,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "4": [
+              {
+                "interval_s": 14.338679884,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.548263466,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.38113778,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.538445323,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.478539299,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.925384681,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.716799559,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.454941793,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.907831914,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.982632396,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "5": [
+              {
+                "interval_s": 14.338360909,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.548063263,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.382235095,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.537317147,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.479069697,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.925119447,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.717182794,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.454464357,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.908104497,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.982452304,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "6": [
+              {
+                "interval_s": 14.33842991,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.548217105,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.380878777,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.538682976,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.478405337,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.92526877,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.717241015,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.454814201,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.90828785,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.982248031,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "7": [
+              {
+                "interval_s": 14.338840326,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.548210275,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.381734548,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.537804494,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.478217035,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.925696926,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.716994221,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.454836781,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.907713723,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.982601255,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ]
+          },
+          "scope": "host interval between native Profiler.step returns; adapter does not synchronize each update, and the final interval includes the end-boundary drain"
+        },
+        "loss_gradient_scalars": {
+          "event_file": "runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/native/tb/events.out.tfevents.1794575983.lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0.513812.0",
+          "series": {
+            "l2_norm/grad/global": [
+              {
+                "finite": true,
+                "step": 1,
+                "value": 9.535782814025879
+              },
+              {
+                "finite": true,
+                "step": 2,
+                "value": 9.527013778686523
+              },
+              {
+                "finite": true,
+                "step": 3,
+                "value": 9.313254356384277
+              },
+              {
+                "finite": true,
+                "step": 4,
+                "value": 8.904032707214355
+              },
+              {
+                "finite": true,
+                "step": 5,
+                "value": 8.068074226379395
+              },
+              {
+                "finite": true,
+                "step": 6,
+                "value": 7.4710869789123535
+              },
+              {
+                "finite": true,
+                "step": 7,
+                "value": 7.10624361038208
+              },
+              {
+                "finite": true,
+                "step": 8,
+                "value": 7.190542697906494
+              },
+              {
+                "finite": true,
+                "step": 9,
+                "value": 7.398731708526611
+              },
+              {
+                "finite": true,
+                "step": 10,
+                "value": 7.616887092590332
+              },
+              {
+                "finite": true,
+                "step": 11,
+                "value": 7.890475749969482
+              },
+              {
+                "finite": true,
+                "step": 12,
+                "value": 8.157684326171875
+              },
+              {
+                "finite": true,
+                "step": 13,
+                "value": 8.685787200927734
+              },
+              {
+                "finite": true,
+                "step": 14,
+                "value": 9.25139045715332
+              },
+              {
+                "finite": true,
+                "step": 15,
+                "value": 10.094185829162598
+              },
+              {
+                "finite": true,
+                "step": 16,
+                "value": 11.105661392211914
+              },
+              {
+                "finite": true,
+                "step": 17,
+                "value": 12.196074485778809
+              },
+              {
+                "finite": true,
+                "step": 18,
+                "value": 13.325224876403809
+              },
+              {
+                "finite": true,
+                "step": 19,
+                "value": 14.226845741271973
+              },
+              {
+                "finite": true,
+                "step": 20,
+                "value": 15.070001602172852
+              }
+            ],
+            "loss/train/global_max": [
+              {
+                "finite": true,
+                "step": 1,
+                "value": 15.321151733398438
+              },
+              {
+                "finite": true,
+                "step": 2,
+                "value": 15.296914100646973
+              },
+              {
+                "finite": true,
+                "step": 3,
+                "value": 15.249467849731445
+              },
+              {
+                "finite": true,
+                "step": 4,
+                "value": 15.17945671081543
+              },
+              {
+                "finite": true,
+                "step": 5,
+                "value": 15.09923267364502
+              },
+              {
+                "finite": true,
+                "step": 6,
+                "value": 15.000997543334961
+              },
+              {
+                "finite": true,
+                "step": 7,
+                "value": 14.909008026123047
+              },
+              {
+                "finite": true,
+                "step": 8,
+                "value": 14.808341026306152
+              },
+              {
+                "finite": true,
+                "step": 9,
+                "value": 14.697643280029297
+              },
+              {
+                "finite": true,
+                "step": 10,
+                "value": 14.583100318908691
+              },
+              {
+                "finite": true,
+                "step": 11,
+                "value": 14.442561149597168
+              },
+              {
+                "finite": true,
+                "step": 12,
+                "value": 14.307257652282715
+              },
+              {
+                "finite": true,
+                "step": 13,
+                "value": 14.12678050994873
+              },
+              {
+                "finite": true,
+                "step": 14,
+                "value": 13.954887390136719
+              },
+              {
+                "finite": true,
+                "step": 15,
+                "value": 13.744568824768066
+              },
+              {
+                "finite": true,
+                "step": 16,
+                "value": 13.50372314453125
+              },
+              {
+                "finite": true,
+                "step": 17,
+                "value": 13.24488353729248
+              },
+              {
+                "finite": true,
+                "step": 18,
+                "value": 12.925617218017578
+              },
+              {
+                "finite": true,
+                "step": 19,
+                "value": 12.62409782409668
+              },
+              {
+                "finite": true,
+                "step": 20,
+                "value": 12.235995292663574
+              }
+            ],
+            "loss/train/total": [
+              {
+                "finite": true,
+                "step": 1,
+                "value": 15.319454193115234
+              },
+              {
+                "finite": true,
+                "step": 2,
+                "value": 15.295846939086914
+              },
+              {
+                "finite": true,
+                "step": 3,
+                "value": 15.247699737548828
+              },
+              {
+                "finite": true,
+                "step": 4,
+                "value": 15.178082466125488
+              },
+              {
+                "finite": true,
+                "step": 5,
+                "value": 15.094939231872559
+              },
+              {
+                "finite": true,
+                "step": 6,
+                "value": 14.999347686767578
+              },
+              {
+                "finite": true,
+                "step": 7,
+                "value": 14.905332565307617
+              },
+              {
+                "finite": true,
+                "step": 8,
+                "value": 14.802374839782715
+              },
+              {
+                "finite": true,
+                "step": 9,
+                "value": 14.693214416503906
+              },
+              {
+                "finite": true,
+                "step": 10,
+                "value": 14.574329376220703
+              },
+              {
+                "finite": true,
+                "step": 11,
+                "value": 14.439090728759766
+              },
+              {
+                "finite": true,
+                "step": 12,
+                "value": 14.295391082763672
+              },
+              {
+                "finite": true,
+                "step": 13,
+                "value": 14.12319564819336
+              },
+              {
+                "finite": true,
+                "step": 14,
+                "value": 13.946002006530762
+              },
+              {
+                "finite": true,
+                "step": 15,
+                "value": 13.733742713928223
+              },
+              {
+                "finite": true,
+                "step": 16,
+                "value": 13.493385314941406
+              },
+              {
+                "finite": true,
+                "step": 17,
+                "value": 13.223858833312988
+              },
+              {
+                "finite": true,
+                "step": 18,
+                "value": 12.91311264038086
+              },
+              {
+                "finite": true,
+                "step": 19,
+                "value": 12.591812133789062
+              },
+              {
+                "finite": true,
+                "step": 20,
+                "value": 12.226520538330078
+              }
+            ]
+          }
+        },
+        "status": "complete",
+        "tokens": {
+          "physical_input_tokens_global": 20971520,
+          "physical_input_tokens_per_gpu": 2621440.0,
+          "physical_input_tokens_per_second_global": 147402.8356648879,
+          "physical_input_tokens_per_second_per_gpu": 18425.35445811099,
+          "supervised_tokens_global": 20966400,
+          "supervised_tokens_per_gpu": 2620800.0,
+          "supervised_tokens_per_second_global": 147366.8486444619,
+          "supervised_tokens_per_second_per_gpu": 18420.856080557736
+        },
+        "window": {
+          "end_after_update": 20,
+          "end_skew_ns": 869661,
+          "end_skew_s": 0.000869661,
+          "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+          "max_local_elapsed_s": 142.272656095,
+          "min_local_elapsed_s": 142.271559689,
+          "monitor_interval": 0,
+          "monitoring_updates": [],
+          "per_rank": {
+            "0": {
+              "end_monotonic_ns": 2506234657508092,
+              "local_elapsed_s": 142.27238195,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506092385126142,
+              "supervised_tokens_global": 20966400
+            },
+            "1": {
+              "end_monotonic_ns": 2506234656794173,
+              "local_elapsed_s": 142.27232022,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506092384473953,
+              "supervised_tokens_global": 20966400
+            },
+            "2": {
+              "end_monotonic_ns": 2506234656761473,
+              "local_elapsed_s": 142.272256169,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506092384505304,
+              "supervised_tokens_global": 20966400
+            },
+            "3": {
+              "end_monotonic_ns": 2506234657631134,
+              "local_elapsed_s": 142.271559689,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506092386071445,
+              "supervised_tokens_global": 20966400
+            },
+            "4": {
+              "end_monotonic_ns": 2506234656769183,
+              "local_elapsed_s": 142.272656095,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506092384113088,
+              "supervised_tokens_global": 20966400
+            },
+            "5": {
+              "end_monotonic_ns": 2506234656855424,
+              "local_elapsed_s": 142.27236951,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506092384485914,
+              "supervised_tokens_global": 20966400
+            },
+            "6": {
+              "end_monotonic_ns": 2506234656936515,
+              "local_elapsed_s": 142.272473972,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506092384462543,
+              "supervised_tokens_global": 20966400
+            },
+            "7": {
+              "end_monotonic_ns": 2506234657039086,
+              "local_elapsed_s": 142.272649584,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506092384389502,
+              "supervised_tokens_global": 20966400
+            }
+          },
+          "primary_elapsed_s": 142.273518046,
+          "start_after_update": 10,
+          "start_skew_ns": 1958357,
+          "start_skew_s": 0.001958357,
+          "updates": 10,
+          "warmup_updates": 10
+        }
+      },
+      "raw_native_child_argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "-m",
+        "torch.distributed.run",
+        "--standalone",
+        "--nnodes=1",
+        "--nproc_per_node=8",
+        "--max_restarts=0",
+        "--log_dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/logs/torchrun",
+        "--redirects=3",
+        "--tee=3",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/measure.py",
+        "--measurement-dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/measurement",
+        "--run-id",
+        "v2-baseline-perf-001",
+        "--steps",
+        "20",
+        "--warmup",
+        "10",
+        "--window",
+        "10",
+        "--",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/config/experiment.yaml",
+        "--dataloader.num_prefetch_batches",
+        "0",
+        "--training.steps",
+        "20",
+        "--lr_scheduler.total_steps",
+        "65000",
+        "--lr_scheduler.warmup_steps",
+        "2000",
+        "--debug.seed",
+        "2048",
+        "--metrics.log_freq",
+        "1",
+        "--checkpoint.enable",
+        "false",
+        "--validator.enable",
+        "false",
+        "--profiler.enable_profiling",
+        "false",
+        "--profiler.enable_memory_snapshot",
+        "false",
+        "--dump_folder",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-perf-001/native",
+        "--hf_assets_path",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/assets/tokenizer"
+      ],
+      "run_id": "v2-baseline-perf-001",
+      "runner_command": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "runs/overnight-streaming-perf/run.py",
+        "--run-id",
+        "v2-baseline-perf-001",
+        "--output-root",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw",
+        "--num-prefetch-batches",
+        "0",
+        "--steps",
+        "20",
+        "--warmup",
+        "10",
+        "--window",
+        "10"
+      ],
+      "runtime": {
+        "core_file_limit": [
+          0,
+          0
+        ],
+        "cuda_available": true,
+        "cuda_device_count": 8,
+        "cuda_home": "/usr/local/cuda",
+        "gpus": [
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 0,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 1,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 2,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 3,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 4,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 5,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 6,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 7,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          }
+        ],
+        "nccl": [
+          2,
+          30,
+          7
+        ],
+        "packages": {
+          "cutlass_dsl": {
+            "version": "4.4.1"
+          },
+          "deep_ep": {
+            "hybrid_ep_backend": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/backend/hybrid_ep_backend.cuh",
+            "hybrid_ep_backend_sha256": "b507f65cfa4580f16342076fc2d00afe81e43f64ddefcc4a3cf43681aef11b4b",
+            "hybrid_ep_wrapper": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/hybrid_ep_buffer.py",
+            "hybrid_ep_wrapper_sha256": "63e425916b3c6b0c881ad402af35a2b00c4c84203fcde611a6715744b89210cb",
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/__init__.py",
+            "version": "1.2.1+1b8f467"
+          },
+          "deep_gemm": {
+            "build_version": "2.3.0+f093a4c",
+            "extension": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/_C.cpython-312-x86_64-linux-gnu.so",
+            "header": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh",
+            "header_sha256": "fd8a620440cc31ae7d01010fde1f914aae6998f2dcf6ede2a65e3b5e76001726",
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/__init__.py",
+            "version": "2.3.0+f093a4c"
+          },
+          "streaming": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/streaming/__init__.py",
+            "version": "0.13.0"
+          },
+          "tokenizers": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/tokenizers/__init__.py",
+            "version": "0.22.2"
+          },
+          "torchtitan": {
+            "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/__init__.py",
+            "version": "0.2.2"
+          },
+          "transformers": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/transformers/__init__.py",
+            "version": "4.57.1"
+          },
+          "tvm_ffi": {
+            "version": null
+          }
+        },
+        "python": "3.12.3",
+        "python_executable": "/usr/bin/python3.12",
+        "torch": "2.15.0.dev20260822+cu130",
+        "torch_cuda": "13.0"
+      },
+      "settings": {
+        "checkpointing": "disabled",
+        "compiler_cache_policy": "fresh task-owned TorchInductor, Triton, DeepGEMM shared-kernel and rank-cache directories per run",
+        "detailed_monitoring": "disabled; callbacks omitted; ordinary two-chunk loss",
+        "memory_snapshots": "disabled",
+        "monitor_interval": 0,
+        "observe_compiler_cache": false,
+        "profiler": "disabled",
+        "steps": 20,
+        "validation": "disabled",
+        "warmup_updates": 10,
+        "window_updates": 10
+      },
+      "source_identity": {
+        "source_snapshot_after": {
+          "git_status_sha256": "e2ff2195a60023c3607c8b047dc16f6ff776f16e8aadfad72518c246979de2dc",
+          "head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+          "tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+          "tracked_file_count": 27627,
+          "tracked_sha256": "ca6518fa3d4ba70ca935fc2bad3aa4475f5f205b9128ae2bd9ba380130179cde",
+          "untracked_file_count": 2,
+          "untracked_sha256": "449392c81f567efcc6a7171bf5e25d667f468c38106a08de6b32131005f7a841"
+        },
+        "source_snapshot_before": {
+          "git_status_sha256": "e2ff2195a60023c3607c8b047dc16f6ff776f16e8aadfad72518c246979de2dc",
+          "head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+          "tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+          "tracked_file_count": 27627,
+          "tracked_sha256": "ca6518fa3d4ba70ca935fc2bad3aa4475f5f205b9128ae2bd9ba380130179cde",
+          "untracked_file_count": 2,
+          "untracked_sha256": "449392c81f567efcc6a7171bf5e25d667f468c38106a08de6b32131005f7a841"
+        },
+        "task_head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+        "unchanged": true
+      },
+      "status": "complete"
+    },
+    {
+      "actual_resolved_config": {
+        "path": "runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/native/config/resolved_config.yaml",
+        "selected_contract": {
+          "activation_checkpoint_mode": "selective",
+          "checkpoint_enabled": false,
+          "compile_enabled": true,
+          "dump_folder": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/native",
+          "ema_enabled": true,
+          "fp8": {
+            "deep_gemm_warmup_on_start": true,
+            "dense_include_linear_layers": ".*\\.(w1|w2|w3|wo|o_proj|qkv_proj|z_proj)$",
+            "dense_use_shared_quantizer": true,
+            "sparse_use_grouped_gemm": true
+          },
+          "global_batch_size": 512,
+          "local_batch_size": 2,
+          "loss_type": "mtp",
+          "memory_snapshot_enabled": false,
+          "monitoring_callbacks": {
+            "monitoring": false,
+            "system_metrics": false,
+            "timers": false
+          },
+          "num_prefetch_batches": 32,
+          "optimizer": {
+            "beta1": 0.9,
+            "beta2": 0.95,
+            "eps": 1e-20,
+            "implementation": "fused",
+            "lr": 0.00102,
+            "name": "AdamW",
+            "param_groups": [],
+            "type": "default",
+            "weight_decay": 0.1
+          },
+          "ordinary_loss_chunks": 2,
+          "parallelism": {
+            "context_parallel_degree": 1,
+            "expert_parallel_degree": 8,
+            "gfsdp_backend": "gfsdp2",
+            "pipeline_parallel_degree": 1,
+            "tensor_parallel_degree": 1
+          },
+          "profiler_enabled": false,
+          "scheduler_total_steps": 65000,
+          "scheduler_warmup_steps": 2000,
+          "seed": 2048,
+          "sequence_length": 4096,
+          "steps": 20,
+          "validator_enabled": false
+        },
+        "sha256": "b3a1487c0ff25c792d38d7cbd566fd74ccd4b131b1c6ff6fbdad0a4dbcbc278b"
+      },
+      "attempt_path": "runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001",
+      "cleanup": {
+        "completion": {
+          "config_unchanged": true,
+          "finished_at_utc": "2026-11-13T13:42:34.356241+00:00",
+          "resolved_config_sha256": "b3a1487c0ff25c792d38d7cbd566fd74ccd4b131b1c6ff6fbdad0a4dbcbc278b",
+          "source_unchanged": true,
+          "status": "PASS",
+          "task_tmpdir": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-4tvrkall",
+          "task_tmpdir_removed": true
+        },
+        "task_tmpdir_cleanup": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-4tvrkall",
+          "removed": true
+        }
+      },
+      "config_hashes_after": {
+        "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+        "compiler_observer_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+        "generated_experiment_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+        "mds_fragment_sha256": "9aa85c4e17d0fd813ab50e95ee14d5b6caba1b5c3e4ae9654fb28b8a047d49cc",
+        "measurement_adapter_sha256": "47c1fbfcfaf67446e0f1a359aeb09972eca6544b7befd4119206a1404f16d616",
+        "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+        "runner_sha256": "fc4ca9e72f7c887188e794c7df9ea80292916965b401ace359e3361f17e97c5b"
+      },
+      "config_hashes_before": {
+        "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+        "compiler_observer_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+        "generated_experiment_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+        "mds_fragment_sha256": "9aa85c4e17d0fd813ab50e95ee14d5b6caba1b5c3e4ae9654fb28b8a047d49cc",
+        "measurement_adapter_sha256": "47c1fbfcfaf67446e0f1a359aeb09972eca6544b7befd4119206a1404f16d616",
+        "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+        "runner_sha256": "fc4ca9e72f7c887188e794c7df9ea80292916965b401ace359e3361f17e97c5b"
+      },
+      "config_hashes_unchanged": true,
+      "controller": {
+        "log": "runs/v2-prefetch-baseline/artifacts/raw/controller-logs/v2-candidate-perf-001-setsid.log",
+        "outer_pid": 538463,
+        "owned_torchrun_process_group": {
+          "child_exit_code": 0,
+          "orphaned_process_group": false,
+          "pid": 538757,
+          "process_group_id": 538757,
+          "process_group_stopped": true,
+          "timeout": false
+        }
+      },
+      "filesystem": {
+        "attempt": {
+          "available_bytes": 15984185311232,
+          "available_inodes": 2921899209,
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001"
+        },
+        "cache": {
+          "available_bytes": 15984185311232,
+          "available_inodes": 2921899209,
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache"
+        },
+        "mds_data": {
+          "available_bytes": 15984185311232,
+          "available_inodes": 2921899209,
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096"
+        },
+        "shared_hf_cache": {
+          "available_bytes": 15984185311232,
+          "available_inodes": 2921899209,
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/shared-cache/huggingface"
+        }
+      },
+      "finished_at_utc": "2026-11-13T13:42:34.356241+00:00",
+      "num_prefetch_batches": 32,
+      "paths_and_cache_policy": {
+        "deep_gemm_rank_cache_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/deep_gemm/rank-cache",
+        "mds_data_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096",
+        "task_tmpdir": {
+          "capacity": {
+            "available_bytes_before_create": 15984185311232,
+            "available_inodes_before_create": 2921899209,
+            "total_bytes": 206273320583168
+          },
+          "cleanup": "remove this exact .tmp/run-<8 random characters> directory after the owned process group stops; preserve it if children survive",
+          "environment_variables": [
+            "TMPDIR",
+            "TMP",
+            "TEMP"
+          ],
+          "filesystem": "task-root NFS",
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-4tvrkall"
+        },
+        "triton_cache_rank_directories": {
+          "0": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/triton/rank_0",
+          "1": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/triton/rank_1",
+          "2": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/triton/rank_2",
+          "3": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/triton/rank_3",
+          "4": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/triton/rank_4",
+          "5": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/triton/rank_5",
+          "6": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/triton/rank_6",
+          "7": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/cache/triton/rank_7"
+        }
+      },
+      "performance": {
+        "all_rank_update_receipts": {
+          "0": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "1": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "2": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "3": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "4": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "5": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "6": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          },
+          "7": {
+            "all_step_timing_values_finite": true,
+            "completed_steps": 20,
+            "expected_steps": 20,
+            "optimizer_end_events": 20,
+            "step_end_events": 20,
+            "training_status": "complete"
+          }
+        },
+        "errors": [],
+        "gpu_memory": {
+          "allocator_counter_deltas_by_rank": {
+            "0": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "1": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "2": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "3": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "4": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "5": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "6": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "7": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            }
+          },
+          "by_rank": {
+            "0": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74210211840,
+                "allocated_bytes.all.peak": 74210211840,
+                "reserved_bytes.all.peak": 74954309632
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.11364555358887,
+                "allocated_bytes.all.peak": 69.11364555358887,
+                "reserved_bytes.all.peak": 69.806640625
+              }
+            },
+            "1": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 73842278400,
+                "allocated_bytes.all.peak": 73842278400,
+                "reserved_bytes.all.peak": 74576822272
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 68.77098083496094,
+                "allocated_bytes.all.peak": 68.77098083496094,
+                "reserved_bytes.all.peak": 69.455078125
+              }
+            },
+            "2": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74130942976,
+                "allocated_bytes.all.peak": 74130942976,
+                "reserved_bytes.all.peak": 74771857408
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.03982067108154,
+                "allocated_bytes.all.peak": 69.03982067108154,
+                "reserved_bytes.all.peak": 69.63671875
+              }
+            },
+            "3": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74801811456,
+                "allocated_bytes.all.peak": 74801811456,
+                "reserved_bytes.all.peak": 75356962816
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.66461563110352,
+                "allocated_bytes.all.peak": 69.66461563110352,
+                "reserved_bytes.all.peak": 70.181640625
+              }
+            },
+            "4": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74099119616,
+                "allocated_bytes.all.peak": 74099119616,
+                "reserved_bytes.all.peak": 74878812160
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.01018285751343,
+                "allocated_bytes.all.peak": 69.01018285751343,
+                "reserved_bytes.all.peak": 69.736328125
+              }
+            },
+            "5": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74213306368,
+                "allocated_bytes.all.peak": 74213306368,
+                "reserved_bytes.all.peak": 74973184000
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.11652755737305,
+                "allocated_bytes.all.peak": 69.11652755737305,
+                "reserved_bytes.all.peak": 69.82421875
+              }
+            },
+            "6": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74149180928,
+                "allocated_bytes.all.peak": 74149180928,
+                "reserved_bytes.all.peak": 74604085248
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.0568060874939,
+                "allocated_bytes.all.peak": 69.0568060874939,
+                "reserved_bytes.all.peak": 69.48046875
+              }
+            },
+            "7": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 74200311296,
+                "allocated_bytes.all.peak": 74200311296,
+                "reserved_bytes.all.peak": 74847354880
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 69.1044249534607,
+                "allocated_bytes.all.peak": 69.1044249534607,
+                "reserved_bytes.all.peak": 69.70703125
+              }
+            }
+          },
+          "maximum_peak_bytes_across_ranks": {
+            "active_bytes.all.peak": 74801811456,
+            "allocated_bytes.all.peak": 74801811456,
+            "reserved_bytes.all.peak": 75356962816
+          },
+          "maximum_peak_gib_across_ranks": {
+            "active_bytes.all.peak": 69.66461563110352,
+            "allocated_bytes.all.peak": 69.66461563110352,
+            "reserved_bytes.all.peak": 70.181640625
+          }
+        },
+        "host_memory_boundary_by_rank": {
+          "0": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 4,
+              "live_descendants_rss_sum_bytes": 3546882048,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3717500928,
+              "self_rss_bytes": 3717500928
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 4,
+              "live_descendants_rss_sum_bytes": 3546853376,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3705634816,
+              "self_rss_bytes": 3705634816
+            }
+          },
+          "1": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3526873088,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3720544256,
+              "self_rss_bytes": 3720544256
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3526852608,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3708723200,
+              "self_rss_bytes": 3708723200
+            }
+          },
+          "2": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3708686336,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3719139328,
+              "self_rss_bytes": 3719139328
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3708657664,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3707297792,
+              "self_rss_bytes": 3707297792
+            }
+          },
+          "3": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3514327040,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3716640768,
+              "self_rss_bytes": 3716640768
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3514314752,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3704774656,
+              "self_rss_bytes": 3704774656
+            }
+          },
+          "4": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3512279040,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3707490304,
+              "self_rss_bytes": 3707490304
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3512242176,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3695673344,
+              "self_rss_bytes": 3695673344
+            }
+          },
+          "5": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3525840896,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3709464576,
+              "self_rss_bytes": 3709464576
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3525824512,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3697610752,
+              "self_rss_bytes": 3697610752
+            }
+          },
+          "6": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3720503296,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3719065600,
+              "self_rss_bytes": 3719065600
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 3,
+              "live_descendants_rss_sum_bytes": 3720486912,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3707252736,
+              "self_rss_bytes": 3707252736
+            }
+          },
+          "7": {
+            "after_timing_end": {
+              "errors": [],
+              "live_descendant_count": 4,
+              "live_descendants_rss_sum_bytes": 3530846208,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3716534272,
+              "self_rss_bytes": 3716534272
+            },
+            "before_timing_start": {
+              "errors": [],
+              "live_descendant_count": 4,
+              "live_descendants_rss_sum_bytes": 3530821632,
+              "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak",
+              "self_process_lifetime_hwm_bytes": 3704696832,
+              "self_rss_bytes": 3704696832
+            }
+          }
+        },
+        "host_update_cadence": {
+          "all_rank_ordinary_step_distribution_s": {
+            "max_s": 17.626078515,
+            "median_s": 14.61550896,
+            "min_s": 13.303582278
+          },
+          "cross_rank_median_interval_s_by_step": {
+            "11": 14.6318911655,
+            "12": 13.3038937665,
+            "13": 14.597429675499999,
+            "14": 13.4648329975,
+            "15": 14.718468547499999,
+            "16": 17.6258900135,
+            "17": 13.4746300095,
+            "18": 14.7896698075,
+            "19": 13.673125602999999,
+            "20": 15.017758707
+          },
+          "per_rank": {
+            "0": [
+              {
+                "interval_s": 14.631520456,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.304187755,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.599811367,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.462585113,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.718108399,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 17.625949414,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.474617344,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.789728188,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.673038727,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 15.017731976,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "1": [
+              {
+                "interval_s": 14.631912031,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.304180195,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.596907745,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.466374025,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.717311599,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 17.625830613,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.474739715,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.78983333,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.672928725,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 15.018575826,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "2": [
+              {
+                "interval_s": 14.631918111,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.303582278,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.597824325,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.464603566,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.718901187,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 17.625631,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.474480003,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.789677058,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.672939855,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 15.017903299,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "3": [
+              {
+                "interval_s": 14.632096863,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.303929432,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.5973341,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.464884568,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.718411832,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 17.626078515,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.474642675,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.789406045,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.673260049,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 15.017669956,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "4": [
+              {
+                "interval_s": 14.631206553,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.303858101,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.597739094,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.464658056,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.718525263,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 17.625811453,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.474604044,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.789528626,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.673279579,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 15.017732927,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "5": [
+              {
+                "interval_s": 14.6318703,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.304002684,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.597280338,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.465080641,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.718570844,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 17.625785612,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.474902197,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.789130592,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.67339498,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 15.017567635,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "6": [
+              {
+                "interval_s": 14.632506048,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.303779411,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.597330829,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.464781427,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.718678825,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 17.626010105,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.474482812,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.789674808,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.673212479,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 15.017784487,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ],
+            "7": [
+              {
+                "interval_s": 14.631682428,
+                "monitoring_step": false,
+                "step": 11,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.303750271,
+                "monitoring_step": false,
+                "step": 12,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.597525251,
+                "monitoring_step": false,
+                "step": 13,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.46497938,
+                "monitoring_step": false,
+                "step": 14,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.718339251,
+                "monitoring_step": false,
+                "step": 15,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 17.625952204,
+                "monitoring_step": false,
+                "step": 16,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.474782196,
+                "monitoring_step": false,
+                "step": 17,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 14.789664807,
+                "monitoring_step": false,
+                "step": 18,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 13.672849015,
+                "monitoring_step": false,
+                "step": 19,
+                "window_boundary": null
+              },
+              {
+                "interval_s": 15.017815618,
+                "monitoring_step": false,
+                "step": 20,
+                "window_boundary": "end"
+              }
+            ]
+          },
+          "scope": "host interval between native Profiler.step returns; adapter does not synchronize each update, and the final interval includes the end-boundary drain"
+        },
+        "loss_gradient_scalars": {
+          "event_file": "runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/native/tb/events.out.tfevents.1794576711.lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0.538842.0",
+          "series": {
+            "l2_norm/grad/global": [
+              {
+                "finite": true,
+                "step": 1,
+                "value": 9.53840160369873
+              },
+              {
+                "finite": true,
+                "step": 2,
+                "value": 9.521931648254395
+              },
+              {
+                "finite": true,
+                "step": 3,
+                "value": 9.312139511108398
+              },
+              {
+                "finite": true,
+                "step": 4,
+                "value": 8.900731086730957
+              },
+              {
+                "finite": true,
+                "step": 5,
+                "value": 8.078462600708008
+              },
+              {
+                "finite": true,
+                "step": 6,
+                "value": 7.472334861755371
+              },
+              {
+                "finite": true,
+                "step": 7,
+                "value": 7.101830005645752
+              },
+              {
+                "finite": true,
+                "step": 8,
+                "value": 7.194436073303223
+              },
+              {
+                "finite": true,
+                "step": 9,
+                "value": 7.383577346801758
+              },
+              {
+                "finite": true,
+                "step": 10,
+                "value": 7.617363929748535
+              },
+              {
+                "finite": true,
+                "step": 11,
+                "value": 7.897860527038574
+              },
+              {
+                "finite": true,
+                "step": 12,
+                "value": 8.162814140319824
+              },
+              {
+                "finite": true,
+                "step": 13,
+                "value": 8.684926986694336
+              },
+              {
+                "finite": true,
+                "step": 14,
+                "value": 9.2383394241333
+              },
+              {
+                "finite": true,
+                "step": 15,
+                "value": 10.086758613586426
+              },
+              {
+                "finite": true,
+                "step": 16,
+                "value": 11.094311714172363
+              },
+              {
+                "finite": true,
+                "step": 17,
+                "value": 12.184086799621582
+              },
+              {
+                "finite": true,
+                "step": 18,
+                "value": 13.317394256591797
+              },
+              {
+                "finite": true,
+                "step": 19,
+                "value": 14.227715492248535
+              },
+              {
+                "finite": true,
+                "step": 20,
+                "value": 15.073456764221191
+              }
+            ],
+            "loss/train/global_max": [
+              {
+                "finite": true,
+                "step": 1,
+                "value": 15.321154594421387
+              },
+              {
+                "finite": true,
+                "step": 2,
+                "value": 15.297351837158203
+              },
+              {
+                "finite": true,
+                "step": 3,
+                "value": 15.249641418457031
+              },
+              {
+                "finite": true,
+                "step": 4,
+                "value": 15.179039001464844
+              },
+              {
+                "finite": true,
+                "step": 5,
+                "value": 15.098714828491211
+              },
+              {
+                "finite": true,
+                "step": 6,
+                "value": 15.001181602478027
+              },
+              {
+                "finite": true,
+                "step": 7,
+                "value": 14.908490180969238
+              },
+              {
+                "finite": true,
+                "step": 8,
+                "value": 14.808199882507324
+              },
+              {
+                "finite": true,
+                "step": 9,
+                "value": 14.697698593139648
+              },
+              {
+                "finite": true,
+                "step": 10,
+                "value": 14.58316421508789
+              },
+              {
+                "finite": true,
+                "step": 11,
+                "value": 14.4425048828125
+              },
+              {
+                "finite": true,
+                "step": 12,
+                "value": 14.308073997497559
+              },
+              {
+                "finite": true,
+                "step": 13,
+                "value": 14.126571655273438
+              },
+              {
+                "finite": true,
+                "step": 14,
+                "value": 13.954585075378418
+              },
+              {
+                "finite": true,
+                "step": 15,
+                "value": 13.744712829589844
+              },
+              {
+                "finite": true,
+                "step": 16,
+                "value": 13.503684997558594
+              },
+              {
+                "finite": true,
+                "step": 17,
+                "value": 13.244291305541992
+              },
+              {
+                "finite": true,
+                "step": 18,
+                "value": 12.925596237182617
+              },
+              {
+                "finite": true,
+                "step": 19,
+                "value": 12.624687194824219
+              },
+              {
+                "finite": true,
+                "step": 20,
+                "value": 12.236536026000977
+              }
+            ],
+            "loss/train/total": [
+              {
+                "finite": true,
+                "step": 1,
+                "value": 15.319469451904297
+              },
+              {
+                "finite": true,
+                "step": 2,
+                "value": 15.29561710357666
+              },
+              {
+                "finite": true,
+                "step": 3,
+                "value": 15.247781753540039
+              },
+              {
+                "finite": true,
+                "step": 4,
+                "value": 15.178003311157227
+              },
+              {
+                "finite": true,
+                "step": 5,
+                "value": 15.094666481018066
+              },
+              {
+                "finite": true,
+                "step": 6,
+                "value": 14.99948501586914
+              },
+              {
+                "finite": true,
+                "step": 7,
+                "value": 14.905278205871582
+              },
+              {
+                "finite": true,
+                "step": 8,
+                "value": 14.802253723144531
+              },
+              {
+                "finite": true,
+                "step": 9,
+                "value": 14.693255424499512
+              },
+              {
+                "finite": true,
+                "step": 10,
+                "value": 14.574289321899414
+              },
+              {
+                "finite": true,
+                "step": 11,
+                "value": 14.439085006713867
+              },
+              {
+                "finite": true,
+                "step": 12,
+                "value": 14.29560661315918
+              },
+              {
+                "finite": true,
+                "step": 13,
+                "value": 14.123403549194336
+              },
+              {
+                "finite": true,
+                "step": 14,
+                "value": 13.946062088012695
+              },
+              {
+                "finite": true,
+                "step": 15,
+                "value": 13.733671188354492
+              },
+              {
+                "finite": true,
+                "step": 16,
+                "value": 13.49351978302002
+              },
+              {
+                "finite": true,
+                "step": 17,
+                "value": 13.22398567199707
+              },
+              {
+                "finite": true,
+                "step": 18,
+                "value": 12.9130277633667
+              },
+              {
+                "finite": true,
+                "step": 19,
+                "value": 12.592185020446777
+              },
+              {
+                "finite": true,
+                "step": 20,
+                "value": 12.227158546447754
+              }
+            ]
+          }
+        },
+        "status": "complete",
+        "tokens": {
+          "physical_input_tokens_global": 20971520,
+          "physical_input_tokens_per_gpu": 2621440.0,
+          "physical_input_tokens_per_second_global": 144333.41543455783,
+          "physical_input_tokens_per_second_per_gpu": 18041.67692931973,
+          "supervised_tokens_global": 20966400,
+          "supervised_tokens_per_gpu": 2620800.0,
+          "supervised_tokens_per_second_global": 144298.17778430524,
+          "supervised_tokens_per_second_per_gpu": 18037.272223038155
+        },
+        "window": {
+          "end_after_update": 20,
+          "end_skew_ns": 1418095,
+          "end_skew_s": 0.001418095,
+          "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+          "max_local_elapsed_s": 145.298593804,
+          "min_local_elapsed_s": 145.296943696,
+          "monitor_interval": 0,
+          "monitoring_updates": [],
+          "per_rank": {
+            "0": {
+              "end_monotonic_ns": 2507017243294775,
+              "local_elapsed_s": 145.297278739,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506871946016036,
+              "supervised_tokens_global": 20966400
+            },
+            "1": {
+              "end_monotonic_ns": 2507017243839211,
+              "local_elapsed_s": 145.298593804,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506871945245407,
+              "supervised_tokens_global": 20966400
+            },
+            "2": {
+              "end_monotonic_ns": 2507017242865731,
+              "local_elapsed_s": 145.297460682,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506871945405049,
+              "supervised_tokens_global": 20966400
+            },
+            "3": {
+              "end_monotonic_ns": 2507017242421116,
+              "local_elapsed_s": 145.297714035,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506871944707081,
+              "supervised_tokens_global": 20966400
+            },
+            "4": {
+              "end_monotonic_ns": 2507017242701619,
+              "local_elapsed_s": 145.296943696,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506871945757923,
+              "supervised_tokens_global": 20966400
+            },
+            "5": {
+              "end_monotonic_ns": 2507017242464256,
+              "local_elapsed_s": 145.297585823,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506871944878433,
+              "supervised_tokens_global": 20966400
+            },
+            "6": {
+              "end_monotonic_ns": 2507017242968482,
+              "local_elapsed_s": 145.298241231,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506871944727251,
+              "supervised_tokens_global": 20966400
+            },
+            "7": {
+              "end_monotonic_ns": 2507017242848241,
+              "local_elapsed_s": 145.297340421,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2506871945507820,
+              "supervised_tokens_global": 20966400
+            }
+          },
+          "primary_elapsed_s": 145.29913213,
+          "start_after_update": 10,
+          "start_skew_ns": 1308955,
+          "start_skew_s": 0.001308955,
+          "updates": 10,
+          "warmup_updates": 10
+        }
+      },
+      "raw_native_child_argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "-m",
+        "torch.distributed.run",
+        "--standalone",
+        "--nnodes=1",
+        "--nproc_per_node=8",
+        "--max_restarts=0",
+        "--log_dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/logs/torchrun",
+        "--redirects=3",
+        "--tee=3",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/measure.py",
+        "--measurement-dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/measurement",
+        "--run-id",
+        "v2-candidate-perf-001",
+        "--steps",
+        "20",
+        "--warmup",
+        "10",
+        "--window",
+        "10",
+        "--",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/config/experiment.yaml",
+        "--dataloader.num_prefetch_batches",
+        "32",
+        "--training.steps",
+        "20",
+        "--lr_scheduler.total_steps",
+        "65000",
+        "--lr_scheduler.warmup_steps",
+        "2000",
+        "--debug.seed",
+        "2048",
+        "--metrics.log_freq",
+        "1",
+        "--checkpoint.enable",
+        "false",
+        "--validator.enable",
+        "false",
+        "--profiler.enable_profiling",
+        "false",
+        "--profiler.enable_memory_snapshot",
+        "false",
+        "--dump_folder",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-perf-001/native",
+        "--hf_assets_path",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/assets/tokenizer"
+      ],
+      "run_id": "v2-candidate-perf-001",
+      "runner_command": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "runs/overnight-streaming-perf/run.py",
+        "--run-id",
+        "v2-candidate-perf-001",
+        "--output-root",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw",
+        "--num-prefetch-batches",
+        "32",
+        "--steps",
+        "20",
+        "--warmup",
+        "10",
+        "--window",
+        "10"
+      ],
+      "runtime": {
+        "core_file_limit": [
+          0,
+          0
+        ],
+        "cuda_available": true,
+        "cuda_device_count": 8,
+        "cuda_home": "/usr/local/cuda",
+        "gpus": [
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 0,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 1,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 2,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 3,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 4,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 5,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 6,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          },
+          {
+            "capability": [
+              9,
+              0
+            ],
+            "index": 7,
+            "name": "NVIDIA H100 80GB HBM3",
+            "total_memory_bytes": 85028896768
+          }
+        ],
+        "nccl": [
+          2,
+          30,
+          7
+        ],
+        "packages": {
+          "cutlass_dsl": {
+            "version": "4.4.1"
+          },
+          "deep_ep": {
+            "hybrid_ep_backend": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/backend/hybrid_ep_backend.cuh",
+            "hybrid_ep_backend_sha256": "b507f65cfa4580f16342076fc2d00afe81e43f64ddefcc4a3cf43681aef11b4b",
+            "hybrid_ep_wrapper": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/hybrid_ep_buffer.py",
+            "hybrid_ep_wrapper_sha256": "63e425916b3c6b0c881ad402af35a2b00c4c84203fcde611a6715744b89210cb",
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_ep/__init__.py",
+            "version": "1.2.1+1b8f467"
+          },
+          "deep_gemm": {
+            "build_version": "2.3.0+f093a4c",
+            "extension": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/_C.cpython-312-x86_64-linux-gnu.so",
+            "header": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh",
+            "header_sha256": "fd8a620440cc31ae7d01010fde1f914aae6998f2dcf6ede2a65e3b5e76001726",
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/deep_gemm/__init__.py",
+            "version": "2.3.0+f093a4c"
+          },
+          "streaming": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/streaming/__init__.py",
+            "version": "0.13.0"
+          },
+          "tokenizers": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/tokenizers/__init__.py",
+            "version": "0.22.2"
+          },
+          "torchtitan": {
+            "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/__init__.py",
+            "version": "0.2.2"
+          },
+          "transformers": {
+            "path": "/opt/torchtitan-venv/lib/python3.12/site-packages/transformers/__init__.py",
+            "version": "4.57.1"
+          },
+          "tvm_ffi": {
+            "version": null
+          }
+        },
+        "python": "3.12.3",
+        "python_executable": "/usr/bin/python3.12",
+        "torch": "2.15.0.dev20260822+cu130",
+        "torch_cuda": "13.0"
+      },
+      "settings": {
+        "checkpointing": "disabled",
+        "compiler_cache_policy": "fresh task-owned TorchInductor, Triton, DeepGEMM shared-kernel and rank-cache directories per run",
+        "detailed_monitoring": "disabled; callbacks omitted; ordinary two-chunk loss",
+        "memory_snapshots": "disabled",
+        "monitor_interval": 0,
+        "observe_compiler_cache": false,
+        "profiler": "disabled",
+        "steps": 20,
+        "validation": "disabled",
+        "warmup_updates": 10,
+        "window_updates": 10
+      },
+      "source_identity": {
+        "source_snapshot_after": {
+          "git_status_sha256": "e2ff2195a60023c3607c8b047dc16f6ff776f16e8aadfad72518c246979de2dc",
+          "head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+          "tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+          "tracked_file_count": 27627,
+          "tracked_sha256": "ca6518fa3d4ba70ca935fc2bad3aa4475f5f205b9128ae2bd9ba380130179cde",
+          "untracked_file_count": 2,
+          "untracked_sha256": "449392c81f567efcc6a7171bf5e25d667f468c38106a08de6b32131005f7a841"
+        },
+        "source_snapshot_before": {
+          "git_status_sha256": "e2ff2195a60023c3607c8b047dc16f6ff776f16e8aadfad72518c246979de2dc",
+          "head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+          "tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+          "tracked_file_count": 27627,
+          "tracked_sha256": "ca6518fa3d4ba70ca935fc2bad3aa4475f5f205b9128ae2bd9ba380130179cde",
+          "untracked_file_count": 2,
+          "untracked_sha256": "449392c81f567efcc6a7171bf5e25d667f468c38106a08de6b32131005f7a841"
+        },
+        "task_head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+        "unchanged": true
+      },
+      "status": "complete"
+    }
+  ],
+  "schema_version": 1,
+  "task_root": "/workspace-SR008.nfs2/vkropotin/optimization-task",
+  "validation_errors": []
+}

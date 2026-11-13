@@ -70,10 +70,18 @@ def install_single_process_shm_gather(monkeypatch) -> None:
     from streaming.base import distributed as streaming_dist
     from streaming.base.shared import prefix as shm_prefix
 
+    def gather_local_rank_prefix(obj):
+        # Environment-only test runs may advertise a different WORLD_SIZE than
+        # the DataWorld context. Each simulated local_world_size=1 rank only
+        # reads its own slot, so include at least that rank in the repeated list.
+        return [obj] * max(
+            streaming_dist.get_world_size(), streaming_dist.get_rank() + 1
+        )
+
     monkeypatch.setattr(
         shm_prefix,
         "all_gather_object",
-        lambda obj: [obj] * streaming_dist.get_world_size(),
+        gather_local_rank_prefix,
     )
 
 
@@ -107,6 +115,8 @@ def make_text_dataloader(
     drop_last: bool = True,
     infinite: bool = False,
     num_workers: int = 0,
+    persistent_workers: bool = False,
+    num_prefetch_batches: int = 0,
     tokenizer: object | None = None,
 ) -> "StreamingTextDataLoader":
     """Build a StreamingTextDataLoader over a local MDS dir through its Config.
@@ -124,6 +134,8 @@ def make_text_dataloader(
         drop_last=drop_last,
         infinite=infinite,
         num_workers=num_workers,
+        persistent_workers=persistent_workers,
+        num_prefetch_batches=num_prefetch_batches,
     )
     return config.build(
         data_world=DataWorld(rank=dp_rank, world_size=dp_world_size),

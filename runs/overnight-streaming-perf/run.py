@@ -234,8 +234,16 @@ def _wm_run(argv: list[str], *, env: dict[str, str] | None = None) -> subprocess
 def validate_args(args: argparse.Namespace) -> None:
     if not RUN_ID_RE.fullmatch(args.run_id) or args.run_id in {".", ".."}:
         raise ValueError("run-id must contain only letters, digits, dot, underscore, or hyphen")
+    if args.num_prefetch_batches < 0:
+        raise ValueError("num-prefetch-batches must be nonnegative")
+    if args.profile_microbatches < 0 or args.profile_microbatches > 3:
+        raise ValueError("profile-microbatches must be between 0 and 3")
+    if args.profile_microbatches and args.profile_update is None:
+        raise ValueError("profile-microbatches requires profile-update")
     if args.steps <= 0:
         raise ValueError("steps must be positive")
+    if args.epoch_size is not None and args.epoch_size <= 0:
+        raise ValueError("epoch-size must be positive")
     if args.warmup < 0 or args.window < 0:
         raise ValueError("warmup and window must be nonnegative optimizer-update counts")
     if args.window and (args.warmup <= 0 or args.steps != args.warmup + args.window):
@@ -261,7 +269,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--steps", type=int, default=20, help="optimizer updates before stopping")
     parser.add_argument("--warmup", type=int, default=10, help="optimizer updates before timing")
     parser.add_argument("--window", type=int, default=10, help="measured optimizer updates; 0 disables timing")
+    parser.add_argument(
+        "--epoch-size", type=int, default=None, help="optional native Mosaic dataset epoch size"
+    )
     parser.add_argument("--observe-compiler-cache", action="store_true", help="optional boundary cache observations; changes are diagnostic only")
+    parser.add_argument("--num-prefetch-batches", type=int, default=0)
+    parser.add_argument("--output-root", type=Path, default=RAW_ROOT)
+    parser.add_argument(
+        "--capture-microbatches",
+        action="store_true",
+        help="record completed forward/backward calls per optimizer update",
+    )
+    parser.add_argument("--profile-microbatches", type=int, default=0, help="stop collection after this many complete microbatches; 0 captures the full update")
     parser.add_argument("--profile-update", type=int, help="capture one native profiler update on global ranks 0 and 1")
     parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     args = parser.parse_args(argv)
@@ -297,10 +316,12 @@ def _data_root(root: Path) -> Path:
     return local
 
 
-def _make_run_dirs(run_id: str) -> dict[str, Path]:
-    raw_root = _inside(TASK_ROOT, RAW_ROOT, "raw artifact root")
+def _make_run_dirs(run_id: str, output_root: Path | None = None) -> dict[str, Path]:
+    raw_root = _inside(TASK_ROOT, output_root or RAW_ROOT, "raw artifact root")
+    if raw_root.name != "raw" or raw_root.parent.name != "artifacts":
+        raise RuntimeError("output-root must be a task artifacts/raw directory")
     ignored = subprocess.run(
-        ["git", "-C", str(TASK_ROOT), "check-ignore", "-q", "--", str(RAW_ROOT.relative_to(TASK_ROOT))],
+        ["git", "-C", str(TASK_ROOT), "check-ignore", "-q", "--", str(raw_root.relative_to(TASK_ROOT))],
         check=False,
     )
     if ignored.returncode != 0:
@@ -317,7 +338,8 @@ def _make_run_dirs(run_id: str) -> dict[str, Path]:
         "native": attempt / "native",
         "measurement": attempt / "measurement",
         "cache": attempt / "cache",
-        "shared_hf_cache": SHARED_HF_CACHE,
+        "shared_hf_cache": (raw_root / "shared-cache/huggingface"
+                            if raw_root != RAW_ROOT.resolve() else SHARED_HF_CACHE),
     }
     for key, path in paths.items():
         _inside(TASK_ROOT, path, key)
@@ -594,7 +616,7 @@ def _profile_config_values(args: argparse.Namespace) -> dict[str, Any]:
 def _profile_capture_spec(args: argparse.Namespace) -> dict[str, Any] | None:
     if args.profile_update is None:
         return None
-    return {
+    spec = {
         "target_update": args.profile_update,
         "warmup_updates": args.warmup,
         "profile_ranks": PROFILE_RANKS,
@@ -605,9 +627,15 @@ def _profile_capture_spec(args: argparse.Namespace) -> dict[str, Any] | None:
         ),
     }
 
+    if args.profile_microbatches:
+        spec["profile_microbatches"] = args.profile_microbatches
+    return spec
+
 
 def _training_overrides(args: argparse.Namespace, paths: dict[str, Path]) -> list[str]:
     overrides = [
+        "--dataloader.num_prefetch_batches",
+        str(args.num_prefetch_batches),
         "--training.steps",
         str(args.steps),
         "--lr_scheduler.total_steps",
@@ -631,6 +659,8 @@ def _training_overrides(args: argparse.Namespace, paths: dict[str, Path]) -> lis
         "--hf_assets_path",
         str(TOKENIZER.resolve()),
     ]
+    if args.epoch_size is not None:
+        overrides.extend(("--dataloader.dataset.epoch_size", str(args.epoch_size)))
     for dotted, value in _profile_config_values(args).items():
         if dotted in {
             "profiler.enable_profiling",
@@ -704,6 +734,10 @@ def _command(args: argparse.Namespace, paths: dict[str, Path]) -> list[str]:
     ]
     if args.profile_update is not None:
         helper_args.extend(("--profile-update", str(args.profile_update)))
+    if args.capture_microbatches:
+        helper_args.append("--capture-microbatches")
+    if args.profile_microbatches:
+        helper_args.extend(("--profile-microbatches", str(args.profile_microbatches)))
     if args.observe_compiler_cache:
         helper_args.append("--observe-compiler-cache")
     return [
@@ -818,6 +852,7 @@ def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) ->
         raise RuntimeError(f"native resolved config was not written: {resolved_path}")
     resolved = _load_yaml(resolved_path)
     required = {
+        "dataloader.num_prefetch_batches": args.num_prefetch_batches,
         "training.steps": args.steps,
         "training.local_batch_size": 2,
         "training.global_batch_size": 512,
@@ -838,6 +873,8 @@ def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) ->
         "fp8.sparse_use_grouped_gemm": True,
         "fp8.deep_gemm_warmup_on_start": True,
     }
+    if args.epoch_size is not None:
+        required["dataloader.dataset.epoch_size"] = args.epoch_size
     required.update(_profile_config_values(args))
     for dotted, expected in required.items():
         current: Any = resolved
@@ -889,7 +926,7 @@ def main(argv: list[str] | None = None) -> int:
         for required in (BASE_CONFIG, DATA_FRAGMENT, TOKENIZER / "tokenizer.json"):
             if not required.is_file():
                 raise RuntimeError(f"required task input is missing: {required}")
-        paths = _make_run_dirs(args.run_id)
+        paths = _make_run_dirs(args.run_id, args.output_root)
         mds_root = _data_root(TASK_ROOT)
         filesystem = _filesystem_status(paths, mds_root)
         tmp_dir, tmp_capacity = _make_task_tmpdir()
@@ -914,6 +951,9 @@ def main(argv: list[str] | None = None) -> int:
             "source_snapshot_before": source_before,
             "config_hashes_before": config_before,
             "steps": args.steps,
+            "requested_epoch_size": args.epoch_size,
+            "capture_microbatches": args.capture_microbatches,
+            "num_prefetch_batches": args.num_prefetch_batches,
             "monitor_interval": 0,
             "detailed_monitoring": "disabled; callbacks omitted; ordinary two-chunk loss",
             "warmup_updates": args.warmup,

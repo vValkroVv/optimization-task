@@ -311,6 +311,31 @@ def test_owner_delegates_raw_state() -> None:
     assert loader.loaded_state == {"next_index": 1}
 
 
+def test_owner_forwards_iteration_and_final_close() -> None:
+    loader = _StatefulBatchLoader(_batches(0))
+    loader.close_iteration = mock.Mock()
+    loader.close = mock.Mock()
+    wrapper = ReplicatedBatchDataLoader(
+        loader, mesh=_mock_pp_mesh(), device=torch.device("cpu")
+    )
+    wrapper._iterator = iter(loader)
+    wrapper._pending = ({"input": torch.ones(1)}, torch.ones(1))
+
+    wrapper.close_iteration()
+
+    loader.close_iteration.assert_called_once()
+    assert wrapper._iterator is None
+    assert wrapper._pending is None
+    assert wrapper._keys is None
+    assert wrapper._header is None
+    assert wrapper._header_cpu is None
+
+    loader.close_iteration.reset_mock()
+    wrapper.close()
+    loader.close_iteration.assert_called_once()
+    loader.close.assert_called_once()
+
+
 def test_owner_rank_requires_real_loader() -> None:
     with pytest.raises(ValueError, match="rank 0 requires a real dataloader"):
         ReplicatedBatchDataLoader(

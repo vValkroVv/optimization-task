@@ -1013,6 +1013,7 @@ def test_profile_update_defaults_validation_cli_decode_and_resolved_config(
     assert "--profile-update" not in default_command
 
     required_config = {
+        "dataloader.num_prefetch_batches": args.num_prefetch_batches,
         "training.steps": args.steps,
         "training.local_batch_size": 2,
         "training.global_batch_size": 512,
@@ -1327,8 +1328,9 @@ def test_profile_wrappers_preserve_exceptions_and_restore(
     ) == originals
 
 
+@pytest.mark.parametrize("bounded", [0, 3])
 def test_profile_wrappers_capture_one_native_cpu_update_without_exit_export(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bounded: int
 ) -> None:
     import torch
     from torchtitan.components.optimizer import OptimizersContainer
@@ -1403,6 +1405,7 @@ def test_profile_wrappers_capture_one_native_cpu_update_without_exit_export(
             "monitor_interval": 50,
             "capture_microbatches": False,
             "profile_update": 7,
+            "profile_microbatches": bounded,
         },
         cuda_synchronize=lambda: sync_calls.append(1),
         memory_stats=lambda: {},
@@ -1416,10 +1419,10 @@ def test_profile_wrappers_capture_one_native_cpu_update_without_exit_export(
     assert "iteration_7" in trace_files[0].parts
     trace = json.loads(trace_files[0].read_text(encoding="utf-8"))
     names = [event.get("name") for event in trace["traceEvents"] if event.get("ph") == "X"]
-    assert names.count("task.profile_update.7.microbatch.rank0") == 32
+    assert names.count("task.profile_update.7.microbatch.rank0") == (bounded or 32)
     assert names.count("task.profile_update.7.train_step.rank0") == 1
-    assert names.count("task.profile_update.7.optimizer_step.rank0") == 1
-    assert sync_calls == []
+    assert names.count("task.profile_update.7.optimizer_step.rank0") == (0 if bounded else 1)
+    assert sync_calls == ([1] if bounded else [])
     assert native_result[0][0] == "update-7"
     receipt = json.loads(
         (tmp_path / "measurement/rank-00.json").read_text(encoding="utf-8")
@@ -1427,6 +1430,10 @@ def test_profile_wrappers_capture_one_native_cpu_update_without_exit_export(
     assert receipt["native_profiler_build_calls"] == 1
     assert receipt["native_profiler_created"] is True
 
+
+    assert receipt["microbatch_calls"] == 32
+    assert receipt["optimizer_step_calls"] == 1
+    assert receipt["collection_stopped"] is bool(bounded)
 
 def _profile_parser_fixture(run_dir: Path, *, target_update: int = 2, warmup: int = 1) -> None:
     args = runner._parse_args(

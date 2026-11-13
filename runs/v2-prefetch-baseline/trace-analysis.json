@@ -1,0 +1,2630 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "purpose": "V2 mechanism comparison only; no throughput inferred from bounded traces.",
+  "acceptance": [
+    "source/config/data identity and activation",
+    "actual three complete CPU/GPU microbatches with all-rank full training retained",
+    "MCP importer census/flow reconciliation",
+    "ordinary input/queue versus synchronous epoch entry and GPU unions"
+  ],
+  "analysis_engine": "actual mcp__perfetto tools",
+  "raw_trace_ids": [
+    "trace_8bc1c9ad63dd6b6d",
+    "trace_16a632666af2be75",
+    "trace_b3dfb134413916a2",
+    "trace_4aaf70ece0809abe"
+  ],
+  "derived_trace_ids": [
+    "trace_0dcd5ff457f2b48b",
+    "trace_fe610d6b80d24425",
+    "trace_91c77ac307d87949",
+    "trace_c9426e054d72458a"
+  ],
+  "failed_queries": [],
+  "summary": {
+    "input_to_first_fb_ms": {
+      "baseline": [
+        1310.573633,
+        1311.677376
+      ],
+      "candidate": [
+        1138.003722,
+        1137.7473
+      ]
+    },
+    "input_before_token_ms": {
+      "baseline": [
+        1226.205144,
+        1287.02357
+      ],
+      "candidate": [
+        1026.366228,
+        1109.728862
+      ]
+    },
+    "candidate_consumer_epoch_entry_ms": [
+      953.095641,
+      886.271593
+    ],
+    "candidate_queue_pop_sum_ms": [
+      64.237843,
+      215.010753
+    ],
+    "candidate_queue_pop_max_ms": [
+      26.322846,
+      128.600584
+    ],
+    "baseline_loader_calls": {
+      "count_per_rank": 33,
+      "sum_ms": [
+        1212.513758,
+        1275.037779
+      ],
+      "max_ms": [
+        1033.365424,
+        1165.211446
+      ]
+    },
+    "input_to_first_fb_all_device_idle_ms": {
+      "baseline": [
+        1227.017419,
+        1287.629995
+      ],
+      "candidate": [
+        1027.025452,
+        1110.373658
+      ]
+    },
+    "bounded_prefix_ms": {
+      "baseline": [
+        2549.038969,
+        2550.293593
+      ],
+      "candidate": [
+        2380.948884,
+        2380.725643
+      ]
+    },
+    "interpretation": [
+      "Candidate has already materialized 16 remaining old-epoch microbatches on entry; ordinary queue consumption is brief, but input collection still crosses synchronous consumer-owned epoch entry.",
+      "The traced input-to-first-forward/backward prefix is about 173 ms shorter on both observed ranks. This one profiled prefix does not explain the separate whole-window TPS result or establish a general speedup.",
+      "All observed loader/queue/epoch host spans have zero overlap with local recorded device work; epoch entry remains the dominant candidate input stall.",
+      "The first NCCL uint64 token-count reduction includes peer waiting: baseline device durations 83.538/24.028 ms, candidate 110.960/27.355 ms; these are communication/wait kernel spans, not compute costs."
+    ],
+    "ordinary_ready_old_epoch_queue_ms": [
+      0.168522,
+      0.180053
+    ],
+    "remaining_synchronous_epoch_work": "One consumer-owned epoch entry per captured update crosses after16 successful old-epoch deliveries. Candidate consumer epoch spans953.096/886.272ms contain raw loader calls952.390/885.158ms, each with no local device overlap. Internal barrier versus I/O attribution is unavailable.",
+    "baseline_epoch_boundary_calls": {
+      "ordinal_interpretation": "Fixed32 successful deliveries contain16 old-epoch reads, ordinal17 exhaustion, then ordinal18 first new-epoch read and15 further reads. The ordinal18 call is the largest call on both ranks.",
+      "exhaustion_ordinal17_ms": [
+        0.04373,
+        0.050201
+      ],
+      "first_new_epoch_read_ordinal18_ms": [
+        1033.365424,
+        1165.211446
+      ],
+      "ordinary_call_sum_excluding_ordinal18_ms": [
+        179.148334,
+        109.826333
+      ],
+      "ordinary_call_count_including_exhaustion": 32,
+      "limits": "Ordinary sum includes the ordinal17 exhaustion attempt. Unannotated __iter__, epoch setup, and barrier costs outside __next__ are unobservable separately; no duration is assigned to them."
+    }
+  },
+  "limits": [
+    "Only global ranks 0/1 and one update-11 prefix captured. Remaining 29 forward/backward microbatches and optimizer are outside collection.",
+    "No stacks or DataLoader worker traces: epoch duration cannot separate barrier, worker restart, I/O, producer scheduling or GIL costs internally.",
+    "GPU busy means union of recorded kernel/memcpy/memset intervals on one rank. It includes communication and spin/wait kernels, not solely useful compute; categories overlap and cannot be added.",
+    "Kernel duration sums across streams are event costs, not elapsed busy time. NCCL union is an explicit subset, not all EP communication.",
+    "No full-update TPS, convergence, GPU memory peak, or complete phase latency is estimated from these traces. Separate unprofiled receipt owns throughput and memory."
+  ],
+  "capture_receipt": {
+    "path": "runs/v2-prefetch-baseline/trace-captures.json",
+    "sha256": "10c76fa8368294efae36da1473f3fe3b5a8b73fd6f0f84633a3cd08c8ba9daae"
+  },
+  "source_identity": {
+    "final_snapshot_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+    "head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+    "tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+    "tracked_file_count": 27627,
+    "unchanged_during_run": true,
+    "untracked_file_count": 2
+  },
+  "configuration_source_hashes": {
+    "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+    "compiler_observer_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+    "generated_experiment_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+    "mds_fragment_sha256": "9aa85c4e17d0fd813ab50e95ee14d5b6caba1b5c3e4ae9654fb28b8a047d49cc",
+    "measurement_adapter_sha256": "47c1fbfcfaf67446e0f1a359aeb09972eca6544b7befd4119206a1404f16d616",
+    "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+    "runner_sha256": "fc4ca9e72f7c887188e794c7df9ea80292916965b401ace359e3361f17e97c5b"
+  },
+  "data_identity": {
+    "index_and_shards_manifest_sha256": "d1285a26d66931d7adb2b24ae52b1b45bbe7632403c52ffa0854908d84388616",
+    "preparation_receipt_sha256": "2e4e1c655d83926a8b054f12e2784c0b14217de31bff543f3b9367ada4c6eaa8",
+    "loader_settings": {
+      "data_world_size": 8,
+      "drop_last": true,
+      "enable_syntax_aware_fim": false,
+      "epoch_size": null,
+      "fim_rates": {
+        "inline_fim": 0.0,
+        "multiline_fim": 0.0,
+        "syntax_aware_fim": 0.0,
+        "vanilla_fim": 0.0
+      },
+      "infinite": true,
+      "legacy": true,
+      "local_batch_size": 2,
+      "local_world_size": 8,
+      "num_canonical_nodes": 1,
+      "num_workers": 2,
+      "partition_algo": "orig",
+      "persistent_workers": true,
+      "pin_memory": false,
+      "prefetch_factor": null,
+      "replication": 1,
+      "shuffle": false,
+      "token_field": "tokens",
+      "type": "streaming_text"
+    },
+    "data_contract_summary": {
+      "duplicate_hash_group_count": 0,
+      "encoded_token_count": 3670016,
+      "num_rows": 896,
+      "row_dtype": "uint32"
+    }
+  },
+  "runtime_identity": {
+    "torch": "2.15.0.dev20260822+cu130",
+    "allocation": "one node, eight NVIDIA H100 80GB GPUs"
+  },
+  "traces": [
+    {
+      "variant": "baseline",
+      "rank": 0,
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-trace-001/native/profiling/traces/iteration_11/rank0_trace.json.gz",
+      "canonical_sha256": "b4e4ff33b2829b7e43de7a6194434bcffe7e0856f610e3cb301040d72dbfb3e6",
+      "raw_mcp_trace_id": "trace_8bc1c9ad63dd6b6d",
+      "derived_mcp_trace_id": "trace_0dcd5ff457f2b48b",
+      "derived_receipt": {
+        "source": "runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-trace-001/native/profiling/traces/iteration_11/rank0_trace.json.gz",
+        "source_sha256": "b4e4ff33b2829b7e43de7a6194434bcffe7e0856f610e3cb301040d72dbfb3e6",
+        "output": "runs/v2-prefetch-baseline/artifacts/raw/perfetto-derived/baseline-rank0.json.gz",
+        "output_sha256": "bf3499550cd01f3071df15fce3a00e73aa073d93ea15546d1d092e46cbdda701",
+        "transformation": "Remove GPU user ranges; color overlapping device events into nonoverlapping synthetic display tids and move their matching flow endpoints. Keep original timestamps, durations, names, arguments (including actual args.stream), CPU events and trace metadata. Source bytes are unchanged.",
+        "device_census": {
+          "kernel": {
+            "count": 8795,
+            "sum_duration_us": 1435935.7429999998
+          },
+          "gpu_memcpy": {
+            "count": 274,
+            "sum_duration_us": 23449.764
+          },
+          "gpu_memset": {
+            "count": 861,
+            "sum_duration_us": 917.301999999998
+          }
+        },
+        "moved_device_events": 50,
+        "moved_flow_endpoints": 50,
+        "removed_gpu_ranges": 354
+      },
+      "payload_and_metadata_parity": true,
+      "changed_display_tids": {
+        "device": 50,
+        "flow": 50
+      },
+      "profile_sidecar": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-trace-001/measurement/rank-00.json",
+        "sha256": "b8cbd87d5cf9d4042a1d7e397ebcc9615ecb70e46acbae9a2051ae2bc02451c8",
+        "profile_capture": {
+          "collected_microbatches": 3,
+          "collection_stopped": true,
+          "early_stop_cuda_drains": 1,
+          "export_update": 11,
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": true,
+          "optimizer_step_calls": 1,
+          "prefetch_observations": [],
+          "profile_microbatches": 3,
+          "target_update": 11,
+          "token_reduction_calls": 1,
+          "train_step_calls": 1,
+          "warmup_updates": 10
+        }
+      }
+    },
+    {
+      "variant": "baseline",
+      "rank": 1,
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-trace-001/native/profiling/traces/iteration_11/rank1_trace.json.gz",
+      "canonical_sha256": "bea3907f583f7f5dd53a3e6c8b1e922315da41ab9f69bcf426784994bc2c1bb0",
+      "raw_mcp_trace_id": "trace_16a632666af2be75",
+      "derived_mcp_trace_id": "trace_fe610d6b80d24425",
+      "derived_receipt": {
+        "source": "runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-trace-001/native/profiling/traces/iteration_11/rank1_trace.json.gz",
+        "source_sha256": "bea3907f583f7f5dd53a3e6c8b1e922315da41ab9f69bcf426784994bc2c1bb0",
+        "output": "runs/v2-prefetch-baseline/artifacts/raw/perfetto-derived/baseline-rank1.json.gz",
+        "output_sha256": "3cba4520660acfcd7d6b4b3998385e6acc967b7ed67a45b38f27bd9b84b6b5c3",
+        "transformation": "Remove GPU user ranges; color overlapping device events into nonoverlapping synthetic display tids and move their matching flow endpoints. Keep original timestamps, durations, names, arguments (including actual args.stream), CPU events and trace metadata. Source bytes are unchanged.",
+        "device_census": {
+          "kernel": {
+            "count": 8795,
+            "sum_duration_us": 1389135.4910000027
+          },
+          "gpu_memcpy": {
+            "count": 274,
+            "sum_duration_us": 23394.840999999997
+          },
+          "gpu_memset": {
+            "count": 861,
+            "sum_duration_us": 972.1700000000009
+          }
+        },
+        "moved_device_events": 46,
+        "moved_flow_endpoints": 46,
+        "removed_gpu_ranges": 354
+      },
+      "payload_and_metadata_parity": true,
+      "changed_display_tids": {
+        "device": 46,
+        "flow": 46
+      },
+      "profile_sidecar": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-trace-001/measurement/rank-01.json",
+        "sha256": "a93d1440f52870938d1162cd2b1c6eab9cf01a021f8c905eea3a99fb008c1dab",
+        "profile_capture": {
+          "collected_microbatches": 3,
+          "collection_stopped": true,
+          "early_stop_cuda_drains": 1,
+          "export_update": 11,
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": true,
+          "optimizer_step_calls": 1,
+          "prefetch_observations": [],
+          "profile_microbatches": 3,
+          "target_update": 11,
+          "token_reduction_calls": 1,
+          "train_step_calls": 1,
+          "warmup_updates": 10
+        }
+      }
+    },
+    {
+      "variant": "candidate",
+      "rank": 0,
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-trace-001/native/profiling/traces/iteration_11/rank0_trace.json.gz",
+      "canonical_sha256": "8e4399a6397a0b1c9b7761e4737b878605b05494eb4cbfa5b22137cfaae2f109",
+      "raw_mcp_trace_id": "trace_b3dfb134413916a2",
+      "derived_mcp_trace_id": "trace_91c77ac307d87949",
+      "derived_receipt": {
+        "source": "runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-trace-001/native/profiling/traces/iteration_11/rank0_trace.json.gz",
+        "source_sha256": "8e4399a6397a0b1c9b7761e4737b878605b05494eb4cbfa5b22137cfaae2f109",
+        "output": "runs/v2-prefetch-baseline/artifacts/raw/perfetto-derived/candidate-rank0.json.gz",
+        "output_sha256": "65e457e6c6d5c9b716f18166e794141554c5c1d3fe0669d28e7eff0d1e38c1c1",
+        "transformation": "Remove GPU user ranges; color overlapping device events into nonoverlapping synthetic display tids and move their matching flow endpoints. Keep original timestamps, durations, names, arguments (including actual args.stream), CPU events and trace metadata. Source bytes are unchanged.",
+        "device_census": {
+          "kernel": {
+            "count": 8795,
+            "sum_duration_us": 1467160.4830000014
+          },
+          "gpu_memcpy": {
+            "count": 274,
+            "sum_duration_us": 23385.519
+          },
+          "gpu_memset": {
+            "count": 861,
+            "sum_duration_us": 931.3069999999977
+          }
+        },
+        "moved_device_events": 49,
+        "moved_flow_endpoints": 49,
+        "removed_gpu_ranges": 354
+      },
+      "payload_and_metadata_parity": true,
+      "changed_display_tids": {
+        "device": 49,
+        "flow": 49
+      },
+      "profile_sidecar": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-trace-001/measurement/rank-00.json",
+        "sha256": "7dd73f3188004ae95565eb2297d6fa0fcd35f17300a7a1163a94dc26f84a6b1f",
+        "profile_capture": {
+          "collected_microbatches": 3,
+          "collection_stopped": true,
+          "early_stop_cuda_drains": 1,
+          "export_update": 11,
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": true,
+          "optimizer_step_calls": 1,
+          "prefetch_observations": [
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 16
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 15
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 14
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 13
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 12
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 11
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 10
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 9
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 8
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 7
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 6
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 5
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 4
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 3
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 2
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            }
+          ],
+          "profile_microbatches": 3,
+          "target_update": 11,
+          "token_reduction_calls": 1,
+          "train_step_calls": 1,
+          "warmup_updates": 10
+        }
+      },
+      "queue_timing_segments": {
+        "first16_old_epoch": {
+          "count": 16,
+          "sum_ms": 0.168522,
+          "max_ms": 0.01669
+        },
+        "terminal_old_epoch_next": {
+          "count": 1,
+          "sum_ms": 0.0106
+        },
+        "next16_new_epoch": {
+          "count": 16,
+          "sum_ms": 64.058721,
+          "max_ms": 26.322846000000002
+        }
+      }
+    },
+    {
+      "variant": "candidate",
+      "rank": 1,
+      "canonical_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-trace-001/native/profiling/traces/iteration_11/rank1_trace.json.gz",
+      "canonical_sha256": "e65491fb54b5a707fab354b5cb394f4b66b1e71c67f749c44b7d96dfea929881",
+      "raw_mcp_trace_id": "trace_4aaf70ece0809abe",
+      "derived_mcp_trace_id": "trace_c9426e054d72458a",
+      "derived_receipt": {
+        "source": "runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-trace-001/native/profiling/traces/iteration_11/rank1_trace.json.gz",
+        "source_sha256": "e65491fb54b5a707fab354b5cb394f4b66b1e71c67f749c44b7d96dfea929881",
+        "output": "runs/v2-prefetch-baseline/artifacts/raw/perfetto-derived/candidate-rank1.json.gz",
+        "output_sha256": "ba4a5fcbf7f68b84e666e9e0b1d57de0e7266c5946442ebe765dff24b2db1dc1",
+        "transformation": "Remove GPU user ranges; color overlapping device events into nonoverlapping synthetic display tids and move their matching flow endpoints. Keep original timestamps, durations, names, arguments (including actual args.stream), CPU events and trace metadata. Source bytes are unchanged.",
+        "device_census": {
+          "kernel": {
+            "count": 8795,
+            "sum_duration_us": 1361828.112000002
+          },
+          "gpu_memcpy": {
+            "count": 274,
+            "sum_duration_us": 23797.178000000004
+          },
+          "gpu_memset": {
+            "count": 861,
+            "sum_duration_us": 942.7739999999975
+          }
+        },
+        "moved_device_events": 46,
+        "moved_flow_endpoints": 46,
+        "removed_gpu_ranges": 354
+      },
+      "payload_and_metadata_parity": true,
+      "changed_display_tids": {
+        "device": 46,
+        "flow": 46
+      },
+      "profile_sidecar": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-trace-001/measurement/rank-01.json",
+        "sha256": "5067c6ca0f5cf69224c565e7e6210e8f1471a9804eb6efd0abd25c2d88f07f61",
+        "profile_capture": {
+          "collected_microbatches": 3,
+          "collection_stopped": true,
+          "early_stop_cuda_drains": 1,
+          "export_update": 11,
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": true,
+          "optimizer_step_calls": 1,
+          "prefetch_observations": [
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 16
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 15
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 14
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 13
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 12
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 11
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 10
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 9
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 8
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 7
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 6
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 5
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 4
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 3
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 2
+            },
+            {
+              "capacity": 32,
+              "producer_alive": false,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 1
+            },
+            {
+              "capacity": 32,
+              "producer_alive": true,
+              "producer_name": "streaming-batch-prefetch",
+              "ready_before": 0
+            }
+          ],
+          "profile_microbatches": 3,
+          "target_update": 11,
+          "token_reduction_calls": 1,
+          "train_step_calls": 1,
+          "warmup_updates": 10
+        }
+      },
+      "queue_timing_segments": {
+        "first16_old_epoch": {
+          "count": 16,
+          "sum_ms": 0.180053,
+          "max_ms": 0.018949999999999998
+        },
+        "terminal_old_epoch_next": {
+          "count": 1,
+          "sum_ms": 0.013099999999999999
+        },
+        "next16_new_epoch": {
+          "count": 16,
+          "sum_ms": 214.8176,
+          "max_ms": 128.600584
+        }
+      }
+    }
+  ],
+  "resolved_configuration": {
+    "baseline": {
+      "resolved_config_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-trace-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "7cc0f02eca3435b23852fa7a051b5e6920b265607e8d1c807585f8bc37ee97a9",
+      "unchanged_during_run": true
+    },
+    "candidate": {
+      "resolved_config_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-trace-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "136f538399d86297a8c8a149a256bbb78336eb50f480059f1b56696b3c4d5a0b",
+      "unchanged_during_run": true
+    }
+  },
+  "coverage_acceptance": {
+    "baseline": {
+      "errors": [],
+      "parser_verified": [
+        "exactly three complete microbatch markers per selected rank (no fourth)",
+        "GPU projections for all three selected microbatches",
+        "complete input/train-step prefix and global token-count reduction before the microbatches",
+        "global token-count collective and complete backward coverage for each microbatch",
+        "no optimizer-step marker in the bounded trace",
+        "32 training microbatch calls and one optimizer step in sidecars for all eight ranks",
+        "native profiler constructed only on global ranks 0 and 1"
+      ],
+      "rank_call_counts": {
+        "0": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": true,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "1": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": true,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "2": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "3": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "4": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "5": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "6": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "7": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        }
+      },
+      "receipt_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-baseline-trace-001/coverage-acceptance.json",
+      "status": "complete"
+    },
+    "candidate": {
+      "errors": [],
+      "parser_verified": [
+        "exactly three complete microbatch markers per selected rank (no fourth)",
+        "GPU projections for all three selected microbatches",
+        "complete input/train-step prefix and global token-count reduction before the microbatches",
+        "global token-count collective and complete backward coverage for each microbatch",
+        "no optimizer-step marker in the bounded trace",
+        "32 training microbatch calls and one optimizer step in sidecars for all eight ranks",
+        "native profiler constructed only on global ranks 0 and 1"
+      ],
+      "rank_call_counts": {
+        "0": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": true,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "1": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": true,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "2": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "3": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "4": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "5": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "6": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        },
+        "7": {
+          "microbatch_calls": 32,
+          "native_profiler_build_calls": 1,
+          "native_profiler_created": false,
+          "optimizer_step_calls": 1,
+          "train_step_calls": 1
+        }
+      },
+      "receipt_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/v2-candidate-trace-001/coverage-acceptance.json",
+      "status": "complete"
+    }
+  },
+  "normalization": {
+    "helper": "runs/overnight-streaming-perf/monitorfree-perfetto-prepare.py",
+    "reason": "Actual raw MCP imports dropped 50/45/49/46 kernel events; all raw JSONs contain 8795 kernels. Reused inspected helper moves overlapping device display lanes and matching flow endpoints and removes GPU user ranges. All final MCP imports recover exact raw device counts/duration sums, complete runtime/driver launch-flow linkage and zero error/data-loss statistics.",
+    "canonical_bytes_unchanged": true,
+    "metadata_and_retained_event_payload_parity": true
+  },
+  "queue_observation_semantics": "33 queue-pop spans include one old-epoch StopIteration attempt; sidecars contain only 32 successful deliveries. First16 ready counts decrease16 to1 with finished old-epoch producer. New-epoch successful pops observe a live streaming-batch-prefetch thread, capacity32 and ready counts0/1. A finished finite-epoch producer with queued items is valid activation.",
+  "sql": {
+    "device_census": "SELECT category,count(*) n,sum(dur)/1e6 sum_ms FROM slice WHERE category IN('kernel','gpu_memcpy','gpu_memset') GROUP BY category",
+    "importer_errors": "SELECT name,idx,value,severity FROM stats WHERE value!=0 AND severity IN('error','data_loss')",
+    "host_spans": "SELECT name,count(*) n,sum(dur)/1e6 sum_ms,max(dur)/1e6 max_ms,min(ts) first_ts,max(ts+dur) end_ts FROM slice WHERE category IN('user_annotation','cpu_op') AND (name GLOB 'task.*' OR name GLOB '*DataLoaderIter*') GROUP BY name",
+    "first_collective": "WITH p AS(SELECT ts a FROM slice WHERE name GLOB 'task.profile_update.11.train_step.rank*') SELECT s.name,(s.ts-p.a)/1e6 rel_ms,s.dur/1e6 dur_ms FROM slice s,p WHERE (s.name='task.token_count.global_reduction' OR (s.category='kernel' AND lower(s.name) GLOB '*nccl*allreduce*')) ORDER BY s.ts LIMIT 3",
+    "window_device_unions": "WITH p AS(SELECT ts a,ts+dur z FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.11.train_step.rank*'), m AS(SELECT min(ts)b FROM slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.11.microbatch.rank*'),t AS(SELECT ts a,ts+dur b FROM slice WHERE name='task.token_count.global_reduction'),w AS(\nSELECT 'input_to_first_fb' name,p.a,m.b FROM p,m UNION ALL SELECT 'input_before_token',p.a,t.a FROM p,t UNION ALL SELECT 'token_reduction',a,b FROM t UNION ALL SELECT 'bounded_prefix',a,z FROM p),\nc AS(SELECT 'all_device' kind UNION ALL SELECT 'copies' UNION ALL SELECT 'nccl'),\ni AS(SELECT w.name,c.kind,w.a wa,w.b wb,max(s.ts,w.a) a,min(s.ts+s.dur,w.b)b FROM w CROSS JOIN c JOIN slice s ON s.ts<w.b AND s.ts+s.dur>w.a AND s.dur>0 AND (c.kind='all_device' AND s.category IN('kernel','gpu_memcpy','gpu_memset') OR c.kind='copies' AND s.category='gpu_memcpy' OR c.kind='nccl' AND s.category='kernel' AND lower(s.name) GLOB '*nccl*')),\no AS(SELECT *,max(b)OVER(PARTITION BY name,kind ORDER BY a,b ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)prev FROM i),\ng AS(SELECT *,sum(CASE WHEN prev IS NULL OR a>prev THEN 1 ELSE 0 END)OVER(PARTITION BY name,kind ORDER BY a,b)grp FROM o),\nu AS(SELECT name,kind,grp,min(a)a,max(b)b FROM g GROUP BY name,kind,grp),\nr AS(SELECT name,kind,sum(b-a)busy,max(b)last,min(a)first FROM u GROUP BY name,kind),\ngaps AS(SELECT name,kind,max(a-lag_end)gap FROM(SELECT name,kind,a,lag(b)OVER(PARTITION BY name,kind ORDER BY a)lag_end FROM u)GROUP BY name,kind)\nSELECT w.name,c.kind,(w.b-w.a)/1e6 host_window_ms,coalesce(r.busy,0)/1e6 device_union_ms,((w.b-w.a)-coalesce(r.busy,0))/1e6 no_event_ms,max(coalesce(gaps.gap,0),coalesce(r.first,w.b)-w.a,w.b-coalesce(r.last,w.a))/1e6 largest_gap_ms FROM w CROSS JOIN c LEFT JOIN r ON r.name=w.name AND r.kind=c.kind LEFT JOIN gaps ON gaps.name=w.name AND gaps.kind=c.kind ORDER BY w.name,c.kind",
+    "wait_device_overlap": "WITH w AS(SELECT id,name,ts a,ts+dur b FROM slice WHERE category='user_annotation' AND name IN('task.prefetch.queue_pop_wait','task.prefetch.consumer_epoch_entry') OR name GLOB '*DataLoaderIter*'),i AS(SELECT w.id,max(s.ts,w.a)a,min(s.ts+s.dur,w.b)b FROM w JOIN slice s ON s.category IN('kernel','gpu_memcpy','gpu_memset') AND s.dur>0 AND s.ts<w.b AND s.ts+s.dur>w.a),o AS(SELECT *,max(b)OVER(PARTITION BY id ORDER BY a,b ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)prev FROM i),g AS(SELECT *,sum(CASE WHEN prev IS NULL OR a>prev THEN 1 ELSE 0 END)OVER(PARTITION BY id ORDER BY a,b)grp FROM o),u AS(SELECT id,grp,min(a)a,max(b)b FROM g GROUP BY id,grp),r AS(SELECT id,sum(b-a)busy FROM u GROUP BY id) SELECT w.name,count(*)n,sum(w.b-w.a)/1e6 host_sum_ms,sum(coalesce(r.busy,0))/1e6 all_device_overlap_ms,sum(w.b-w.a-coalesce(r.busy,0))/1e6 no_device_overlap_ms FROM w LEFT JOIN r USING(id)GROUP BY name",
+    "flow_coverage": "SELECT g.category,count(*)n,count(DISTINCT CASE WHEN h.category IN('cuda_runtime','cuda_driver') THEN g.id END)linked FROM slice g LEFT JOIN flow f ON f.slice_in=g.id LEFT JOIN slice h ON h.id=f.slice_out WHERE g.category IN('kernel','gpu_memcpy','gpu_memset') GROUP BY g.category",
+    "baseline_epoch_boundary_calls": "WITH calls AS(SELECT row_number()OVER(ORDER BY ts,id) ordinal,ts,dur FROM slice WHERE name='enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__'), totals AS(SELECT count(*) total_calls,sum(dur) total_ns,max(dur) max_ns FROM calls) SELECT c.ordinal,c.dur/1e6 duration_ms,t.total_calls,(t.total_ns-(SELECT dur FROM calls WHERE ordinal=18))/1e6 ordinary_sum_excluding_boundary_read_ms,CASE WHEN c.dur=t.max_ns THEN 1 ELSE 0 END is_largest_call FROM calls c CROSS JOIN totals t WHERE c.ordinal IN(17,18) ORDER BY ordinal"
+  },
+  "query_results": [
+    {
+      "name": "device_census",
+      "trace_id": "trace_8bc1c9ad63dd6b6d",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              23.449764
+            ],
+            [
+              "gpu_memset",
+              861,
+              0.917302
+            ],
+            [
+              "kernel",
+              8745,
+              1433.320221
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "device_census",
+      "trace_id": "trace_16a632666af2be75",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              23.394841
+            ],
+            [
+              "gpu_memset",
+              861,
+              0.97217
+            ],
+            [
+              "kernel",
+              8750,
+              1386.672541
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "device_census",
+      "trace_id": "trace_b3dfb134413916a2",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              23.385519
+            ],
+            [
+              "gpu_memset",
+              861,
+              0.931307
+            ],
+            [
+              "kernel",
+              8746,
+              1464.699671
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "device_census",
+      "trace_id": "trace_4aaf70ece0809abe",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              23.797178
+            ],
+            [
+              "gpu_memset",
+              861,
+              0.942774
+            ],
+            [
+              "kernel",
+              8749,
+              1359.362406
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "importer_errors",
+      "trace_id": "trace_8bc1c9ad63dd6b6d",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "value",
+            "severity"
+          ],
+          "row_count": 1,
+          "rows": [
+            [
+              "slice_drop_overlapping_complete_event",
+              null,
+              50,
+              "error"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "importer_errors",
+      "trace_id": "trace_16a632666af2be75",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "value",
+            "severity"
+          ],
+          "row_count": 1,
+          "rows": [
+            [
+              "slice_drop_overlapping_complete_event",
+              null,
+              45,
+              "error"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "importer_errors",
+      "trace_id": "trace_b3dfb134413916a2",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "value",
+            "severity"
+          ],
+          "row_count": 1,
+          "rows": [
+            [
+              "slice_drop_overlapping_complete_event",
+              null,
+              49,
+              "error"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "importer_errors",
+      "trace_id": "trace_4aaf70ece0809abe",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "value",
+            "severity"
+          ],
+          "row_count": 1,
+          "rows": [
+            [
+              "slice_drop_overlapping_complete_event",
+              null,
+              46,
+              "error"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "device_census",
+      "trace_id": "trace_0dcd5ff457f2b48b",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              23.449764
+            ],
+            [
+              "gpu_memset",
+              861,
+              0.917302
+            ],
+            [
+              "kernel",
+              8795,
+              1435.935743
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "device_census",
+      "trace_id": "trace_fe610d6b80d24425",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              23.394841
+            ],
+            [
+              "gpu_memset",
+              861,
+              0.97217
+            ],
+            [
+              "kernel",
+              8795,
+              1389.135491
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "device_census",
+      "trace_id": "trace_91c77ac307d87949",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              23.385519
+            ],
+            [
+              "gpu_memset",
+              861,
+              0.931307
+            ],
+            [
+              "kernel",
+              8795,
+              1467.160483
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "device_census",
+      "trace_id": "trace_c9426e054d72458a",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "sum_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              23.797178
+            ],
+            [
+              "gpu_memset",
+              861,
+              0.942774
+            ],
+            [
+              "kernel",
+              8795,
+              1361.828112
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "importer_errors",
+      "trace_id": "trace_0dcd5ff457f2b48b",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "value",
+            "severity"
+          ],
+          "row_count": 0,
+          "rows": []
+        }
+      ]
+    },
+    {
+      "name": "importer_errors",
+      "trace_id": "trace_fe610d6b80d24425",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "value",
+            "severity"
+          ],
+          "row_count": 0,
+          "rows": []
+        }
+      ]
+    },
+    {
+      "name": "importer_errors",
+      "trace_id": "trace_91c77ac307d87949",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "value",
+            "severity"
+          ],
+          "row_count": 0,
+          "rows": []
+        }
+      ]
+    },
+    {
+      "name": "importer_errors",
+      "trace_id": "trace_c9426e054d72458a",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "idx",
+            "value",
+            "severity"
+          ],
+          "row_count": 0,
+          "rows": []
+        }
+      ]
+    },
+    {
+      "name": "host_spans",
+      "trace_id": "trace_0dcd5ff457f2b48b",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms",
+            "max_ms",
+            "first_ts",
+            "end_ts"
+          ],
+          "row_count": 4,
+          "rows": [
+            [
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              33,
+              1212.513758,
+              1033.365424,
+              3720869210245557,
+              3720870435271128
+            ],
+            [
+              "task.profile_update.11.microbatch.rank0",
+              3,
+              1154.224277,
+              385.68538,
+              3720870520366105,
+              3720871729232912
+            ],
+            [
+              "task.profile_update.11.train_step.rank0",
+              1,
+              2549.038969,
+              2549.038969,
+              3720869209792472,
+              3720871758831441
+            ],
+            [
+              "task.token_count.global_reduction",
+              1,
+              84.057256,
+              84.057256,
+              3720870435997616,
+              3720870520054872
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "host_spans",
+      "trace_id": "trace_fe610d6b80d24425",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms",
+            "max_ms",
+            "first_ts",
+            "end_ts"
+          ],
+          "row_count": 4,
+          "rows": [
+            [
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              33,
+              1275.037779,
+              1165.211446,
+              3720869209046359,
+              3720870494851795
+            ],
+            [
+              "task.profile_update.11.microbatch.rank1",
+              3,
+              1153.028734,
+              384.84972,
+              3720870520228829,
+              3720871729065185
+            ],
+            [
+              "task.profile_update.11.train_step.rank1",
+              1,
+              2550.293593,
+              2550.293593,
+              3720869208551453,
+              3720871758845046
+            ],
+            [
+              "task.token_count.global_reduction",
+              1,
+              24.403983,
+              24.403983,
+              3720870495575023,
+              3720870519979006
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "host_spans",
+      "trace_id": "trace_91c77ac307d87949",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms",
+            "max_ms",
+            "first_ts",
+            "end_ts"
+          ],
+          "row_count": 6,
+          "rows": [
+            [
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              1,
+              952.389742,
+              952.389742,
+              3721449485804965,
+              3721450438194707
+            ],
+            [
+              "task.prefetch.consumer_epoch_entry",
+              1,
+              953.095641,
+              953.095641,
+              3721449485233708,
+              3721450438329349
+            ],
+            [
+              "task.prefetch.queue_pop_wait",
+              33,
+              64.237843,
+              26.322846,
+              3721449482445584,
+              3721450507802989
+            ],
+            [
+              "task.profile_update.11.microbatch.rank0",
+              3,
+              1158.402694,
+              387.182628,
+              3721450620012210,
+              3721451834060814
+            ],
+            [
+              "task.profile_update.11.train_step.rank0",
+              1,
+              2380.948884,
+              2380.948884,
+              3721449482008488,
+              3721451862957372
+            ],
+            [
+              "task.token_count.global_reduction",
+              1,
+              111.372661,
+              111.372661,
+              3721450508374716,
+              3721450619747377
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "host_spans",
+      "trace_id": "trace_c9426e054d72458a",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "sum_ms",
+            "max_ms",
+            "first_ts",
+            "end_ts"
+          ],
+          "row_count": 6,
+          "rows": [
+            [
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              1,
+              885.158219,
+              885.158219,
+              3721449486266111,
+              3721450371424330
+            ],
+            [
+              "task.prefetch.consumer_epoch_entry",
+              1,
+              886.271593,
+              886.271593,
+              3721449485355020,
+              3721450371626613
+            ],
+            [
+              "task.prefetch.queue_pop_wait",
+              33,
+              215.010753,
+              128.600584,
+              3721449482675077,
+              3721450591483747
+            ],
+            [
+              "task.profile_update.11.microbatch.rank1",
+              3,
+              1157.622166,
+              386.429689,
+              3721450619981971,
+              3721451833295896
+            ],
+            [
+              "task.profile_update.11.train_step.rank1",
+              1,
+              2380.725643,
+              2380.725643,
+              3721449482234671,
+              3721451862960314
+            ],
+            [
+              "task.token_count.global_reduction",
+              1,
+              27.769555,
+              27.769555,
+              3721450591963533,
+              3721450619733088
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "first_collective",
+      "trace_id": "trace_0dcd5ff457f2b48b",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "rel_ms",
+            "dur_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "task.token_count.global_reduction",
+              1226.205144,
+              84.057256
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              1226.573038,
+              83.537686
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              1325.358001,
+              0.0824
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "first_collective",
+      "trace_id": "trace_fe610d6b80d24425",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "rel_ms",
+            "dur_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "task.token_count.global_reduction",
+              1287.02357,
+              24.403983
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              1287.323956,
+              24.028214
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              1326.59358,
+              0.088001
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "first_collective",
+      "trace_id": "trace_91c77ac307d87949",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "rel_ms",
+            "dur_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "task.token_count.global_reduction",
+              1026.366228,
+              111.372661
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              1026.677046,
+              110.959645
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              1153.03481,
+              0.95994
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "first_collective",
+      "trace_id": "trace_c9426e054d72458a",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "rel_ms",
+            "dur_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "task.token_count.global_reduction",
+              1109.728862,
+              27.769555
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              1110.055672,
+              27.355018
+            ],
+            [
+              "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+              1152.894302,
+              0.874339
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "window_device_unions",
+      "trace_id": "trace_0dcd5ff457f2b48b",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "kind",
+            "host_window_ms",
+            "device_union_ms",
+            "no_event_ms",
+            "largest_gap_ms"
+          ],
+          "row_count": 12,
+          "rows": [
+            [
+              "bounded_prefix",
+              "all_device",
+              2549.038969,
+              1279.516206,
+              1269.522763,
+              1225.698361
+            ],
+            [
+              "bounded_prefix",
+              "copies",
+              2549.038969,
+              23.449764,
+              2525.589205,
+              1225.927884
+            ],
+            [
+              "bounded_prefix",
+              "nccl",
+              2549.038969,
+              307.748819,
+              2241.29015,
+              1226.573038
+            ],
+            [
+              "input_before_token",
+              "all_device",
+              1226.205144,
+              0.003296,
+              1226.201848,
+              1225.698361
+            ],
+            [
+              "input_before_token",
+              "copies",
+              1226.205144,
+              0.000864,
+              1226.20428,
+              1225.927884
+            ],
+            [
+              "input_before_token",
+              "nccl",
+              1226.205144,
+              0,
+              1226.205144,
+              1226.205144
+            ],
+            [
+              "input_to_first_fb",
+              "all_device",
+              1310.573633,
+              83.556214,
+              1227.017419,
+              1225.698361
+            ],
+            [
+              "input_to_first_fb",
+              "copies",
+              1310.573633,
+              0.016096,
+              1310.557537,
+              1225.927884
+            ],
+            [
+              "input_to_first_fb",
+              "nccl",
+              1310.573633,
+              83.537686,
+              1227.035947,
+              1226.573038
+            ],
+            [
+              "token_reduction",
+              "all_device",
+              84.057256,
+              83.540854,
+              0.516402,
+              0.191233
+            ],
+            [
+              "token_reduction",
+              "copies",
+              84.057256,
+              0.003168,
+              84.054088,
+              83.732567
+            ],
+            [
+              "token_reduction",
+              "nccl",
+              84.057256,
+              83.537686,
+              0.51957,
+              0.367894
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "window_device_unions",
+      "trace_id": "trace_fe610d6b80d24425",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "kind",
+            "host_window_ms",
+            "device_union_ms",
+            "no_event_ms",
+            "largest_gap_ms"
+          ],
+          "row_count": 12,
+          "rows": [
+            [
+              "bounded_prefix",
+              "all_device",
+              2550.293593,
+              1221.121429,
+              1329.172164,
+              1286.668923
+            ],
+            [
+              "bounded_prefix",
+              "copies",
+              2550.293593,
+              23.394841,
+              2526.898752,
+              1286.885619
+            ],
+            [
+              "bounded_prefix",
+              "nccl",
+              2550.293593,
+              259.509428,
+              2290.784165,
+              1287.323956
+            ],
+            [
+              "input_before_token",
+              "all_device",
+              1287.02357,
+              0.003136,
+              1287.020434,
+              1286.668923
+            ],
+            [
+              "input_before_token",
+              "copies",
+              1287.02357,
+              0.000832,
+              1287.022738,
+              1286.885619
+            ],
+            [
+              "input_before_token",
+              "nccl",
+              1287.02357,
+              0,
+              1287.02357,
+              1287.02357
+            ],
+            [
+              "input_to_first_fb",
+              "all_device",
+              1311.677376,
+              24.047381,
+              1287.629995,
+              1286.668923
+            ],
+            [
+              "input_to_first_fb",
+              "copies",
+              1311.677376,
+              0.016863,
+              1311.660513,
+              1286.885619
+            ],
+            [
+              "input_to_first_fb",
+              "nccl",
+              1311.677376,
+              24.028214,
+              1287.649162,
+              1287.323956
+            ],
+            [
+              "token_reduction",
+              "all_device",
+              24.403983,
+              24.031445,
+              0.372538,
+              0.180609
+            ],
+            [
+              "token_reduction",
+              "copies",
+              24.403983,
+              0.003231,
+              24.400752,
+              24.217399
+            ],
+            [
+              "token_reduction",
+              "nccl",
+              24.403983,
+              24.028214,
+              0.375769,
+              0.300386
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "window_device_unions",
+      "trace_id": "trace_91c77ac307d87949",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "kind",
+            "host_window_ms",
+            "device_union_ms",
+            "no_event_ms",
+            "largest_gap_ms"
+          ],
+          "row_count": 12,
+          "rows": [
+            [
+              "bounded_prefix",
+              "all_device",
+              2380.948884,
+              1312.142528,
+              1068.806356,
+              1026.021448
+            ],
+            [
+              "bounded_prefix",
+              "copies",
+              2380.948884,
+              23.385519,
+              2357.563365,
+              1026.24898
+            ],
+            [
+              "bounded_prefix",
+              "nccl",
+              2380.948884,
+              333.455641,
+              2047.493243,
+              1026.677046
+            ],
+            [
+              "input_before_token",
+              "all_device",
+              1026.366228,
+              0.003233,
+              1026.362995,
+              1026.021448
+            ],
+            [
+              "input_before_token",
+              "copies",
+              1026.366228,
+              0.000896,
+              1026.365332,
+              1026.24898
+            ],
+            [
+              "input_before_token",
+              "nccl",
+              1026.366228,
+              0,
+              1026.366228,
+              1026.366228
+            ],
+            [
+              "input_to_first_fb",
+              "all_device",
+              1138.003722,
+              110.97827,
+              1027.025452,
+              1026.021448
+            ],
+            [
+              "input_to_first_fb",
+              "copies",
+              1138.003722,
+              0.016288,
+              1137.987434,
+              1026.24898
+            ],
+            [
+              "input_to_first_fb",
+              "nccl",
+              1138.003722,
+              110.959645,
+              1027.044077,
+              1026.677046
+            ],
+            [
+              "token_reduction",
+              "all_device",
+              111.372661,
+              110.962845,
+              0.409816,
+              0.178657
+            ],
+            [
+              "token_reduction",
+              "copies",
+              111.372661,
+              0.0032,
+              111.369461,
+              111.14387
+            ],
+            [
+              "token_reduction",
+              "nccl",
+              111.372661,
+              110.959645,
+              0.413016,
+              0.310818
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "window_device_unions",
+      "trace_id": "trace_c9426e054d72458a",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "kind",
+            "host_window_ms",
+            "device_union_ms",
+            "no_event_ms",
+            "largest_gap_ms"
+          ],
+          "row_count": 12,
+          "rows": [
+            [
+              "bounded_prefix",
+              "all_device",
+              2380.725643,
+              1226.762597,
+              1153.963046,
+              1109.392556
+            ],
+            [
+              "bounded_prefix",
+              "copies",
+              2380.725643,
+              23.797178,
+              2356.928465,
+              1109.612182
+            ],
+            [
+              "bounded_prefix",
+              "nccl",
+              2380.725643,
+              225.83966,
+              2154.885983,
+              1110.055672
+            ],
+            [
+              "input_before_token",
+              "all_device",
+              1109.728862,
+              0.003264,
+              1109.725598,
+              1109.392556
+            ],
+            [
+              "input_before_token",
+              "copies",
+              1109.728862,
+              0.000864,
+              1109.727998,
+              1109.612182
+            ],
+            [
+              "input_before_token",
+              "nccl",
+              1109.728862,
+              0,
+              1109.728862,
+              1109.728862
+            ],
+            [
+              "input_to_first_fb",
+              "all_device",
+              1137.7473,
+              27.373642,
+              1110.373658,
+              1109.392556
+            ],
+            [
+              "input_to_first_fb",
+              "copies",
+              1137.7473,
+              0.016224,
+              1137.731076,
+              1109.612182
+            ],
+            [
+              "input_to_first_fb",
+              "nccl",
+              1137.7473,
+              27.355018,
+              1110.392282,
+              1110.055672
+            ],
+            [
+              "token_reduction",
+              "all_device",
+              27.769555,
+              27.358218,
+              0.411337,
+              0.187105
+            ],
+            [
+              "token_reduction",
+              "copies",
+              27.769555,
+              0.0032,
+              27.766355,
+              27.546827
+            ],
+            [
+              "token_reduction",
+              "nccl",
+              27.769555,
+              27.355018,
+              0.414537,
+              0.32681
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "wait_device_overlap",
+      "trace_id": "trace_0dcd5ff457f2b48b",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "host_sum_ms",
+            "all_device_overlap_ms",
+            "no_device_overlap_ms"
+          ],
+          "row_count": 1,
+          "rows": [
+            [
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              33,
+              1212.513758,
+              0,
+              1212.513758
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "wait_device_overlap",
+      "trace_id": "trace_fe610d6b80d24425",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "host_sum_ms",
+            "all_device_overlap_ms",
+            "no_device_overlap_ms"
+          ],
+          "row_count": 1,
+          "rows": [
+            [
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              33,
+              1275.037779,
+              0,
+              1275.037779
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "wait_device_overlap",
+      "trace_id": "trace_91c77ac307d87949",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "host_sum_ms",
+            "all_device_overlap_ms",
+            "no_device_overlap_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              1,
+              952.389742,
+              0,
+              952.389742
+            ],
+            [
+              "task.prefetch.consumer_epoch_entry",
+              1,
+              953.095641,
+              0,
+              953.095641
+            ],
+            [
+              "task.prefetch.queue_pop_wait",
+              33,
+              64.237843,
+              0,
+              64.237843
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "wait_device_overlap",
+      "trace_id": "trace_c9426e054d72458a",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "name",
+            "n",
+            "host_sum_ms",
+            "all_device_overlap_ms",
+            "no_device_overlap_ms"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "enumerate(DataLoader)#_MultiProcessingDataLoaderIter.__next__",
+              1,
+              885.158219,
+              0,
+              885.158219
+            ],
+            [
+              "task.prefetch.consumer_epoch_entry",
+              1,
+              886.271593,
+              0,
+              886.271593
+            ],
+            [
+              "task.prefetch.queue_pop_wait",
+              33,
+              215.010753,
+              0,
+              215.010753
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "flow_coverage",
+      "trace_id": "trace_0dcd5ff457f2b48b",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "linked"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              274
+            ],
+            [
+              "gpu_memset",
+              861,
+              861
+            ],
+            [
+              "kernel",
+              8795,
+              8795
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "flow_coverage",
+      "trace_id": "trace_fe610d6b80d24425",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "linked"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              274
+            ],
+            [
+              "gpu_memset",
+              861,
+              861
+            ],
+            [
+              "kernel",
+              8795,
+              8795
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "flow_coverage",
+      "trace_id": "trace_91c77ac307d87949",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "linked"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              274
+            ],
+            [
+              "gpu_memset",
+              861,
+              861
+            ],
+            [
+              "kernel",
+              8795,
+              8795
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "flow_coverage",
+      "trace_id": "trace_c9426e054d72458a",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "category",
+            "n",
+            "linked"
+          ],
+          "row_count": 3,
+          "rows": [
+            [
+              "gpu_memcpy",
+              274,
+              274
+            ],
+            [
+              "gpu_memset",
+              861,
+              861
+            ],
+            [
+              "kernel",
+              8795,
+              8795
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "baseline_epoch_boundary_calls",
+      "trace_id": "trace_0dcd5ff457f2b48b",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "ordinal",
+            "duration_ms",
+            "total_calls",
+            "ordinary_sum_excluding_boundary_read_ms",
+            "is_largest_call"
+          ],
+          "row_count": 2,
+          "rows": [
+            [
+              17,
+              0.04373,
+              33,
+              179.148334,
+              0
+            ],
+            [
+              18,
+              1033.365424,
+              33,
+              179.148334,
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "baseline_epoch_boundary_calls",
+      "trace_id": "trace_fe610d6b80d24425",
+      "is_error": false,
+      "outputs": [
+        {
+          "columns": [
+            "ordinal",
+            "duration_ms",
+            "total_calls",
+            "ordinary_sum_excluding_boundary_read_ms",
+            "is_largest_call"
+          ],
+          "row_count": 2,
+          "rows": [
+            [
+              17,
+              0.050201,
+              33,
+              109.826333,
+              0
+            ],
+            [
+              18,
+              1165.211446,
+              33,
+              109.826333,
+              1
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "canonical_hashes_match_receipt": true,
+    "retained_payload_and_metadata_parity": true,
+    "final_device_census_per_trace": {
+      "kernel": 8795,
+      "gpu_memcpy": 274,
+      "gpu_memset": 861
+    },
+    "final_import_error_or_data_loss_rows": 0,
+    "all_device_events_have_host_launch_flow": true,
+    "captured_gpu_groups_stopped_before_analysis": {
+      "all_eight_gpus_memory_used_mib": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "all_eight_gpus_utilization_percent": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "compute_apps_empty": true,
+      "runner_process_groups_stopped": [
+        561276,
+        584250
+      ]
+    },
+    "failed_queries": [],
+    "json_parse": "PASS",
+    "relevant_scope": "Evidence-only analysis; no training source, configuration or runner edited by analysis owner."
+  }
+}
