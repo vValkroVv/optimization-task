@@ -61,6 +61,18 @@ checks. A local replay does not establish full-model continuation or convergence
 Deliberate mathematical changes still need an agreed quality criterion. Do not
 implement another numerical framework or run these local checks during cleanup.
 
+## Trace capture window
+
+For future authorized trace captures, record at most **3 complete microbatches
+per rank trace** after warmup. Limit the profiler window; keep training microbatch
+size 2 and gradient accumulation at 32 microbatches per optimizer update.
+
+TPS estimation keeps the original unprofiled procedure: 10 warmup optimizer
+updates followed by 10 measured full optimizer updates, each with 32 microbatches.
+Keep the original workload, LR schedule and timing/token scopes. Do not estimate
+TPS from the shortened diagnostic trace. Existing full-update traces remain
+historical evidence; this policy does not change their recorded coverage.
+
 ## Historical baseline smoke evidence
 
 The [HF smoke report](../runs/100b-crop8-ep8-smoke/report.md) and
