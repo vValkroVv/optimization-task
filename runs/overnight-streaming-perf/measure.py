@@ -1241,7 +1241,32 @@ def _route_rank_triton_cache(measurement_dir: Path) -> tuple[int, Path]:
         raise RuntimeError(f"measurement directory has an unexpected path: {measurement}")
 
     attempt = measurement.parent
-    cache_base = _task_path(attempt / "cache" / "triton", "Triton cache root")
+    compiler_cache_root_text = os.environ.get("TASK_COMPILER_CACHE_ROOT")
+    if compiler_cache_root_text:
+        compiler_cache_root = _task_path(
+            Path(compiler_cache_root_text), "TASK_COMPILER_CACHE_ROOT"
+        )
+        cache_relative = compiler_cache_root.relative_to(TASK_ROOT)
+        if (
+            len(cache_relative.parts) != 6
+            or cache_relative.parts[0] != "runs"
+            or cache_relative.parts[2:4] != ("artifacts", "raw")
+            or cache_relative.parts[5] != "cache"
+        ):
+            raise RuntimeError(
+                "TASK_COMPILER_CACHE_ROOT must be a task raw-attempt cache root"
+            )
+        if not compiler_cache_root.is_dir():
+            raise RuntimeError(
+                f"TASK_COMPILER_CACHE_ROOT is not a directory: {compiler_cache_root}"
+            )
+    else:
+        compiler_cache_root = _task_path(
+            attempt / "cache", "task compiler cache root"
+        )
+    cache_base = _task_path(
+        compiler_cache_root / "triton", "Triton cache root"
+    )
     rank_dir = _task_path(cache_base / f"rank_{rank}", "rank Triton cache directory")
     if not cache_base.is_dir() or not rank_dir.is_dir():
         raise RuntimeError(f"precreated Triton cache directories are missing under {cache_base}")
@@ -1304,6 +1329,19 @@ def _write_triton_startup_receipt(
     with receipt_path.open("x", encoding="utf-8") as handle:
         json.dump(receipt, handle, sort_keys=True, indent=2)
         handle.write("\n")
+
+
+def _record_streaming_filelock_startup(
+    measurement_dir: Path, rank: int, metadata: dict[str, object]
+) -> None:
+    receipt_path = measurement_dir / f"triton-startup-rank-{rank:02d}.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["streaming_filelock"] = metadata
+    temporary = receipt_path.with_suffix(".json.tmp")
+    with temporary.open("x", encoding="utf-8") as handle:
+        json.dump(receipt, handle, sort_keys=True, indent=2)
+        handle.write("\n")
+    temporary.replace(receipt_path)
 
 
 def _run_native_main(train_argv: list[str], adapter: NativeAdapter) -> None:
@@ -1371,7 +1409,13 @@ def main(argv: list[str] | None = None) -> None:
             Path(os.environ["TASK_DEEP_GEMM_RANK_CACHE_ROOT"]),
         ),
     )
-    _run_native_main(train_argv, adapter)
+    from streaming_filelock import StreamingFileLockBindings
+
+    with StreamingFileLockBindings() as filelock_bindings:
+        _record_streaming_filelock_startup(
+            args.measurement_dir, rank, filelock_bindings.startup_metadata()
+        )
+        _run_native_main(train_argv, adapter)
 
 
 if __name__ == "__main__":

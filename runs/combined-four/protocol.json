@@ -1,0 +1,694 @@
+{
+  "schema_version": 2,
+  "recorded_date": "2026-11-14",
+  "source_head": "6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507",
+  "actual_execution_argv_source": "metadata.json argv arrays from completed native runs; no planned command substitutions.",
+  "allocation": {
+    "job_id": "lm-mpi-job-23027817-4bfe-4730-926f-5c2de590b32b",
+    "route": "direct local on verified single master",
+    "nodes": 1,
+    "world_size": 8,
+    "gpu_model": "NVIDIA H100 80GB"
+  },
+  "common_workload": {
+    "epoch_size": 102400,
+    "seed": 2048,
+    "microbatch_size": 2,
+    "sequence_length": 4096,
+    "global_batch_size": 512,
+    "gradient_accumulation_microbatches": 32,
+    "scheduler_total_steps": 65000,
+    "scheduler_warmup_steps": 2000,
+    "preserved_contract": "docs/baseline.md",
+    "preserved_features": [
+      "FP8",
+      "compile",
+      "selective activation checkpointing",
+      "EMA",
+      "MTP",
+      "fused AdamW"
+    ],
+    "timing_variants": {
+      "steps": 140,
+      "warmup_updates": 40,
+      "measured_updates": [
+        41,
+        140
+      ],
+      "measured_update_count": 100,
+      "physical_tokens": 209715200,
+      "profiling": false,
+      "memory_snapshots": false,
+      "cache_counters": false
+    }
+  },
+  "variant_differences": {
+    "baseline": {
+      "num_prefetch_batches": 0,
+      "gfsdp_reuse_bf16_expert_weights": false,
+      "routing": "original",
+      "cross_entropy": "original",
+      "compiler_cache": "fresh per run"
+    },
+    "candidate": {
+      "num_prefetch_batches": 32,
+      "gfsdp_reuse_bf16_expert_weights": true,
+      "routing": "existing explicit fused metadata kernel",
+      "cross_entropy": "existing stable cap-zero Triton kernel",
+      "compiler_cache": "reuse baseline-003 cache in place"
+    },
+    "activation_patch_sha256": "9615f2d80160af46a2048531f2ad12c9728fd13044c8a2ae03663f25c7496950",
+    "excluded": [
+      "GPU input preparation fusion",
+      "fused Linear+CE"
+    ]
+  },
+  "runs": {
+    "combined-four-baseline-003": {
+      "metadata_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/metadata.json",
+      "metadata_sha256": "2fbd66546e1dd5b84c8712e0acb2139bf168186ec64755a43c3b3114c80f9447",
+      "summary_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/summary.json",
+      "summary_sha256": "0fc29f8fb387bcf347d6217490626877421d2386ea076f46e1a05f0b4c85f906",
+      "completion_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/completion.json",
+      "completion_sha256": "482c8b8242db419dc3e80754aeee6caf01febb4d3d3e411a1bb35a55e8c9196e",
+      "process_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/process.json",
+      "process_sha256": "8f7565f5bdebc2bc865f744d9f10e297db3f8f76b0ae0839d885b9f23def54be",
+      "resolved_config_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "05f4f840f0d48ef568b24e4653fe5308fd539807290b13adedc4d14ecbb64df2",
+      "source_final_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/source-final.json",
+      "source_final_sha256": "e3b32f887ecabf9253fcf06d5f3447ae495bfbfcf5c668ab34059a27fb59af16",
+      "config_hash_receipt_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/config-hashes-final.json",
+      "config_hash_receipt_sha256": "5500a46630037ec276f01ed57520aa7b4bf718c216a555ddffc5b9391920575b",
+      "actual_argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "-m",
+        "torch.distributed.run",
+        "--standalone",
+        "--nnodes=1",
+        "--nproc_per_node=8",
+        "--max_restarts=0",
+        "--log_dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/logs/torchrun",
+        "--redirects=3",
+        "--tee=3",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/measure.py",
+        "--measurement-dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/measurement",
+        "--run-id",
+        "combined-four-baseline-003",
+        "--steps",
+        "140",
+        "--warmup",
+        "40",
+        "--window",
+        "100",
+        "--",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/config/experiment.yaml",
+        "--dataloader.num_prefetch_batches",
+        "0",
+        "--training.steps",
+        "140",
+        "--lr_scheduler.total_steps",
+        "65000",
+        "--lr_scheduler.warmup_steps",
+        "2000",
+        "--debug.seed",
+        "2048",
+        "--metrics.log_freq",
+        "1",
+        "--checkpoint.enable",
+        "false",
+        "--validator.enable",
+        "false",
+        "--profiler.enable_profiling",
+        "false",
+        "--profiler.enable_memory_snapshot",
+        "false",
+        "--dump_folder",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/native",
+        "--hf_assets_path",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/assets/tokenizer",
+        "--dataloader.dataset.epoch_size",
+        "102400"
+      ],
+      "status": "PASS",
+      "child_exit_code": 0,
+      "process_group_stopped": true,
+      "orphaned_process_group": false,
+      "timeout": false,
+      "source_unchanged": true,
+      "config_unchanged": true,
+      "task_tmpdir_removed": true,
+      "runner_sha256": "175483109917115f93e8b03c3de61f6941d3d3b1258bae349aca13c15ebf94a8",
+      "measurement_adapter_sha256": "23cde650953a1b11c5d6e6c52f203ebad122efda14f216e82520c605e2942f2c",
+      "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+      "streaming_filelock_sha256": "b420102234f95ff904561f4bdc68f2b82e21547493e7c1d2dffbf814224ec703",
+      "cache_policy": "fresh task-owned TorchInductor, Triton, DeepGEMM shared-kernel and rank-cache directories per run",
+      "cache_root": null,
+      "measurement": {
+        "steps_complete_each_rank": 140,
+        "window_updates": [
+          41,
+          140
+        ],
+        "global_elapsed_s": 1403.842534064,
+        "physical_input_tokens_global": 209715200,
+        "supervised_tokens_global": 209664000,
+        "physical_tps_global": 149386.5550525051,
+        "supervised_tps_global": 149350.083725588,
+        "peak_allocated_gib": 69.98944854736328,
+        "peak_reserved_gib": 72.056640625,
+        "allocator_deltas_all_ranks": {
+          "0": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "1": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "2": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "3": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "4": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "5": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "6": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "7": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          }
+        },
+        "window_boundary_receipts": {
+          "end_after_update": 140,
+          "end_skew_ns": 580854,
+          "end_skew_s": 0.000580854,
+          "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+          "max_local_elapsed_s": 1403.84195321,
+          "min_local_elapsed_s": 1403.840263738,
+          "monitor_interval": 0,
+          "monitoring_updates": [],
+          "per_rank": {
+            "0": {
+              "end_monotonic_ns": 2225831981514267,
+              "local_elapsed_s": 1403.841868791,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2224428139645476,
+              "supervised_tokens_global": 209664000
+            },
+            "1": {
+              "end_monotonic_ns": 2225831980986214,
+              "local_elapsed_s": 1403.841887157,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2224428139099057,
+              "supervised_tokens_global": 209664000
+            },
+            "2": {
+              "end_monotonic_ns": 2225831981363670,
+              "local_elapsed_s": 1403.840263738,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2224428141099932,
+              "supervised_tokens_global": 209664000
+            },
+            "3": {
+              "end_monotonic_ns": 2225831980933413,
+              "local_elapsed_s": 1403.84195321,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2224428138980203,
+              "supervised_tokens_global": 209664000
+            },
+            "4": {
+              "end_monotonic_ns": 2225831980943985,
+              "local_elapsed_s": 1403.841877806,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2224428139066179,
+              "supervised_tokens_global": 209664000
+            },
+            "5": {
+              "end_monotonic_ns": 2225831981254052,
+              "local_elapsed_s": 1403.841949681,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2224428139304371,
+              "supervised_tokens_global": 209664000
+            },
+            "6": {
+              "end_monotonic_ns": 2225831981243716,
+              "local_elapsed_s": 1403.841849681,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2224428139394035,
+              "supervised_tokens_global": 209664000
+            },
+            "7": {
+              "end_monotonic_ns": 2225831980956081,
+              "local_elapsed_s": 1403.841675845,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2224428139280236,
+              "supervised_tokens_global": 209664000
+            }
+          },
+          "primary_elapsed_s": 1403.842534064,
+          "start_after_update": 40,
+          "start_skew_ns": 2119729,
+          "start_skew_s": 0.002119729,
+          "updates": 100,
+          "warmup_updates": 40
+        }
+      },
+      "resolved_settings": {
+        "num_prefetch_batches": 0,
+        "gfsdp_reuse_bf16_expert_weights": false,
+        "epoch_size": 102400,
+        "seed": 2048,
+        "steps": 140,
+        "warmup_updates": 40,
+        "window_updates": 100,
+        "scheduler_total_steps": 65000,
+        "scheduler_warmup_steps": 2000,
+        "profiler": "disabled",
+        "bf16_cache_counters": false
+      }
+    },
+    "combined-four-candidate": {
+      "metadata_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/metadata.json",
+      "metadata_sha256": "a6c2f65644ce37edcf11964fbe5e48d4df58c78901a993633a84d6d01907c620",
+      "summary_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/summary.json",
+      "summary_sha256": "98a040a58edad5243603ecac388d51a88a17b5a6c52cc835deb634040a9f1ec9",
+      "completion_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/completion.json",
+      "completion_sha256": "482ae25806f18f7d76839049f45cd9f4e081246f64b8f63135a06748b8075e1a",
+      "process_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/process.json",
+      "process_sha256": "db279111065dde6ab2078aca63b08b873a599797abb826ee9695674c2c76a91b",
+      "resolved_config_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "7225b27ac79e5df9e2d777deaa223d56f7b686e76845c86a225638114759db5d",
+      "source_final_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/source-final.json",
+      "source_final_sha256": "15ac82efc857fb1a2350b2332fad497d1e7aa86b55d8677fa4ea215637a5bb1d",
+      "config_hash_receipt_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/config-hashes-final.json",
+      "config_hash_receipt_sha256": "9edbe785d96c4b7644543c482f65f4224231cb049f8889944fcf478a2a5207e5",
+      "actual_argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "-m",
+        "torch.distributed.run",
+        "--standalone",
+        "--nnodes=1",
+        "--nproc_per_node=8",
+        "--max_restarts=0",
+        "--log_dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/logs/torchrun",
+        "--redirects=3",
+        "--tee=3",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/measure.py",
+        "--measurement-dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/measurement",
+        "--run-id",
+        "combined-four-candidate",
+        "--steps",
+        "140",
+        "--warmup",
+        "40",
+        "--window",
+        "100",
+        "--",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/config/experiment.yaml",
+        "--dataloader.num_prefetch_batches",
+        "32",
+        "--training.steps",
+        "140",
+        "--lr_scheduler.total_steps",
+        "65000",
+        "--lr_scheduler.warmup_steps",
+        "2000",
+        "--debug.seed",
+        "2048",
+        "--metrics.log_freq",
+        "1",
+        "--checkpoint.enable",
+        "false",
+        "--validator.enable",
+        "false",
+        "--profiler.enable_profiling",
+        "false",
+        "--profiler.enable_memory_snapshot",
+        "false",
+        "--dump_folder",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-candidate/native",
+        "--hf_assets_path",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/assets/tokenizer",
+        "--parallelism.gfsdp_reuse_bf16_expert_weights",
+        "true",
+        "--dataloader.dataset.epoch_size",
+        "102400"
+      ],
+      "status": "PASS",
+      "child_exit_code": 0,
+      "process_group_stopped": true,
+      "orphaned_process_group": false,
+      "timeout": false,
+      "source_unchanged": true,
+      "config_unchanged": true,
+      "task_tmpdir_removed": true,
+      "runner_sha256": "a36f79cde5af6c6af051eee0794fe102ee3994f37e47580ca8130c264a78bf9a",
+      "measurement_adapter_sha256": "7d28b2c024479ce4afc18968b08c76148a6aee2e8a4ebbbad3ab30fadf05f09b",
+      "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+      "streaming_filelock_sha256": "b420102234f95ff904561f4bdc68f2b82e21547493e7c1d2dffbf814224ec703",
+      "cache_policy": "reuse",
+      "cache_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache",
+      "measurement": {
+        "steps_complete_each_rank": 140,
+        "window_updates": [
+          41,
+          140
+        ],
+        "global_elapsed_s": 1343.516366857,
+        "physical_input_tokens_global": 209715200,
+        "supervised_tokens_global": 209664000,
+        "physical_tps_global": 156094.26514885284,
+        "supervised_tps_global": 156056.15619740047,
+        "peak_allocated_gib": 68.1877179145813,
+        "peak_reserved_gib": 69.87890625,
+        "allocator_deltas_all_ranks": {
+          "0": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "1": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "2": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "3": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "4": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "5": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "6": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "7": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          }
+        },
+        "window_boundary_receipts": {
+          "end_after_update": 140,
+          "end_skew_ns": 631874,
+          "end_skew_s": 0.000631874,
+          "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+          "max_local_elapsed_s": 1343.515816557,
+          "min_local_elapsed_s": 1343.515450925,
+          "monitor_interval": 0,
+          "monitoring_updates": [],
+          "per_rank": {
+            "0": {
+              "end_monotonic_ns": 2228147981883347,
+              "local_elapsed_s": 1343.515816557,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2226804466066790,
+              "supervised_tokens_global": 209664000
+            },
+            "1": {
+              "end_monotonic_ns": 2228147981330635,
+              "local_elapsed_s": 1343.515464622,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2226804465866013,
+              "supervised_tokens_global": 209664000
+            },
+            "2": {
+              "end_monotonic_ns": 2228147981287157,
+              "local_elapsed_s": 1343.515770667,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2226804465516490,
+              "supervised_tokens_global": 209664000
+            },
+            "3": {
+              "end_monotonic_ns": 2228147981251473,
+              "local_elapsed_s": 1343.515450925,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2226804465800548,
+              "supervised_tokens_global": 209664000
+            },
+            "4": {
+              "end_monotonic_ns": 2228147981251605,
+              "local_elapsed_s": 1343.515611562,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2226804465640043,
+              "supervised_tokens_global": 209664000
+            },
+            "5": {
+              "end_monotonic_ns": 2228147981323042,
+              "local_elapsed_s": 1343.515676677,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2226804465646365,
+              "supervised_tokens_global": 209664000
+            },
+            "6": {
+              "end_monotonic_ns": 2228147981299546,
+              "local_elapsed_s": 1343.515720837,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2226804465578709,
+              "supervised_tokens_global": 209664000
+            },
+            "7": {
+              "end_monotonic_ns": 2228147981265551,
+              "local_elapsed_s": 1343.515493346,
+              "physical_input_tokens_local": 26214400,
+              "start_monotonic_ns": 2226804465772205,
+              "supervised_tokens_global": 209664000
+            }
+          },
+          "primary_elapsed_s": 1343.516366857,
+          "start_after_update": 40,
+          "start_skew_ns": 550300,
+          "start_skew_s": 0.0005503,
+          "updates": 100,
+          "warmup_updates": 40
+        }
+      },
+      "resolved_settings": {
+        "num_prefetch_batches": 32,
+        "gfsdp_reuse_bf16_expert_weights": true,
+        "epoch_size": 102400,
+        "seed": 2048,
+        "steps": 140,
+        "warmup_updates": 40,
+        "window_updates": 100,
+        "scheduler_total_steps": 65000,
+        "scheduler_warmup_steps": 2000,
+        "profiler": "disabled",
+        "bf16_cache_counters": false
+      }
+    },
+    "combined-four-diagnostic": {
+      "metadata_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/metadata.json",
+      "metadata_sha256": "c4c10db72be8fb5720ca74cd920c159d54ffd8a482f867b8f7c1704a914101a8",
+      "summary_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/summary.json",
+      "summary_sha256": "586d0a42ffc07320af2e7b4f7fbf323d2cf538fd671ed039f0fa103582f8e456",
+      "completion_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/completion.json",
+      "completion_sha256": "ffedcbee7da558bb9bf14efbeeb52e8c9ea32efd268baaaa82a09bda9eedb9d7",
+      "process_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/process.json",
+      "process_sha256": "cfc53027514faf17a8ab05bc0d89214c9a7cd48beefaca209d8348fde8bfc402",
+      "resolved_config_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "34441b3231b1618e64b6f715474351f71ec02dfe40a715d14111e2d812ed6c63",
+      "source_final_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/source-final.json",
+      "source_final_sha256": "15ac82efc857fb1a2350b2332fad497d1e7aa86b55d8677fa4ea215637a5bb1d",
+      "config_hash_receipt_path": "runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/config-hashes-final.json",
+      "config_hash_receipt_sha256": "9edbe785d96c4b7644543c482f65f4224231cb049f8889944fcf478a2a5207e5",
+      "actual_argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "-m",
+        "torch.distributed.run",
+        "--standalone",
+        "--nnodes=1",
+        "--nproc_per_node=8",
+        "--max_restarts=0",
+        "--log_dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/logs/torchrun",
+        "--redirects=3",
+        "--tee=3",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/measure.py",
+        "--measurement-dir",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/measurement",
+        "--run-id",
+        "combined-four-diagnostic",
+        "--steps",
+        "21",
+        "--warmup",
+        "20",
+        "--window",
+        "0",
+        "--profile-update",
+        "21",
+        "--capture-microbatches",
+        "--bf16-cache-counters",
+        "--profile-microbatches",
+        "3",
+        "--",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/config/experiment.yaml",
+        "--dataloader.num_prefetch_batches",
+        "32",
+        "--training.steps",
+        "21",
+        "--lr_scheduler.total_steps",
+        "65000",
+        "--lr_scheduler.warmup_steps",
+        "2000",
+        "--debug.seed",
+        "2048",
+        "--metrics.log_freq",
+        "1",
+        "--checkpoint.enable",
+        "false",
+        "--validator.enable",
+        "false",
+        "--profiler.enable_profiling",
+        "true",
+        "--profiler.enable_memory_snapshot",
+        "false",
+        "--dump_folder",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-diagnostic/native",
+        "--hf_assets_path",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/assets/tokenizer",
+        "--parallelism.gfsdp_reuse_bf16_expert_weights",
+        "true",
+        "--dataloader.dataset.epoch_size",
+        "102400",
+        "--profiler.profile_ranks",
+        "[0, 1]",
+        "--profiler.save_traces_folder",
+        "profiling/traces",
+        "--profiler.record_shapes",
+        "false",
+        "--profiler.profile_freq",
+        "2",
+        "--profiler.profiler_warmup",
+        "1",
+        "--profiler.profiler_active",
+        "1",
+        "--profiler.profiler_repeat",
+        "1",
+        "--profiler.profiler_skip_first",
+        "19",
+        "--profiler.profiler_skip_first_wait",
+        "0"
+      ],
+      "status": "PASS",
+      "child_exit_code": 0,
+      "process_group_stopped": true,
+      "orphaned_process_group": false,
+      "timeout": false,
+      "source_unchanged": true,
+      "config_unchanged": true,
+      "task_tmpdir_removed": true,
+      "runner_sha256": "a36f79cde5af6c6af051eee0794fe102ee3994f37e47580ca8130c264a78bf9a",
+      "measurement_adapter_sha256": "7d28b2c024479ce4afc18968b08c76148a6aee2e8a4ebbbad3ab30fadf05f09b",
+      "parser_sha256": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+      "streaming_filelock_sha256": "b420102234f95ff904561f4bdc68f2b82e21547493e7c1d2dffbf814224ec703",
+      "cache_policy": "reuse",
+      "cache_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache",
+      "diagnostic": {
+        "steps": 21,
+        "warmup_updates": 20,
+        "profile_update": 21,
+        "profile_ranks": [
+          0,
+          1
+        ],
+        "captured_microbatches_per_trace": 3,
+        "all_rank_microbatch_calls_update_21": {
+          "0": 32,
+          "1": 32,
+          "2": 32,
+          "3": 32,
+          "4": 32,
+          "5": 32,
+          "6": 32,
+          "7": 32
+        },
+        "all_rank_optimizer_calls_update_21": {
+          "0": 1,
+          "1": 1,
+          "2": 1,
+          "3": 1,
+          "4": 1,
+          "5": 1,
+          "6": 1,
+          "7": 1
+        },
+        "traces": {
+          "0": {
+            "gpu_projection_counts": {
+              "task.profile_update.21.microbatch.rank0": 3,
+              "task.profile_update.21.train_step.rank0": 1
+            },
+            "marker_counts": {
+              "task.profile_update.21.microbatch.rank0": 3,
+              "task.profile_update.21.train_step.rank0": 1
+            },
+            "path": "native/profiling/traces/iteration_21/rank0_trace.json",
+            "sha256": "3aba2d4ce7fa0389ba68fd0848e4782dbbe92c663dbb390d9ef9fc394132e82b",
+            "size_bytes": 26230485
+          },
+          "1": {
+            "gpu_projection_counts": {
+              "task.profile_update.21.microbatch.rank1": 3,
+              "task.profile_update.21.train_step.rank1": 1
+            },
+            "marker_counts": {
+              "task.profile_update.21.microbatch.rank1": 3,
+              "task.profile_update.21.train_step.rank1": 1
+            },
+            "path": "native/profiling/traces/iteration_21/rank1_trace.json",
+            "sha256": "1680cb0874eefa2637b4f725dffe01b46f54b631ce1f98cee03420e4eccfdfb4",
+            "size_bytes": 26224380
+          }
+        },
+        "activation_flags": {
+          "num_prefetch_batches": 32,
+          "gfsdp_reuse_bf16_expert_weights": true,
+          "routing_and_stable_ce_patches_active": true
+        },
+        "trace_interpretation": {
+          "status": "PASS_WITH_OBSERVABILITY_LIMITS",
+          "verified": [
+            "BF16: seven first-microbatch casts and zero singleton copies per traced rank versus historical 21/42; all eligible groups refresh/hit/use counters advance on all ranks across updates 1-21.",
+            "Routing: 39 kernels per rank, 21 forward and 18 SAC recompute.",
+            "Stable CE: 12 forward plus 12 backward kernels per rank with compiled graph ancestry through two-chunk main/MTP loss.",
+            "FP8: 78 unchanged expert-weight quantization kernels per rank.",
+            "All 9445 imported device events per combined trace have complete launch links, zero import errors and zero ambiguous links.",
+            "NCCL kernel counts and capacity predicates are unchanged."
+          ],
+          "queue_scope": "32 pops and minimum ready count 4 observed on ranks 0/1 only.",
+          "limits": [
+            "Capture covers three of 32 microbatches.",
+            "Profiler omits concrete event/stream handles, so exact device wait attribution and full-update critical path are unavailable.",
+            "Some local CE spans shrink while one rank-0 enclosing head/loss guard grows 94.537 to 100.838 ms.",
+            "The historical control differs in source, job, and epoch and is mechanism context only."
+          ],
+          "evidence": "trace-analysis.md and trace-analysis.json"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+diff --git a/gift/torchtitan/components/loss.py b/gift/torchtitan/components/loss.py
+index 9cc42dad..0a5f9ee2 100644
+--- a/gift/torchtitan/components/loss.py
++++ b/gift/torchtitan/components/loss.py
+@@ -353,7 +353,11 @@ class CrossEntropyLoss(BaseLoss):
+ 
+     def __init__(self, config: Config, *, compile_config: CompileConfig | None = None):
+         super().__init__(config, compile_config=compile_config)
+-        self.fn: LossFunction = cross_entropy_loss
++        from torchtitan.experiments.four_fusion.stable_ce import (
++            cross_entropy_loss as stable_ce,
++        )
++
++        self.fn: LossFunction = stable_ce
+         self._maybe_compile(compile_config)
+ 
+ 
+@@ -557,7 +561,11 @@ class ChunkedCELoss(BaseLoss):
+         compile_config: CompileConfig | None = None,
+     ):
+         super().__init__(config, compile_config=compile_config)
+-        self.fn: LossFunction = cross_entropy_loss
++        from torchtitan.experiments.four_fusion.stable_ce import (
++            cross_entropy_loss as stable_ce,
++        )
++
++        self.fn: LossFunction = stable_ce
+         self._maybe_compile(compile_config)
+         self.num_chunks = config.num_chunks
+         self.num_chunks_on_monitoring_steps = config.num_chunks_on_monitoring_steps
+diff --git a/gift/torchtitan/distributed/deepep/hybridep.py b/gift/torchtitan/distributed/deepep/hybridep.py
+index 3b9099c4..b7beef3b 100644
+--- a/gift/torchtitan/distributed/deepep/hybridep.py
++++ b/gift/torchtitan/distributed/deepep/hybridep.py
+@@ -29,7 +29,8 @@ from torch.fx.experimental.symbolic_shapes import guard_or_true
+ 
+ from torchtitan.distributed.deepep.capacity import non_blocking_buffer_capacity
+ from torchtitan.distributed.deepep.fp8_state import FP8DispatchState
+-from torchtitan.distributed.deepep.routing import gather_route_gradients, indices_to_map
++from torchtitan.distributed.deepep.routing import gather_route_gradients
++from torchtitan.experiments.four_fusion.routing_metadata import indices_to_map
+ from torchtitan.ops.float8.fp8_tensor import (
+     bf16_grad_edge,
+     Float8BlockwiseQTensor,

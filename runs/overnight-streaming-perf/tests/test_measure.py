@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import builtins
+import errno
+import fcntl
+import importlib
 import json
 import os
 import socket
@@ -18,6 +21,23 @@ import compiler_stats
 import measure
 import parse_results
 import run as runner
+import streaming_filelock
+
+
+class _TrackingNFSUnixFileLock(streaming_filelock.NFSUnixFileLock):
+    trace_path: str | None = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.trace_path is not None:
+            record = json.dumps(
+                {"pid": os.getpid(), "path": self.lock_file}, sort_keys=True
+            ).encode("utf-8") + b"\n"
+            fd = os.open(self.trace_path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
+            try:
+                os.write(fd, record)
+            finally:
+                os.close(fd)
 
 LOCAL_PHYSICAL_PER_UPDATE = 262_144
 GLOBAL_SUPERVISED_PER_UPDATE = 2_096_640
@@ -53,6 +73,177 @@ def _set_task_tmp_environment(monkeypatch: pytest.MonkeyPatch, path: Path) -> No
     monkeypatch.setenv("TASK_LOCAL_TMPDIR", str(path))
     for name in ("TMPDIR", "TMP", "TEMP"):
         monkeypatch.setenv(name, str(path))
+
+
+def test_filelock_release_exposes_stale_inode_but_nfs_lock_preserves_it(
+    tmp_path: Path,
+) -> None:
+    from filelock import FileLock
+    from filelock._unix import UnixFileLock
+
+    legacy_path = tmp_path / "legacy.lock"
+    legacy_lock = FileLock(legacy_path)
+    assert isinstance(legacy_lock, UnixFileLock)
+    legacy_lock.acquire()
+    stale_inode_fd = os.open(legacy_path, os.O_RDWR)
+    old_inode = os.fstat(stale_inode_fd).st_ino
+    try:
+        legacy_lock.release()
+        assert not legacy_path.exists()
+
+        replacement = FileLock(legacy_path)
+        replacement.acquire()
+        try:
+            assert legacy_path.stat().st_ino != old_inode
+            # The old descriptor and replacement path now lock different inodes.
+            fcntl.flock(stale_inode_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            replacement.release()
+            fcntl.flock(stale_inode_fd, fcntl.LOCK_UN)
+    finally:
+        os.close(stale_inode_fd)
+
+    repaired_path = tmp_path / "stable.lock"
+    lock = streaming_filelock.NFSUnixFileLock(repaired_path)
+    second = streaming_filelock.NFSUnixFileLock(repaired_path)
+    lock.acquire()
+    locked_inode = os.fstat(lock._context.lock_file_fd).st_ino
+    lock.acquire()
+    try:
+        assert repaired_path.stat().st_ino == locked_inode
+        from filelock import Timeout
+
+        with pytest.raises(Timeout):
+            second.acquire(timeout=0.03, poll_interval=0.001)
+        lock.release()
+        assert lock.is_locked
+        assert repaired_path.stat().st_ino == locked_inode
+    finally:
+        lock.release()
+    assert not lock.is_locked
+    assert repaired_path.stat().st_ino == locked_inode
+
+    with pytest.raises(OSError) as fallback_error:
+        lock._fallback_to_soft_lock()
+    assert fallback_error.value.errno == errno.ENOSYS
+
+
+def test_streaming_filelock_bindings_restore_after_success_and_exception() -> None:
+    from streaming.base import dataset
+    from streaming.base.shared import barrier
+
+    original_dataset_lock = dataset.FileLock
+    original_barrier_lock = barrier.FileLock
+    with streaming_filelock.StreamingFileLockBindings() as bindings:
+        assert dataset.FileLock is streaming_filelock.NFSUnixFileLock
+        assert barrier.FileLock is streaming_filelock.NFSUnixFileLock
+        metadata = bindings.startup_metadata()
+        assert metadata["installed_filelock_version"] == "3.29.4"
+        assert metadata["bindings"] == [
+            "streaming.base.dataset",
+            "streaming.base.shared.barrier",
+        ]
+    assert dataset.FileLock is original_dataset_lock
+    assert barrier.FileLock is original_barrier_lock
+
+    with pytest.raises(RuntimeError, match="binding sentinel"):
+        with streaming_filelock.StreamingFileLockBindings():
+            raise RuntimeError("binding sentinel")
+    assert dataset.FileLock is original_dataset_lock
+    assert barrier.FileLock is original_barrier_lock
+
+
+def test_measure_startup_receipt_records_active_streaming_filelocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    measurement_dir = tmp_path / "measurement"
+    measurement_dir.mkdir()
+    task_tmpdir = tmp_path / "scratch"
+    task_tmpdir.mkdir()
+    for name in ("TMPDIR", "TMP", "TEMP"):
+        monkeypatch.setenv(name, str(task_tmpdir))
+    args = SimpleNamespace(measurement_dir=measurement_dir, run_id="lock-startup-test")
+
+    measure._write_triton_startup_receipt(
+        args, 2, tmp_path / "rank_2", task_tmpdir
+    )
+    with streaming_filelock.StreamingFileLockBindings() as bindings:
+        measure._record_streaming_filelock_startup(
+            measurement_dir, 2, bindings.startup_metadata()
+        )
+
+    receipt = json.loads(
+        (measurement_dir / "triton-startup-rank-02.json").read_text(encoding="utf-8")
+    )
+    assert receipt["streaming_filelock"] == {
+        "installed_filelock_version": "3.29.4",
+        "selected_lock_class": "streaming_filelock.NFSUnixFileLock",
+        "bindings": [
+            "streaming.base.dataset",
+            "streaming.base.shared.barrier",
+        ],
+    }
+
+
+def test_streaming_lock_bindings_cover_fork_workers_through_epoch_and_shutdown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import multiprocessing
+
+    from streaming.base import dataset as streaming_dataset
+    from streaming.base.shared import barrier as streaming_barrier
+
+    assert multiprocessing.get_start_method() == "fork"
+    monkeypatch.syspath_prepend(str(runner.TASK_ROOT / "gift"))
+    helpers = importlib.import_module("tests.unit_tests.streaming_helpers")
+    mds_dir = tmp_path / "mds"
+    mds_dir.mkdir()
+    helpers.write_tokenized_mds(mds_dir, helpers.make_sequential_rows(64, row_len=4))
+
+    trace_path = tmp_path / "lock-construction.jsonl"
+    monkeypatch.setattr(_TrackingNFSUnixFileLock, "trace_path", str(trace_path))
+    monkeypatch.setattr(
+        streaming_filelock, "NFSUnixFileLock", _TrackingNFSUnixFileLock
+    )
+    original_dataset_lock = streaming_dataset.FileLock
+    original_barrier_lock = streaming_barrier.FileLock
+
+    with streaming_filelock.StreamingFileLockBindings():
+        assert streaming_dataset.FileLock is _TrackingNFSUnixFileLock
+        assert streaming_barrier.FileLock is _TrackingNFSUnixFileLock
+        loader = helpers.make_text_dataloader(
+            mds_dir,
+            seq_len=4,
+            local_batch_size=2,
+            shuffle=False,
+            num_workers=2,
+            persistent_workers=True,
+        )
+        iterator = iter(loader)
+        try:
+            batches = list(iterator)
+            sample_ids = [
+                int(token)
+                for inputs, _ in batches
+                for token in inputs["input"][:, 0]
+            ]
+            assert sample_ids == [1000 + index for index in range(64)]
+            assert len(batches) == 32
+        finally:
+            native_iterator = loader._loader._iterator
+            if native_iterator is not None:
+                native_iterator._shutdown_workers()
+
+    assert streaming_dataset.FileLock is original_dataset_lock
+    assert streaming_barrier.FileLock is original_barrier_lock
+    records = [json.loads(line) for line in trace_path.read_text().splitlines()]
+    main_pid = os.getpid()
+    worker_pids = {record["pid"] for record in records} - {main_pid}
+    assert len(worker_pids) == 2
+    barrier_records = [record for record in records if "barrier_filelock" in record["path"]]
+    cache_records = [record for record in records if "cache_filelock" in record["path"]]
+    assert {record["pid"] for record in barrier_records} >= {main_pid, *worker_pids}
+    assert worker_pids <= {record["pid"] for record in cache_records}
 
 
 def test_task_tmpdir_is_short_and_created_only_under_task_root(
