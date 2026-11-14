@@ -44,7 +44,15 @@ def all_gather(
 ) -> AllGatherResult:
     device_handle = _get_device_handle(device.type)
     with device_handle.stream(all_gather_stream):
-        if all_gather_dtype not in param_group._all_gather_input_set_dtypes:
+        direct_cache_use = (
+            param_group._bf16_cache_enabled and all_gather_dtype is None
+        )
+        if direct_cache_use and all_gather_output is not all_gather_input:
+            raise AssertionError(
+                "An enabled BF16 expert cache must use its input as output"
+            )
+        input_is_valid = all_gather_dtype in param_group._all_gather_input_set_dtypes
+        if not input_is_valid:
             for fsdp_param in fsdp_params:
                 fsdp_param.set_all_gather_input()
             if all_gather_dtype is None and (
@@ -53,7 +61,14 @@ def all_gather(
                 with torch.autograd._unsafe_preserve_version_counter(all_gather_input):  # type: ignore[attr-defined]
                     all_gather_input.copy_(padded_sharded_param_data)
             param_group._all_gather_input_set_dtypes.add(all_gather_dtype)
-        if yccl_handle is None:
+            if direct_cache_use:
+                param_group._bf16_cache_note_refresh()
+        elif direct_cache_use:
+            param_group._bf16_cache_note_hit()
+        if direct_cache_use:
+            param_group._bf16_cache_note_direct_use()
+            all_gather_work = None
+        elif yccl_handle is None:
             all_gather_work = dist.all_gather_into_tensor(
                 output_tensor=all_gather_output,
                 input_tensor=all_gather_input,

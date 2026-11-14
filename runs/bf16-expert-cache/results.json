@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "recorded_date_utc": "2026-11-14",
+  "acceptance_status": "completed_for_scoped_assignment",
+  "feature": {
+    "config_field": "parallelism.gfsdp_reuse_bf16_expert_weights",
+    "default": false,
+    "enabled_for_candidate_runs": true,
+    "behavior": "Reuse the persistent BF16 expert input for each FP32 generation; singleton output aliases the BF16 input.",
+    "preserved_contracts": [
+      "FP32 master parameters and gradients",
+      "FP8 expert quantization",
+      "compile and selective activation checkpointing",
+      "EMA and MTP"
+    ]
+  },
+  "checks": {
+    "scoped_lint": "PASS",
+    "runner_and_config_checks": {
+      "status": "PASS",
+      "unique_checks": 76
+    },
+    "default_off_and_actual_gfsdp_extension_checks": "PASS",
+    "final_main008": {
+      "status": "PASS",
+      "passed": 1,
+      "deselected": 2,
+      "elapsed_seconds": 19.68
+    },
+    "independent_review": {
+      "status": "PASS",
+      "unresolved_findings": 0
+    },
+    "failed_attempts_retained_in": "runs/bf16-expert-cache/focused-checks.md"
+  },
+  "source_identity": {
+    "candidate": {
+      "head": "657e77a4f8ddb116b75925e5671b00642a0e4d32",
+      "tracked_and_untracked_sha256": "3dfde3ee2b0d9b207d042522bbc4882d4bcbaec6d07250efdde24ae6dc24e42c",
+      "patch_sha256": "4634d6ac225cc0993567de491605cb31b44121965ab633ea292179fa7436cb26"
+    },
+    "historical_control": {
+      "head": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+      "tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7"
+    }
+  },
+  "fixed_run_settings": {
+    "world_size": 8,
+    "gpu": "NVIDIA H100 80GB",
+    "seed": 2048,
+    "lr_scheduler_total_steps": 65000,
+    "lr_scheduler_warmup_steps": 2000,
+    "prefetch_batches": 32,
+    "epoch_size": 51200,
+    "four_fusions_enabled": false
+  },
+  "runs": [
+    {
+      "run_id": "bf16-cache-tps-001",
+      "status": "PASS",
+      "purpose": "unprofiled throughput and memory window",
+      "launch": {
+        "steps": 60,
+        "warmup_updates": 20,
+        "measured_updates": 40,
+        "measured_update_ids": [
+          21,
+          60
+        ]
+      },
+      "feature_active": true,
+      "instrumentation": {
+        "bf16_cache_counters": false,
+        "capture_microbatches": false,
+        "profiler": "disabled",
+        "detailed_monitoring": "disabled; callbacks omitted; ordinary two-chunk loss"
+      },
+      "metrics": {
+        "physical_input_tokens_global": 83886080,
+        "supervised_tokens_global": 83865600,
+        "physical_input_tokens_per_second_global": 143736.69049696592,
+        "supervised_tokens_per_second_global": 143701.59853151257,
+        "elapsed_seconds": 583.609374266,
+        "rank0_cadence_seconds": {
+          "max_s": 15.438273734,
+          "median_s": 14.6254128915,
+          "min_s": 13.536819126
+        },
+        "max_peak_gib_across_ranks": {
+          "allocated": 70.81349802017212,
+          "reserved": 71.939453125
+        },
+        "allocator_retries_and_ooms_all_ranks": [
+          0,
+          0
+        ]
+      },
+      "source_unchanged": true,
+      "config_unchanged": true,
+      "resolved_config_sha256": "9a176351592815abe3e0b60b361cb9f1e44ee44a83ffaccb5c79b78bc2e09c1e",
+      "completed_at_utc": "2026-11-14T01:12:15.649664+00:00",
+      "artifacts": {
+        "root": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-tps-001",
+        "metadata": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-tps-001/metadata.json",
+        "completion": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-tps-001/completion.json",
+        "summary": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-tps-001/summary.json",
+        "rank_receipts": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-tps-001/measurement/rank-00.json through rank-07.json"
+      }
+    },
+    {
+      "run_id": "bf16-cache-trace-001",
+      "status": "PASS",
+      "purpose": "rank-0/1 mechanism trace plus all-rank cache counters",
+      "launch": {
+        "steps": 21,
+        "warmup_updates": 20,
+        "profile_update": 21,
+        "profiled_ranks": [
+          0,
+          1
+        ],
+        "profiled_microbatches_per_rank": 3,
+        "window_updates": 0
+      },
+      "feature_active": true,
+      "instrumentation": {
+        "bf16_cache_counters": true,
+        "capture_microbatches": true,
+        "profiler": "enabled for one update on global ranks 0 and 1"
+      },
+      "all_rank_receipts": {
+        "world_size": 8,
+        "completed_updates_each": 21,
+        "profile_capture_microbatch_calls_each": 32,
+        "captured_microbatches_ranks_0_1": 3,
+        "generic_microbatch_calls_by_step": "empty in profile mode; profile-specific count recorded"
+      },
+      "source_unchanged": true,
+      "config_unchanged": true,
+      "resolved_config_sha256": "a71150cc5997eafd3d6d6cedc6bfab13c5c1472c7a06e0befdc1051f4cc5777e",
+      "completed_at_utc": "2026-11-14T01:25:18.775991+00:00",
+      "artifacts": {
+        "root": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001",
+        "metadata": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/metadata.json",
+        "completion": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/completion.json",
+        "summary": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/summary.json",
+        "rank_receipts": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/measurement/rank-00.json through rank-07.json"
+      }
+    }
+  ],
+  "historical_comparison": {
+    "control": {
+      "run_id": "v2-long-epoch-candidate-perf-001",
+      "source": "runs/v2-prefetch-baseline/pair-long-epoch-001.json",
+      "variant": "accepted V2 prefetch candidate",
+      "prefetch_depth": 32,
+      "capture_microbatches": true,
+      "physical_input_tokens_global": 83886080,
+      "physical_input_tokens_per_second_global": 140933.04547283857,
+      "elapsed_seconds": 595.21938037,
+      "rank0_cadence_seconds": {
+        "median": 14.971230144,
+        "min": 13.804412458,
+        "max": 15.560705662
+      },
+      "peak_memory_gib": {
+        "allocated": 70.8392882347107,
+        "reserved": 71.998046875
+      }
+    },
+    "candidate_run_id": "bf16-cache-tps-001",
+    "candidate_capture_microbatches": false,
+    "measured_updates": 40,
+    "physical_input_tokens_global": 83886080,
+    "physical_input_tokens_per_second_global": {
+      "control": 140933.04547283857,
+      "candidate": 143736.69049696592,
+      "delta": 2803.645024127356,
+      "percent_change": 1.989345376537464
+    },
+    "elapsed_seconds": {
+      "control": 595.21938037,
+      "candidate": 583.609374266,
+      "delta": -11.610006103999922,
+      "percent_change": -1.9505423524319583
+    },
+    "rank0_median_cadence_seconds": {
+      "control": 14.971230144,
+      "candidate": 14.6254128915,
+      "delta": -0.34581725249999984
+    },
+    "peak_memory_delta_gib": {
+      "allocated": -0.02579021453857422,
+      "reserved": -0.05859375
+    },
+    "interpretation": "One historical comparison only: different source revision and run time, with capture_microbatches enabled for the saved control and disabled for this candidate. No contemporaneous control, repeat, run-to-run noise estimate, confidence interval, or causal attribution; do not claim a general speedup.",
+    "memory_conclusion": "No material peak-memory saving."
+  },
+  "trace_findings": {
+    "scope": "Update21 first three complete microbatches, ranks0/1; diagnostic counters all32 microbatches and updates1\u201321, all8 ranks. Historical compatible V2 control. Times in microseconds unless named otherwise.",
+    "affected_groups_per_rank": 7,
+    "casts_and_localcopies_per_rank_over_three_microbatches": {
+      "control": {
+        "fp32_to_bf16_casts": 21,
+        "localcopies": 42
+      },
+      "candidate": {
+        "fp32_to_bf16_casts": 7,
+        "localcopies": 0
+      }
+    },
+    "fp8_quantization": {
+      "unchanged_control_to_candidate": true,
+      "kernels_per_rank": 78,
+      "dispatch_calls_per_rank": 39,
+      "phase_grid_counts": [
+        {
+          "phase": "forward",
+          "grid": [
+            384,
+            32,
+            1
+          ],
+          "n": 21
+        },
+        {
+          "phase": "forward",
+          "grid": [
+            512,
+            12,
+            1
+          ],
+          "n": 21
+        },
+        {
+          "phase": "recompute",
+          "grid": [
+            384,
+            32,
+            1
+          ],
+          "n": 18
+        },
+        {
+          "phase": "recompute",
+          "grid": [
+            512,
+            12,
+            1
+          ],
+          "n": 18
+        }
+      ]
+    },
+    "event_waits_per_rank": {
+      "consumer_cuda_stream_wait_event": {
+        "control": 42,
+        "candidate": 42
+      },
+      "preparation_cuda_stream_wait_event": {
+        "control": 42,
+        "candidate": 98
+      }
+    },
+    "cache_counters_per_enabled_group": {
+      "verified_on_all_ranks": true,
+      "updates_verified": 21,
+      "groups_per_rank": 7,
+      "per_update": {
+        "refreshes": 1,
+        "hits": 63,
+        "direct_uses": 64,
+        "invalidations": 1,
+        "generation": 1
+      },
+      "cumulative_through_update_21": {
+        "refreshes": 21,
+        "hits": 1323,
+        "direct_uses": 1344,
+        "invalidations": 21,
+        "generation": 21
+      }
+    },
+    "consumer_region_sync_observation": "No host event/stream synchronization or query calls observed inside affected consumer regions; event handles are omitted from profiler data.",
+    "analysis": "runs/bf16-expert-cache/trace-analysis.json",
+    "notes": "runs/bf16-expert-cache/trace-analysis.md"
+  },
+  "lifecycle": {
+    "owned_training_groups_exited": true,
+    "orphan_processes": false,
+    "all_eight_gpus_idle_after_run": true,
+    "evidence": "runs/bf16-expert-cache/native-execution.md"
+  },
+  "limitations": [
+    "The positive throughput difference is provisional and historical; it does not establish causality or a general speedup.",
+    "Production PP4/EP32, convergence, long-run stability, and checkpoint continuation remain unvalidated.",
+    "The feature remains default off."
+  ],
+  "evidence": {
+    "report": "runs/bf16-expert-cache/report.md",
+    "implementation": "runs/bf16-expert-cache/implementation.md",
+    "focused_checks": "runs/bf16-expert-cache/focused-checks.md",
+    "independent_review": "runs/bf16-expert-cache/review.md",
+    "native_execution": "runs/bf16-expert-cache/native-execution.md",
+    "source_identity": "runs/bf16-expert-cache/source-identity.json",
+    "saved_control": "runs/v2-prefetch-baseline/pair-long-epoch-001.json"
+  }
+}

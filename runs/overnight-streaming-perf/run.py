@@ -261,6 +261,11 @@ def validate_args(args: argparse.Namespace) -> None:
             raise ValueError("profile-update requires steps == profile-update")
     if args.timeout_seconds <= 0:
         raise ValueError("timeout-seconds must be positive")
+    if args.bf16_cache_counters:
+        if not args.gfsdp_reuse_bf16_expert_weights:
+            raise ValueError("bf16-cache-counters requires --gfsdp-reuse-bf16-expert-weights")
+        if args.profile_update is None:
+            raise ValueError("bf16-cache-counters requires a diagnostic --profile-update run")
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -274,6 +279,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--observe-compiler-cache", action="store_true", help="optional boundary cache observations; changes are diagnostic only")
     parser.add_argument("--num-prefetch-batches", type=int, default=0)
+    parser.add_argument(
+        "--gfsdp-reuse-bf16-expert-weights",
+        action="store_true",
+        help="set parallelism.gfsdp_reuse_bf16_expert_weights=true (default false)",
+    )
+    parser.add_argument(
+        "--bf16-cache-counters",
+        action="store_true",
+        help="enable per-group cache counters on a diagnostic profile run only",
+    )
     parser.add_argument("--output-root", type=Path, default=RAW_ROOT)
     parser.add_argument(
         "--capture-microbatches",
@@ -659,6 +674,10 @@ def _training_overrides(args: argparse.Namespace, paths: dict[str, Path]) -> lis
         "--hf_assets_path",
         str(TOKENIZER.resolve()),
     ]
+    if args.gfsdp_reuse_bf16_expert_weights:
+        overrides.extend(
+            ("--parallelism.gfsdp_reuse_bf16_expert_weights", "true")
+        )
     if args.epoch_size is not None:
         overrides.extend(("--dataloader.dataset.epoch_size", str(args.epoch_size)))
     for dotted, value in _profile_config_values(args).items():
@@ -736,6 +755,8 @@ def _command(args: argparse.Namespace, paths: dict[str, Path]) -> list[str]:
         helper_args.extend(("--profile-update", str(args.profile_update)))
     if args.capture_microbatches:
         helper_args.append("--capture-microbatches")
+    if args.bf16_cache_counters:
+        helper_args.append("--bf16-cache-counters")
     if args.profile_microbatches:
         helper_args.extend(("--profile-microbatches", str(args.profile_microbatches)))
     if args.observe_compiler_cache:
@@ -854,6 +875,9 @@ def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) ->
     required = {
         "dataloader.num_prefetch_batches": args.num_prefetch_batches,
         "training.steps": args.steps,
+        "parallelism.gfsdp_reuse_bf16_expert_weights": (
+            args.gfsdp_reuse_bf16_expert_weights
+        ),
         "training.local_batch_size": 2,
         "training.global_batch_size": 512,
         "training.seq_len": 4096,
@@ -953,6 +977,10 @@ def main(argv: list[str] | None = None) -> int:
             "steps": args.steps,
             "requested_epoch_size": args.epoch_size,
             "capture_microbatches": args.capture_microbatches,
+            "gfsdp_reuse_bf16_expert_weights": (
+                args.gfsdp_reuse_bf16_expert_weights
+            ),
+            "bf16_cache_counters": args.bf16_cache_counters,
             "num_prefetch_batches": args.num_prefetch_batches,
             "monitor_interval": 0,
             "detailed_monitoring": "disabled; callbacks omitted; ordinary two-chunk loss",

@@ -2,6 +2,14 @@
 
 This protocol is for an authorized, selected production workload. It does not authorize compute, source edits, data access, or dependency installation.
 
+The [completed BF16 expert-weight reuse assignment](README.md#active-assignment-bf16-expert-weight-reuse)
+overrode the generic future-run defaults below: one candidate used 60 updates,
+20 warmup and measurement of updates 21–60; one diagnostic candidate used 21
+updates, 20 warmup and at most three complete microbatches on update 21 for ranks
+0/1. All updates retained 32 microbatches and the original LR schedule. Saved
+controls and focused GFSDP numerical/lifecycle checks completed the finite
+checklist. Ambiguous performance does not authorize repeats or another control.
+
 ## Before an experiment
 
 1. Verify the source revision and recursive dependency pins using [baseline provenance](../references/provenance.json). Record the working diff.

@@ -1,8 +1,41 @@
 # Current state
 
-Updated: 13 November 2026. This file owns the integrated project state;
+Updated: 14 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
+
+## BF16 expert-weight reuse: integrated, verified, default off
+
+The [completed assignment](../planning/README.md#active-assignment-bf16-expert-weight-reuse)
+adds opt-in reuse of existing persistent BF16 expert inputs per FP32 generation
+and bypasses the singleton input-to-output copy. Explicit optimizer, load, EMA
+and backing-replacement boundaries preserve freshness, identity and stream
+ordering. FP32 masters/gradients and FP8 quantization are preserved. Canonical
+configuration remains unchanged; the four fusion candidates stay disabled.
+
+Actual-GFSDP deterministic accumulation, recomputation, shared-pool ownership,
+load/DCP, EMA, fallback and nondefault-writer checks pass, including exact local
+loss/gradient/master comparisons. Scoped lint, 76 unique affected runner/config
+checks and the consolidated independent review pass with no material finding
+open. Retained failures and fixes are linked from the
+[report](../runs/bf16-expert-cache/report.md).
+
+Exactly two native candidate launches passed on all eight H100 ranks. Updates
+21–60 measured **143,736.69 global physical input tokens/s**, versus saved V2's
+**140,933.05**, a provisional **+1.99% historical difference**. Peak allocated /
+reserved memory was **70.813498 / 71.939453 GiB**, with zero retry/OOM deltas.
+There is no contemporary control or noise estimate; causal speedup remains
+inconclusive and no material memory saving is established. Rank-0/1 traces show
+21→7 expert casts and 42→0 local copies over three microbatches, with unchanged
+FP8 quantization frequency/grids. Diagnostic counters cover all 32 microbatches
+and 21 update boundaries; exact device wait attribution is unavailable.
+
+The [compact results](../runs/bf16-expert-cache/results.json) and report own
+metrics, source/config identities, commands, artifacts and comparison limits.
+The finite experiment is closed; no further run or default promotion follows.
+Production PP4/EP32, convergence and exact native continuation are unvalidated.
+Owned groups exited and all eight GPUs were idle at experiment close. The owner
+subsequently authorized publication, local checkout synchronization and trace download.
 
 ## V2 accepted: depth 32 for the long-epoch crop workload
 

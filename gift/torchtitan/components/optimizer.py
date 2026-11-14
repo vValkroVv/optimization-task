@@ -38,6 +38,17 @@ __all__ = [
 T = TypeVar("T", bound=Optimizer)
 
 
+def _iter_gfsdp_param_groups(model_parts: list[nn.Module]):
+    from torchtitan.distributed.gfsdp import GFSDPModule
+
+    param_groups = set()
+    for model in model_parts:
+        for module in model.modules():
+            if isinstance(module, GFSDPModule):
+                param_groups.update(module._get_fsdp_state()._fsdp_param_groups)
+    return param_groups
+
+
 # TODO: Right now this class is biased towards AdamW. We should refactor to
 # support mixed optimizers, including Muon.
 class OptimizersContainer(Optimizer, Stateful, Configurable, Generic[T]):
@@ -171,6 +182,7 @@ class OptimizersContainer(Optimizer, Stateful, Configurable, Generic[T]):
             self._register_bf16_optimizer_state_hook()
         self._validate_length(len(self.model_parts))
         self._post_init(all_params, optimizer_kwargs)
+        self._register_bf16_expert_cache_hooks()
 
     def __iter__(self) -> Iterator[T]:
         return iter(self.optimizers)
@@ -266,6 +278,72 @@ class OptimizersContainer(Optimizer, Stateful, Configurable, Generic[T]):
         for optim in self.optimizers:
             optim.register_step_pre_hook(_bf16_state_init_hook)
 
+    def _register_bf16_expert_cache_hooks(self) -> None:
+        requested_groups = [
+            group
+            for group in _iter_gfsdp_param_groups(self.model_parts)
+            if group._bf16_cache_requested and group.requires_grad
+        ]
+        if not requested_groups:
+            return
+
+        optimizer_param_ids = [
+            {
+                id(param)
+                for param_group in optimizer.param_groups
+                for param in param_group["params"]
+            }
+            for optimizer in self.optimizers
+        ]
+        all_optimizer_param_ids = set().union(*optimizer_param_ids)
+        groups_by_optimizer: list[list[Any]] = [
+            [] for _optimizer in self.optimizers
+        ]
+        uncovered_group = False
+        for param_group in requested_groups:
+            group_param_ids = {
+                id(fsdp_param.sharded_param)
+                for fsdp_param in param_group.fsdp_params
+            }
+            if not group_param_ids.issubset(all_optimizer_param_ids):
+                param_group.disable_bf16_weight_cache()
+                uncovered_group = True
+                continue
+            for optimizer_index, optimizer_ids in enumerate(optimizer_param_ids):
+                if group_param_ids.intersection(optimizer_ids):
+                    groups_by_optimizer[optimizer_index].append(param_group)
+
+        self._bf16_cache_hook_handles = []
+        for optimizer, param_groups in zip(
+            self.optimizers, groups_by_optimizer, strict=True
+        ):
+            if not param_groups:
+                continue
+
+            def invalidate_before_step(
+                _optimizer, _args, _kwargs, groups=tuple(param_groups)
+            ) -> None:
+                for param_group in groups:
+                    param_group.invalidate_bf16_weight_cache()
+
+            def record_after_step(
+                _optimizer, _args, _kwargs, groups=tuple(param_groups)
+            ) -> None:
+                for param_group in groups:
+                    param_group.record_weight_write()
+
+            self._bf16_cache_hook_handles.extend(
+                (
+                    optimizer.register_step_pre_hook(invalidate_before_step),
+                    optimizer.register_step_post_hook(record_after_step),
+                )
+            )
+        if uncovered_group:
+            logger.warning(
+                "BF16 expert weight reuse was disabled for a GFSDP group "
+                "whose trainable parameters are not all owned by an optimizer"
+            )
+
     def init_cache_state_dict(self) -> None:
         """Initialize cached state dict for TorchFT. No-op for base class."""
         pass
@@ -288,6 +366,18 @@ class OptimizersInBackwardContainer(OptimizersContainer):
         optimizer_kwargs = self._build_optimizer_kwargs(config)
         all_params = []
         self.model_parts = model_parts
+        requested_cache_groups = [
+            group
+            for group in _iter_gfsdp_param_groups(self.model_parts)
+            if group._bf16_cache_requested
+        ]
+        for param_group in requested_cache_groups:
+            param_group.disable_bf16_weight_cache()
+        if requested_cache_groups:
+            logger.warning(
+                "BF16 expert weight reuse is unavailable with optimizer-in-backward; "
+                "using the ordinary GFSDP path"
+            )
 
         # Build a mapping from param -> effective kwargs using param group config
         param_to_kwargs: dict[nn.Parameter, dict[str, Any]] = {}

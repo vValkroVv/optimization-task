@@ -185,6 +185,21 @@ class GFSDPState(_State):
         for state in self._state_ctx.all_states:
             for fsdp_param_group in state._fsdp_param_groups:
                 fsdp_param_group.lazy_init()
+        requested_cache_groups = [
+            group
+            for state in self._state_ctx.all_states
+            for group in state._fsdp_param_groups
+            if group._bf16_cache_requested
+        ]
+        if requested_cache_groups and not any(
+            group._bf16_cache_enabled for group in requested_cache_groups
+        ):
+            warning_once(
+                logger,
+                "BF16 expert weight reuse was requested, but no GFSDP parameter "
+                "group met the supported layout; using the ordinary all-gather path",
+                stacklevel=2,
+            )
 
     def _init_shared_state(
         self,

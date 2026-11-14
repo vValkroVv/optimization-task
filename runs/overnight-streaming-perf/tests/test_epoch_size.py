@@ -73,6 +73,9 @@ def _write_resolved_fixture(
         "compile.enable": True,
         "activation_checkpoint.mode": "selective",
         "parallelism.expert_parallel_degree": 8,
+        "parallelism.gfsdp_reuse_bf16_expert_weights": (
+            args.gfsdp_reuse_bf16_expert_weights
+        ),
         "parallelism.pipeline_parallel_degree": 1,
         "parallelism.tensor_parallel_degree": 1,
         "parallelism.context_parallel_degree": 1,
@@ -104,10 +107,18 @@ def test_epoch_size_cli_validation_and_existing_run_schedules() -> None:
     assert default.capture_microbatches is False
 
     selected = runner._parse_args(
-        ["--run-id", "epoch", "--epoch-size", "51200", "--capture-microbatches"]
+        [
+            "--run-id",
+            "epoch",
+            "--epoch-size",
+            "51200",
+            "--capture-microbatches",
+            "--gfsdp-reuse-bf16-expert-weights",
+        ]
     )
     assert selected.epoch_size == 51200
     assert selected.capture_microbatches is True
+    assert selected.gfsdp_reuse_bf16_expert_weights is True
 
     for value in ("0", "-1", "not-an-int"):
         with pytest.raises(SystemExit):
@@ -154,13 +165,16 @@ def test_child_receives_native_epoch_override_and_default_stays_null(
             "--epoch-size",
             "51200",
             "--capture-microbatches",
+            "--gfsdp-reuse-bf16-expert-weights",
         ]
     )
     helper_args, native_args, resolved = _child_config(selected, tmp_path / "selected")
     assert helper_args.capture_microbatches is True
     assert (helper_args.steps, helper_args.warmup, helper_args.window) == (60, 20, 40)
+    assert helper_args.gfsdp_reuse_bf16_expert_weights is True
     assert "--dataloader.dataset.epoch_size" in native_args
     assert resolved["dataloader"]["dataset"]["epoch_size"] == 51200
+    assert resolved["parallelism"]["gfsdp_reuse_bf16_expert_weights"] is True
 
     default = runner._parse_args(["--run-id", "default"])
     default_overrides = runner._training_overrides(default, {"native": tmp_path / "default"})
@@ -186,15 +200,46 @@ def test_resolved_config_checks_requested_epoch_size(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("options", "expected_epoch_size", "expected_capture"),
-    [([], None, False), (["--epoch-size", "51200", "--capture-microbatches"], 51200, True)],
+    ("options", "expected_epoch_size", "expected_capture", "expected_feature", "expected_counters"),
+    [
+        ([], None, False, False, False),
+        (
+            ["--epoch-size", "51200", "--capture-microbatches", "--gfsdp-reuse-bf16-expert-weights"],
+            51200,
+            True,
+            True,
+            False,
+        ),
+        (
+            [
+                "--steps",
+                "21",
+                "--warmup",
+                "20",
+                "--window",
+                "0",
+                "--profile-update",
+                "21",
+                "--profile-microbatches",
+                "3",
+                "--gfsdp-reuse-bf16-expert-weights",
+                "--bf16-cache-counters",
+            ],
+            None,
+            False,
+            True,
+            True,
+        ),
+    ],
 )
-def test_run_metadata_records_requested_epoch_and_capture(
+def test_run_metadata_records_requested_options(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     options: list[str],
     expected_epoch_size: int | None,
     expected_capture: bool,
+    expected_feature: bool,
+    expected_counters: bool,
 ) -> None:
     root = tmp_path / "attempt"
     config_dir = root / "config"
@@ -247,3 +292,5 @@ def test_run_metadata_records_requested_epoch_and_capture(
     assert result == 1  # The mocked child exits nonzero after metadata is written.
     assert metadata["requested_epoch_size"] == expected_epoch_size
     assert metadata["capture_microbatches"] is expected_capture
+    assert metadata["gfsdp_reuse_bf16_expert_weights"] is expected_feature
+    assert metadata["bf16_cache_counters"] is expected_counters

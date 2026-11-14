@@ -139,6 +139,18 @@ class ParallelismConfig:
     single gradient buffer.
     """
 
+    gfsdp_reuse_bf16_expert_weights: bool = False
+    """
+    Opt in to reusing the existing BF16 all-gather input as GIFT MoE expert
+    compute storage. This applies only to PP1/EP>1 GFSDP expert groups with
+    FP32 masters, BF16 parameters, a size-one shard, equal local layouts, the
+    ordinary all-gather bucket, and no all-gather extension or YCCL handle.
+    Other groups and backends retain the ordinary path. The BF16 values are
+    derived runtime state and are not checkpointed. External master-weight
+    writers must notify GFSDP through `invalidate_bf16_weight_cache()` before
+    writing and `record_bf16_weight_write()` after the write completes.
+    """
+
     fsdp_reshard_after_forward: Literal["default", "always", "never"] = "default"
     """
     `reshard_after_forward` specifies the policy for applying `reshard_after_forward`

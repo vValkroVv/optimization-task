@@ -2,8 +2,11 @@
 
 Research origin: the repository owner's own investigation of the baseline profile.
 Recorded: 13 November 2026.
-Status: baseline-profile findings; fusion and expert-weight reuse remain untested
-hypotheses.
+Status: historical baseline-profile findings. The later
+[fusion experiments](../runs/four-fusion/report.md) and
+[BF16 reuse experiment](../runs/bf16-expert-cache/report.md) own implementation,
+measurements and current conclusions; the observations below retain their
+original trace scope.
 
 ## Finding and evidence scope
 
@@ -140,10 +143,13 @@ the current arrangement would not work: other layers overwrite the shared output
 buffer. This idea reuses BF16 storage already allocated by the current baseline;
 repeated casting currently does not free that storage.
 
-The expected reduction in repeated work is an untested hypothesis. Neither a
-modified implementation nor a training speedup has been measured. The size-one
-copy observation belongs to this baseline; it does not establish the behavior of
-the production PP4/EP32 configuration.
+Follow-up, 14 November 2026: the opt-in implementation and focused GFSDP checks
+pass. Rank-0/1 traces confirm one cast per expert group per update and removal
+of the singleton copies. One timing candidate is 1.99% above historical V2;
+causal speedup remains inconclusive without a contemporary control/noise estimate.
+The [completed report](../runs/bf16-expert-cache/report.md) owns the evidence and
+limits. The feature stays disabled by default. These crop results do not
+establish behavior or performance of production PP4/EP32.
 
 ## Fuse MoE routing metadata preparation
 

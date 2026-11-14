@@ -530,6 +530,15 @@ def load_gfsdp_dcp(
     checkpoint_id: str,
     process_group: dist.ProcessGroup | None,
 ) -> None:
+    cache_groups = tuple(
+        param_group
+        for model in adapter._model_parts
+        for param_group in _iter_fsdp_param_groups(model, recurse=True)
+        if param_group._bf16_cache_requested
+    )
+    for param_group in cache_groups:
+        param_group.invalidate_bf16_weight_cache()
+
     target = dict(state_dict)
     model_target = adapter.build_state_dict(load_target=True)
     ema_target = model_target.pop(EMA_MODEL, None)
@@ -538,15 +547,19 @@ def load_gfsdp_dcp(
         target[EMA_MODEL] = ema_target
 
     planner = GFSDPLoadPlanner()
-    dcp.load(
-        target,
-        checkpoint_id=checkpoint_id,
-        planner=planner,
-        process_group=process_group,
-    )
+    try:
+        dcp.load(
+            target,
+            checkpoint_id=checkpoint_id,
+            planner=planner,
+            process_group=process_group,
+        )
 
-    adapter.apply_main_state_dict(target)
-    adapter.initialize_ema_from_main(planner.ema_init_fqns)
+        adapter.apply_main_state_dict(target)
+        adapter.initialize_ema_from_main(planner.ema_init_fqns)
+    finally:
+        for param_group in cache_groups:
+            param_group.record_weight_write()
 
 
 def _iter_ema_param_groups(

@@ -146,6 +146,7 @@ class GFSDPParamGroup:
         # - Hook state
         self._module_to_pre_save_state_dict_hook_handle: _ModuleToHandleDict = {}
         self._module_to_pre_load_state_dict_hook_handle: _ModuleToHandleDict = {}
+        self._module_to_post_load_state_dict_hook_handle: _ModuleToHandleDict = {}
 
         # - Communication and communication/computation overlap
         self.comm_ctx = GFSDPCommContext()
@@ -176,6 +177,24 @@ class GFSDPParamGroup:
         # Holds the CUDA event that marks the end of the group's post-backward,
         # which should be waited on at the end of backward
         self._post_reduce_event: torch.Event | None = None
+
+        # The expert cache reuses the existing all-gather input. Its values
+        # stay valid across microbatches until a supported weight writer bumps
+        # the generation. Events order that storage against asynchronous reads
+        # and writes without a host-side wait.
+        self._bf16_cache_requested = False
+        self._bf16_cache_finalized = False
+        self._bf16_cache_enabled = False
+        self._bf16_cache_generation = 0
+        self._bf16_cache_prepared_generation = -1
+        self._bf16_cache_ready_event: torch.Event | None = None
+        self._bf16_cache_reader_event: torch.Event | None = None
+        self._bf16_cache_write_event: torch.Event | None = None
+        self._bf16_cache_debug = False
+        self._bf16_cache_refreshes = 0
+        self._bf16_cache_hits = 0
+        self._bf16_cache_direct_uses = 0
+        self._bf16_cache_invalidations = 0
 
         self._init_mp_dtypes()
         self._requires_grad = any(param.requires_grad for param in params)
@@ -415,11 +434,16 @@ class GFSDPParamGroup:
 
             ag_dtype = all_gather_dtype or self.param_dtype or self.orig_dtype
             ag_size_bytes = padded_unsharded_param_numel * ag_dtype.itemsize
-            self._all_gather_output[all_gather_dtype] = (
-                self.data_buffer_ctx.buffers[all_gather_dtype]
-                .narrow(0, 0, ag_size_bytes)
-                .view(ag_dtype)
-            )
+            if self._bf16_cache_enabled and all_gather_dtype is None:
+                self._all_gather_output[all_gather_dtype] = self._all_gather_input[
+                    all_gather_dtype
+                ]
+            else:
+                self._all_gather_output[all_gather_dtype] = (
+                    self.data_buffer_ctx.buffers[all_gather_dtype]
+                    .narrow(0, 0, ag_size_bytes)
+                    .view(ag_dtype)
+                )
 
             rs_dtype = self.reduce_dtype or self.param_dtype or self.orig_dtype
             rs_size_bytes = padded_unsharded_param_numel * rs_dtype.itemsize
@@ -452,6 +476,31 @@ class GFSDPParamGroup:
                     param_all_gather_output, param_reduce_scatter_input
                 )
 
+    def _init_reduce_scatter_output(
+        self,
+        all_gather_dtype: torch.dtype | None,
+        fsdp_params: list[GFSDPParam],
+    ) -> None:
+        if self.grad_buffer_ctx is None:
+            return
+        reduce_scatter_input = self._reduce_scatter_input[all_gather_dtype]
+        assert reduce_scatter_input is not None
+        padded_sharded_param_grad = self._padded_sharded_param_grad[all_gather_dtype]
+        assert padded_sharded_param_grad is not None
+        self._reduce_scatter_output[all_gather_dtype] = (
+            reduce_scatter_output
+        ) = reduce_scatter_input.chunk(
+            self._reduce_scatter_process_group.size()
+        )[self._reduce_scatter_process_group.rank()]
+        for fsdp_param, param_reduce_scatter_output in zip(
+            fsdp_params,
+            reduce_scatter_output[
+                : sum(self._sharded_param_numels[all_gather_dtype])
+            ].split(self._sharded_param_numels[all_gather_dtype]),
+            strict=True,
+        ):
+            fsdp_param.init_reduce_scatter_output(param_reduce_scatter_output)
+
     def _init_mp_dtypes(self) -> None:
         for fsdp_param in self.fsdp_params:
             fsdp_param.init_dtype_attrs(self.mp_policy)
@@ -480,6 +529,110 @@ class GFSDPParamGroup:
             next(iter(reduce_dtypes)) if len(trainable_params) > 0 else None
         )
 
+    def enable_bf16_weight_cache(self) -> None:
+        """Request cache setup before this group is lazily initialized."""
+        if self._bf16_cache_finalized:
+            raise RuntimeError(
+                "BF16 expert weight reuse must be enabled before GFSDP lazy init"
+            )
+        self._bf16_cache_requested = True
+
+    def disable_bf16_weight_cache(self) -> None:
+        """Keep an optimizer-in-backward group on the ordinary gather path."""
+        if self._bf16_cache_finalized:
+            raise RuntimeError(
+                "BF16 expert weight reuse must be disabled before GFSDP lazy init"
+            )
+        self._bf16_cache_requested = False
+
+    def _bf16_cache_layout_is_eligible(self) -> bool:
+        if not self._bf16_cache_requested:
+            return False
+        if self.orig_dtype != torch.float32 or self.param_dtype != torch.bfloat16:
+            return False
+        if self._all_gather_process_group.size() != 1:
+            return False
+        if set(self._all_gather_dtype_to_fsdp_params) != {None}:
+            return False
+        if (
+            self._unsharded_param_numels[None] != self._sharded_param_numels[None]
+            or self.padded_unsharded_param_numel[None]
+            != self._padded_sharded_param_numel[None]
+        ):
+            return False
+        if any(
+            hasattr(fsdp_param, "_extensions_data")
+            for fsdp_param in self._all_gather_dtype_to_fsdp_params[None]
+        ):
+            return False
+        all_gather_input = getattr(self, "_all_gather_input", {}).get(None)
+        if all_gather_input is not None:
+            master_data = self._padded_sharded_param_data[None]
+            if (
+                all_gather_input.dtype != torch.bfloat16
+                or master_data.dtype != torch.float32
+                or all_gather_input.device != master_data.device
+            ):
+                return False
+        yccl_handles = getattr(self.data_buffer_ctx, "yccl_handles", None)
+        return yccl_handles is None or yccl_handles.get(None) is None
+
+    def _finalize_bf16_weight_cache_eligibility(self) -> None:
+        self._bf16_cache_enabled = self._bf16_cache_layout_is_eligible()
+        self._bf16_cache_finalized = True
+
+    def invalidate_bf16_weight_cache(self) -> None:
+        """Invalidate derived weights and order the next write after readers."""
+        if not self._bf16_cache_enabled:
+            return
+        if self._bf16_cache_debug:
+            self._bf16_cache_invalidations += 1
+        self._bf16_cache_generation += 1
+        self._all_gather_input_set_dtypes.discard(None)
+        current_stream = self.device_handle.current_stream()
+        for event in (
+            self._bf16_cache_ready_event,
+            self._bf16_cache_reader_event,
+            self._bf16_cache_write_event,
+        ):
+            if event is not None:
+                current_stream.wait_event(event)
+
+    def record_weight_write(self) -> None:
+        """Record completion of a supported write to the active master weights."""
+        if self._bf16_cache_enabled:
+            self._bf16_cache_write_event = (
+                self.device_handle.current_stream().record_event()
+            )
+
+    def _bf16_cache_note_refresh(self) -> None:
+        if self._bf16_cache_debug:
+            self._bf16_cache_refreshes += 1
+
+    def _bf16_cache_note_hit(self) -> None:
+        if self._bf16_cache_debug:
+            self._bf16_cache_hits += 1
+
+    def _bf16_cache_note_direct_use(self) -> None:
+        if self._bf16_cache_debug:
+            self._bf16_cache_direct_uses += 1
+
+    def bf16_cache_stats(self, fqn: str) -> dict[str, Any]:
+        enabled = (
+            self._bf16_cache_enabled
+            if self._bf16_cache_finalized
+            else self._bf16_cache_layout_is_eligible()
+        )
+        return {
+            "fqn": self._module_fqn or fqn,
+            "enabled": enabled,
+            "generation": self._bf16_cache_generation,
+            "refreshes": self._bf16_cache_refreshes,
+            "hits": self._bf16_cache_hits,
+            "direct_uses": self._bf16_cache_direct_uses,
+            "invalidations": self._bf16_cache_invalidations,
+        }
+
     def lazy_init(self) -> None:
         # Lazy init should be idempotent
         if not hasattr(self.comm_ctx, "device_handle"):
@@ -487,7 +640,8 @@ class GFSDPParamGroup:
         self._validate_no_meta_params()
         self._validate_requires_grad_unchanged()
         self._register_state_dict_hooks()
-        self._init_unsharded_params()
+        if not self._bf16_cache_requested:
+            self._init_unsharded_params()
         self._all_gather_input = {}
         self._reduce_scatter_output = {}
         for (
@@ -522,26 +676,19 @@ class GFSDPParamGroup:
                 strict=True,
             ):
                 fsdp_param.init_all_gather_input(param_all_gather_input)
-            if self.grad_buffer_ctx is not None:
-                reduce_scatter_input = self._reduce_scatter_input[all_gather_dtype]
-                assert reduce_scatter_input is not None
-                padded_sharded_param_grad = self._padded_sharded_param_grad[
-                    all_gather_dtype
-                ]
-                assert padded_sharded_param_grad is not None
-                self._reduce_scatter_output[all_gather_dtype] = (
-                    reduce_scatter_output
-                ) = reduce_scatter_input.chunk(
-                    self._reduce_scatter_process_group.size()
-                )[self._reduce_scatter_process_group.rank()]
-                for fsdp_param, param_reduce_scatter_output in zip(
-                    fsdp_params,
-                    reduce_scatter_output[
-                        : sum(self._sharded_param_numels[all_gather_dtype])
-                    ].split(self._sharded_param_numels[all_gather_dtype]),
-                    strict=True,
-                ):
-                    fsdp_param.init_reduce_scatter_output(param_reduce_scatter_output)
+            if not self._bf16_cache_requested:
+                self._init_reduce_scatter_output(all_gather_dtype, fsdp_params)
+
+        if self._bf16_cache_requested:
+            self._finalize_bf16_weight_cache_eligibility()
+            self._init_unsharded_params()
+            for (
+                all_gather_dtype,
+                fsdp_params,
+            ) in self._all_gather_dtype_to_fsdp_params.items():
+                self._init_reduce_scatter_output(all_gather_dtype, fsdp_params)
+        else:
+            self._bf16_cache_finalized = True
 
     @torch.no_grad()
     def setup_ema_buffer(self) -> None:
@@ -599,8 +746,12 @@ class GFSDPParamGroup:
         """Copy every whole-group main buffer into its EMA buffer."""
         if not getattr(self, "_has_ema_weights", False):
             return
+        if self._using_ema_weights:
+            self.invalidate_bf16_weight_cache()
         for all_gather_dtype, ema_buffer in self._padded_sharded_param_ema.items():
             ema_buffer.copy_(self._padded_sharded_param_data_main[all_gather_dtype])
+        if self._using_ema_weights:
+            self.record_weight_write()
 
     @torch.no_grad()
     def update_ema_buffer_after_load(self, force_update: bool = False) -> None:
@@ -611,17 +762,22 @@ class GFSDPParamGroup:
     @torch.no_grad()
     def update_ema_params(self, alpha: float) -> None:
         """Update every EMA buffer in this group from its main buffer."""
+        if self._using_ema_weights:
+            self.invalidate_bf16_weight_cache()
         for all_gather_dtype, ema_buffer in self._padded_sharded_param_ema.items():
             ema_buffer.lerp_(
                 self._padded_sharded_param_data_main[all_gather_dtype],
                 alpha,
             )
+        if self._using_ema_weights:
+            self.record_weight_write()
 
     @torch.no_grad()
     def swap_ema_and_weights(self) -> None:
         """Swap this whole group between main and EMA backing buffers."""
         assert self.is_sharded
 
+        self.invalidate_bf16_weight_cache()
         self._using_ema_weights = not self._using_ema_weights
         for all_gather_dtype in self._padded_sharded_param_data_main:
             self._padded_sharded_param_data[all_gather_dtype] = (
@@ -633,6 +789,7 @@ class GFSDPParamGroup:
             self._all_gather_input[None] = self._padded_sharded_param_data[None]
 
         self._all_gather_input_set_dtypes.clear()
+        self.record_weight_write()
 
     # Runtime #
     def unshard(self, async_op: bool = False) -> None:
@@ -666,6 +823,25 @@ class GFSDPParamGroup:
                 all_gather_dtype,
                 fsdp_params,
             ) in self._all_gather_dtype_to_fsdp_params.items():
+                refresh_cache = False
+                if self._bf16_cache_enabled:
+                    refresh_cache = (
+                        self._bf16_cache_prepared_generation
+                        != self._bf16_cache_generation
+                        or all_gather_dtype
+                        not in self._all_gather_input_set_dtypes
+                    )
+                    if refresh_cache:
+                        for event in (
+                            self._bf16_cache_ready_event,
+                            self._bf16_cache_reader_event,
+                            self._bf16_cache_write_event,
+                        ):
+                            if event is not None:
+                                all_gather_stream.wait_event(event)
+                        self._all_gather_input_set_dtypes.discard(None)
+                    elif self._bf16_cache_ready_event is not None:
+                        all_gather_stream.wait_event(self._bf16_cache_ready_event)
                 self._all_gather_result = all_gather(
                     self,
                     fsdp_params,
@@ -680,6 +856,13 @@ class GFSDPParamGroup:
                     all_gather_dtype,
                     self.data_buffer_ctx.yccl_handles.get(all_gather_dtype),
                 )
+                if self._bf16_cache_enabled and refresh_cache:
+                    self._bf16_cache_prepared_generation = (
+                        self._bf16_cache_generation
+                    )
+                    self._bf16_cache_ready_event = (
+                        self._all_gather_result.all_gather_event
+                    )
 
     def wait_for_unshard(self) -> AllGatherResult | None:
         if (all_gather_result := self._all_gather_result) is None:
@@ -701,6 +884,10 @@ class GFSDPParamGroup:
         logger.debug(
             "%s", self._with_fqn(f"GFSDP::{self._training_state.name.lower()}_reshard")
         )
+        if self._bf16_cache_enabled:
+            self._bf16_cache_reader_event = (
+                self.device_handle.current_stream().record_event()
+            )
         self._to_sharded()
         self.data_buffer_ctx.release_event = (
             self.device_handle.current_stream().record_event()
@@ -887,7 +1074,11 @@ class GFSDPParamGroup:
             self._all_gather_result = None
             self.data_buffer_ctx.owner = None
         self._post_forward_indices.clear()
-        self._all_gather_input_set_dtypes.clear()
+        if self._bf16_cache_enabled:
+            if self._bf16_cache_prepared_generation != self._bf16_cache_generation:
+                self._all_gather_input_set_dtypes.discard(None)
+        else:
+            self._all_gather_input_set_dtypes.clear()
 
     def _wait_for_post_backward(self) -> None:
         if self._post_reduce_event is not None:
@@ -1006,9 +1197,13 @@ class GFSDPParamGroup:
     def _register_state_dict_hooks(self) -> None:
         num_pre_save_hooks = len(self._module_to_pre_save_state_dict_hook_handle)
         num_pre_load_hooks = len(self._module_to_pre_load_state_dict_hook_handle)
-        if num_pre_save_hooks != num_pre_load_hooks:
+        num_post_load_hooks = len(self._module_to_post_load_state_dict_hook_handle)
+        if num_pre_save_hooks != num_pre_load_hooks or (
+            self._bf16_cache_requested and num_pre_save_hooks != num_post_load_hooks
+        ):
             raise AssertionError(
-                f"Pre-save: {num_pre_save_hooks} pre-load: {num_pre_load_hooks}"
+                f"Pre-save: {num_pre_save_hooks} pre-load: {num_pre_load_hooks} "
+                f"post-load: {num_post_load_hooks}"
             )
         if num_pre_save_hooks > 0:
             return  # already registered
@@ -1019,13 +1214,29 @@ class GFSDPParamGroup:
         def to_sharded_hook(*args: Any, **kwargs: Any) -> None:
             self._to_sharded()
 
+        def to_sharded_before_load(*args: Any, **kwargs: Any) -> None:
+            self._to_sharded()
+            self.invalidate_bf16_weight_cache()
+
+        def record_after_load(module: nn.Module, incompatible_keys: Any) -> None:
+            self.record_weight_write()
+
         for module in modules_with_fsdp_params:
             self._module_to_pre_save_state_dict_hook_handle[module] = (
                 module.register_state_dict_pre_hook(to_sharded_hook)
             )
             self._module_to_pre_load_state_dict_hook_handle[module] = (
-                module._register_load_state_dict_pre_hook(to_sharded_hook)
+                module._register_load_state_dict_pre_hook(
+                    to_sharded_before_load
+                    if self._bf16_cache_requested
+                    else to_sharded_hook
+                )
             )
+        if self._bf16_cache_requested:
+            for module in set(modules_with_fsdp_params).union(self.modules):
+                self._module_to_post_load_state_dict_hook_handle[module] = (
+                    module.register_load_state_dict_post_hook(record_after_load)
+                )
 
     # Properties #
     @property

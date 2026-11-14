@@ -4,6 +4,63 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+## Active assignment: BF16 expert-weight reuse
+
+Completed, 14 November 2026. The anchor is retained for existing links. The
+[report](../runs/bf16-expert-cache/report.md) owns the closed results and limits;
+no additional run is outstanding.
+
+The 14 November 2026 goal authorizes this task's `gift/` implementation,
+focused checks and two candidate launches on the existing eight-GPU allocation.
+Starting source is clean `main` at `657e77a4f8ddb116b75925e5671b00642a0e4d32`.
+Preserve accepted V2 (prefetch 32, logical epoch 51,200), all crop settings,
+FP32 masters/gradient accumulation, FP8, compile, SAC, EMA and MTP. All four
+fusion candidates stay disabled. No original-checkout writes, installations,
+new allocations, publication or fresh V2 controls are authorized.
+
+The subsequent owner instruction authorizes committing and pushing the completed
+BF16 experiment to `origin/main`, updating the local checkout, and downloading
+the two candidate traces. It authorizes no additional training or experiments.
+
+Finite acceptance checklist:
+
+- [x] Reconcile existing source, V2 controls/traces and native execution route
+  once; inspect the pinned Megatron lifecycle reference and the actual GFSDP
+  optimizer, load, EMA and storage-replacement consumers before editing.
+  See [design](../runs/bf16-expert-cache/design.md) and
+  [execution readiness](../runs/bf16-expert-cache/execution-readiness.md).
+- [x] Integrate opt-in reuse of persistent BF16 expert weights per weight
+  generation and direct consumption for eligible size-one expert shard groups;
+  preserve fallback, parameter identity, gradients, stream ordering and buffer
+  ownership without another full BF16 allocation or new host synchronization.
+- [x] Verify deterministic actual-GFSDP accumulation across two optimizer
+  updates, recomputation, two groups sharing the original working-buffer pool,
+  changed-weight loading, EMA swap/restoration, activation and fallback. Compare
+  losses, input/weight gradients, FP32 masters and fresh BF16 casts.
+  The [focused evidence](../runs/bf16-expert-cache/focused-checks.md) retains
+  all failed harness attempts and the passing default-off, extension and
+  real-EP main008 checks, including a nondefault writer/default consumer.
+- [x] Pass scoped lint and resolve one independent integration/runtime-cost
+  review, verifying material fixes.
+  All findings in the [review](../runs/bf16-expert-cache/review.md) are resolved.
+- [x] Verify parsed arguments and actual child commands; run one unprofiled
+  candidate with `--steps 60 --warmup 20 --window 40` (updates 21–60) and one
+  diagnostic candidate with `--steps 21 --warmup 20 --window 0
+  --profile-update 21 --profile-microbatches 3` (ranks 0/1). Keep accumulation 32,
+  LR horizon 65,000 and LR warmup 2,000. Counters are diagnostic-only and cover
+  all microbatches and update boundaries.
+- [x] Establish cast/copy removal and reader/refresh ordering from bounded
+  traces and counters; report TPS, update times, peak allocated/reserved memory,
+  exact saved-control windows and comparison limits in one result table.
+  Record commands, source/config identities and artifact paths under
+  `runs/bf16-expert-cache/`; update the existing owner documents.
+
+An ambiguous performance result is inconclusive and ends this experiment.
+Additional execution requires a concrete failed required check or invalid
+measurement; repair and repeat only that check. No automatic repeats, new
+controls, convergence campaign, full-model numerical capture or review campaign.
+A positive speedup is not required; unresolved correctness must remain explicit.
+
 ## Active assignment: four independent fusion experiments
 
 Completed, 13 November 2026. The anchor is retained for existing links; the

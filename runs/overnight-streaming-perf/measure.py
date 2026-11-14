@@ -24,6 +24,15 @@ PEAK_STAT_KEYS = (
     "reserved_bytes.all.peak",
 )
 ALLOCATOR_COUNTER_KEYS = ("num_alloc_retries", "num_ooms")
+BF16_CACHE_STAT_FIELDS = (
+    "fqn",
+    "enabled",
+    "generation",
+    "refreshes",
+    "hits",
+    "direct_uses",
+    "invalidations",
+)
 
 
 class IncompleteWindowError(RuntimeError):
@@ -186,6 +195,8 @@ class WindowMeasurement:
         cuda_synchronize: Callable[[], None],
         memory_stats: Callable[[], dict[str, int]],
         capture_microbatches: bool,
+        gfsdp_reuse_bf16_expert_weights: bool = False,
+        bf16_cache_counters: bool = False,
         profile_update: int | None = None,
         profile_microbatches: int = 0,
         clock_ns: Callable[[], int] = time.monotonic_ns,
@@ -206,6 +217,8 @@ class WindowMeasurement:
         self.cuda_synchronize = cuda_synchronize
         self.memory_stats = memory_stats
         self.capture_microbatches = capture_microbatches
+        self.gfsdp_reuse_bf16_expert_weights = gfsdp_reuse_bf16_expert_weights
+        self.bf16_cache_counters = bf16_cache_counters
         self.profile_update = profile_update
         self.profile_microbatches = profile_microbatches
         self.collected_microbatches = 0
@@ -258,6 +271,77 @@ class WindowMeasurement:
         self._host_memory_end: dict[str, Any] | None = None
         self._failure_reason: str | None = None
         self._written = False
+        self._bf16_cache_snapshots: list[dict[str, Any]] = []
+        if self.bf16_cache_counters:
+            if not self.gfsdp_reuse_bf16_expert_weights:
+                raise RuntimeError("BF16 cache counters require the cache feature to be enabled")
+            self._enable_bf16_cache_counters()
+            self._capture_bf16_cache_stats(
+                update=int(getattr(trainer, "step", 0)),
+                boundary="before_train",
+                require_active=False,
+            )
+
+    def _bf16_cache_model_parts(self) -> list[Any]:
+        model_parts = getattr(self.trainer, "model_parts", None)
+        if model_parts is None:
+            raise RuntimeError("trainer.model_parts is unavailable for BF16 cache diagnostics")
+        parts = model_parts if isinstance(model_parts, (list, tuple)) else [model_parts]
+        if not parts:
+            raise RuntimeError("trainer.model_parts is empty for BF16 cache diagnostics")
+        return list(parts)
+
+    def _enable_bf16_cache_counters(self) -> None:
+        for part in self._bf16_cache_model_parts():
+            setter = getattr(part, "set_bf16_cache_debug", None)
+            if not callable(setter):
+                raise RuntimeError(
+                    "BF16 cache diagnostics require model parts to expose "
+                    "set_bf16_cache_debug(enabled, recurse=True)"
+                )
+            setter(True, recurse=True)
+
+    def _capture_bf16_cache_stats(
+        self, *, update: int, boundary: str, require_active: bool
+    ) -> None:
+        groups: list[dict[str, Any]] = []
+        for part_index, part in enumerate(self._bf16_cache_model_parts()):
+            stats_fn = getattr(part, "bf16_cache_stats", None)
+            if not callable(stats_fn):
+                raise RuntimeError(
+                    "BF16 cache diagnostics require model parts to expose "
+                    "bf16_cache_stats(recurse=True)"
+                )
+            rows = stats_fn(recurse=True)
+            if not isinstance(rows, tuple):
+                raise RuntimeError("bf16_cache_stats(recurse=True) must return a tuple")
+            for row in rows:
+                if not isinstance(row, dict) or any(
+                    field not in row for field in BF16_CACHE_STAT_FIELDS
+                ):
+                    raise RuntimeError("BF16 cache stats row is missing required fields")
+                if not isinstance(row["fqn"], str) or not isinstance(row["enabled"], bool):
+                    raise RuntimeError("BF16 cache stats row has invalid fqn or enabled fields")
+                if any(
+                    not isinstance(row[field], int) or isinstance(row[field], bool)
+                    for field in BF16_CACHE_STAT_FIELDS[2:]
+                ):
+                    raise RuntimeError("BF16 cache stats counters must be integer values")
+                groups.append(
+                    {"model_part": part_index, **{field: row[field] for field in BF16_CACHE_STAT_FIELDS}}
+                )
+        if not groups:
+            raise RuntimeError("BF16 cache diagnostics found no GFSDP parameter groups")
+        if require_active and not any(row["enabled"] for row in groups):
+            raise RuntimeError("BF16 expert-weight cache is inactive for every observed group")
+        self._bf16_cache_snapshots.append(
+            {
+                "update": update,
+                "boundary": boundary,
+                "kind": "counters" if self.bf16_cache_counters else "activation_metadata",
+                "groups": groups,
+            }
+        )
 
     @staticmethod
     def _optional_int_attribute(owner: Any, name: str) -> int | None:
@@ -337,6 +421,12 @@ class WindowMeasurement:
     def capture_after_train(self) -> None:
         """Record the dataset epoch after the native Trainer.train() call returns."""
         self._training_boundary_receipts["after_train"] = self._capture_epoch_receipt()
+        if self.gfsdp_reuse_bf16_expert_weights and not self.bf16_cache_counters:
+            self._capture_bf16_cache_stats(
+                update=int(self.trainer.step),
+                boundary="after_train",
+                require_active=True,
+            )
 
     def note_microbatch_complete(self, step: int) -> None:
         if self.capture_microbatches:
@@ -457,6 +547,12 @@ class WindowMeasurement:
             )
 
     def on_profiler_step(self, step: int) -> None:
+        if self.bf16_cache_counters:
+            self._capture_bf16_cache_stats(
+                update=step,
+                boundary="after_optimizer_update",
+                require_active=True,
+            )
         if step != self._last_step + 1:
             self._failure_reason = (
                 f"expected native update {self._last_step + 1}, observed {step}"
@@ -634,6 +730,11 @@ class WindowMeasurement:
                 for step, count in sorted(self._microbatch_calls.items())
             },
             "capture_microbatches": self.capture_microbatches,
+            "bf16_expert_cache": {
+                "feature_configured_enabled": self.gfsdp_reuse_bf16_expert_weights,
+                "counter_capture_enabled": self.bf16_cache_counters,
+                "snapshots": self._bf16_cache_snapshots,
+            },
         }
         if self.profile_update is not None:
             record["profile_capture"] = {
@@ -1045,6 +1146,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.set_defaults(monitor_interval=0)
     parser.add_argument("--observe-compiler-cache", action="store_true")
     parser.add_argument("--capture-microbatches", action="store_true")
+    parser.add_argument("--bf16-cache-counters", action="store_true")
     parser.add_argument("--profile-update", type=int)
     parser.add_argument("--profile-microbatches", type=int, default=0)
     args = parser.parse_args(helper_argv)
@@ -1052,6 +1154,15 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         parser.error("profile-microbatches requires profile-update and a value from 0 to 3")
     if not train_argv:
         parser.error("a native experiment config and overrides must follow `--`")
+    cache_option = "--parallelism.gfsdp_reuse_bf16_expert_weights"
+    cache_values = [
+        train_argv[index + 1]
+        for index, value in enumerate(train_argv[:-1])
+        if value == cache_option
+    ]
+    if len(cache_values) > 1 or any(value not in {"true", "false"} for value in cache_values):
+        parser.error(f"{cache_option} must appear at most once with true or false")
+    args.gfsdp_reuse_bf16_expert_weights = cache_values == ["true"]
     if args.window < 0 or args.warmup < 0 or args.steps <= 0:
         parser.error("steps must be positive; warmup and window must be nonnegative")
     if args.window and (args.warmup <= 0 or args.steps != args.warmup + args.window):
@@ -1069,6 +1180,11 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
             parser.error("profile-update must be greater than warmup")
         if args.steps != args.profile_update:
             parser.error("profile-update requires steps == profile-update")
+    if args.bf16_cache_counters:
+        if not args.gfsdp_reuse_bf16_expert_weights:
+            parser.error("bf16-cache-counters requires the native BF16 cache override to be true")
+        if args.profile_update is None:
+            parser.error("bf16-cache-counters requires a diagnostic profile update")
     return args, train_argv
 
 
@@ -1220,6 +1336,8 @@ def main(argv: list[str] | None = None) -> None:
         "window_updates": args.window,
         "monitor_interval": args.monitor_interval,
         "capture_microbatches": args.capture_microbatches,
+        "gfsdp_reuse_bf16_expert_weights": args.gfsdp_reuse_bf16_expert_weights,
+        "bf16_cache_counters": args.bf16_cache_counters,
         "profile_update": args.profile_update,
         "profile_microbatches": args.profile_microbatches,
     }

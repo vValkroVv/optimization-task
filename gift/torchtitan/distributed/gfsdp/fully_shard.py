@@ -53,6 +53,7 @@ def fully_shard(
     mp_policy: MixedPrecisionPolicy = ...,
     ignored_params: set[nn.Parameter] | None = ...,
     param_meshes: Sequence[tuple[DeviceMesh, set[nn.Parameter]]] | None = ...,
+    bf16_cache_params: set[nn.Parameter] | None = ...,
     shard_alignment: int = ...,
 ) -> "GFSDPModule": ...
 
@@ -66,6 +67,7 @@ def fully_shard(
     mp_policy: MixedPrecisionPolicy = ...,
     ignored_params: set[nn.Parameter] | None = ...,
     param_meshes: Sequence[tuple[DeviceMesh, set[nn.Parameter]]] | None = ...,
+    bf16_cache_params: set[nn.Parameter] | None = ...,
     shard_alignment: int = ...,
 ) -> list["GFSDPModule"]: ...
 
@@ -79,6 +81,7 @@ def fully_shard(
     mp_policy: MixedPrecisionPolicy = MixedPrecisionPolicy(),  # noqa: B008
     ignored_params: set[nn.Parameter] | None = None,
     param_meshes: Sequence[tuple[DeviceMesh, set[nn.Parameter]]] | None = None,
+    bf16_cache_params: set[nn.Parameter] | None = None,
     shard_alignment: int = 8,
 ) -> "GFSDPModule | list[GFSDPModule]":
     """Shard ``module``'s parameters, optionally over more than one mesh.
@@ -86,6 +89,10 @@ def fully_shard(
     ``param_meshes`` names parameters that shard over a mesh other than
     ``mesh``. Each entry becomes its own parameter group under this one unit,
     so the hooks stay on ``module`` itself.
+
+    ``bf16_cache_params`` selects one exact parameter group for the opt-in
+    expert-weight cache. Its match is resolved before the group's original
+    parameters are replaced by sharded parameters.
     """
     if isinstance(module, nn.ModuleList | nn.ModuleDict):
         raise ValueError(
@@ -125,19 +132,20 @@ def fully_shard(
                     f" but the unit is on {device}."
                 )
             group_mesh_info = _get_mesh_info(group_mesh)
-        state._fsdp_param_groups.append(
-            GFSDPParamGroup(
-                group_params,
-                modules,
-                group_mesh_info,
-                _get_post_forward_mesh_info(
-                    reshard_after_forward_value, group_mesh_info
-                ),
-                device,
-                mp_policy,
-                shard_alignment,
-            )
+        param_group = GFSDPParamGroup(
+            group_params,
+            modules,
+            group_mesh_info,
+            _get_post_forward_mesh_info(
+                reshard_after_forward_value, group_mesh_info
+            ),
+            device,
+            mp_policy,
+            shard_alignment,
         )
+        if bf16_cache_params is not None and set(group_params) == bf16_cache_params:
+            param_group.enable_bf16_weight_cache()
+        state._fsdp_param_groups.append(param_group)
 
     # Place GFSDP leftmost for highest priority in the method resolution order
     for module in modules:  # noqa: PLR1704
@@ -473,6 +481,55 @@ class GFSDPModule(FSDPModule):
     def lazy_init(self) -> None:
         self._get_fsdp_state()._lazy_init()
 
+    def set_bf16_cache_debug(
+        self, enabled: bool, recurse: bool = True
+    ) -> None:
+        """Enable or disable per-group cache counters before or during training."""
+        for param_group in _iter_fsdp_param_groups(cast("nn.Module", self), recurse):
+            if enabled:
+                param_group._bf16_cache_refreshes = 0
+                param_group._bf16_cache_hits = 0
+                param_group._bf16_cache_direct_uses = 0
+                param_group._bf16_cache_invalidations = 0
+            param_group._bf16_cache_debug = enabled
+
+    def bf16_cache_stats(
+        self, recurse: bool = True
+    ) -> tuple[dict[str, Any], ...]:
+        """Return per-group cache counters without reading device values."""
+        module_fqns = {
+            module: module_fqn
+            for module_fqn, module in self.named_modules()
+        }
+        stats = []
+        for param_group in _iter_fsdp_param_groups(cast("nn.Module", self), recurse):
+            module = param_group.modules[0]
+            group_fqn = module_fqns.get(module, "")
+            sibling_groups = module._get_fsdp_state()._fsdp_param_groups
+            if len(sibling_groups) > 1:
+                group_index = sibling_groups.index(param_group)
+                group_fqn = f"{group_fqn}[group_{group_index}]"
+            stats.append(param_group.bf16_cache_stats(group_fqn))
+        return tuple(stats)
+
+    def invalidate_bf16_weight_cache(self, recurse: bool = True) -> None:
+        """Invalidate before an external write to active FP32 master weights.
+
+        Pair this with `record_bf16_weight_write()` after the write completes.
+        The cache is derived runtime state and is not part of checkpoints.
+        """
+        for param_group in _iter_fsdp_param_groups(cast("nn.Module", self), recurse):
+            param_group.invalidate_bf16_weight_cache()
+
+    def record_bf16_weight_write(self, recurse: bool = True) -> None:
+        """Record completion on the current stream after an external master write.
+
+        Call after `invalidate_bf16_weight_cache()` and after the write has been
+        enqueued on the current stream.
+        """
+        for param_group in _iter_fsdp_param_groups(cast("nn.Module", self), recurse):
+            param_group.record_weight_write()
+
     def setup_ema_buffer(self, recurse: bool = True) -> None:
         """
         Allocate and register whole-group EMA buffers in this subtree.
@@ -522,14 +579,46 @@ class GFSDPModule(FSDPModule):
         return state
 
     def _apply(self, *args: Any, **kwargs: Any) -> Any:
+        state = self._get_fsdp_state()
+        initialized_groups = [
+            group
+            for group in state._fsdp_param_groups
+            if hasattr(group.data_buffer_ctx, "release_event")
+        ]
+        buffer_contexts = {group.data_buffer_ctx for group in initialized_groups}
+        writer_stream = (
+            initialized_groups[0].device_handle.current_stream()
+            if initialized_groups
+            else None
+        )
+        if writer_stream is not None:
+            # The replacement event must retain the prior readers' dependency.
+            for buffer_ctx in buffer_contexts:
+                if buffer_ctx.release_event is not None:
+                    writer_stream.wait_event(buffer_ctx.release_event)
+        for fsdp_param_group in state._fsdp_param_groups:
+            fsdp_param_group.invalidate_bf16_weight_cache()
+            # Fallback gather inputs also become stale when masters change.
+            fsdp_param_group._all_gather_input_set_dtypes.clear()
         # Reshard to ensure that sharded parameters are registered
         self.reshard()
         ret = super()._apply(*args, **kwargs)  # type: ignore[misc]
-        state = self._get_fsdp_state()
         with torch.no_grad():
             for fsdp_param_group in state._fsdp_param_groups:
                 for fsdp_param in fsdp_param_group.fsdp_params:
                     fsdp_param.reset_sharded_param()
+                if fsdp_param_group._bf16_cache_enabled:
+                    if fsdp_param_group._bf16_cache_layout_is_eligible():
+                        fsdp_param_group.record_weight_write()
+                    else:
+                        fsdp_param_group._bf16_cache_enabled = False
+                        fsdp_param_group._init_unsharded_params()
+        if writer_stream is not None:
+            # Existing release dependencies must cover the replacement writes,
+            # even when root pre-forward still holds an older optimizer event.
+            write_event = writer_stream.record_event()
+            for buffer_ctx in buffer_contexts:
+                buffer_ctx.release_event = write_event
         return ret
 
 

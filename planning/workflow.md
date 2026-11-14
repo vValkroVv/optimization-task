@@ -1,9 +1,12 @@
 # Experiment workflow
 
-The [active four-fusion assignment](README.md#active-assignment-four-independent-fusion-experiments)
-authorizes task-local implementation, matched measurements and bounded traces on
-the existing allocation. Its finite checklist supersedes historical cleanup-only
-restrictions; new allocations, installations and publication remain unauthorized.
+The [completed BF16 expert-weight reuse assignment](README.md#active-assignment-bf16-expert-weight-reuse)
+used task-local implementation, focused checks and exactly two candidate
+launches on the existing allocation, reusing saved V2 controls. Its explicit
+20-warmup/40-measured-update protocol superseded the generic future comparison
+defaults below for that assignment. Its measurement checklist is closed; no
+further run, new allocation or installation is authorized. The subsequent owner
+publication instruction is recorded in the linked assignment.
 
 1. Read [current state](../docs/status.md) and [baseline](../docs/baseline.md).
    Reuse completed evidence; do not repeat a smoke to answer a different property.

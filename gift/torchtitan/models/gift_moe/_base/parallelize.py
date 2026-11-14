@@ -109,8 +109,20 @@ def parallelize_gift_moe(
     }
 
     if parallelism.fsdp_backend == "gfsdp2":
-        apply_gfsdp(model, dp_mesh, **fsdp_kwargs)
+        apply_gfsdp(
+            model,
+            dp_mesh,
+            reuse_bf16_expert_weights=(
+                parallelism.gfsdp_reuse_bf16_expert_weights
+            ),
+            **fsdp_kwargs,
+        )
     elif parallelism.fsdp_backend == "fsdp2":
+        if parallelism.gfsdp_reuse_bf16_expert_weights:
+            logger.warning(
+                "parallelism.gfsdp_reuse_bf16_expert_weights requires "
+                "fsdp_backend='gfsdp2'; using the ordinary fsdp2 path"
+            )
         apply_fsdp(model, dp_mesh, **fsdp_kwargs)
     else:
         raise ValueError(
@@ -136,6 +148,7 @@ def apply_gfsdp(
     ep_degree: int = 1,
     edp_mesh: DeviceMesh | None = None,
     enable_symm_mem: bool = False,
+    reuse_bf16_expert_weights: bool = False,
 ):
     """
     Apply data parallelism (via GFSDP2) to the model.
@@ -158,8 +171,10 @@ def apply_gfsdp(
     reshard_after_forward = get_fsdp_reshard_after_forward_policy(
         reshard_after_forward_policy, pp_enabled
     )
+    cache_requested_groups = 0
 
     def shard_block_unit(unit: nn.Module, block: nn.Module) -> None:
+        nonlocal cache_requested_groups
         if not block.moe_enabled:
             g_fully_shard(
                 unit, **fsdp_config, reshard_after_forward=reshard_after_forward
@@ -168,16 +183,31 @@ def apply_gfsdp(
         assert hasattr(block, "moe")
 
         param_meshes = None
+        expert_params: set[nn.Parameter] | None = None
         if ep_degree > 1:
             assert edp_mesh is not None
-            param_meshes = [(edp_mesh, set(block.moe.experts.parameters()))]
+            expert_params = set(block.moe.experts.parameters())
+            param_meshes = [(edp_mesh, expert_params)]
 
-        g_fully_shard(
+        cache_group_requested = (
+            reuse_bf16_expert_weights
+            and not pp_enabled
+            and ep_degree > 1
+            and param_dtype == torch.bfloat16
+            and expert_params is not None
+        )
+        gfsdp_unit = g_fully_shard(
             unit,
             **fsdp_config,
             param_meshes=param_meshes,
+            bf16_cache_params=(expert_params if cache_group_requested else None),
             reshard_after_forward=reshard_after_forward,
         )
+        if cache_group_requested and any(
+            param_group._bf16_cache_requested
+            for param_group in gfsdp_unit._get_fsdp_state()._fsdp_param_groups
+        ):
+            cache_requested_groups += 1
 
     if getattr(model, "enable_weight_tying", False):
         raise ValueError("gfsdp2 does not support weight tying")
@@ -214,6 +244,13 @@ def apply_gfsdp(
     # No ``reshard_after_forward`` on purpose: ``None`` turns on the root's
     # automatic mode, which governs every unit.
     root = g_fully_shard(model, **fsdp_config)
+
+    if reuse_bf16_expert_weights and cache_requested_groups == 0:
+        logger.warning(
+            "BF16 expert weight reuse was requested, but this GIFT MoE "
+            "configuration has no supported PP1/EP>1/BF16 expert group; "
+            "using the ordinary GFSDP path"
+        )
 
     # TODO (fedorovgv): still not quite sure about this solution - we should
     #   investigate whether two separate buffers are really needed here

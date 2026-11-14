@@ -154,6 +154,25 @@ not every selected mechanism was first introduced by that commit.
 | Frozen BF16 storage | [Design](../references/vision-runtime/source/docs/frozen_parameter_storage.md), [utils](../references/vision-runtime/source/torchtitan/tools/utils.py), [integration tests](../references/vision-runtime/source/tests/integration_tests/frozen_parameter_storage.py) | Helps frozen components; no frozen-component saving established for full crop pretraining. FP32-to-BF16 storage rounds weights and affects checkpoint precision |
 | Metric accounting | [Metrics design](../references/vision-runtime/source/docs/metrics.md), [trainer source](../references/vision-runtime/source/torchtitan/callbacks/sources/trainer_source.py), [trainer](../references/vision-runtime/source/torchtitan/trainer.py), [tests](../references/vision-runtime/source/tests/unit_tests/callbacks/test_input_token_throughput.py) | Input-token counts share the loss-count collective. Keep input versus supervised-token rates distinct; instrumenting metrics is not itself a proven speedup |
 
+## BF16 expert-weight reuse
+
+The [authorized experiment](../planning/README.md#active-assignment-bf16-expert-weight-reuse)
+reuses GFSDP's existing persistent BF16 input for eligible singleton expert shard
+groups. Their compute views alias that input, avoiding the shared-output copy.
+Explicit optimizer, load, EMA and backing-replacement boundaries invalidate the
+derived representation; stream events order readers, refresh and writers.
+FP32 masters/gradients and FP8 quantization remain separate.
+
+The owning source paths are
+[group lifecycle](../gift/torchtitan/distributed/gfsdp/_param_group.py),
+[preparation](../gift/torchtitan/distributed/gfsdp/_collectives.py),
+[GIFT selection](../gift/torchtitan/models/gift_moe/_base/parallelize.py) and
+[optimizer hooks](../gift/torchtitan/components/optimizer.py).
+The [pinned lifecycle reference and preimplementation costs](../runs/bf16-expert-cache/design.md)
+explain the adaptation. The [experiment report](../runs/bf16-expert-cache/report.md)
+owns verification, measurements and limitations; this mechanism does not imply
+a training speedup or production PP4/EP32 support.
+
 ## How to use this collection
 
 Start with a concrete bottleneck in the default crop. Select one mechanism,
@@ -230,10 +249,12 @@ The [V2 report](../runs/v2-prefetch-baseline/report.md#bounded-traces-and-mechan
 owns run identities and canonical trace provenance. The canonical rank-0 gzip
 SHA-256 is
 `196806cee1fe857e97e4d80f3b7aa5961e323860f5fa1274d3e4b59a6f522c94`.
-The imported [derived trace](../runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/v2-rank0.perfetto.json.gz)
-has SHA-256
+The historical derived trace, documented in the
+[import evidence](../runs/v2-prefetch-baseline/report.md#mcp-perfetto-comparison-and-acceptance),
+had SHA-256
 `876696a98da197a3b1ac4bb22e6ccac869db6ecd5ff9fd4d931ea8244f7397bd`.
-It retains device timings, actual stream IDs and CPU launch flows.
+That display copy is no longer retained locally. Its transform preserved device
+timings, actual stream IDs and CPU launch flows; the canonical gzip remains.
 
 Generated-code attribution uses the run's retained `cache/torchinductor/`,
 including AOT `0_forward` at

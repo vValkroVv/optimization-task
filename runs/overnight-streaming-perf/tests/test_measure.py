@@ -1029,6 +1029,9 @@ def test_profile_update_defaults_validation_cli_decode_and_resolved_config(
         "compile.enable": True,
         "activation_checkpoint.mode": "selective",
         "parallelism.expert_parallel_degree": 8,
+        "parallelism.gfsdp_reuse_bf16_expert_weights": (
+            args.gfsdp_reuse_bf16_expert_weights
+        ),
         "parallelism.pipeline_parallel_degree": 1,
         "parallelism.tensor_parallel_degree": 1,
         "parallelism.context_parallel_degree": 1,

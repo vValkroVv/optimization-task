@@ -51,6 +51,7 @@ class GFSDPParam:
     _all_gather_input: torch.Tensor
     reduce_scatter_output: torch.Tensor | None
     sharded_param_grad: RaggedShardDTensor | None
+    _sharded_param_grad_data: torch.Tensor | None
     unsharded_param: nn.Parameter
     _unsharded_accumulated_grad: torch.Tensor | None
     unsharded_accumulated_grad: torch.Tensor | None
@@ -163,8 +164,10 @@ class GFSDPParam:
         )
         if self.sharded_param.requires_grad:
             assert sharded_param_grad is not None
+            self._sharded_param_grad_data = sharded_param_grad
             self.sharded_param_grad = self.to_sharded_dtensor(sharded_param_grad)
         else:
+            self._sharded_param_grad_data = None
             self.sharded_param_grad = None
         self._setattr_on_modules(self.sharded_param)
         self.sharded_state = ShardedState.SHARDED
@@ -352,12 +355,28 @@ class GFSDPParam:
     def reset_sharded_param(self) -> None:
         module_info = self._module_info
         new_param = getattr(module_info.module, module_info.param_name)
+        sharded_param = self.sharded_param
+        sharded_param_grad = sharded_param.grad
         self._sharded_param_data.copy_(new_param._local_tensor)
-        self.sharded_param = nn.Parameter(
+        if sharded_param_grad is not None:
+            sharded_param.grad = None
+            if self._sharded_param_grad_data is not None:
+                self._sharded_param_grad_data.copy_(sharded_param_grad._local_tensor)
+        if self.sharded_param_grad is not None:
+            restored_grad = self.to_sharded_dtensor(
+                cast("torch.Tensor", self._sharded_param_grad_data)
+            )
+            torch.utils.swap_tensors(self.sharded_param_grad, restored_grad)
+        restored_param = nn.Parameter(
             self.to_sharded_dtensor(self._sharded_param_data),
-            requires_grad=self.sharded_param.requires_grad,
+            requires_grad=sharded_param.requires_grad,
         )
-        self._setattr_on_modules(self.sharded_param)
+        # `_apply` must preserve the sharded Parameter identity held by the
+        # optimizer while restoring its wrapper to the persistent flat master.
+        torch.utils.swap_tensors(sharded_param, restored_param)
+        if sharded_param_grad is not None:
+            sharded_param.grad = self.sharded_param_grad
+        self._setattr_on_modules(sharded_param)
 
     def __repr__(self) -> str:
         return f"GFSDPParam(fqn={self._param_fqn}, orig_size={self._orig_size})"
