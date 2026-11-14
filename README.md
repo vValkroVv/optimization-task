@@ -1,12 +1,15 @@
 # GIFT training optimization
 
-The default is a production-shaped eight-layer 100B-dev crop on eight H100s.
-Its training smoke passed. Performance improvements have not yet been measured.
+The current final task baseline is a production-shaped eight-layer 100B-dev crop
+on eight H100s, with accepted V2 prefetch, the combined-four foundation, and
+explicit FlashQLA `external_gate` selection. The measurements are provisional;
+they do not establish a general speedup or production validation. See the
+[baseline recipe](docs/baseline.md#current-final-task-baseline).
 
 | Read | Purpose |
 | --- | --- |
 | [Current state](docs/status.md) | What is implemented, verified, unresolved and concluded |
-| [Baseline](docs/baseline.md) | Canonical model/config, SAC, microbatch, precision and runtime |
+| [Baseline](docs/baseline.md) | Canonical model/config and current final task recipe |
 | [Candidates](docs/candidates.md) | Potential improvements, local source code and compatibility limits |
 | [CUDA Graphs](docs/cuda-graphs.md) | Historical findings and why graphs are not enabled by default |
 | [Work plan](planning/README.md) | Editable priorities, experiment acceptance and next actions |

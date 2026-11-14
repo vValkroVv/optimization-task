@@ -1,6 +1,6 @@
 # FlashQLA gate variants: bounded experiment report
 
-**Status:** The bounded block, native, and trace comparisons are complete. Both variants remain opt-in task-copy experiments. No production default, general throughput gain, or convergence result is accepted.
+**Status:** The bounded block, native, and trace comparisons are complete. The owner subsequently selected `external_gate` for the current final task baseline, explicitly through `--gdn-backend external_gate`. Both implementations remain task-copy code; the recipe selection does not change a generic backend default, establish a production default, or prove a general throughput gain or convergence. See the canonical [baseline decision](../../docs/baseline.md#current-final-task-baseline).
 
 ## Scope and implementation
 
@@ -18,8 +18,18 @@ All three eight-rank H100 runs completed 140 updates with unchanged source/confi
 
 The two update-21 captures compare with the accepted combined-four control on ranks 0/1. All four new MCP imports passed event/flow parity with no import errors. Each rank covered 18 calls per phase (original, SAC, VJP recompute, native backward); 288 calls were matched. Both captures exited 0, finished on all ranks, and left the GPUs idle. Whole-GDN 3F+B work fell from 59.2–59.7 ms to 30.9–31.4 ms (1.90–1.92×), removing 28.2–28.6 ms or 2.25–2.28% of the three-microbatch device span. This is not exposed critical-path savings, optimizer-step latency, or TPS evidence. Captures omit 29 accumulation microbatches and the optimizer; overlap is not causality. See [trace analysis](trace-results.md), [machine results](trace-results.json), and the [capture provenance and history](trace-capture-results.md) with its [JSON receipt](trace-capture-results.json).
 
-## Decision, limits, and retained failures
+## Experiment conclusion and subsequent baseline decision
 
-The bounded evidence supports the task-copy mechanism and local numerical contract, but does not justify production integration or default promotion. EMA updates, checkpoint/resume, long-run convergence, whole-training numerical parity, CP warmup, and production PP4/EP32 behavior remain unverified. No further experiment is part of this assignment.
+At experiment close, the bounded evidence supported the task-copy mechanism and
+local numerical contract, but did not justify production integration or default
+promotion. On 14 November 2026 the owner subsequently selected `external_gate`
+for the current final task recipe, using the explicit backend flag and the
+combined-four foundation. This owner decision is recorded in the canonical
+[baseline](../../docs/baseline.md#current-final-task-baseline). It is not a
+conclusion that the native throughput differences are causal: the fixed-order
+windows drifted by about 10.4%, versus roughly 2% between runs. EMA updates,
+checkpoint/resume, long-run convergence, whole-training numerical parity, CP
+warmup, and production PP4/EP32 behavior remain unverified. No further
+experiment is part of this assignment.
 
 Failure history remains in the [plan](plan.md) and detailed reports. The first capture stopped at a guard before fixture saving; the initial backward graph pilot hit a stale-default-stream error. The native foreground controller raised `BrokenPipeError` after FLA/external passed; fused later completed detached. Trace acquisition retained a gzip/census writer exit 1 from a wrong activation-log path (JSONL had zero markers; TorchRun stdout had two per rank), a preflight wrapper exit 1 of unknown cause with its full body unavailable and no GPU side effects, and a local macOS `chmod` error. The root-saved script then launched the final capture without a GPU restart. These were harness/controller incidents, not kernel failures. The [mirror receipt](mirror-receipt.json) records evidence SHA-256 parity; raw traces/caches remain remote-only.

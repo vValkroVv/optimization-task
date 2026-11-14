@@ -4,20 +4,27 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
-## Active assignment: FlashQLA gate variants
+## Completed assignment: FlashQLA gate variants
 
-The owner authorized two variants on the existing sr008-gpu allocation: separate
-gate preparation and fused gate/cumsum, first on identical isolated GDN inputs
-and incoming gradients, then in matched native training using the recorded crop
-recipe. The prerequisite 15-minute wait and preceding trace-analysis gate are
-complete. Work is isolated at `/workspace-SR008.nfs2/vkropotin/opt-fq` from source
-revision `0f32623d5e0e7544b20c1f047d94236cb6697758`; the source task checkout is
-preserved. The common foundation is the combined-four candidate; no default is
-promoted. [Execution plan](../runs/flash-qla/plan.md) records the finite sequence,
-expected runtime costs, exact dependency and fixture identities, and open gates.
-Block capture/comparisons, both native candidate measurements, and independent
-integration/runtime-cost verification remain open. No publication, shared package
-installation or new allocation is authorized by this assignment.
+Completed 14 November 2026. The block comparison (18 reports), all three native
+eight-rank measurements, two new rank-0/1 trace captures and their MCP analyses
+passed their recorded checks. The detailed [execution plan](../runs/flash-qla/plan.md),
+[integrated report](../runs/flash-qla/report.md), and linked block, native, and
+trace records retain the source pins, protocols, runtime costs, limits and failed
+attempts. The single-order native measurements still have roughly 10.4% cadence
+drift and do not establish general or causal speedup.
+
+The owner subsequently selected `external_gate` as the explicit GDN backend in
+the [current final task baseline](../docs/baseline.md#current-final-task-baseline),
+on top of the combined-four foundation and already accepted V2 prefetch. The
+selection is a task-recipe decision; it does not change generic backend defaults
+or establish production validation. Convergence, checkpoint/resume, EMA updates,
+CP warmup, and PP4/EP32 behavior remain open.
+
+The user's subsequent instruction authorizes consolidating all three copies and
+committing and pushing the validated implementation, documentation, and compact
+evidence. No new training experiment, package installation, allocation, or
+unvalidated implementation change is authorized.
 
 ## Active assignment: combined four improvements
 

@@ -4,6 +4,22 @@ Updated: 14 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
 
+## Current final task baseline: owner-selected recipe
+
+On 14 November 2026 the owner selected the 100B-dev crop plus the accepted V2
+prefetch foundation, the combined-four foundation, and explicit FlashQLA
+`external_gate` activation for the current final task baseline. The
+[baseline](baseline.md#current-final-task-baseline) is the canonical owner of
+the exact recipe and invocation. This recipe selection does not change generic
+GDN backend defaults or establish production validation.
+
+The combined-four result remains a provisional +4.49% fixed-window difference
+from one sequential pair with settling cadence. FlashQLA's fixed-order native
+comparison remains confounded by about 10.4% within-window cadence drift. These
+measurements do not establish a general or causal throughput gain; the baseline
+selection is the owner's decision. Long-run convergence, checkpoint/resume, EMA
+updates, CP warmup, and production PP4/EP32 behavior remain unverified.
+
 ## Timing drift in fixed-window runs
 
 Across the three eight-rank runs, rank-zero median host cadence from updates 41–60 to
@@ -14,7 +30,7 @@ owns the evidence and limits. The [comparison JSON](../runs/flash-qla/historical
 gives the exact all-rank values and hashes; these cadence intervals do not establish
 device-only time or stationary/general throughput.
 
-## FlashQLA gate variants: bounded experiment complete; no default promotion
+## FlashQLA gate variants: bounded experiment complete
 
 The task-copy block comparison and three native eight-rank runs completed; the two
 new update-21 rank-0/1 trace captures and MCP analyses also passed. Each capture
@@ -24,8 +40,10 @@ device span. This is not full-update critical-path or TPS evidence. Fixed-order
 native windows measured 156,452.36 / 160,090.72 / 159,735.21 global physical
 tokens/s for FLA / external / fused; about 10.4% within-window cadence drift
 precludes a general or causal TPS conclusion. Both variants remain task-copy
-experiments; no production source/default is promoted. CP warmup, PP4/EP32,
-convergence, checkpoint/resume and EMA updates remain unverified. The [integrated
+implementations. The owner subsequently selected `external_gate` for the current
+final task recipe, using an explicit backend flag; no generic backend default or
+production source default was promoted. CP warmup, PP4/EP32, convergence,
+checkpoint/resume and EMA updates remain unverified. The [integrated
 report](../runs/flash-qla/report.md), [block results](../runs/flash-qla/block-results.md),
 [native results](../runs/flash-qla/native-results.md), [trace analysis](../runs/flash-qla/trace-results.md),
 and [capture record](../runs/flash-qla/trace-capture-results.md) own their detailed
@@ -57,9 +75,12 @@ and [trace analysis](../runs/combined-four/trace-analysis.md) own values, identi
 receipts, mechanism findings, and limits. The first detached launch and later
 `baseline-002` MDS lock failure are preserved and excluded. After all groups
 exited, candidate core patches were reversed and canonical hashes matched the
-baseline; no default was promoted. All task processes stopped and scratch was
-removed. Performance evidence is provisional and does not establish production
-validation, convergence, continuation, or general speedup.
+baseline; no source default was promoted at experiment close. The owner
+subsequently selected this combined foundation for the final task baseline; its
+exact recipe is in [baseline](baseline.md#current-final-task-baseline). All task
+processes stopped and scratch was removed. Performance evidence is provisional
+and does not establish production validation, convergence, continuation, or
+general speedup.
 
 ## BF16 expert-weight reuse: integrated, verified, default off
 
@@ -289,9 +310,10 @@ licenses, tests and hashes under `references/`.
   GFSDP prefetch, MoE metadata/communication, GDN recomputation and linear CE.
   Their former 700B-specific settings are not crop defaults.
 
-The four explicit-kernel experiments above are measured but remain task-local and
-unaccepted; this preserved donor inventory was not benchmarked on the current
-crop. V2 CPU prefetch is separately accepted as described above.
+The four explicit-kernel experiments above remain task-local; this preserved
+donor inventory was not benchmarked on the current crop. The owner-selected
+combined-four and FlashQLA recipe is documented in the current final task
+baseline above; V2 CPU prefetch remains accepted as described above.
 Production 100B traces and the exact remaining production MR list have not been
 established by the preserved research. The small L8 config remains a donor
 example, not a confirmed future test setup or our baseline.

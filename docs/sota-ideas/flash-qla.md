@@ -1,6 +1,6 @@
 # FlashQLA for GatedDeltaNet
 
-**Status:** The bounded task-copy block, native, and trace comparisons are complete. No production default or general throughput gain is accepted. The [integrated report](../../runs/flash-qla/report.md) summarizes the result and limits; detailed source, block, native, and trace records follow. The pinned public H200 results remain planning context, not local evidence.
+**Status:** The bounded task-copy block, native, and trace comparisons are complete. On 14 November 2026 the owner selected `external_gate` as the explicit backend in the current final task baseline; this does not change a generic backend default or establish a general throughput gain or production validation. The [baseline decision](../baseline.md#current-final-task-baseline) owns the selected recipe. The [integrated report](../../runs/flash-qla/report.md) summarizes the comparison and limits; detailed source, block, native, and trace records follow. The pinned public H200 results remain planning context, not local evidence.
 
 ## Local path and workload
 

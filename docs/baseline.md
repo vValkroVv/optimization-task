@@ -2,6 +2,44 @@
 
 **State:** This is the accepted default workload contract. Its canonical task-local YAML is [gift_100b_crop8_ep8_fp8_compile_cute.yaml](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml), with the model preset [100b_crop8.yaml](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml). The full-length MDS configuration is now selected after its eight-H100 smoke passed. Every rank completed ten updates and 320 microbatches, including monitoring. The [campaign report](../runs/overnight-streaming-perf/report.md) owns MDS evidence and performance gates; the [historical HF smoke](../runs/100b-crop8-ep8-smoke/report.md) remains unchanged.
 
+## Current final task baseline
+
+**Owner decision, 14 November 2026:** the current final task baseline is this
+crop workload with the accepted V2 CPU-prefetch foundation, the combined-four
+foundation, and FlashQLA's `external_gate` backend. This selects a task recipe;
+it does not change generic GDN library/backend defaults or establish production
+validation.
+
+| Part | Selected setting |
+| --- | --- |
+| Workload | Microbatch 2, sequence length 4,096, global batch 512, accumulation 32; EP8, dense FSDP8, expert FSDP1; TP/PP/CP1. Preserve FP8 dense/sparse paths, model/loss compilation, per-layer SAC, MTP1 with weight 0.3, and configured EMA. |
+| Existing accepted V2 | CPU materialized-batch prefetch depth 32. This is the already accepted V2 setting, reused as part of the combined recipe rather than an additional fifth change. |
+| Three combined-four additions beyond V2 | BF16 expert-weight reuse; the explicit routing-metadata kernel using `indices_to_map`; and stable cap-zero cross-entropy through the existing `CrossEntropyLoss` and `ChunkedCELoss` path. GPU input-preparation fusion and fused Linear+CE remain excluded. |
+| GDN backend | Select `external_gate` explicitly with `runs/flash-qla/run.py --gdn-backend external_gate`. The choice is recipe-scoped; the generic backend default remains separate. |
+| Measurement recipe | Logical epoch size 102,400; 140 optimizer updates, with 1–40 as measurement warmup and 41–140 as the 100-update window. Preserve the training LR schedule at 65,000 total updates and 2,000 LR-warmup updates. The 40-update measurement warmup is separate from LR warmup. |
+
+The actual supported invocation and per-run values are retained in the
+[FlashQLA native plan](../runs/flash-qla/native-plan.json). It selects the
+backend with `--gdn-backend external_gate` and records `--steps 140
+--warmup 40 --window 100 --num-prefetch-batches 32 --epoch-size 102400
+--gfsdp-reuse-bf16-expert-weights`. The plan also records the operational
+compiler-cache path used by those runs; cache reuse is not an additional model
+change. Keep the run ID and task-owned cache path appropriate to each new run.
+
+The combined-four pair measured 149,386.56 versus 156,094.27 global physical
+input tokens/s, a provisional +4.49% fixed-window difference from one sequential
+pair with continuing cadence settling. The FlashQLA sequence measured 156,452.36
+(FLA), 160,090.72 (`external_gate`), and 159,735.21 (`fused_gate`) global physical
+tokens/s in fixed order; roughly 10.4% within-window cadence drift prevents a
+general or causal throughput conclusion. The owner selected the recipe; those
+measurements are not a numerical selection rule or convergence result. See the
+[combined-four report](../runs/combined-four/report.md) and
+[FlashQLA report](../runs/flash-qla/report.md) for evidence and limits.
+
+Long-run convergence, checkpoint/resume, EMA updates, CP warmup, and production
+PP4/EP32 behavior remain open validation gates. This task baseline is not a
+production validation claim.
+
 ## Identity and scope
 
 - Architecture reference: 100B-dev source revision `f15d33f3fd9204e5fef2adbd625b3caed2241052`.
