@@ -1,0 +1,2270 @@
+diff --git a/.gitignore b/.gitignore
+index ad5a9f5b0aba0fc5a5dc96b69ee728012d090241..66cadd469ae4a31ac0b8dab0a428c7f988247946 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -27,3 +27,6 @@ __pycache__/
+ /runs/**/*_trace.json.gz
+ /runs/**/*.pt.trace.json
+ /runs/**/*.pt.trace.json.gz
++
++# FlashQLA experiment runtime artifacts.
++/runs/flash-qla/artifacts/raw/
+diff --git a/gift/torchtitan/components/loss.py b/gift/torchtitan/components/loss.py
+index 9cc42dadeab62f65edaade8846a5cb0d5926a5d2..0a5f9ee2633a605763ea5ac09e54de7b9f5a2732 100644
+--- a/gift/torchtitan/components/loss.py
++++ b/gift/torchtitan/components/loss.py
+@@ -353,7 +353,11 @@ class CrossEntropyLoss(BaseLoss):
+ 
+     def __init__(self, config: Config, *, compile_config: CompileConfig | None = None):
+         super().__init__(config, compile_config=compile_config)
+-        self.fn: LossFunction = cross_entropy_loss
++        from torchtitan.experiments.four_fusion.stable_ce import (
++            cross_entropy_loss as stable_ce,
++        )
++
++        self.fn: LossFunction = stable_ce
+         self._maybe_compile(compile_config)
+ 
+ 
+@@ -557,7 +561,11 @@ class ChunkedCELoss(BaseLoss):
+         compile_config: CompileConfig | None = None,
+     ):
+         super().__init__(config, compile_config=compile_config)
+-        self.fn: LossFunction = cross_entropy_loss
++        from torchtitan.experiments.four_fusion.stable_ce import (
++            cross_entropy_loss as stable_ce,
++        )
++
++        self.fn: LossFunction = stable_ce
+         self._maybe_compile(compile_config)
+         self.num_chunks = config.num_chunks
+         self.num_chunks_on_monitoring_steps = config.num_chunks_on_monitoring_steps
+diff --git a/gift/torchtitan/distributed/deepep/hybridep.py b/gift/torchtitan/distributed/deepep/hybridep.py
+index 3b9099c4181f5d9813f442fc4c76594cb799a638..b7beef3b91b636a7779d0c2fc61a12ff39d3eedc 100644
+--- a/gift/torchtitan/distributed/deepep/hybridep.py
++++ b/gift/torchtitan/distributed/deepep/hybridep.py
+@@ -29,7 +29,8 @@ from torch.fx.experimental.symbolic_shapes import guard_or_true
+ 
+ from torchtitan.distributed.deepep.capacity import non_blocking_buffer_capacity
+ from torchtitan.distributed.deepep.fp8_state import FP8DispatchState
+-from torchtitan.distributed.deepep.routing import gather_route_gradients, indices_to_map
++from torchtitan.distributed.deepep.routing import gather_route_gradients
++from torchtitan.experiments.four_fusion.routing_metadata import indices_to_map
+ from torchtitan.ops.float8.fp8_tensor import (
+     bf16_grad_edge,
+     Float8BlockwiseQTensor,
+diff --git a/runs/overnight-streaming-perf/mds-dataloader.yaml b/runs/overnight-streaming-perf/mds-dataloader.yaml
+index 732a5ae518a07c991f1277dcc5681d70a9d282c9..96ffa7288f530c3017eadaff2fb29e52876e55ef 100644
+--- a/runs/overnight-streaming-perf/mds-dataloader.yaml
++++ b/runs/overnight-streaming-perf/mds-dataloader.yaml
+@@ -2,9 +2,9 @@ dataloader:
+   type: streaming_text
+   dataset:
+     streams:
+-      - name: c4_perf896
+-        local: "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096"
+-        split: train
++    - name: c4_perf896
++      local: /workspace-SR008.nfs2/vkropotin/opt-fq/runs/overnight-streaming-perf/artifacts/raw/mds4096
++      split: train
+     fim_rates:
+       vanilla_fim: 0.0
+       inline_fim: 0.0
+diff --git a/gift/torchtitan/experiments/flash_qla/__init__.py b/gift/torchtitan/experiments/flash_qla/__init__.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..644e5a59b4be993237f51b87c6860624d623463a
+--- /dev/null
++++ b/gift/torchtitan/experiments/flash_qla/__init__.py
+@@ -0,0 +1 @@
++"""Explicit opt-in FlashQLA experiment; importing registers nothing."""
+diff --git a/gift/torchtitan/experiments/flash_qla/backend.py b/gift/torchtitan/experiments/flash_qla/backend.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..87975f100cf864544a64b5fdb42faf2ed9be198c
+--- /dev/null
++++ b/gift/torchtitan/experiments/flash_qla/backend.py
+@@ -0,0 +1,213 @@
++"""Opt-in raw-gate GDN backends preserving the native opaque op and recompute VJP."""
++from __future__ import annotations
++
++from functools import cache
++import hashlib
++import importlib
++import inspect
++import logging
++import os
++from pathlib import Path
++import subprocess
++import sys
++
++import torch
++
++_LOG = logging.getLogger(__name__)
++_VARIANTS = {"fla", "external_gate", "fused_gate"}
++_ACTIVATED = set()
++
++
++def _variant(variant):
++    if variant not in _VARIANTS:
++        raise ValueError(f"Unknown GDN variant: {variant!r}")
++
++
++def _source(module, expected):
++    path = Path(module.__file__).resolve()
++    if not path.is_relative_to(expected.resolve()):
++        raise RuntimeError(f"Wrong staged source for {module.__name__}: {path}; expected {expected}")
++    return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
++
++
++@cache
++def _stage_sources():
++    # The training bridge adds gift/helpers only; do not rely on editable installs.
++    gift = Path(__file__).resolve().parents[3]
++    for relative in ("contrib/flash-linear-attention", "contrib/flash-qla"):
++        path = str(gift / relative)
++        if path not in sys.path:
++            sys.path.insert(0, path)
++
++
++@cache
++def _qla():
++    _stage_sources()
++    module = importlib.import_module("flash_qla.ops.gated_delta_rule.chunk")
++    _source(module, Path(__file__).resolve().parents[3] / "contrib/flash-qla")
++    return module
++
++
++def _validate(q, k, v, raw_g, beta, A_log, dt_bias, cu_seqlens, scale):
++    tensors = (q, k, v, raw_g, beta, A_log, dt_bias)
++    if any(not isinstance(t, torch.Tensor) for t in tensors):
++        raise ValueError("GDN requires q/k/v/raw_g/beta/A_log/dt_bias tensors")
++    if q.ndim != 4 or q.shape[-2:] != (16, 128) or k.shape != q.shape:
++        raise ValueError("GDN requires matching [B,S,16,128] q/k")
++    if v.shape != (*q.shape[:2], 32, 128):
++        raise ValueError("GDN requires [B,S,32,128] values (GVA=2)")
++    if raw_g.shape != v.shape[:3] or beta.shape != raw_g.shape:
++        raise ValueError("GDN gate and beta must have shape [B,S,32]")
++    if A_log.shape != (32,) or dt_bias.shape != (32,):
++        raise ValueError("GDN gate parameters must have shape [32]")
++    if any(t.dtype != torch.bfloat16 for t in tensors[:5]):
++        raise ValueError("GDN requires BF16 q/k/v/raw_g/beta")
++    if any(t.dtype not in (torch.bfloat16, torch.float32) for t in tensors[5:]):
++        raise ValueError("GDN gate parameters must be BF16 or FP32")
++    if q.device.type != "cuda" or any(t.device != q.device for t in tensors):
++        raise ValueError("GDN requires all tensors on the same CUDA device")
++    if cu_seqlens is not None:
++        if (q.shape[0] != 1 or cu_seqlens.ndim != 1
++                or cu_seqlens.dtype not in (torch.int32, torch.int64)
++                or cu_seqlens.device != q.device):
++            raise ValueError("GDN varlen requires B=1 and CUDA integer cu_seqlens")
++    if scale is not None and scale != 128 ** -0.5:
++        raise ValueError("GDN supports only default K**-0.5 scale")
++
++
++class _FusedGate(torch.autograd.Function):
++    @staticmethod
++    @torch.amp.custom_fwd(device_type="cuda")
++    def forward(ctx, q, k, v, raw_g, beta, A_log, dt_bias, cu_seqlens, scale):
++        from fla.ops.gated_delta_rule.gate import gdn_gate_chunk_cumsum
++
++        # Match the pinned public Function input guard before lower-level kernels.
++        q, k, v, raw_g, beta, A_log, dt_bias = (
++            tensor.contiguous() for tensor in (q, k, v, raw_g, beta, A_log, dt_bias)
++        )
++        cu_seqlens = cu_seqlens.contiguous() if cu_seqlens is not None else None
++        qla = _qla()
++        cp = qla._auto_intra_cp_context(k, v, cu_seqlens, qla.CHUNK_SIZE, False, True)
++        g = gdn_gate_chunk_cumsum(
++            g=raw_g, A_log=A_log, chunk_size=qla.CHUNK_SIZE,
++            scale=None, dt_bias=dt_bias, cu_seqlens=cu_seqlens,
++            output_dtype=torch.float32,
++        )
++        A = qla.kkt_solve(k=k, b=beta, cu_seqlens=cp.cu_seqlens, chunk_size=qla.CHUNK_SIZE)
++        initial_state, cp_cache = qla.cp_preprocess_fwd(
++            cp, k=k, v=v, a=A, g=g, beta=beta, initial_state=None,
++            state_v_first=False, enable_fwd_cp_cache=False,
++        )
++        out, _, _ = qla.fused_gdr_fwd(
++            q=q, k=k, v=v, a=A, g=g, b=beta, scale=scale,
++            initial_state=initial_state, output_final_state=False,
++            output_h=False, output_o=True, cu_seqlens=cp.cu_seqlens,
++            cp_seq_map=cp.seq_map_c2r, raw_cu_seqlens=cp.cu_seqlens,
++            state_v_first=False,
++        )
++        ctx.save_for_backward(q, k, v, raw_g, beta, A_log, dt_bias, g, A, cu_seqlens)
++        ctx.cp, ctx.cp_cache, ctx.scale = cp, cp_cache, scale
++        return out.to(q.dtype)
++
++    @staticmethod
++    @torch.amp.custom_bwd(device_type="cuda")
++    def backward(ctx, do):
++        from fla.ops.gated_delta_rule.gate import gdn_gate_bwd
++
++        q, k, v, raw_g, beta, A_log, dt_bias, g, A, cu = ctx.saved_tensors
++        dq, dk, dv, db, dg, _ = _qla().chunk_gated_delta_rule_bwd(
++            q=q, k=k, v=v, g=g, beta=beta, A=A, do=do.contiguous(),
++            dht=None, scale=ctx.scale, initial_state=None, cu_seqlens=cu,
++            state_v_first=False, auto_cp=False,
++            cp_cache=ctx.cp_cache, cp_context=ctx.cp,
++        )
++        # QLA already returns natural-log dg after reverse cumsum and GVA reduction.
++        dr, dA, dt = gdn_gate_bwd(g=raw_g, A_log=A_log, dt_bias=dt_bias, dyg=dg)
++        return dq.to(q), dk.to(k), dv.to(v), dr, db.to(beta), dA, dt, None, None
++
++
++def run_gdn(variant, q, k, v, raw_g, beta, A_log, dt_bias,
++            cu_seqlens=None, scale=None):
++    """Run a raw-gate GDN variant, failing on unsupported contracts."""
++    _variant(variant)
++    _validate(q, k, v, raw_g, beta, A_log, dt_bias, cu_seqlens, scale)
++    scale = 128 ** -0.5 if scale is None else scale
++    key = (variant, torch.is_grad_enabled())
++    if key not in _ACTIVATED:
++        _LOG.warning("GDN_BACKEND_ACTIVATED variant=%s grad_enabled=%s", *key)
++        _ACTIVATED.add(key)
++    if variant == "fla":
++        from fla.ops.gated_delta_rule import chunk_gated_delta_rule
++
++        # Remove dispatch and compiler wrappers to avoid dispatch recursion.
++        return inspect.unwrap(chunk_gated_delta_rule)(
++            q=q, k=k, v=v, g=raw_g, beta=beta, A_log=A_log,
++            dt_bias=dt_bias, use_gate_in_kernel=True,
++            use_qk_l2norm_in_kernel=False, output_final_state=False,
++            cu_seqlens=cu_seqlens, scale=scale,
++        )
++    if variant == "external_gate":
++        from fla.ops.gated_delta_rule.gate import fused_gdn_gate
++
++        g = fused_gdn_gate(raw_g, A_log, dt_bias, output_dtype=torch.float32)
++        return _qla().chunk_gated_delta_rule(
++            q=q, k=k, v=v, g=g, beta=beta, scale=scale,
++            initial_state=None, output_final_state=False,
++            use_qk_l2norm_in_kernel=False, cu_seqlens=cu_seqlens, auto_cp=False,
++        )
++    return _FusedGate.apply(q, k, v, raw_g, beta, A_log, dt_bias, cu_seqlens, scale), None
++
++
++def install_backend(variant: str) -> dict:
++    """Explicitly select a strict priority-zero backend for native GDN dispatch."""
++    _variant(variant)
++    if os.environ.get("FLA_DISABLE_BACKEND_DISPATCH") == "1":
++        raise RuntimeError("FLA_DISABLE_BACKEND_DISPATCH=1 prevents explicit GDN selection")
++    _stage_sources()
++    import fla.ops.backends as dispatch
++    from fla.ops.gated_delta_rule.backends import gdr_registry
++
++    if dispatch._DISPATCH_DISABLED:
++        raise RuntimeError("FLA dispatch was disabled when imported")
++    gift = Path(__file__).resolve().parents[3]
++    fla = importlib.import_module("fla.ops.gated_delta_rule.chunk")
++    identity = {
++        "variant": variant,
++        "fla_upstream_revision": "1d2281ff1b7988d8070f00dba5ffa9747ae3a60e",
++        "flash_qla_upstream_revision": "a14dbf3474514e1674526431e960325f72081e9f",
++        "task_head": subprocess.check_output(
++            ["git", "-C", str(gift), "rev-parse", "HEAD"], text=True
++        ).strip(),
++        "fla": _source(fla, gift / "contrib/flash-linear-attention"),
++        "backend": _source(importlib.import_module(__name__), gift),
++    }
++    if variant != "fla":
++        identity["flash_qla"] = _source(_qla(), gift / "contrib/flash-qla")
++
++    class SelectedBackend(dispatch.BaseBackend):
++        backend_type = "experimental_flash_qla_gate"
++        priority = 0
++
++        def verify(self, func_name, *args, **kwargs):
++            # Reject inside the implementation: default FLA verification swallows errors.
++            return func_name == "chunk_gated_delta_rule", None
++
++        def chunk_gated_delta_rule(
++            self, q, k, v, g, beta, scale=None, initial_state=None,
++            output_final_state=False, use_qk_l2norm_in_kernel=False,
++            use_beta_sigmoid_in_kernel=False, allow_neg_eigval=False,
++            state_v_first=False, cu_seqlens=None, cu_seqlens_cpu=None,
++            cp_context=None, **kwargs,
++        ):
++            use_gate = kwargs.pop("use_gate_in_kernel", False)
++            A_log = kwargs.pop("A_log", None)
++            dt_bias = kwargs.pop("dt_bias", None)
++            if (initial_state is not None or output_final_state or
++                    use_qk_l2norm_in_kernel or use_beta_sigmoid_in_kernel or
++                    allow_neg_eigval or state_v_first or cp_context is not None or
++                    not use_gate or kwargs):
++                raise ValueError("Explicit GDN backend requires raw gate, upstream qknorm, CP1, no state or extra flags")
++            return run_gdn(variant, q, k, v, g, beta, A_log, dt_bias, cu_seqlens, scale)
++
++    gdr_registry.register(SelectedBackend())
++    return identity
+diff --git a/gift/torchtitan/experiments/flash_qla/README.md b/gift/torchtitan/experiments/flash_qla/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..e5b78c703ca37880b6f06323f43b8d2009c41d13
+--- /dev/null
++++ b/gift/torchtitan/experiments/flash_qla/README.md
+@@ -0,0 +1,38 @@
++# FlashQLA raw-gate experiment
++
++`install_backend(variant)` explicitly installs a strict priority-zero FLA GDN
++backend. Importing the module does not register a backend. Supported variants
++are `fla`, `external_gate`, and `fused_gate`; selection also overrides the
++builtin FlashQLA backend for the explicit `fla` reference. Unsupported inputs
++raise in the selected implementation rather than permitting dispatcher fallback.
++
++The integration preserves the existing GDN opaque op, selective activation
++checkpointing, and recompute VJP. Inputs have BF16 q/k heads 16x128, value heads
++32x128, raw gate and beta; A_log/dt_bias may be BF16 or FP32. Gate arithmetic and
++cumulative gates are FP32. Context parallelism and recurrent states are excluded.
++The default scale is 128**-0.5. Q/k normalization occurs upstream.
++
++The external variant computes the FLA gate and invokes the public FlashQLA
++chunk operation with automatic CP disabled. The fused variant replaces only
++FlashQLA's gate/cumsum forward orchestration using FLA's existing fused gate
++cumsum. It reuses the pinned FlashQLA backward, which already reverses the
++cumsum and reduces GVA gradients, then applies the FLA gate backward.
++Upstream revisions and actual source paths/hashes are returned by installation;
++the task HEAD is recorded separately from the upstream pins.
++
++## Runtime costs and validation limits
++
++The external variant retains a separate FP32 gate intermediate and gate kernel.
++The fused variant retains cumulative FP32 gates and KKT output for autograd,
++avoiding the separate per-token gate output. Backward still recomputes FlashQLA
++states; the native opaque-op VJP still repeats the forward. Checkpoint replay
++therefore retains the native 2F+B or 3F+B execution pattern. No collectives,
++device scalar reads, or new device synchronization are added. Activation logging
++occurs once per variant and grad mode; source validation and kernel module
++loading are cached, with no repeated filesystem I/O in the hot path.
++
++CPU tests cover guards, real FLA registry selection/failure behavior, and custom
++autograd orchestration with kernel doubles. They do not validate GPU arithmetic,
++TileLang compilation, GVA kernel behavior, peak memory, CUDA Graphs, compiled
++training, checkpoint replay, or performance. These require the authorized GPU
++validation harness before production acceptance. No speedup is claimed.
+diff --git a/gift/tests/unit_tests/test_flash_qla_gate_backend.py b/gift/tests/unit_tests/test_flash_qla_gate_backend.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a45857b4eea8fc5d30299207d5f8eaa4a7b42f82
+--- /dev/null
++++ b/gift/tests/unit_tests/test_flash_qla_gate_backend.py
+@@ -0,0 +1,212 @@
++"""CPU checks for strict backend selection; no kernel or numerical GPU claims."""
++import importlib
++from pathlib import Path
++
++import pytest
++import torch
++
++from torchtitan.experiments.flash_qla import backend
++
++
++@pytest.fixture
++def registry():
++    backend._stage_sources()
++    from fla.ops.gated_delta_rule.backends import gdr_registry
++
++    saved = dict(gdr_registry._backends)
++    try:
++        yield gdr_registry
++    finally:
++        gdr_registry._backends = saved
++        gdr_registry._update_active_backend()
++
++
++def inputs():
++    q = torch.empty(1, 2, 16, 128, dtype=torch.bfloat16)
++    v = torch.empty(1, 2, 32, 128, dtype=torch.bfloat16)
++    g = torch.empty(1, 2, 32, dtype=torch.bfloat16)
++    p = torch.empty(32, dtype=torch.float32)
++    return q, q.clone(), v, g, g.clone(), p, p.clone()
++
++
++def test_import_does_not_register(registry):
++    saved = dict(registry._backends)
++    importlib.reload(backend)
++    assert registry._backends == saved
++
++
++def test_install_fla_is_explicit_priority_zero(registry, monkeypatch):
++    monkeypatch.delenv("FLA_DISABLE_BACKEND_DISPATCH", raising=False)
++    identity = backend.install_backend("fla")
++    selected = registry.get_active()
++    assert selected.backend_type == "experimental_flash_qla_gate"
++    assert selected.priority == 0
++    assert identity["variant"] == "fla"
++    assert len(identity["task_head"]) == 40
++    expected = Path(backend.__file__).resolve().parents[3] / "contrib/flash-linear-attention"
++    assert Path(identity["fla"]["path"]).is_relative_to(expected)
++    assert len(identity["backend"]["sha256"]) == 64
++
++
++def test_disabled_dispatch_fails_before_registration(registry, monkeypatch):
++    saved = dict(registry._backends)
++    monkeypatch.setenv("FLA_DISABLE_BACKEND_DISPATCH", "1")
++    with pytest.raises(RuntimeError, match="FLA_DISABLE_BACKEND_DISPATCH"):
++        backend.install_backend("fla")
++    assert saved == registry._backends
++
++
++def test_import_time_disabled_dispatch_fails(registry, monkeypatch):
++    import fla.ops.backends as dispatch
++
++    monkeypatch.delenv("FLA_DISABLE_BACKEND_DISPATCH", raising=False)
++    monkeypatch.setattr(dispatch, "_DISPATCH_DISABLED", True)
++    with pytest.raises(RuntimeError, match="disabled when imported"):
++        backend.install_backend("fla")
++
++
++@pytest.mark.parametrize("variant", ["fla", "external_gate", "fused_gate"])
++def test_cpu_inputs_fail_without_loading_qla(variant, monkeypatch):
++    def forbidden():
++        raise AssertionError("Kernel import reached for unsupported CPU inputs")
++
++    monkeypatch.setattr(backend, "_qla", forbidden)
++    with pytest.raises(ValueError, match="same CUDA device"):
++        backend.run_gdn(variant, *inputs())
++
++
++def test_shape_and_dtype_guards():
++    q, k, v, g, b, a, dt = inputs()
++    with pytest.raises(ValueError, match="16,128"):
++        backend.run_gdn("fla", q[:, :, :8], k, v, g, b, a, dt)
++    with pytest.raises(ValueError, match="BF16 q/k/v"):
++        backend.run_gdn("fla", q.float(), k, v, g, b, a, dt)
++    with pytest.raises(ValueError, match="BF16 or FP32"):
++        backend.run_gdn("fla", q, k, v, g, b, a.double(), dt)
++    with pytest.raises(ValueError, match="Unknown GDN variant"):
++        backend.run_gdn("unknown", q, k, v, g, b, a, dt)
++
++
++@pytest.mark.parametrize("extra", [
++    {"output_final_state": True}, {"initial_state": object()},
++    {"use_qk_l2norm_in_kernel": True}, {"cp_context": object()},
++    {"use_beta_sigmoid_in_kernel": True}, {"allow_neg_eigval": True},
++    {"state_v_first": True}, {"unrecognized_flag": True},
++    {"use_gate_in_kernel": False},
++])
++def test_selected_dispatch_never_falls_back(registry, monkeypatch, extra):
++    monkeypatch.delenv("FLA_DISABLE_BACKEND_DISPATCH", raising=False)
++    backend.install_backend("fla")
++    from fla.ops.gated_delta_rule import chunk_gated_delta_rule
++
++    q, k, v, g, b, a, dt = inputs()
++    options = {"use_gate_in_kernel": True, "A_log": a, "dt_bias": dt}
++    options.update(extra)
++    # Exercise the real FLA dispatcher: a swallowed verifier error would reach fallback.
++    with pytest.raises(ValueError, match="Explicit GDN backend requires"):
++        chunk_gated_delta_rule(q=q, k=k, v=v, g=g, beta=b, **options)
++
++
++def test_stale_source_is_rejected():
++    with pytest.raises(RuntimeError, match="Wrong staged source"):
++        backend._source(backend, Path("/unrelated-checkout"))
++
++
++@pytest.mark.parametrize("parameter_dtype", [torch.bfloat16, torch.float32])
++@pytest.mark.parametrize("strided", [False, True])
++def test_fused_autograd_orchestration_cpu(monkeypatch, parameter_dtype, strided):
++    """Run the real custom Function with CPU doubles only at GPU kernel boundaries."""
++    from types import SimpleNamespace
++    import fla.ops.gated_delta_rule.gate as gate
++
++    q, k, v, raw, beta, a, dt = inputs()
++    a, dt = a.to(parameter_dtype), dt.to(parameter_dtype)
++    if strided:
++        q, k, v, raw, beta, a, dt = (
++            torch.empty(*t.shape, 2, dtype=t.dtype)[..., 0]
++            for t in (q, k, v, raw, beta, a, dt)
++        )
++    values = (q, k, v, raw, beta, a, dt)
++    for value in values:
++        value.requires_grad_(True)
++    calls = []
++    cp = SimpleNamespace(cu_seqlens=None, seq_map_c2r=None)
++    cumulative = torch.zeros_like(raw, dtype=torch.float32)
++    natural_dg = torch.ones_like(raw, dtype=torch.float32)
++
++    def cumulative_gate(**kw):
++        assert all(kw[name].is_contiguous() for name in ("g", "A_log", "dt_bias"))
++        assert kw["g"].shape == raw.shape and kw["A_log"].dtype == parameter_dtype
++        assert kw["chunk_size"] == 64 and kw["scale"] is None
++        assert kw["output_dtype"] == torch.float32
++        calls.append("gate_cumsum")
++        return cumulative
++
++    def preprocess(context, **kw):
++        assert context is cp and kw["g"] is cumulative
++        assert not kw["enable_fwd_cp_cache"]
++        calls.append("cp_noop")
++        return None, None
++
++    def forward(**kw):
++        assert kw["g"] is cumulative and kw["initial_state"] is None
++        assert all(kw[name].is_contiguous() for name in ("q", "k", "v", "b"))
++        assert not kw["output_final_state"] and not kw["output_h"]
++        calls.append("qla_forward")
++        return v.clone(), None, None
++
++    def backward(**kw):
++        assert kw["cp_context"] is cp and not kw["auto_cp"]
++        assert kw["g"] is cumulative and kw["do"].is_contiguous()
++        calls.append("qla_backward")
++        return q.float().zero_(), k.float().zero_(), v.float().zero_(), beta.float().zero_(), natural_dg, None
++
++    def gate_backward(**kw):
++        assert kw["dyg"] is natural_dg  # No second reverse cumsum or log2 scaling.
++        calls.append("gate_backward")
++        return torch.ones_like(raw), torch.ones_like(a), torch.ones_like(dt)
++
++    qla = SimpleNamespace(
++        CHUNK_SIZE=64, _auto_intra_cp_context=lambda *args: cp,
++        kkt_solve=lambda **kw: torch.empty(0), cp_preprocess_fwd=preprocess,
++        fused_gdr_fwd=forward, chunk_gated_delta_rule_bwd=backward,
++    )
++    monkeypatch.setattr(backend, "_qla", lambda: qla)
++    monkeypatch.setattr(gate, "gdn_gate_chunk_cumsum", cumulative_gate)
++    monkeypatch.setattr(gate, "gdn_gate_bwd", gate_backward)
++    output = backend._FusedGate.apply(*values, None, 128 ** -0.5)
++    output.float().sum().backward()
++    assert calls == ["gate_cumsum", "cp_noop", "qla_forward", "qla_backward", "gate_backward"]
++    for value in values:
++        assert value.grad is not None and value.grad.dtype == value.dtype
++
++
++def test_install_rejects_stale_imported_fla(registry, monkeypatch):
++    from types import SimpleNamespace
++
++    original_import = importlib.import_module
++    stale = SimpleNamespace(__name__="fla.ops.gated_delta_rule.chunk",
++                            __file__="/tmp/stale-checkout/fla/ops/gated_delta_rule/chunk.py")
++
++    def load(name):
++        return stale if name == stale.__name__ else original_import(name)
++
++    monkeypatch.setattr(backend.importlib, "import_module", load)
++    with pytest.raises(RuntimeError, match="Wrong staged source"):
++        backend.install_backend("fla")
++
++
++def test_qla_module_provenance_is_cached(monkeypatch):
++    from types import SimpleNamespace
++
++    backend._qla.cache_clear()
++    module = SimpleNamespace()
++    checked = []
++    monkeypatch.setattr(backend.importlib, "import_module", lambda name: module)
++    monkeypatch.setattr(backend, "_source", lambda *args: checked.append(args))
++    try:
++        assert backend._qla() is module
++        assert backend._qla() is module
++        assert len(checked) == 1
++    finally:
++        backend._qla.cache_clear()
+diff --git a/runs/flash-qla/run.py b/runs/flash-qla/run.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..89a2c5f00ed2c60886334a4d07245804d2d80414
+--- /dev/null
++++ b/runs/flash-qla/run.py
+@@ -0,0 +1,351 @@
++#!/usr/bin/env python3
++"""Run the native streaming benchmark with an explicitly selected FlashQLA backend."""
++
++from __future__ import annotations
++
++import argparse
++import hashlib
++import importlib.util
++import json
++import os
++import sys
++from pathlib import Path
++from typing import Any, Callable
++
++TASK_ROOT = Path(__file__).resolve().parents[2]
++BRIDGE_DIR = Path(__file__).resolve().parent
++BASE_RUNNER_PATH = TASK_ROOT / "runs/overnight-streaming-perf/run.py"
++BRIDGE_MEASURE_PATH = BRIDGE_DIR / "measure.py"
++DEFAULT_OUTPUT_ROOT = BRIDGE_DIR / "artifacts/raw"
++BACKENDS = ("fla", "external_gate", "fused_gate")
++
++ENV_BACKEND = "TASK_FLASHQLA_BACKEND"
++ENV_CAPTURE_MODE = "TASK_FLASHQLA_CAPTURE_MODE"
++ENV_CAPTURE_DIR = "TASK_FLASHQLA_CAPTURE_DIR"
++ENV_TILELANG_ROOT = "TASK_FLASHQLA_TILELANG_ROOT"
++ENV_SOURCE_IDENTITY = "TASK_FLASHQLA_SOURCE_IDENTITY"
++
++
++def _load_module(path: Path, module_name: str) -> Any:
++    spec = importlib.util.spec_from_file_location(module_name, path)
++    if spec is None or spec.loader is None:
++        raise RuntimeError(f"cannot load task runner module from {path}")
++    module = importlib.util.module_from_spec(spec)
++    sys.modules[module_name] = module
++    try:
++        spec.loader.exec_module(module)
++    except BaseException:
++        sys.modules.pop(module_name, None)
++        raise
++    return module
++
++
++def _load_base_runner() -> Any:
++    return _load_module(BASE_RUNNER_PATH, "_flash_qla_overnight_runner")
++
++
++def _parse_bridge_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
++    parser = argparse.ArgumentParser(
++        description=__doc__,
++        allow_abbrev=False,
++        epilog=(
++            "All remaining arguments are forwarded unchanged to "
++            "runs/overnight-streaming-perf/run.py."
++        ),
++    )
++    parser.add_argument(
++        "--gdn-backend",
++        choices=BACKENDS,
++        required=True,
++        help="explicit native FlashQLA backend variant for this run",
++    )
++    parser.add_argument(
++        "--capture-fixtures",
++        type=Path,
++        metavar="PATH",
++        help="capture native FLA VJP fixtures into this fresh run-owned directory",
++    )
++    args, forwarded = parser.parse_known_args(argv)
++    if args.capture_fixtures is not None and args.gdn_backend != "fla":
++        parser.error("--capture-fixtures requires --gdn-backend fla")
++    return args, forwarded
++
++
++def _add_default_output_root(argv: list[str], output_root: Path) -> list[str]:
++    if any(arg == "--output-root" or arg.startswith("--output-root=") for arg in argv):
++        return list(argv)
++    return [*argv, "--output-root", str(output_root)]
++
++
++def _file_sha256(path: Path) -> str:
++    if not path.is_symlink() and not path.is_file():
++        raise RuntimeError(f"FlashQLA bridge source file is missing: {path}")
++    if path.is_symlink():
++        raise RuntimeError(f"FlashQLA bridge source file must not be a symlink: {path}")
++    digest = hashlib.sha256()
++    with path.open("rb") as handle:
++        for block in iter(lambda: handle.read(1024 * 1024), b""):
++            digest.update(block)
++    return digest.hexdigest()
++
++
++def _tree_sha256(root: Path) -> tuple[str | None, int]:
++    if not root.is_dir():
++        return None, 0
++    digest = hashlib.sha256()
++    count = 0
++    for path in sorted(root.rglob("*.py")):
++        if path.is_symlink():
++            raise RuntimeError(f"FlashQLA source tree contains a symlink: {path}")
++        relative = path.relative_to(root).as_posix().encode("utf-8")
++        digest.update(relative)
++        digest.update(b"\0")
++        digest.update(path.read_bytes())
++        digest.update(b"\0")
++        count += 1
++    return (digest.hexdigest() if count else None), count
++
++
++def _bridge_source_hashes() -> dict[str, str]:
++    paths = (
++        BRIDGE_DIR / "run.py",
++        BRIDGE_MEASURE_PATH,
++        BRIDGE_DIR / "capture.py",
++    )
++    missing = [str(path) for path in paths if not path.is_file()]
++    if missing:
++        raise RuntimeError(f"FlashQLA bridge source files are missing: {missing}")
++    return {
++        str(path.relative_to(TASK_ROOT)): _file_sha256(path)
++        for path in paths
++    }
++
++
++def _source_identity(base: Any) -> dict[str, Any]:
++    backend_path = Path(base.GIFT_ROOT) / "torchtitan/experiments/flash_qla/backend.py"
++    staged_package = Path(base.GIFT_ROOT) / "contrib/flash-qla/flash_qla"
++    staged_sha256, staged_file_count = _tree_sha256(staged_package)
++    if not backend_path.is_file():
++        raise RuntimeError(f"FlashQLA backend integration is missing: {backend_path}")
++    if staged_sha256 is None:
++        raise RuntimeError(f"staged FlashQLA Python source is missing: {staged_package}")
++    bridge_sources = _bridge_source_hashes()
++    head = base._git(TASK_ROOT, "rev-parse", "HEAD").stdout.decode().strip()
++    return {
++        "task_git_head": head,
++        "backend_module": {
++            "path": str(backend_path),
++            "sha256": _file_sha256(backend_path),
++        },
++        "staged_python_source": {
++            "path": str(staged_package),
++            "sha256": staged_sha256,
++            "file_count": staged_file_count,
++        },
++        "bridge_sources": bridge_sources,
++    }
++
++
++def _path_has_symlink_component(path: Path, root: Path) -> bool:
++    try:
++        relative = path.relative_to(root)
++    except ValueError:
++        return True
++    current = root
++    if current.is_symlink():
++        return True
++    for component in relative.parts:
++        current = current / component
++        if current.is_symlink():
++            return True
++    return False
++
++
++def _capture_directory(requested: Path, attempt: Path) -> Path:
++    root = TASK_ROOT.resolve()
++    attempt = attempt.resolve()
++    candidate = requested if requested.is_absolute() else root / requested
++    if not candidate.is_absolute() or ".." in candidate.parts:
++        raise RuntimeError("--capture-fixtures must be an absolute task-owned path without ..")
++    try:
++        relative = candidate.relative_to(attempt)
++    except ValueError as exc:
++        raise RuntimeError("--capture-fixtures must be inside this run attempt") from exc
++    if not relative.parts:
++        raise RuntimeError("--capture-fixtures must name a new directory inside the attempt")
++    if _path_has_symlink_component(candidate, attempt):
++        raise RuntimeError("--capture-fixtures must not contain symlink components")
++    resolved = candidate.resolve()
++    if resolved.exists():
++        raise RuntimeError(f"--capture-fixtures must be a fresh directory: {resolved}")
++    return resolved
++
++
++def _build_config_hashes_hook(base: Any) -> Callable[[], dict[str, Any]]:
++    original = base._config_hashes
++
++    def config_hashes() -> dict[str, Any]:
++        hashes = original()
++        hashes["flash_qla_bridge_sources"] = _bridge_source_hashes()
++        return hashes
++
++    return config_hashes
++
++
++def _build_environment_hook(
++    base: Any,
++    *,
++    backend: str,
++    capture_fixtures: Path | None,
++) -> Callable[[dict[str, Path]], dict[str, str]]:
++    original = base._run_environment
++
++    def run_environment(paths: dict[str, Path]) -> dict[str, str]:
++        env = original(paths)
++        for key in (
++            ENV_BACKEND,
++            ENV_CAPTURE_MODE,
++            ENV_CAPTURE_DIR,
++            ENV_TILELANG_ROOT,
++            ENV_SOURCE_IDENTITY,
++            "TILELANG_CACHE_DIR",
++            "TILELANG_TMP_DIR",
++        ):
++            env.pop(key, None)
++
++        existing_pythonpath = env.get("PYTHONPATH")
++        existing_entries = existing_pythonpath.split(os.pathsep) if existing_pythonpath else []
++        staged_sources = (
++            str((Path(base.GIFT_ROOT).resolve() / "contrib/flash-linear-attention").resolve()),
++            str((Path(base.GIFT_ROOT).resolve() / "contrib/flash-qla").resolve()),
++        )
++        required_paths = (
++            str(Path(base.GIFT_ROOT).resolve()),
++            str(Path(base.HELPER_DIR).resolve()),
++            str(BRIDGE_DIR.resolve()),
++        )
++        env["PYTHONPATH"] = os.pathsep.join(
++            dict.fromkeys((*staged_sources, *existing_entries, *required_paths))
++        )
++        env[ENV_BACKEND] = backend
++        env[ENV_CAPTURE_MODE] = "fixtures" if capture_fixtures is not None else "disabled"
++
++        attempt = Path(paths["attempt"]).resolve()
++        tilelang_root = attempt / "cache" / "tilelang"
++        tilelang_root.mkdir(parents=True, exist_ok=False)
++        (tilelang_root / "tmp").mkdir()
++        for rank in range(8):
++            rank_root = tilelang_root / f"rank_{rank}"
++            rank_root.mkdir()
++            (rank_root / "tmp").mkdir()
++
++        env[ENV_TILELANG_ROOT] = str(tilelang_root)
++        env["TILELANG_CACHE_DIR"] = str(tilelang_root)
++        env["TILELANG_TMP_DIR"] = str(tilelang_root / "tmp")
++        source_identity = _source_identity(base)
++        env[ENV_SOURCE_IDENTITY] = json.dumps(source_identity, sort_keys=True)
++
++        capture_dir: Path | None = None
++        if capture_fixtures is not None:
++            if not (BRIDGE_DIR / "capture.py").is_file():
++                raise RuntimeError("fixture capture was requested but capture.py is missing")
++            capture_dir = _capture_directory(capture_fixtures, attempt)
++            capture_dir.mkdir(parents=True, exist_ok=False)
++            env[ENV_CAPTURE_DIR] = str(capture_dir)
++
++        receipt = {
++            "schema_version": 1,
++            "run_id": attempt.name,
++            "backend_variant": backend,
++            "capture_mode": env[ENV_CAPTURE_MODE],
++            "capture_fixture_dir": None if capture_dir is None else str(capture_dir),
++            "capture_timing_disposition": (
++                "discarded; fixture acquisition is not a performance comparison"
++                if capture_dir is not None
++                else None
++            ),
++            "source_identity": source_identity,
++            "tilelang_cache_root": str(tilelang_root),
++            "tilelang_tmp_root": str(tilelang_root / "tmp"),
++            "tilelang_rank_directories": {
++                str(rank): {
++                    "cache": str(tilelang_root / f"rank_{rank}"),
++                    "tmp": str(tilelang_root / f"rank_{rank}" / "tmp"),
++                }
++                for rank in range(8)
++            },
++        }
++        with (attempt / "flash-qla-bridge.json").open("x", encoding="utf-8") as handle:
++            json.dump(receipt, handle, sort_keys=True, indent=2)
++            handle.write("\n")
++        return env
++
++    return run_environment
++
++
++def _replace_measure_script(
++    command: list[str], base_measure_path: Path, bridge_measure_path: Path
++) -> list[str]:
++    expected = str(base_measure_path.resolve())
++    matches = [index for index, value in enumerate(command) if value == expected]
++    if len(matches) != 1:
++        raise RuntimeError(
++            f"expected exactly one generated base measure.py path, found {len(matches)}"
++        )
++    replaced = list(command)
++    replaced[matches[0]] = str(bridge_measure_path.resolve())
++    return replaced
++
++
++def _build_command_hook(
++    base: Any, bridge_measure_path: Path = BRIDGE_MEASURE_PATH
++) -> Callable[[Any, dict[str, Path]], list[str]]:
++    original = base._command
++    base_measure_path = Path(base.HELPER_DIR) / "measure.py"
++
++    def command(args: Any, paths: dict[str, Path]) -> list[str]:
++        generated = original(args, paths)
++        return _replace_measure_script(generated, base_measure_path, bridge_measure_path)
++
++    return command
++
++
++def main(argv: list[str] | None = None) -> int:
++    bridge_args, forwarded = _parse_bridge_args(argv)
++    forwarded = _add_default_output_root(forwarded, DEFAULT_OUTPUT_ROOT)
++    base = _load_base_runner()
++    if Path(base.TASK_ROOT).resolve() != TASK_ROOT.resolve():
++        raise RuntimeError(
++            f"base runner task root differs from FlashQLA bridge root: {base.TASK_ROOT}"
++        )
++
++    original_environment = base._run_environment
++    original_command = base._command
++    original_config_hashes = base._config_hashes
++    helper_dir = Path(base.HELPER_DIR).resolve()
++    inserted_helper = str(helper_dir) not in sys.path
++    if inserted_helper:
++        sys.path.insert(0, str(helper_dir))
++    base._run_environment = _build_environment_hook(
++        base,
++        backend=bridge_args.gdn_backend,
++        capture_fixtures=bridge_args.capture_fixtures,
++    )
++    base._command = _build_command_hook(base)
++    base._config_hashes = _build_config_hashes_hook(base)
++    try:
++        return int(base.main(forwarded))
++    finally:
++        base._run_environment = original_environment
++        base._command = original_command
++        base._config_hashes = original_config_hashes
++        if inserted_helper:
++            try:
++                sys.path.remove(str(helper_dir))
++            except ValueError:
++                pass
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
++
+diff --git a/runs/flash-qla/measure.py b/runs/flash-qla/measure.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..35b494d3b398828e87bb6aff84f5100d48f9e979
+--- /dev/null
++++ b/runs/flash-qla/measure.py
+@@ -0,0 +1,303 @@
++#!/usr/bin/env python3
++"""Native measurement bridge that installs an explicit FlashQLA backend per rank."""
++
++from __future__ import annotations
++
++import importlib
++import importlib.util
++import json
++import os
++import sys
++from pathlib import Path
++from typing import Any, Callable
++
++TASK_ROOT = Path(__file__).resolve().parents[2]
++BRIDGE_DIR = Path(__file__).resolve().parent
++BASE_MEASURE_PATH = TASK_ROOT / "runs/overnight-streaming-perf/measure.py"
++BACKENDS = {"fla", "external_gate", "fused_gate"}
++
++ENV_BACKEND = "TASK_FLASHQLA_BACKEND"
++ENV_CAPTURE_MODE = "TASK_FLASHQLA_CAPTURE_MODE"
++ENV_CAPTURE_DIR = "TASK_FLASHQLA_CAPTURE_DIR"
++ENV_TILELANG_ROOT = "TASK_FLASHQLA_TILELANG_ROOT"
++ENV_SOURCE_IDENTITY = "TASK_FLASHQLA_SOURCE_IDENTITY"
++
++
++def _load_module(path: Path, module_name: str) -> Any:
++    spec = importlib.util.spec_from_file_location(module_name, path)
++    if spec is None or spec.loader is None:
++        raise RuntimeError(f"cannot load native measurement adapter from {path}")
++    module = importlib.util.module_from_spec(spec)
++    sys.modules[module_name] = module
++    try:
++        spec.loader.exec_module(module)
++    except BaseException:
++        sys.modules.pop(module_name, None)
++        raise
++    return module
++
++
++def _load_base_measure() -> Any:
++    return _load_module(BASE_MEASURE_PATH, "_flash_qla_overnight_measure")
++
++
++def _rank_environment(name: str) -> int:
++    value = os.environ.get(name)
++    if value is None:
++        raise RuntimeError(f"{name} must be set for the FlashQLA native runner")
++    try:
++        rank = int(value)
++    except ValueError as exc:
++        raise RuntimeError(f"{name} must be an integer in [0, 7], got {value!r}") from exc
++    if not 0 <= rank < 8:
++        raise RuntimeError(f"{name} must be an integer in [0, 7], got {rank}")
++    return rank
++
++
++def _bridge_configuration() -> tuple[str, str, Path | None, dict[str, Any]]:
++    backend = os.environ.get(ENV_BACKEND, "")
++    if backend not in BACKENDS:
++        raise RuntimeError(f"{ENV_BACKEND} must be one of {sorted(BACKENDS)}, got {backend!r}")
++    capture_mode = os.environ.get(ENV_CAPTURE_MODE, "")
++    if capture_mode not in {"disabled", "fixtures"}:
++        raise RuntimeError(
++            f"{ENV_CAPTURE_MODE} must be 'disabled' or 'fixtures', got {capture_mode!r}"
++        )
++    capture_text = os.environ.get(ENV_CAPTURE_DIR)
++    capture_dir = Path(capture_text) if capture_text else None
++    if capture_mode == "fixtures":
++        if backend != "fla":
++            raise RuntimeError("fixture capture requires the native FLA backend")
++        if capture_dir is None:
++            raise RuntimeError(f"{ENV_CAPTURE_DIR} is required in fixture capture mode")
++    elif capture_dir is not None:
++        raise RuntimeError(f"{ENV_CAPTURE_DIR} must be unset when fixture capture is disabled")
++    try:
++        source_identity = json.loads(os.environ[ENV_SOURCE_IDENTITY])
++    except KeyError as exc:
++        raise RuntimeError(f"{ENV_SOURCE_IDENTITY} must be set for every run") from exc
++    except json.JSONDecodeError as exc:
++        raise RuntimeError(f"{ENV_SOURCE_IDENTITY} must contain JSON") from exc
++    if not isinstance(source_identity, dict):
++        raise RuntimeError(f"{ENV_SOURCE_IDENTITY} must contain a JSON object")
++    return backend, capture_mode, capture_dir, source_identity
++
++
++def _measurement_dir(adapter: Any) -> Path:
++    options = getattr(adapter, "options", None)
++    if not isinstance(options, dict) or "output_dir" not in options:
++        raise RuntimeError("native adapter does not expose its measurement output directory")
++    measurement = Path(options["output_dir"]).resolve()
++    try:
++        measurement.relative_to(TASK_ROOT.resolve())
++    except ValueError as exc:
++        raise RuntimeError(f"native measurement directory is outside the task root: {measurement}") from exc
++    if not measurement.is_dir():
++        raise RuntimeError(f"native measurement directory is missing: {measurement}")
++    return measurement
++
++
++def _configure_tilelang_cache(adapter: Any, global_rank: int) -> tuple[Path, Path]:
++    measurement = _measurement_dir(adapter)
++    expected_root = measurement.parent / "cache" / "tilelang"
++    configured_root_text = os.environ.get(ENV_TILELANG_ROOT)
++    if not configured_root_text:
++        raise RuntimeError(f"{ENV_TILELANG_ROOT} must route TileLang caches into this run")
++    configured_root = Path(configured_root_text).resolve()
++    if configured_root != expected_root.resolve():
++        raise RuntimeError(
++            f"{ENV_TILELANG_ROOT} must name this attempt's TileLang cache: {configured_root}"
++        )
++    if configured_root.is_symlink() or not configured_root.is_dir():
++        raise RuntimeError(f"task-owned TileLang cache root is missing or unsafe: {configured_root}")
++
++    rank_root = configured_root / f"rank_{global_rank}"
++    tmp_dir = rank_root / "tmp"
++    if rank_root.is_symlink() or tmp_dir.is_symlink() or not rank_root.is_dir() or not tmp_dir.is_dir():
++        raise RuntimeError(f"task-owned TileLang rank cache is missing or unsafe: {rank_root}")
++    cache_dir = rank_root
++    os.environ["TILELANG_CACHE_DIR"] = str(cache_dir)
++    os.environ["TILELANG_TMP_DIR"] = str(tmp_dir)
++    return cache_dir, tmp_dir
++
++
++def _load_backend_installer() -> Callable[[str], Any]:
++    module = importlib.import_module("torchtitan.experiments.flash_qla.backend")
++    installer = getattr(module, "install_backend", None)
++    if not callable(installer):
++        raise RuntimeError("FlashQLA backend module does not expose install_backend")
++    return installer
++
++
++def _load_capture_installer() -> Callable[..., Any]:
++    capture_path = BRIDGE_DIR / "capture.py"
++    spec = importlib.util.spec_from_file_location("_flash_qla_fixture_capture", capture_path)
++    if spec is None or spec.loader is None:
++        raise RuntimeError(f"cannot load FlashQLA fixture capture adapter from {capture_path}")
++    module = importlib.util.module_from_spec(spec)
++    sys.modules[spec.name] = module
++    try:
++        spec.loader.exec_module(module)
++    except BaseException:
++        sys.modules.pop(spec.name, None)
++        raise
++    installer = getattr(module, "install_capture", None)
++    if not callable(installer):
++        raise RuntimeError("FlashQLA capture module does not expose install_capture")
++    return installer
++
++
++def _validate_capture_directory(capture_dir: Path, measurement: Path) -> Path:
++    attempt = measurement.parent.resolve()
++    if not capture_dir.is_absolute() or ".." in capture_dir.parts:
++        raise RuntimeError(f"{ENV_CAPTURE_DIR} must be an absolute task-owned path")
++    try:
++        relative = capture_dir.relative_to(attempt)
++    except ValueError as exc:
++        raise RuntimeError(f"{ENV_CAPTURE_DIR} must remain inside this run attempt") from exc
++    if not relative.parts:
++        raise RuntimeError(f"{ENV_CAPTURE_DIR} must name a fresh directory inside the attempt")
++    current = attempt
++    if current.is_symlink():
++        raise RuntimeError(f"{ENV_CAPTURE_DIR} must not contain symlink components")
++    for component in relative.parts:
++        current = current / component
++        if current.is_symlink():
++            raise RuntimeError(f"{ENV_CAPTURE_DIR} must not contain symlink components")
++    resolved = capture_dir.resolve()
++    if not resolved.is_dir():
++        raise RuntimeError(f"{ENV_CAPTURE_DIR} must be a run-owned directory: {resolved}")
++    return resolved
++
++
++def _write_bootstrap_receipt(
++    *,
++    measurement: Path,
++    rank: int,
++    local_rank: int,
++    backend: str,
++    capture_mode: str,
++    capture_dir: Path | None,
++    identity: Any,
++    source_identity: dict[str, Any],
++    cuda_device: int,
++    tilelang_cache_dir: Path,
++    tilelang_tmp_dir: Path,
++) -> dict[str, Any]:
++    try:
++        json.dumps(identity)
++    except (TypeError, ValueError) as exc:
++        raise RuntimeError("FlashQLA installer identity must be JSON-serializable") from exc
++    receipt = {
++        "schema_version": 1,
++        "rank": rank,
++        "local_rank": local_rank,
++        "backend_variant": backend,
++        "capture_mode": capture_mode,
++        "capture_fixture_dir": None if capture_dir is None else str(capture_dir),
++        "installer_identity": identity,
++        "source_identity": source_identity,
++        "cuda_device": cuda_device,
++        "tilelang_cache_dir": str(tilelang_cache_dir),
++        "tilelang_tmp_dir": str(tilelang_tmp_dir),
++        "installation_stage": "before torchtitan.train.main import",
++    }
++    path = measurement / f"flash-qla-bootstrap-rank-{rank:02d}.json"
++    with path.open("x", encoding="utf-8") as handle:
++        json.dump(receipt, handle, sort_keys=True, indent=2)
++        handle.write("\n")
++    print("flash_qla_bootstrap=" + json.dumps(receipt, sort_keys=True))
++    return receipt
++
++
++def _bootstrap_and_run(
++    train_argv: list[str],
++    adapter: Any,
++    native_main: Callable[[list[str], Any], Any],
++    *,
++    torch_module: Any | None = None,
++    backend_installer_loader: Callable[[], Callable[[str], Any]] | None = None,
++    capture_installer_loader: Callable[[], Callable[..., Any]] | None = None,
++) -> Any:
++    backend, capture_mode, capture_dir, source_identity = _bridge_configuration()
++    rank = _rank_environment("RANK")
++    local_rank = _rank_environment("LOCAL_RANK")
++    if rank != local_rank:
++        raise RuntimeError(
++            f"single-node FlashQLA run requires RANK == LOCAL_RANK, got {rank} and {local_rank}"
++        )
++    if os.environ.get("WORLD_SIZE") != "8":
++        raise RuntimeError("WORLD_SIZE must be 8 for the FlashQLA native runner")
++    triton_cache = Path(os.environ.get("TRITON_CACHE_DIR", ""))
++    if triton_cache.name != f"rank_{rank}":
++        raise RuntimeError(
++            "base measurement adapter must route TRITON_CACHE_DIR before FlashQLA bootstrap"
++        )
++
++    measurement = _measurement_dir(adapter)
++    if capture_dir is not None:
++        capture_dir = _validate_capture_directory(capture_dir, measurement)
++    original_cache = os.environ.get("TILELANG_CACHE_DIR")
++    original_tmp = os.environ.get("TILELANG_TMP_DIR")
++    cache_dir, tmp_dir = _configure_tilelang_cache(adapter, rank)
++    try:
++        if torch_module is None:
++            torch_module = importlib.import_module("torch")
++        torch_module.cuda.set_device(local_rank)
++        cuda_device = int(torch_module.cuda.current_device())
++        if cuda_device != local_rank:
++            raise RuntimeError(
++                f"CUDA current device {cuda_device} does not match LOCAL_RANK {local_rank}"
++            )
++
++        if capture_mode == "fixtures":
++            loader = capture_installer_loader or _load_capture_installer
++            installer = loader()
++            identity = installer(capture_dir, max_fixtures=6)
++        else:
++            loader = backend_installer_loader or _load_backend_installer
++            installer = loader()
++            identity = installer(backend)
++
++        _write_bootstrap_receipt(
++            measurement=measurement,
++            rank=rank,
++            local_rank=local_rank,
++            backend=backend,
++            capture_mode=capture_mode,
++            capture_dir=capture_dir,
++            identity=identity,
++            source_identity=source_identity,
++            cuda_device=cuda_device,
++            tilelang_cache_dir=cache_dir,
++            tilelang_tmp_dir=tmp_dir,
++        )
++        return native_main(train_argv, adapter)
++    finally:
++        if original_cache is None:
++            os.environ.pop("TILELANG_CACHE_DIR", None)
++        else:
++            os.environ["TILELANG_CACHE_DIR"] = original_cache
++        if original_tmp is None:
++            os.environ.pop("TILELANG_TMP_DIR", None)
++        else:
++            os.environ["TILELANG_TMP_DIR"] = original_tmp
++
++
++def main(argv: list[str] | None = None) -> Any:
++    base = _load_base_measure()
++    original = base._run_native_main
++
++    def startup_hook(train_argv: list[str], adapter: Any) -> Any:
++        return _bootstrap_and_run(train_argv, adapter, original)
++
++    base._run_native_main = startup_hook
++    try:
++        return base.main(argv)
++    finally:
++        base._run_native_main = original
++
++
++if __name__ == "__main__":
++    main()
++
+diff --git a/runs/flash-qla/capture.py b/runs/flash-qla/capture.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a80181b28469e20bfb93ec04ad33a69ad5956844
+--- /dev/null
++++ b/runs/flash-qla/capture.py
+@@ -0,0 +1,145 @@
++"""Opt-in first-update GDN VJP boundary capture. Never import in timed runs."""
++from __future__ import annotations
++
++import hashlib
++import inspect
++import json
++import os
++from pathlib import Path
++import threading
++
++import torch
++
++NAMES = ("q", "k", "v", "raw_g", "beta", "A_log", "dt_bias")
++
++
++def sha256(path):
++    h = hashlib.sha256()
++    with open(path, "rb") as stream:
++        for block in iter(lambda: stream.read(8 << 20), b""):
++            h.update(block)
++    return h.hexdigest()
++
++
++def snapshot(tensor):
++    """Preserve shape/strides while initializing all serialized padding bytes."""
++    shape, stride = tuple(tensor.shape), tuple(tensor.stride())
++    if any(s < 0 for s in stride):
++        raise ValueError("Negative strides cannot be captured")
++    size = 0 if tensor.numel() == 0 else 1 + sum((n - 1) * s for n, s in zip(shape, stride))
++    storage = torch.zeros(size, dtype=tensor.dtype, device="cpu")
++    result = storage.as_strided(shape, stride)
++    result.copy_(tensor.detach())
++    return result
++
++
++def tensor_meta(t):
++    return {"shape": list(t.shape), "stride": list(t.stride()),
++            "dtype": str(t.dtype), "device": str(t.device),
++            "storage_offset": t.storage_offset(), "requires_grad": t.requires_grad}
++
++
++def install_capture(output_dir: Path, max_fixtures: int = 6):
++    """Install before model construction in one dedicated first-update run.
++
++    Hooks exist only in the real native autograd recomputation, not fake tracing.
++    The caller owns restricting the training run to the intended update.
++    """
++    from fla.ops.backends import BackendRegistry, BaseBackend
++    from fla.ops.gated_delta_rule import chunk_gated_delta_rule
++    from torchtitan.experiments.flash_qla.backend import run_gdn
++
++    if max_fixtures < 1:
++        raise ValueError("max_fixtures must be positive")
++    if os.environ.get("FLA_DISABLE_BACKEND_DISPATCH") == "1":
++        raise RuntimeError("FLA_DISABLE_BACKEND_DISPATCH=1 prevents capture backend activation")
++    output_dir = Path(output_dir)
++    output_dir.mkdir(parents=True, exist_ok=True)
++    signature = inspect.signature(chunk_gated_delta_rule)
++    source_identity = {"torch": torch.__version__,
++                       "fla_upstream_revision": "1d2281ff1b7988d8070f00dba5ffa9747ae3a60e",
++                       "flash_qla_upstream_revision": "a14dbf3474514e1674526431e960325f72081e9f",
++                       "capture_sha256": sha256(Path(__file__)),
++                       "native_backend_sha256": sha256(Path(inspect.getfile(run_gdn))),
++                       "fla_chunk_sha256": sha256(Path(inspect.getfile(inspect.unwrap(chunk_gated_delta_rule))))}
++    lock = threading.Lock()
++    counters = {"calls": 0, "vjp_calls": 0, "saved": 0}
++    rank = (torch.distributed.get_rank() if torch.distributed.is_initialized()
++            else int(os.environ.get("RANK", "0")))
++
++    class CaptureBackend(BaseBackend):
++        backend_type = "task_first_update_capture"
++        priority = 0
++
++        def chunk_gated_delta_rule(self, *args, **kwargs):
++            bound = signature.bind(*args, **kwargs)
++            bound.apply_defaults()
++            # FLA keeps raw-gate flags and parameters in its public **kwargs.
++            # Flatten that binding without copying or replacing tensor objects.
++            a = dict(bound.arguments)
++            for name, parameter in signature.parameters.items():
++                if parameter.kind == inspect.Parameter.VAR_KEYWORD:
++                    a.update(a.pop(name))
++            if a.get("initial_state") is not None or a.get("output_final_state", False):
++                raise ValueError("Capture supports the actual zero-state, output-only GIFT path")
++            if a.get("use_qk_l2norm_in_kernel", False) or not a.get("use_gate_in_kernel", False):
++                raise ValueError("Capture requires GIFT's normalized-qk/raw-gate boundary")
++            inputs = [a[n] for n in ("q", "k", "v", "g", "beta", "A_log", "dt_bias")]
++            out, state = run_gdn("fla", *inputs, cu_seqlens=a.get("cu_seqlens"), scale=a.get("scale"))
++            with lock:
++                counters["calls"] += 1
++                call = counters["calls"]
++                eligible = rank == 0 and torch.is_grad_enabled() and out.requires_grad
++                if eligible:
++                    counters["vjp_calls"] += 1
++                slot = counters["vjp_calls"]
++            if eligible and slot <= max_fixtures:
++                fired = False
++
++                def save(grad):
++                    nonlocal fired
++                    if fired:
++                        return grad
++                    fired = True
++                    payload = {n: snapshot(t) for n, t in zip(NAMES, inputs)}
++                    payload.update(output=snapshot(out), grad_out=snapshot(grad),
++                                   cu_seqlens=None if a.get("cu_seqlens") is None else snapshot(a["cu_seqlens"]),
++                                   scale=a.get("scale"))
++                    meta = {"schema": 1, "rank": rank, "call_counter": call,
++                            "backward_order_slot": slot, "scope": "first-update actual VJP boundary; not post-warmup",
++                            "layer_id": None, "initial_state": None, "output_final_state": False,
++                            "source_identity": source_identity,
++                            "artifact_layout": "shape/stride preserved; storage offset rebased to zero; padding initialized to zero",
++                            "tensors": {n: tensor_meta(t) for n, t in zip(NAMES, inputs)},
++                            "output": tensor_meta(out), "grad_out": tensor_meta(grad),
++                            "pid": os.getpid()}
++                    path = output_dir / f"fixture-{slot:02d}.pt"
++                    if path.exists():
++                        raise FileExistsError(path)
++                    temporary = path.with_suffix(f".pt.{os.getpid()}.tmp")
++                    torch.save(payload, temporary)
++                    temporary.replace(path)
++                    meta["fixture_sha256"] = sha256(path)
++                    manifest = path.with_suffix(".json")
++                    temporary = manifest.with_suffix(".json.tmp")
++                    temporary.write_text(json.dumps(meta, indent=2) + "\n")
++                    temporary.replace(manifest)
++                    with lock:
++                        counters["saved"] += 1
++                    print(f"[GDN_CAPTURE] saved={path} slot={slot} sha256={meta['fixture_sha256']}", flush=True)
++                    return grad
++
++                out.register_hook(save)
++            return out, state
++
++    BackendRegistry.ensure_initialized("gated_delta_rule")
++    registry = BackendRegistry._registries.get("gated_delta_rule")
++    if registry is None:
++        registry = BackendRegistry("gated_delta_rule")
++    if any(b.priority <= 0 for b in registry._backends.values()):
++        raise RuntimeError("Install capture in a fresh process without another priority-0 backend")
++    registry.register(CaptureBackend())
++    identity = {"backend": CaptureBackend.backend_type, "rank": rank,
++                "max_fixtures": max_fixtures, "output_dir": str(output_dir), "counters": counters}
++    print(f"[GDN_CAPTURE] installed rank={rank} max_fixtures={max_fixtures}", flush=True)
++    return identity
+diff --git a/runs/flash-qla/block_replay.py b/runs/flash-qla/block_replay.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..53bb8c5a7b4da581e0cba4c2f3784c66188f3f73
+--- /dev/null
++++ b/runs/flash-qla/block_replay.py
+@@ -0,0 +1,340 @@
++"""Matched isolated GDN replay; run each variant in a fresh process.
++
++Numerical metrics are evidence, not universal acceptance thresholds. CUDA Graph
++timings are repeated warm-cache diagnostics, not production throughput.
++"""
++from __future__ import annotations
++
++import argparse
++import copy
++import json
++import os
++from pathlib import Path
++import statistics
++import subprocess
++import sys
++import time
++import traceback
++
++import torch
++
++from capture import NAMES, sha256, snapshot, tensor_meta
++
++
++def write_json(path, value):
++    temporary = path.with_suffix(path.suffix + ".tmp")
++    temporary.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n")
++    temporary.replace(path)
++
++
++def metrics(actual, reference):
++    if actual.shape != reference.shape:
++        raise ValueError(f"Shape mismatch: {actual.shape} != {reference.shape}")
++    a, b = actual.detach().double(), reference.detach().double()
++    finite = bool(torch.isfinite(a).all() and torch.isfinite(b).all())
++    if not finite:
++        return {"finite": False, "max_abs": None, "rms": None, "relative_rms": None}
++    error = a - b
++    rms, norm = error.square().mean().sqrt().item(), b.square().mean().sqrt().item()
++    return {"finite": True, "max_abs": error.abs().max().item(), "rms": rms,
++            "reference_rms": norm, "relative_rms": rms / norm if norm else (0.0 if rms == 0 else None),
++            "reference_zero": norm == 0}
++
++
++def compare(actual, reference):
++    return {name: metrics(actual[name], reference[name]) for name in ("output", *NAMES)}
++
++
++def recurrent_double(inputs):
++    """FP64 adaptation of FLA naive_recurrent_gated_delta_rule (MIT).
++
++    Origin: fla/ops/gated_delta_rule/naive.py, FLA upstream revision
++    1d2281ff1b7988d8070f00dba5ffa9747ae3a60e. Preserve recurrence;
++    replace hardcoded fp32 with fp64 and expand grouped q/k value heads.
++    Prefix only, zero initial state; no claim about long-context oracle parity.
++    """
++    q, k, v, raw_g, beta, A_log, dt_bias = inputs
++    q, k, v, raw_g, beta, A_log, dt_bias = [t.double() for t in inputs]
++    if v.shape[2] % q.shape[2]:
++        raise ValueError("Nonintegral grouped-query head ratio")
++    group = v.shape[2] // q.shape[2]
++    q, k = q.repeat_interleave(group, 2), k.repeat_interleave(group, 2)
++    decay = -A_log.exp() * torch.nn.functional.softplus(raw_g + dt_bias)
++    state = v.new_zeros(v.shape[0], v.shape[2], k.shape[-1], v.shape[-1])
++    output = []
++    for i in range(q.shape[1]):
++        state = state * decay[:, i].exp()[..., None, None]
++        residual = v[:, i] - (state * k[:, i, :, :, None]).sum(-2)
++        state = state + k[:, i, :, :, None] * (residual * beta[:, i, :, None])[..., None, :]
++        output.append(torch.einsum("bhk,bhkv->bhv", q[:, i] * (q.shape[-1] ** -0.5), state))
++    return torch.stack(output, 1)
++
++
++def statistics_ms(samples):
++    return {"median_ms": statistics.median(samples), "min_ms": min(samples),
++            "max_ms": max(samples), "spread_ms": max(samples) - min(samples), "samples_ms": samples}
++
++
++def measure(fn, args, prepare=None):
++    """prepare is excluded from backward-only timing, including graph capture."""
++    capture_stream = None
++    if args.timer == "graph":
++        # Backward follows its forward's stream. Warmup and the final untimed
++        # preparatory F must use the same nondefault stream as graph capture.
++        capture_stream = torch.cuda.Stream()
++        capture_stream.wait_stream(torch.cuda.current_stream())
++        with torch.cuda.stream(capture_stream):
++            for _ in range(args.warmup):
++                if prepare:
++                    prepare()
++                fn()
++        capture_stream.synchronize()
++    else:
++        for _ in range(args.warmup):
++            if prepare:
++                prepare()
++            fn()
++    torch.cuda.synchronize()
++    torch.cuda.reset_peak_memory_stats()
++    result = {"warmup": args.warmup, "repeats": args.repeats,
++              "cache": "same-input warm cache; diagnostic only", "graph_replays_per_sample": args.replays,
++              "starting_allocated_bytes": torch.cuda.memory_allocated(),
++              "starting_reserved_bytes": torch.cuda.memory_reserved()}
++    if args.timer == "graph":
++        with torch.cuda.stream(capture_stream):
++            if prepare:
++                prepare()
++        capture_stream.synchronize()
++        graph = torch.cuda.CUDAGraph()
++        with torch.cuda.graph(graph, stream=capture_stream):
++            fn()
++        torch.cuda.current_stream().wait_stream(capture_stream)
++        graph.replay()
++        torch.cuda.synchronize()
++        samples = []
++        for _ in range(args.repeats):
++            begin, end = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
++            begin.record()
++            for _ in range(args.replays):
++                graph.replay()
++            end.record()
++            end.synchronize()
++            samples.append(begin.elapsed_time(end) / args.replays)
++        result["timer_scope"] = "CUDA Graph device replay elapsed; excludes Python/autograd submission and preparatory F"
++        result["device_replay"] = statistics_ms(samples)
++    else:
++        events, walls = [], []
++        for _ in range(args.repeats):
++            if prepare:
++                prepare()
++            torch.cuda.synchronize()
++            begin, end = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
++            wall = time.perf_counter()
++            begin.record()
++            fn()
++            end.record()
++            end.synchronize()
++            walls.append((time.perf_counter() - wall) * 1000)
++            events.append(begin.elapsed_time(end))
++        result["timer_scope"] = "eager call latency; includes host submission and potential device gaps, not pure kernel cost"
++        result["cuda_event_latency"] = statistics_ms(events)
++        result["synchronized_wall_latency"] = statistics_ms(walls)
++    result["peak_allocated_bytes"] = torch.cuda.max_memory_allocated()
++    result["peak_reserved_bytes"] = torch.cuda.max_memory_reserved()
++    result["memory_scope"] = (
++        "Inclusive process peak above live fixture/input/output state; reset before "
++        "backward preparatory forward and graph capture, so those allocations are included. "
++        "Not an independent phase allocation or production memory saving.")
++    result["reserved_memory_scope"] = (
++        "Allocator cache is retained across numerical checks and prior timing scopes; "
++        "reserved peak includes carried-over high-water reservations.")
++    result["host_work_attribution"] = "unavailable; no subtraction estimate"
++    result["wait_copy_communication_attribution"] = "unavailable; requires trace"
++    return result
++
++
++def git_revision(path):
++    return subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
++
++
++def to_device(source):
++    span = 0 if source.numel() == 0 else 1 + sum((n - 1) * s for n, s in zip(source.shape, source.stride()))
++    result = torch.zeros(span, dtype=source.dtype, device="cuda").as_strided(source.shape, source.stride())
++    return result.copy_(source)
++
++
++def main(args, report):
++    # TileLang reads these settings on import; never use the shared home cache.
++    cache_root = args.output.resolve() / "cache" / "tilelang"
++    temporary_root = cache_root / "tmp"
++    temporary_root.mkdir(parents=True, exist_ok=True)
++    os.environ["TILELANG_CACHE_DIR"] = str(cache_root)
++    os.environ["TILELANG_TMP_DIR"] = str(temporary_root)
++    report["tilelang_cache"] = {"cache": str(cache_root), "tmp": str(temporary_root)}
++    from torchtitan.experiments.flash_qla.backend import install_backend, run_gdn
++    from torchtitan.models.common.attention.linear.fla_custom_ops import gdn_chunk_op
++
++    if not torch.cuda.is_available():
++        raise RuntimeError("CUDA replay requires authorized GPU execution")
++    if args.fixture.with_suffix(".json").exists():
++        manifest = json.loads(args.fixture.with_suffix(".json").read_text())
++        if sha256(args.fixture) != manifest["fixture_sha256"]:
++            raise ValueError("Fixture checksum differs from capture manifest")
++        report["capture_manifest"] = manifest
++    fixture = torch.load(args.fixture, map_location="cpu", weights_only=True)
++    report["activation_identity"] = install_backend(args.variant)
++    report["runtime"] = {"torch": torch.__version__, "cuda": torch.version.cuda,
++                         "gpu": torch.cuda.get_device_name(), "python": sys.version,
++                         "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
++                         "matmul_allow_tf32": torch.backends.cuda.matmul.allow_tf32,
++                         "command": sys.argv, "pid": os.getpid()}
++    root = Path(__file__).resolve().parents[2]
++    # Contrib trees are flattened task files, not independent Git checkouts.
++    report["sources"] = {"task_revision": git_revision(root),
++                         "fla_upstream_revision": "1d2281ff1b7988d8070f00dba5ffa9747ae3a60e",
++                         "flash_qla_upstream_revision": "a14dbf3474514e1674526431e960325f72081e9f",
++                         "backend_sha256": sha256(root / "gift/torchtitan/experiments/flash_qla/backend.py"),
++                         "harness_sha256": sha256(Path(__file__))}
++    report["fixture_sha256"] = sha256(args.fixture)
++    report["inputs"] = {n: tensor_meta(fixture[n]) for n in NAMES}
++    inputs = []
++    for n in NAMES:
++        t = to_device(fixture[n])
++        inputs.append(t.requires_grad_(True))
++    cu = fixture.get("cu_seqlens")
++    cu = None if cu is None else cu.cuda()
++    grad = to_device(fixture["grad_out"])
++    scale = fixture.get("scale")
++    if scale is not None and scale != inputs[0].shape[-1] ** -0.5:
++        raise ValueError("Actual GIFT opaque op has no scale override; nondefault fixture cannot match")
++
++    def native():
++        return run_gdn(args.variant, *inputs, cu_seqlens=cu, scale=scale)[0]
++
++    def integrated(*leaves):
++        return gdn_chunk_op(*leaves, cu)
++
++    def numerical(fn, upstream):
++        out = fn(*inputs)
++        gradients = torch.autograd.grad(out, inputs, upstream)
++        return {"output": snapshot(out), **{n: snapshot(t) for n, t in zip(NAMES, gradients)}}
++
++    report["numerics"] = {}
++    eager = numerical(integrated, grad)
++    torch.save(eager, args.output / "eager.pt")
++    if any(not torch.isfinite(t).all() for t in eager.values()):
++        raise RuntimeError("Nonfinite eager output or gradients")
++    report["numerics"]["captured_output"] = metrics(eager["output"], fixture["output"])
++    zero = numerical(integrated, torch.zeros_like(grad))
++    report["numerics"]["zero_upstream"] = {n: metrics(zero[n], torch.zeros_like(zero[n])) for n in NAMES}
++    if any(not row["finite"] or row["max_abs"] != 0 for row in report["numerics"]["zero_upstream"].values()):
++        raise RuntimeError("Zero-upstream gradient check failed")
++    compiled = None
++    if not args.skip_compiled:
++        compiled = torch.compile(integrated, fullgraph=True)
++        result = numerical(compiled, grad)
++        torch.save(result, args.output / "compiled.pt")
++        if any(not torch.isfinite(t).all() for t in result.values()):
++            raise RuntimeError("Nonfinite compiled output or gradients")
++        report["numerics"]["compiled_vs_eager"] = compare(result, eager)
++    if args.compare:
++        for path in args.compare:
++            reference_report = json.loads((path / "report.json").read_text())
++            if reference_report["fixture_sha256"] != report["fixture_sha256"]:
++                raise ValueError("Cannot compare different captured fixtures")
++            report["numerics"][str(path)] = compare(eager, torch.load(path / "eager.pt", weights_only=True))
++    if args.prefix:
++        if cu is not None:
++            raise ValueError("FP64 prefix diagnostic currently supports unpacked capture only")
++        prefix = [t[:, :args.prefix].detach().requires_grad_(True) if t.ndim > 1 else t.detach().requires_grad_(True) for t in inputs]
++        double_inputs = [t.double().detach().requires_grad_(True) for t in prefix]
++        reference = recurrent_double(double_inputs)
++        reference_grads = torch.autograd.grad(reference, double_inputs, grad[:, :args.prefix].double())
++        actual = run_gdn(args.variant, *prefix, cu_seqlens=None, scale=scale)[0]
++        actual_grads = torch.autograd.grad(actual, prefix, grad[:, :args.prefix].contiguous())
++        report["numerics"]["fp64_prefix"] = {"tokens": args.prefix, "scope": "short zero-state prefix; not long-context oracle",
++            "metrics": {"output": metrics(actual, reference), **{n: metrics(a, b) for n, a, b in zip(NAMES, actual_grads, reference_grads)}}}
++    torch.cuda.synchronize()
++    report["timings"] = {}
++
++    def native_forward():
++        with torch.no_grad():
++            native()
++
++    backward_output = None
++
++    def prepare_backward():
++        nonlocal backward_output
++        backward_output = native()
++
++    def native_backward():
++        torch.autograd.grad(backward_output, inputs, grad, retain_graph=True)
++
++    def integrated_fb():
++        out = integrated(*inputs)
++        torch.autograd.grad(out, inputs, grad)
++
++    def compiled_fb():
++        out = compiled(*inputs)
++        torch.autograd.grad(out, inputs, grad)
++
++    def synthetic_sac():
++        native_forward()
++        integrated_fb()
++
++    scopes = {"native_F": (native_forward, None), "native_B_preparatory_F_excluded": (native_backward, prepare_backward),
++              "opaque_F_VJP_2F_B": (integrated_fb, None), "synthetic_SAC_3F_B": (synthetic_sac, None)}
++    if compiled is not None:
++        scopes["compiled_opaque_F_VJP_2F_B"] = (compiled_fb, None)
++    for name, (fn, prepare) in scopes.items():
++        if args.scope and name not in args.scope:
++            continue
++        print(f"[BLOCK_REPLAY] measuring {name}", flush=True)
++        try:
++            report["timings"][name] = measure(fn, args, prepare)
++        except RuntimeError as error:
++            text = str(error).lower()
++            unsupported = any(marker in text for marker in (
++                "stream is capturing", "not supported during capture", "not permitted during capture",
++                "cudaerrorstreamcaptureunsupported", "operation failed due to a previous error during capture"))
++            if args.timer != "graph" or not unsupported:
++                raise
++            graph_error = traceback.format_exc()
++            report["timings"][name] = {"graph_status": "unsupported", "graph_error": graph_error}
++            write_json(args.output / "report.json", report)
++            eager_args = copy.copy(args)
++            eager_args.timer = "eager"
++            report["timings"][name].update(measure(fn, eager_args, prepare))
++        write_json(args.output / "report.json", report)
++    report["synthetic_SAC_limit"] = "3F+B operation-count diagnostic only; excludes model-level SAC schedule, sharding, communication, FP8 projections and optimizer"
++    report["status"] = "measured; numerical acceptance requires interpretation of retained metrics"
++
++
++if __name__ == "__main__":
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--fixture", type=Path, required=True)
++    parser.add_argument("--variant", choices=("fla", "external_gate", "fused_gate"), required=True)
++    parser.add_argument("--output", type=Path, required=True)
++    parser.add_argument("--compare", type=Path, action="append", default=[])
++    parser.add_argument("--timer", choices=("graph", "eager"), default="graph")
++    parser.add_argument("--warmup", type=int, default=5)
++    parser.add_argument("--repeats", type=int, default=10)
++    parser.add_argument("--replays", type=int, default=10)
++    parser.add_argument("--prefix", type=int, default=64)
++    parser.add_argument("--skip-compiled", action="store_true")
++    parser.add_argument("--scope", action="append", help="Select one or more timing scope names")
++    options = parser.parse_args()
++    if min(options.warmup, options.repeats, options.replays) < 1 or options.prefix < 0:
++        parser.error("warmup/repeats/replays must be positive; prefix must be nonnegative")
++    options.output.mkdir(parents=True, exist_ok=True)
++    if (options.output / "report.json").exists():
++        parser.error("Output already has report.json; use a fresh directory")
++    report = {"schema": 1, "variant": options.variant, "fixture": str(options.fixture), "status": "running"}
++    try:
++        main(options, report)
++    except Exception:
++        report["status"] = "error"
++        report["error"] = traceback.format_exc()
++        raise
++    finally:
++        write_json(options.output / "report.json", report)
+diff --git a/runs/flash-qla/tests/test_native_bridge.py b/runs/flash-qla/tests/test_native_bridge.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe7f068d10a85aa091123d1830d6911b5877d1ca
+--- /dev/null
++++ b/runs/flash-qla/tests/test_native_bridge.py
+@@ -0,0 +1,456 @@
++from __future__ import annotations
++
++import importlib.util
++import json
++import os
++import sys
++from pathlib import Path
++from types import SimpleNamespace
++from typing import Any
++
++import pytest
++
++TASK_ROOT = Path(__file__).resolve().parents[3]
++
++
++def _load_module(name: str, path: Path) -> Any:
++    spec = importlib.util.spec_from_file_location(name, path)
++    assert spec is not None and spec.loader is not None
++    module = importlib.util.module_from_spec(spec)
++    sys.modules[name] = module
++    spec.loader.exec_module(module)
++    return module
++
++
++@pytest.fixture
++def bridge_run() -> Any:
++    return _load_module(
++        "_test_flash_qla_run",
++        TASK_ROOT / "runs/flash-qla/run.py",
++    )
++
++
++@pytest.fixture
++def bridge_measure() -> Any:
++    return _load_module(
++        "_test_flash_qla_measure",
++        TASK_ROOT / "runs/flash-qla/measure.py",
++    )
++
++
++def _make_task_source_tree(root: Path) -> tuple[Path, Path]:
++    gift_root = root / "gift"
++    backend = gift_root / "torchtitan/experiments/flash_qla/backend.py"
++    backend.parent.mkdir(parents=True)
++    backend.write_text("def install_backend(variant): return {\"variant\": variant}\n")
++    staged_fla = gift_root / "contrib/flash-linear-attention/flash_attn/__init__.py"
++    staged_fla.parent.mkdir(parents=True)
++    staged_fla.write_text("")
++    staged = gift_root / "contrib/flash-qla/flash_qla/__init__.py"
++    staged.parent.mkdir(parents=True)
++    staged.write_text("")
++    return gift_root, backend
++
++
++def _fake_base(root: Path, *, original_environment: Any | None = None) -> Any:
++    gift_root, _ = _make_task_source_tree(root)
++    helper_dir = root / "runs/overnight-streaming-perf"
++    helper_dir.mkdir(parents=True)
++    (helper_dir / "measure.py").write_text("# original child path\n")
++    if original_environment is None:
++        original_environment = lambda paths: {
++            **os.environ,
++            "PYTHONPATH": f"{gift_root}:{helper_dir}",
++        }
++    return SimpleNamespace(
++        GIFT_ROOT=gift_root,
++        HELPER_DIR=helper_dir,
++        TASK_ROOT=root,
++        _run_environment=original_environment,
++        _git=lambda *args, **kwargs: SimpleNamespace(stdout=b"deadbeef\n"),
++    )
++
++
++def _fake_paths(root: Path, run_id: str = "test-run") -> dict[str, Path]:
++    attempt = root / "runs/flash-qla/artifacts/raw" / run_id
++    attempt.mkdir(parents=True)
++    measurement = attempt / "measurement"
++    measurement.mkdir()
++    return {
++        "attempt": attempt,
++        "measurement": measurement,
++    }
++
++
++def _patch_bridge_paths(bridge_run: Any, tmp_path: Path) -> Path:
++    bridge_dir = tmp_path / "runs/flash-qla"
++    bridge_dir.mkdir(parents=True)
++    run_path = bridge_dir / "run.py"
++    measure_path = bridge_dir / "measure.py"
++    capture_path = bridge_dir / "capture.py"
++    run_path.write_text("bridge-run")
++    measure_path.write_text("bridge-measure")
++    capture_path.write_text("bridge-capture")
++    bridge_run.TASK_ROOT = tmp_path
++    bridge_run.BRIDGE_DIR = bridge_dir
++    bridge_run.BRIDGE_MEASURE_PATH = measure_path
++    return bridge_dir
++
++
++def test_runner_parser_forwards_existing_arguments_unchanged(bridge_run: Any) -> None:
++    native = [
++        "--run-id",
++        "variant-a",
++        "--steps",
++        "140",
++        "--warmup",
++        "40",
++        "--window",
++        "100",
++        "--epoch-size",
++        "102400",
++        "--gfsdp-reuse-bf16-expert-weights",
++    ]
++    args, forwarded = bridge_run._parse_bridge_args(
++        ["--gdn-backend", "external_gate", *native]
++    )
++    assert args.gdn_backend == "external_gate"
++    assert args.capture_fixtures is None
++    assert forwarded == native
++
++
++def test_runner_parser_rejects_invalid_backend_and_non_fla_capture(bridge_run: Any) -> None:
++    with pytest.raises(SystemExit):
++        bridge_run._parse_bridge_args(["--gdn-backend", "unknown", "--run-id", "x"])
++    with pytest.raises(SystemExit):
++        bridge_run._parse_bridge_args(
++            [
++                "--gdn-backend",
++                "fused_gate",
++                "--capture-fixtures",
++                "/tmp/fixtures",
++                "--run-id",
++                "x",
++            ]
++        )
++
++
++def test_default_output_root_uses_bridge_artifacts_without_rewriting_override(
++    bridge_run: Any,
++) -> None:
++    defaulted = bridge_run._add_default_output_root(["--run-id", "x"], Path("/task/raw"))
++    assert defaulted == ["--run-id", "x", "--output-root", "/task/raw"]
++    explicit = ["--run-id", "x", "--output-root", "/custom/artifacts/raw"]
++    assert bridge_run._add_default_output_root(explicit, Path("/task/raw")) == explicit
++
++
++def test_measure_script_replacement_changes_only_generated_child_path(bridge_run: Any) -> None:
++    original = Path("/task/runs/overnight-streaming-perf/measure.py")
++    bridge = Path("/task/runs/flash-qla/measure.py")
++    command = [
++        "/python",
++        "-m",
++        "torch.distributed.run",
++        str(original),
++        "--measurement-dir",
++        "/task/run/measurement",
++        "--",
++        "/task/config.yaml",
++    ]
++    replaced = bridge_run._replace_measure_script(command, original, bridge)
++    assert replaced == ["/python", "-m", "torch.distributed.run", str(bridge), *command[4:]]
++    with pytest.raises(RuntimeError, match="exactly one"):
++        bridge_run._replace_measure_script([str(original), str(original)], original, bridge)
++
++
++def test_config_hash_hook_tracks_bridge_sources_and_restores_after_main(
++    bridge_run: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    bridge_dir = _patch_bridge_paths(bridge_run, tmp_path)
++    base = _fake_base(tmp_path)
++    original_environment = base._run_environment
++    original_command = lambda args, paths: []
++    original_hashes = lambda: {"canonical": "unchanged"}
++    base._command = original_command
++    base._config_hashes = original_hashes
++    observed: list[bool] = []
++
++    def base_main(argv: list[str]) -> int:
++        before = base._config_hashes()
++        (bridge_dir / "capture.py").write_text("changed during native process")
++        after = base._config_hashes()
++        observed.append(before["flash_qla_bridge_sources"] != after["flash_qla_bridge_sources"])
++        return 0
++
++    base.main = base_main
++    monkeypatch.setattr(bridge_run, "_load_base_runner", lambda: base)
++    monkeypatch.setattr(bridge_run, "DEFAULT_OUTPUT_ROOT", tmp_path / "artifacts/raw")
++    result = bridge_run.main(
++        [
++            "--gdn-backend",
++            "fla",
++            "--run-id",
++            "hash-freeze",
++            "--output-root",
++            str(tmp_path / "artifacts/raw"),
++        ]
++    )
++    assert result == 0
++    assert observed == [True]
++    assert base._run_environment is original_environment
++    assert base._command is original_command
++    assert base._config_hashes is original_hashes
++
++
++def test_environment_hook_clears_stale_values_and_records_rank_cache_paths(
++    bridge_run: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    bridge_dir = _patch_bridge_paths(bridge_run, tmp_path)
++    preserved_pythonpath = os.pathsep.join(("/existing/entry-one", "/existing/entry-two"))
++    base = _fake_base(
++        tmp_path,
++        original_environment=lambda paths: {**os.environ, "PYTHONPATH": preserved_pythonpath},
++    )
++    paths = _fake_paths(tmp_path)
++    capture_path = paths["attempt"] / "measurement" / "fixtures"
++    for key, value in (
++        ("TASK_FLASHQLA_BACKEND", "stale"),
++        ("TASK_FLASHQLA_CAPTURE_MODE", "fixtures"),
++        ("TASK_FLASHQLA_CAPTURE_DIR", "/stale/fixtures"),
++        ("TASK_FLASHQLA_TILELANG_ROOT", "/stale/cache"),
++        ("TASK_FLASHQLA_SOURCE_IDENTITY", "{}"),
++        ("TILELANG_CACHE_DIR", "/shared/home/cache"),
++        ("TILELANG_TMP_DIR", "/shared/home/cache/tmp"),
++    ):
++        monkeypatch.setenv(key, value)
++
++    env = bridge_run._build_environment_hook(
++        base,
++        backend="fla",
++        capture_fixtures=capture_path,
++    )(paths)
++
++    attempt = paths["attempt"]
++    tilelang_root = attempt / "cache/tilelang"
++    assert env["TASK_FLASHQLA_BACKEND"] == "fla"
++    assert env["TASK_FLASHQLA_CAPTURE_MODE"] == "fixtures"
++    assert env["TASK_FLASHQLA_CAPTURE_DIR"] == str(capture_path)
++    assert capture_path.is_dir()
++    assert env["TASK_FLASHQLA_TILELANG_ROOT"] == str(tilelang_root)
++    assert env["TILELANG_CACHE_DIR"] == str(tilelang_root)
++    assert env["TILELANG_TMP_DIR"] == str(tilelang_root / "tmp")
++    pythonpath = env["PYTHONPATH"].split(os.pathsep)
++    staged_fla = str((base.GIFT_ROOT / "contrib/flash-linear-attention").resolve())
++    staged_qla = str((base.GIFT_ROOT / "contrib/flash-qla").resolve())
++    assert pythonpath[:2] == [staged_fla, staged_qla]
++    assert pythonpath[2:4] == ["/existing/entry-one", "/existing/entry-two"]
++    assert str(base.GIFT_ROOT.resolve()) in pythonpath
++    assert str(bridge_dir) in pythonpath
++    assert str(base.HELPER_DIR) in pythonpath
++    assert (tilelang_root / "rank_7" / "tmp").is_dir()
++
++    receipt = json.loads((attempt / "flash-qla-bridge.json").read_text())
++    assert receipt["backend_variant"] == "fla"
++    assert receipt["capture_mode"] == "fixtures"
++    assert receipt["tilelang_rank_directories"]["7"]["cache"] == str(
++        tilelang_root / "rank_7"
++    )
++    assert receipt["source_identity"]["backend_module"]["sha256"]
++
++
++def test_environment_hook_leaves_no_capture_override_for_full_training(
++    bridge_run: Any, tmp_path: Path
++) -> None:
++    bridge_dir = _patch_bridge_paths(bridge_run, tmp_path)
++    base = _fake_base(tmp_path)
++    paths = _fake_paths(tmp_path)
++    env = bridge_run._build_environment_hook(
++        base,
++        backend="fused_gate",
++        capture_fixtures=None,
++    )(paths)
++    assert env["TASK_FLASHQLA_BACKEND"] == "fused_gate"
++    assert env["TASK_FLASHQLA_CAPTURE_MODE"] == "disabled"
++    assert "TASK_FLASHQLA_CAPTURE_DIR" not in env
++    assert "TILELANG_CACHE_DIR" in env
++    assert "TILELANG_TMP_DIR" in env
++    assert str(bridge_dir) in env["PYTHONPATH"].split(os.pathsep)
++
++
++def _measurement_attempt(root: Path, run_id: str, rank: int = 3) -> tuple[Path, Path]:
++    attempt = root / "runs/flash-qla/artifacts/raw" / run_id
++    measurement = attempt / "measurement"
++    measurement.mkdir(parents=True)
++    triton_rank = attempt / f"cache/triton/rank_{rank}"
++    triton_rank.mkdir(parents=True)
++    tilelang_rank = attempt / f"cache/tilelang/rank_{rank}"
++    (tilelang_rank / "tmp").mkdir(parents=True)
++    return attempt, measurement
++
++
++def _set_rank_environment(monkeypatch: pytest.MonkeyPatch, values: dict[str, str]) -> None:
++    for key, value in values.items():
++        monkeypatch.setenv(key, value)
++
++
++def test_startup_sets_device_and_rank_cache_before_backend_import(
++    bridge_measure: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.setattr(bridge_measure, "TASK_ROOT", tmp_path)
++    attempt, measurement = _measurement_attempt(tmp_path, "startup-order")
++    tilelang_root = attempt / "cache/tilelang"
++    _set_rank_environment(
++        monkeypatch,
++        {
++            "TASK_FLASHQLA_BACKEND": "external_gate",
++            "TASK_FLASHQLA_CAPTURE_MODE": "disabled",
++            "TASK_FLASHQLA_TILELANG_ROOT": str(tilelang_root),
++            "TASK_FLASHQLA_SOURCE_IDENTITY": '{"task_git_head":"deadbeef"}',
++            "RANK": "3",
++            "LOCAL_RANK": "3",
++            "WORLD_SIZE": "8",
++            "TRITON_CACHE_DIR": str(attempt / "cache/triton/rank_3"),
++            "TILELANG_CACHE_DIR": str(tilelang_root),
++            "TILELANG_TMP_DIR": str(tilelang_root / "tmp"),
++        },
++    )
++    events: list[str] = []
++
++    class FakeCuda:
++        def set_device(self, rank: int) -> None:
++            assert rank == 3
++            events.append("set_device")
++
++        def current_device(self) -> int:
++            events.append("current_device")
++            return 3
++
++    fake_torch = SimpleNamespace(cuda=FakeCuda())
++    adapter = SimpleNamespace(options={"output_dir": measurement})
++    original_values = (
++        os.environ.get("TILELANG_CACHE_DIR"),
++        os.environ.get("TILELANG_TMP_DIR"),
++    )
++
++    def backend_loader() -> Any:
++        events.append("backend_import")
++        assert os.environ["TILELANG_CACHE_DIR"] == str(tilelang_root / "rank_3")
++        assert os.environ["TILELANG_TMP_DIR"] == str(tilelang_root / "rank_3" / "tmp")
++        return lambda variant: (events.append(f"install:{variant}") or {"variant": variant})
++
++    def native_main(argv: list[str], received_adapter: Any) -> str:
++        assert argv == ["config.yaml", "--model.test=true"]
++        assert received_adapter is adapter
++        events.append("native_main")
++        return "done"
++
++    result = bridge_measure._bootstrap_and_run(
++        ["config.yaml", "--model.test=true"],
++        adapter,
++        native_main,
++        torch_module=fake_torch,
++        backend_installer_loader=backend_loader,
++    )
++    assert result == "done"
++    assert events == [
++        "set_device",
++        "current_device",
++        "backend_import",
++        "install:external_gate",
++        "native_main",
++    ]
++    assert os.environ.get("TILELANG_CACHE_DIR") == original_values[0]
++    assert os.environ.get("TILELANG_TMP_DIR") == original_values[1]
++    receipt = json.loads(
++        (measurement / "flash-qla-bootstrap-rank-03.json").read_text()
++    )
++    assert receipt["cuda_device"] == 3
++    assert receipt["installer_identity"] == {"variant": "external_gate"}
++    assert receipt["tilelang_cache_dir"] == str(tilelang_root / "rank_3")
++
++
++def test_capture_rank1_accepts_directory_created_before_startup(
++    bridge_measure: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.setattr(bridge_measure, "TASK_ROOT", tmp_path)
++    attempt, measurement = _measurement_attempt(tmp_path, "capture-order", rank=1)
++    tilelang_root = attempt / "cache/tilelang"
++    capture_dir = measurement / "fixtures"
++    # Rank 0 has already created the shared capture directory before rank 1 starts.
++    capture_dir.mkdir()
++    _set_rank_environment(
++        monkeypatch,
++        {
++            "TASK_FLASHQLA_BACKEND": "fla",
++            "TASK_FLASHQLA_CAPTURE_MODE": "fixtures",
++            "TASK_FLASHQLA_CAPTURE_DIR": str(capture_dir),
++            "TASK_FLASHQLA_TILELANG_ROOT": str(tilelang_root),
++            "TASK_FLASHQLA_SOURCE_IDENTITY": '{"task_git_head":"deadbeef"}',
++            "RANK": "1",
++            "LOCAL_RANK": "1",
++            "WORLD_SIZE": "8",
++            "TRITON_CACHE_DIR": str(attempt / "cache/triton/rank_1"),
++            "TILELANG_CACHE_DIR": str(tilelang_root),
++            "TILELANG_TMP_DIR": str(tilelang_root / "tmp"),
++        },
++    )
++    events: list[Any] = []
++
++    class FakeCuda:
++        def set_device(self, rank: int) -> None:
++            events.append(("set_device", rank))
++
++        def current_device(self) -> int:
++            return 1
++
++    def capture_loader() -> Any:
++        events.append("capture_import")
++
++        def install_capture(output_dir: Path, *, max_fixtures: int) -> dict[str, Any]:
++            events.append(("capture_install", output_dir, max_fixtures))
++            return {"capture": "native_fla"}
++
++        return install_capture
++
++    def forbidden_backend_loader() -> Any:
++        pytest.fail("capture mode must not install the regular FLA backend")
++
++    bridge_measure._bootstrap_and_run(
++        [],
++        SimpleNamespace(options={"output_dir": measurement}),
++        lambda argv, adapter: events.append("native_main"),
++        torch_module=SimpleNamespace(cuda=FakeCuda()),
++        backend_installer_loader=forbidden_backend_loader,
++        capture_installer_loader=capture_loader,
++    )
++    assert events == [
++        ("set_device", 1),
++        "capture_import",
++        ("capture_install", capture_dir, 6),
++        "native_main",
++    ]
++    receipt = json.loads(
++        (measurement / "flash-qla-bootstrap-rank-01.json").read_text()
++    )
++    assert receipt["capture_mode"] == "fixtures"
++    assert receipt["capture_fixture_dir"] == str(capture_dir)
++
++
++def test_measure_main_restores_native_startup_hook(
++    bridge_measure: Any, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    original = lambda argv, adapter: None
++    base = SimpleNamespace(_run_native_main=original)
++    observed: list[str] = []
++
++    def base_main(argv: list[str] | None = None) -> int:
++        assert base._run_native_main is not original
++        observed.append("patched")
++        return 17
++
++    base.main = base_main
++    monkeypatch.setattr(bridge_measure, "_load_base_measure", lambda: base)
++    assert bridge_measure.main(["--run-id", "in-process"]) == 17
++    assert observed == ["patched"]
++    assert base._run_native_main is original
++
+diff --git a/runs/flash-qla/tests/test_capture.py b/runs/flash-qla/tests/test_capture.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a96ce6c315f250ad48725db6d237e56fc658c4f
+--- /dev/null
++++ b/runs/flash-qla/tests/test_capture.py
+@@ -0,0 +1,79 @@
++"""CPU regression through the pinned FLA dispatch signature and real hook."""
++from __future__ import annotations
++
++import importlib.util
++import inspect
++import json
++from pathlib import Path
++
++import torch
++
++
++def test_capture_flattens_actual_fla_keyword_arguments(tmp_path, monkeypatch):
++    # Cache ownership must be established before importing backend/FLA modules.
++    monkeypatch.setenv("TILELANG_CACHE_DIR", str(tmp_path / "tilelang-cache"))
++    monkeypatch.setenv("TILELANG_TMP_DIR", str(tmp_path / "tilelang-tmp"))
++    monkeypatch.setenv("RANK", "0")
++    monkeypatch.delenv("FLA_DISABLE_BACKEND_DISPATCH", raising=False)
++    from fla.ops.backends import BackendRegistry
++    from fla.ops.gated_delta_rule import chunk_gated_delta_rule
++    from torchtitan.experiments.flash_qla import backend
++
++    # The public pinned dispatch is real; only the native GPU implementation is
++    # replaced. Borrowed registry state is restored by pytest's monkeypatch.
++    monkeypatch.setattr(BackendRegistry, "_registries", {})
++    monkeypatch.setattr(BackendRegistry, "_initialized", {"gated_delta_rule"})
++    path = Path(__file__).resolve().parents[1] / "capture.py"
++    spec = importlib.util.spec_from_file_location("capture_regression", path)
++    capture = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(capture)
++    inputs = [torch.randn(1, 3, 2, 8)[..., ::2].detach().requires_grad_() for _ in range(3)]
++    inputs += [torch.randn(1, 3, 2, requires_grad=True) for _ in range(2)]
++    inputs += [torch.randn(2, requires_grad=True) for _ in range(2)]
++    q, k, v, raw_g, beta, A_log, dt_bias = inputs
++    kwargs = dict(q=q, k=k, v=v, g=raw_g, beta=beta, A_log=A_log,
++                  dt_bias=dt_bias, use_gate_in_kernel=True,
++                  use_qk_l2norm_in_kernel=False, output_final_state=False,
++                  cu_seqlens=None)
++    signature = inspect.signature(chunk_gated_delta_rule)
++    bound = signature.bind(**kwargs)
++    bound.apply_defaults()
++    keyword_name = next(name for name, p in signature.parameters.items()
++                        if p.kind == inspect.Parameter.VAR_KEYWORD)
++    # This is the original broken binding: semantic flags and parameters are
++    # nested, so its raw-gate guard would reject this valid GIFT invocation.
++    assert not bound.arguments.get("use_gate_in_kernel", False)
++    assert "A_log" not in bound.arguments
++    assert bound.arguments[keyword_name]["use_gate_in_kernel"] is True
++    calls = []
++
++    def native_double(variant, *actual, cu_seqlens=None, scale=None):
++        assert variant == "fla"
++        assert all(a is b for a, b in zip(actual, inputs))
++        assert cu_seqlens is None and scale is None
++        calls.append(actual)
++        q_, k_, v_, g_, beta_, A_, bias_ = actual
++        return q_ + k_ + v_ + (g_ + beta_ + A_ + bias_).unsqueeze(-1), None
++
++    monkeypatch.setattr(backend, "run_gdn", native_double)
++    identity = capture.install_capture(tmp_path / "fixtures", max_fixtures=1)
++    output, state = chunk_gated_delta_rule(**kwargs)
++    assert state is None and len(calls) == 1
++    upstream = torch.randn_like(output)
++    gradients = torch.autograd.grad(output, inputs, upstream)
++    fixture_path = tmp_path / "fixtures/fixture-01.pt"
++    fixture = torch.load(fixture_path, weights_only=True)
++    manifest = json.loads(fixture_path.with_suffix(".json").read_text())
++    assert identity["counters"] == {"calls": 1, "vjp_calls": 1, "saved": 1}
++    assert manifest["fixture_sha256"] == capture.sha256(fixture_path)
++    for name, original in zip(capture.NAMES, inputs):
++        torch.testing.assert_close(fixture[name], original.detach(), rtol=0, atol=0)
++        assert fixture[name].stride() == original.stride()
++    torch.testing.assert_close(fixture["grad_out"], upstream, rtol=0, atol=0)
++    torch.testing.assert_close(fixture["output"], output.detach(), rtol=0, atol=0)
++    for gradient in gradients[:3]:
++        torch.testing.assert_close(gradient, upstream, rtol=0, atol=0)
++    for gradient in gradients[3:5]:
++        torch.testing.assert_close(gradient, upstream.sum(-1), rtol=0, atol=0)
++    for gradient in gradients[5:]:
++        torch.testing.assert_close(gradient, upstream.sum(-1).sum((0, 1)))

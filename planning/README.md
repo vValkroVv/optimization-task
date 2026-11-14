@@ -4,6 +4,21 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+## Active assignment: FlashQLA gate variants
+
+The owner authorized two variants on the existing sr008-gpu allocation: separate
+gate preparation and fused gate/cumsum, first on identical isolated GDN inputs
+and incoming gradients, then in matched native training using the recorded crop
+recipe. The prerequisite 15-minute wait and preceding trace-analysis gate are
+complete. Work is isolated at `/workspace-SR008.nfs2/vkropotin/opt-fq` from source
+revision `0f32623d5e0e7544b20c1f047d94236cb6697758`; the source task checkout is
+preserved. The common foundation is the combined-four candidate; no default is
+promoted. [Execution plan](../runs/flash-qla/plan.md) records the finite sequence,
+expected runtime costs, exact dependency and fixture identities, and open gates.
+Block capture/comparisons, both native candidate measurements, and independent
+integration/runtime-cost verification remain open. No publication, shared package
+installation or new allocation is authorized by this assignment.
+
 ## Active assignment: combined four improvements
 
 Authorized 14 November 2026 and complete. The baseline/candidate pair and
