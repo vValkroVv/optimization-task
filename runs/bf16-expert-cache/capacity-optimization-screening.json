@@ -1,0 +1,112 @@
+{
+  "scope": "Preserve the current conditional capacity-drop conditions, quotas, stable selection, routing scores and selected token/expert pairs. Research only; no training-source change or run.",
+  "owner_correction": "Do not recommend switching to branchless_capacity_drop or bypassing the current capacity path.",
+  "trace_budget": "capacity-window-budget.json",
+  "measured": {
+    "trace": "bf16-cache-trace-001",
+    "update": 21,
+    "rank": 0,
+    "microbatches": 3,
+    "allreduce_count": 39,
+    "allreduce_sum_ms": 15.047257,
+    "forward": {
+      "count": 21,
+      "sum_ms": 1.206983
+    },
+    "backward_recompute": {
+      "count": 18,
+      "sum_ms": 13.840274
+    },
+    "host_predicate_sync": {
+      "count": 42,
+      "sum_ms": 639.520648,
+      "all_gpu_idle_intersection_ms": 6.005264183594932
+    },
+    "denominator_ms": 1269.7101171875,
+    "interpretation": "All capacity all-reduce kernel intervals coincide with stream-7 kernel idle and no other native GPU work. NCCL lifetime can include peer waits. This is exposed operation time, not established saved step time. Host waits overlap preceding work and must not be added to collective duration."
+  },
+  "ranked_compatible_ideas": [
+    {
+      "priority": 1,
+      "name": "Reuse the existing exact capacity-selection result across SAC replay",
+      "mechanism": "Run the unchanged count, global gate and conditional stable selection in the original forward, retain its nondifferentiable keep mask, and reuse it during recomputation. Recompute differentiable routing scores normally and apply the same saved mask to the same saved expert assignments.",
+      "retained_mask_bytes_per_layer_microbatch_rank": 65536,
+      "boundary": "A saved functional operator may enclose the full capacity selection, including collective and host predicate. Alternatively save the collective and existing conditional-mask operator individually through a targeted policy, with graph proof that both are reused. Saving only the mask operator does not guarantee that its upstream collective inputs disappear.",
+      "caution": "The existing comm category also saves large EP dispatch/combine outputs. Do not enable it broadly as a metadata-only fix. Observed all_reduce_ runtime identity may be a lowering of the functional operator; no source-level policy bug is established.",
+      "remaining_checks": [
+        "saved route indices and mask alignment",
+        "all-rank collective order",
+        "cache lifetime per checkpoint invocation",
+        "loss and gradient parity for affected block",
+        "actual graph and trace elimination of repeat work",
+        "retained memory and unprofiled performance"
+      ]
+    },
+    {
+      "priority": 2,
+      "name": "Fuse application of the current keep mask with HybridEP routing-metadata construction",
+      "mechanism": "Consume original scores, IDs and the unchanged current keep mask directly when creating routing/probability maps, combining masked scores and invalid-ID handling with map construction.",
+      "limitation": "Does not remove the current forward capacity all-reduce or its predicate read. Prior four-fusion routing-metadata work improved local timing without an established full-training gain. Preserve score precision and token-ID ordering."
+    },
+    {
+      "priority": 3,
+      "name": "Reduce group loads instead of all expert counters",
+      "mechanism": "Keep the local 128-expert histogram for current selection. Sum it into 8 destination-group counts locally, all-reduce the 8 int64 values, and apply the identical current global threshold. Integer SUM distributes over the existing expert-group sum.",
+      "before_bytes": 1024,
+      "after_bytes": 64,
+      "limitation": "Same collective launch and synchronization remain. A latency-dominated 1KiB operation may gain little; this is a minor exact algebraic simplification, not the main recommendation."
+    }
+  ],
+  "fusion_boundary": "A local fused router kernel can combine sigmoid/softmax, top-k and metadata. Exact cross-rank group capacity still requires communication and a subsequent selection stage. One ordinary local Triton kernel cannot know counts on other GPUs.",
+  "local_sources": [
+    "gift/torchtitan/models/common/moe/dispatch/capacity.py:124",
+    "gift/torchtitan/models/common/moe/dispatch/base.py:47",
+    "gift/torchtitan/distributed/activation_checkpoint.py:85",
+    "gift/torchtitan/distributed/deepep/routing.py:6"
+  ],
+  "primary_references": [
+    {
+      "project": "PyTorch",
+      "revision": "0fabc3ba44823f257e70ce397d989c8de5e362c1",
+      "version": "v2.9.0",
+      "url": "https://github.com/pytorch/pytorch/blob/0fabc3ba44823f257e70ce397d989c8de5e362c1/torch/utils/checkpoint.py",
+      "symbol": "create_selective_checkpoint_contexts; _CachedTorchDispatchMode",
+      "fit": "MUST_SAVE caches operator outputs for replay; validate installed runtime and compiled custom-op path."
+    },
+    {
+      "project": "TransformerEngine",
+      "revision": "9137e0f66ffa41e2b4a65deeec2103346298f7c9",
+      "url": "https://github.com/NVIDIA/TransformerEngine/blob/9137e0f66ffa41e2b4a65deeec2103346298f7c9/transformer_engine/pytorch/router.py#L378",
+      "symbol": "fused_topk_with_score_function",
+      "fit": "Local score/top-k/bias/scaling/map fusion; not gate GEMM or global group-capacity collective. Not recommended as a direct policy replacement."
+    },
+    {
+      "project": "Megatron-LM",
+      "revision": "05c4a8ba04e2d3422f56ffdda7ff2059da431e18",
+      "url": "https://github.com/NVIDIA/Megatron-LM/blob/05c4a8ba04e2d3422f56ffdda7ff2059da431e18/megatron/core/transformer/moe/moe_utils.py#L1246",
+      "symbol": "apply_router_token_dropping",
+      "fit": "Reference for GPU masking; its probability/position and capacity policy differs, so it is not a replacement for the owner-required current variant."
+    },
+    {
+      "project": "DeepEP",
+      "revision": "f6aa38fe06cd4a0489e7730365d4e0114970a2f3",
+      "url": "https://github.com/deepseek-ai/DeepEP/blob/f6aa38fe06cd4a0489e7730365d4e0114970a2f3/deep_ep/buffers/ep.py",
+      "symbol": "EPHandle; EPBuffer.dispatch",
+      "fit": "Cached layout replay and GPU-side count API illustrate retaining routing metadata. This is not a ready-made implementation of current global group-capacity gating and does not require migrating this task to DeepEP."
+    },
+    {
+      "project": "Tutel",
+      "revision": "f6610fd55b6b694ad9f033306b87cf37468f87c3",
+      "url": "https://github.com/microsoft/Tutel/blob/f6610fd55b6b694ad9f033306b87cf37468f87c3/tutel/impls/fast_dispatch.py#L143",
+      "symbol": "extract_critical",
+      "fit": "Dynamic capacity still uses global MAX and host conversion; no demonstrated fix for current exact policy."
+    }
+  ],
+  "excluded_from_recommendation": [
+    "Switching to the existing branchless capacity implementation: excluded by owner instruction to keep current conditional variant.",
+    "Bypassing capacity under the EP8 crop bound: mathematical source analysis shows upper bound524288 routes below800000 budget for the stated crop contract, but bypass is not the requested current-path optimization and is not proposed. Raw resolved YAML was not available; canonical config hashes match the run source-identity manifest.",
+    "Replacing the current capacity rule with Megatron/Tutel policies, dropless routing or padding.",
+    "Treating a same-named runtime in-place collective as proof of a SAC policy mismatch without lowering evidence."
+  ],
+  "status": "Research complete within stated scope. No source/config edits, GPU tests, numerical validation, measured speedup or new training launch."
+}

@@ -1,0 +1,1442 @@
+{
+  "scope": "Read-only native rank0/rank1 comparison of all 39 Long128 capacity allreduce kernels; one profiled update21 prefix, eight-rank collective.",
+  "trace_inputs": [
+    {
+      "rank": 0,
+      "path": "optimization-task/runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/native/profiling/traces/iteration_21/rank0_trace.json",
+      "sha256": "fdcf72769a9ddbad51db80b0bf7663784f7bbf4c72971e3ee8d7925cfc800203",
+      "host_name": "lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0",
+      "baseTimeNanoseconds": 1790857026000000000,
+      "distributed_rank": 0,
+      "world_size": 8
+    },
+    {
+      "rank": 1,
+      "path": "optimization-task/runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/native/profiling/traces/iteration_21/rank1_trace.json",
+      "sha256": "3594219f6ea8282cd85e963ea7d5db2b51a2dfc52732e91de08f59fa3b419902",
+      "host_name": "lm-mpi-job-8dff1e19-674b-42ed-96a9-bcd042dfefe5-mpimaster-0",
+      "baseTimeNanoseconds": 1790857026000000000,
+      "distributed_rank": 1,
+      "world_size": 8
+    }
+  ],
+  "clock_domain": {
+    "origin_ns_for_all_reported_relative_times": 3762433098211544,
+    "same_host_name": true,
+    "same_baseTimeNanoseconds": true,
+    "method": "Compare raw native Chrome ts/dur (microseconds) without per-rank normalization or fitted offsets. Both traces are on the same host and have identical baseTimeNanoseconds. Identical collective ends align within 0.5 us across 39 matches, independently supporting comparable clocks. Metadata supplies no explicit cross-GPU calibration-error bound.",
+    "max_absolute_matched_completion_delta_us": 0.4990742187499997,
+    "median_absolute_matched_completion_delta_us": 0.10683984375000222
+  },
+  "matching": {
+    "key": [
+      "Process Group Name",
+      "Process Group Ranks",
+      "Seq"
+    ],
+    "all39_one_to_one": true,
+    "common_kernel_names": [
+      "ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)"
+    ],
+    "process_group_name": "0",
+    "ranks": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "dtype": "Long",
+    "input_output_elements": 128,
+    "input_output_bytes": 1024,
+    "comms_id": 2297668046889143629,
+    "phases": "Rank0 correlation -> existing capacity-window-budget.json phase labels. Correlations are used within rank only, never to match ranks."
+  },
+  "summary": {
+    "forward": {
+      "count": 21,
+      "rank0_sum_ms": 1.206983,
+      "rank1_sum_ms": 1.4353,
+      "rank0_median_ms": 0.046304000000000005,
+      "rank1_median_ms": 0.050207999999999996,
+      "rank1_later_than_rank0_count": 10,
+      "max_rank1_lateness_us": 56.14208984375,
+      "sum_both_active_overlap_ms": 1.0155927734375
+    },
+    "backward_recompute": {
+      "count": 18,
+      "rank0_sum_ms": 13.840273999999999,
+      "rank1_sum_ms": 16.894805,
+      "rank0_median_ms": 0.854803,
+      "rank1_median_ms": 1.008003,
+      "rank1_later_than_rank0_count": 5,
+      "max_rank1_lateness_us": 160.0078125,
+      "sum_both_active_overlap_ms": 13.36274853515625
+    }
+  },
+  "selected": [
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31039,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 1173.053283203125,
+        "end_ms_from_rank0_origin": 1174.5426333007813,
+        "duration_ms": 1.48935,
+        "correlation_rank_local": 1833247,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 1172.9374169921875,
+        "end_ms_from_rank0_origin": 1174.5427978515625,
+        "duration_ms": 1.6053810000000002,
+        "correlation_rank_local": 1830961,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -115.8662109375,
+      "rank1_minus_rank0_end_us": 0.16464843750009095,
+      "both_kernels_active_overlap_us": 1489.35009765625,
+      "rank0_perfetto_slice_id": 58892,
+      "preceding_gpu_work": {
+        "rank0": {
+          "last_gpu_event_name": "triton_per_fused_any_gt_slice_14",
+          "stream": 7,
+          "end_ms_from_rank0_origin": 1173.05053125,
+          "gap_before_collective_start_us": 2.752,
+          "note": "Temporal adjacency only; dependencies not reconstructed in this cross-rank scope."
+        },
+        "rank1": {
+          "last_gpu_event_name": "ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+          "stream": 24,
+          "end_ms_from_rank0_origin": 1172.9360092773438,
+          "gap_before_collective_start_us": 1.4077539062500364,
+          "note": "Temporal adjacency only; dependencies not reconstructed in this cross-rank scope."
+        }
+      }
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31042,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 1200.6734780273437,
+        "end_ms_from_rank0_origin": 1201.545705078125,
+        "duration_ms": 0.872227,
+        "correlation_rank_local": 1836838,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 1200.5062729492188,
+        "end_ms_from_rank0_origin": 1201.5458920898438,
+        "duration_ms": 1.0396189999999998,
+        "correlation_rank_local": 1834552,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -167.205078125,
+      "rank1_minus_rank0_end_us": 0.18706250000002456,
+      "both_kernels_active_overlap_us": 872.22705078125,
+      "rank0_perfetto_slice_id": 60411,
+      "preceding_gpu_work": {
+        "rank0": {
+          "last_gpu_event_name": "triton_per_fused_any_gt_slice_10",
+          "stream": 7,
+          "end_ms_from_rank0_origin": 1200.6707583007812,
+          "gap_before_collective_start_us": 2.7197734375,
+          "note": "Temporal adjacency only; dependencies not reconstructed in this cross-rank scope."
+        },
+        "rank1": {
+          "last_gpu_event_name": "triton_per_fused_any_gt_slice_10",
+          "stream": 7,
+          "end_ms_from_rank0_origin": 1200.5035849609376,
+          "gap_before_collective_start_us": 2.68803515625,
+          "note": "Temporal adjacency only; dependencies not reconstructed in this cross-rank scope."
+        }
+      }
+    }
+  ],
+  "all_pairs": [
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30910,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 24.7708828125,
+        "end_ms_from_rank0_origin": 24.87715478515625,
+        "duration_ms": 0.106272,
+        "correlation_rank_local": 1687063,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 24.82702490234375,
+        "end_ms_from_rank0_origin": 24.87723291015625,
+        "duration_ms": 0.050207999999999996,
+        "correlation_rank_local": 1684826,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 56.14208984375,
+      "rank1_minus_rank0_end_us": 0.07809765624999443,
+      "both_kernels_active_overlap_us": 50.1298828125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30912,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 34.64922216796875,
+        "end_ms_from_rank0_origin": 34.69872607421875,
+        "duration_ms": 0.049504,
+        "correlation_rank_local": 1688855,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 34.67089697265625,
+        "end_ms_from_rank0_origin": 34.6988330078125,
+        "duration_ms": 0.027936,
+        "correlation_rank_local": 1686618,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 21.6748046875,
+      "rank1_minus_rank0_end_us": 0.10683984375000222,
+      "both_kernels_active_overlap_us": 27.8291015625
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30914,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 44.59335302734375,
+        "end_ms_from_rank0_origin": 44.65197705078125,
+        "duration_ms": 0.058624,
+        "correlation_rank_local": 1690653,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 44.6210078125,
+        "end_ms_from_rank0_origin": 44.65227294921875,
+        "duration_ms": 0.031265,
+        "correlation_rank_local": 1688416,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 27.65478515625,
+      "rank1_minus_rank0_end_us": 0.29592187499999767,
+      "both_kernels_active_overlap_us": 30.96923828125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30916,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 54.399404296875,
+        "end_ms_from_rank0_origin": 54.44375732421875,
+        "duration_ms": 0.044353000000000004,
+        "correlation_rank_local": 1692440,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 54.39326416015625,
+        "end_ms_from_rank0_origin": 54.44388818359375,
+        "duration_ms": 0.050624,
+        "correlation_rank_local": 1690336,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -6.14013671875,
+      "rank1_minus_rank0_end_us": 0.13088671874999847,
+      "both_kernels_active_overlap_us": 44.35302734375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30918,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 64.905490234375,
+        "end_ms_from_rank0_origin": 64.9487861328125,
+        "duration_ms": 0.043296,
+        "correlation_rank_local": 1694217,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 64.922033203125,
+        "end_ms_from_rank0_origin": 64.94878515625,
+        "duration_ms": 0.026751999999999998,
+        "correlation_rank_local": 1692113,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 16.54296875,
+      "rank1_minus_rank0_end_us": -0.0010781249999993747,
+      "both_kernels_active_overlap_us": 26.751953125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30920,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 74.77931689453125,
+        "end_ms_from_rank0_origin": 74.890677734375,
+        "duration_ms": 0.111361,
+        "correlation_rank_local": 1696053,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 74.77147314453126,
+        "end_ms_from_rank0_origin": 74.890705078125,
+        "duration_ms": 0.119232,
+        "correlation_rank_local": 1693951,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -7.84375,
+      "rank1_minus_rank0_end_us": 0.027183593749995794,
+      "both_kernels_active_overlap_us": 111.36083984375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30922,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 85.49948291015625,
+        "end_ms_from_rank0_origin": 85.56690771484375,
+        "duration_ms": 0.067425,
+        "correlation_rank_local": 1697764,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 85.514291015625,
+        "end_ms_from_rank0_origin": 85.5668671875,
+        "duration_ms": 0.052576,
+        "correlation_rank_local": 1695662,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 14.80810546875,
+      "rank1_minus_rank0_end_us": -0.04072265624999716,
+      "both_kernels_active_overlap_us": 52.576171875
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30932,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 216.3418701171875,
+        "end_ms_from_rank0_origin": 216.56487890625,
+        "duration_ms": 0.22300899999999999,
+        "correlation_rank_local": 1707727,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 216.5018779296875,
+        "end_ms_from_rank0_origin": 216.5647900390625,
+        "duration_ms": 0.062912,
+        "correlation_rank_local": 1705625,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 160.0078125,
+      "rank1_minus_rank0_end_us": -0.08907812499998613,
+      "both_kernels_active_overlap_us": 62.912109375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30935,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 246.57074609375,
+        "end_ms_from_rank0_origin": 248.1630400390625,
+        "duration_ms": 1.592294,
+        "correlation_rank_local": 1711574,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 246.61394189453125,
+        "end_ms_from_rank0_origin": 248.16332275390624,
+        "duration_ms": 1.5493810000000001,
+        "correlation_rank_local": 1709327,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 43.19580078125,
+      "rank1_minus_rank0_end_us": 0.2826601562499036,
+      "both_kernels_active_overlap_us": 1549.09814453125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30940,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 300.75737109375,
+        "end_ms_from_rank0_origin": 301.7123193359375,
+        "duration_ms": 0.954948,
+        "correlation_rank_local": 1719647,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 300.90585986328125,
+        "end_ms_from_rank0_origin": 301.7124541015625,
+        "duration_ms": 0.806594,
+        "correlation_rank_local": 1717476,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 148.48876953125,
+      "rank1_minus_rank0_end_us": 0.13500781250002092,
+      "both_kernels_active_overlap_us": 806.45947265625
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30943,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 329.7515229492187,
+        "end_ms_from_rank0_origin": 331.3891279296875,
+        "duration_ms": 1.637605,
+        "correlation_rank_local": 1723951,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 329.722240234375,
+        "end_ms_from_rank0_origin": 331.3890302734375,
+        "duration_ms": 1.66679,
+        "correlation_rank_local": 1721801,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -29.28271484375,
+      "rank1_minus_rank0_end_us": -0.09767578125001819,
+      "both_kernels_active_overlap_us": 1637.50732421875
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30946,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 356.9514921875,
+        "end_ms_from_rank0_origin": 357.78887109375,
+        "duration_ms": 0.837379,
+        "correlation_rank_local": 1727657,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 356.81269482421874,
+        "end_ms_from_rank0_origin": 357.78908203125,
+        "duration_ms": 0.9763869999999999,
+        "correlation_rank_local": 1725383,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -138.79736328125,
+      "rank1_minus_rank0_end_us": 0.2108437499999809,
+      "both_kernels_active_overlap_us": 837.37890625
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30949,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 384.96215185546873,
+        "end_ms_from_rank0_origin": 384.97827978515625,
+        "duration_ms": 0.016128,
+        "correlation_rank_local": 1731924,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 384.41227099609375,
+        "end_ms_from_rank0_origin": 384.97822509765626,
+        "duration_ms": 0.565954,
+        "correlation_rank_local": 1729731,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -549.880859375,
+      "rank1_minus_rank0_end_us": -0.054757812500000114,
+      "both_kernels_active_overlap_us": 16.0732421875
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30958,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 449.3385732421875,
+        "end_ms_from_rank0_origin": 449.49147021484373,
+        "duration_ms": 0.152897,
+        "correlation_rank_local": 1741701,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 449.2631982421875,
+        "end_ms_from_rank0_origin": 449.4912314453125,
+        "duration_ms": 0.22803299999999999,
+        "correlation_rank_local": 1739401,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -75.375,
+      "rank1_minus_rank0_end_us": -0.23879687499999136,
+      "both_kernels_active_overlap_us": 152.658203125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30960,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 458.2297412109375,
+        "end_ms_from_rank0_origin": 458.27604541015626,
+        "duration_ms": 0.046304000000000005,
+        "correlation_rank_local": 1743471,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 458.1844428710937,
+        "end_ms_from_rank0_origin": 458.2759306640625,
+        "duration_ms": 0.091488,
+        "correlation_rank_local": 1741275,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -45.29833984375,
+      "rank1_minus_rank0_end_us": -0.11454687500000205,
+      "both_kernels_active_overlap_us": 46.189453125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30962,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 467.64951904296873,
+        "end_ms_from_rank0_origin": 467.66756689453126,
+        "duration_ms": 0.018047999999999998,
+        "correlation_rank_local": 1745246,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 467.6341689453125,
+        "end_ms_from_rank0_origin": 467.66780078125,
+        "duration_ms": 0.033631999999999995,
+        "correlation_rank_local": 1743050,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -15.35009765625,
+      "rank1_minus_rank0_end_us": 0.23373828125000173,
+      "both_kernels_active_overlap_us": 18.0478515625
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30964,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 476.54858984375,
+        "end_ms_from_rank0_origin": 476.59556591796877,
+        "duration_ms": 0.046976,
+        "correlation_rank_local": 1747012,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 476.562837890625,
+        "end_ms_from_rank0_origin": 476.59560595703124,
+        "duration_ms": 0.032768,
+        "correlation_rank_local": 1744816,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 14.248046875,
+      "rank1_minus_rank0_end_us": 0.04011328125000091,
+      "both_kernels_active_overlap_us": 32.72802734375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30966,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 486.1472172851563,
+        "end_ms_from_rank0_origin": 486.1911533203125,
+        "duration_ms": 0.043936,
+        "correlation_rank_local": 1748766,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 486.1573002929687,
+        "end_ms_from_rank0_origin": 486.19134912109377,
+        "duration_ms": 0.034049,
+        "correlation_rank_local": 1746572,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 10.0830078125,
+      "rank1_minus_rank0_end_us": 0.19583593750000006,
+      "both_kernels_active_overlap_us": 33.85302734375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30968,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 495.3968818359375,
+        "end_ms_from_rank0_origin": 495.5111220703125,
+        "duration_ms": 0.11424,
+        "correlation_rank_local": 1750581,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 495.374673828125,
+        "end_ms_from_rank0_origin": 495.51115380859375,
+        "duration_ms": 0.13648,
+        "correlation_rank_local": 1748387,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -22.2080078125,
+      "rank1_minus_rank0_end_us": 0.031972656250005116,
+      "both_kernels_active_overlap_us": 114.240234375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30970,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 505.70984619140626,
+        "end_ms_from_rank0_origin": 505.77384716796877,
+        "duration_ms": 0.064001,
+        "correlation_rank_local": 1752296,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 505.72277099609374,
+        "end_ms_from_rank0_origin": 505.7735869140625,
+        "duration_ms": 0.050816,
+        "correlation_rank_local": 1750102,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 12.9248046875,
+      "rank1_minus_rank0_end_us": -0.2602773437500048,
+      "both_kernels_active_overlap_us": 50.81591796875
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30980,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 637.4452612304688,
+        "end_ms_from_rank0_origin": 637.5628291015626,
+        "duration_ms": 0.11756799999999999,
+        "correlation_rank_local": 1762447,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 637.4687280273438,
+        "end_ms_from_rank0_origin": 637.562873046875,
+        "duration_ms": 0.09414499999999999,
+        "correlation_rank_local": 1760093,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 23.466796875,
+      "rank1_minus_rank0_end_us": 0.04381640625000216,
+      "both_kernels_active_overlap_us": 94.10107421875
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30983,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 667.9054331054688,
+        "end_ms_from_rank0_origin": 668.9547172851562,
+        "duration_ms": 1.049284,
+        "correlation_rank_local": 1766107,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 667.6783291015626,
+        "end_ms_from_rank0_origin": 668.9546850585938,
+        "duration_ms": 1.276356,
+        "correlation_rank_local": 1763907,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -227.10400390625,
+      "rank1_minus_rank0_end_us": -0.0320468750001055,
+      "both_kernels_active_overlap_us": 1049.251953125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30988,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 722.03474609375,
+        "end_ms_from_rank0_origin": 722.954205078125,
+        "duration_ms": 0.9194589999999999,
+        "correlation_rank_local": 1774198,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 721.81975,
+        "end_ms_from_rank0_origin": 722.9543779296876,
+        "duration_ms": 1.134628,
+        "correlation_rank_local": 1772012,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -214.99609375,
+      "rank1_minus_rank0_end_us": 0.17283593750005366,
+      "both_kernels_active_overlap_us": 919.458984375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30991,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 751.3690268554687,
+        "end_ms_from_rank0_origin": 752.7337358398438,
+        "duration_ms": 1.364709,
+        "correlation_rank_local": 1778636,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 751.1512041015625,
+        "end_ms_from_rank0_origin": 752.7339291992188,
+        "duration_ms": 1.582725,
+        "correlation_rank_local": 1776325,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -217.82275390625,
+      "rank1_minus_rank0_end_us": 0.19334374999993997,
+      "both_kernels_active_overlap_us": 1364.708984375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30994,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 778.9836528320312,
+        "end_ms_from_rank0_origin": 779.7268559570313,
+        "duration_ms": 0.743203,
+        "correlation_rank_local": 1782227,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 778.9104609375,
+        "end_ms_from_rank0_origin": 779.727294921875,
+        "duration_ms": 0.816834,
+        "correlation_rank_local": 1779990,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -73.19189453125,
+      "rank1_minus_rank0_end_us": 0.43908984375002547,
+      "both_kernels_active_overlap_us": 743.203125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 30997,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 807.1653862304687,
+        "end_ms_from_rank0_origin": 807.1810341796875,
+        "duration_ms": 0.015648,
+        "correlation_rank_local": 1786503,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 806.5360849609375,
+        "end_ms_from_rank0_origin": 807.18053515625,
+        "duration_ms": 0.6444500000000001,
+        "correlation_rank_local": 1784266,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -629.30126953125,
+      "rank1_minus_rank0_end_us": -0.4990742187499997,
+      "both_kernels_active_overlap_us": 15.14892578125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31006,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 872.2465458984375,
+        "end_ms_from_rank0_origin": 872.261009765625,
+        "duration_ms": 0.014464000000000001,
+        "correlation_rank_local": 1796302,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 872.1242631835937,
+        "end_ms_from_rank0_origin": 872.2609990234375,
+        "duration_ms": 0.136736,
+        "correlation_rank_local": 1794055,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -122.28271484375,
+      "rank1_minus_rank0_end_us": -0.010875000000000412,
+      "both_kernels_active_overlap_us": 14.453125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31008,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 881.0269931640624,
+        "end_ms_from_rank0_origin": 881.0415541992187,
+        "duration_ms": 0.014561,
+        "correlation_rank_local": 1798073,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 880.967203125,
+        "end_ms_from_rank0_origin": 881.0416352539063,
+        "duration_ms": 0.074432,
+        "correlation_rank_local": 1795826,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -59.7900390625,
+      "rank1_minus_rank0_end_us": 0.08108984375000006,
+      "both_kernels_active_overlap_us": 14.56103515625
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31010,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 890.4528828125,
+        "end_ms_from_rank0_origin": 890.480306640625,
+        "duration_ms": 0.027424,
+        "correlation_rank_local": 1799848,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 890.4384008789062,
+        "end_ms_from_rank0_origin": 890.4804497070312,
+        "duration_ms": 0.042048999999999996,
+        "correlation_rank_local": 1797601,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -14.48193359375,
+      "rank1_minus_rank0_end_us": 0.1428945312500005,
+      "both_kernels_active_overlap_us": 27.423828125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31012,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 899.2997309570312,
+        "end_ms_from_rank0_origin": 899.314130859375,
+        "duration_ms": 0.0144,
+        "correlation_rank_local": 1801614,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 899.2827182617187,
+        "end_ms_from_rank0_origin": 899.3141420898437,
+        "duration_ms": 0.031424,
+        "correlation_rank_local": 1799367,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -17.0126953125,
+      "rank1_minus_rank0_end_us": 0.011132812499999645,
+      "both_kernels_active_overlap_us": 14.39990234375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31014,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 908.9631572265625,
+        "end_ms_from_rank0_origin": 908.9896850585938,
+        "duration_ms": 0.026528,
+        "correlation_rank_local": 1803370,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 908.9755170898437,
+        "end_ms_from_rank0_origin": 908.9897573242188,
+        "duration_ms": 0.014240000000000001,
+        "correlation_rank_local": 1801130,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 12.35986328125,
+      "rank1_minus_rank0_end_us": 0.07209765625000131,
+      "both_kernels_active_overlap_us": 14.16796875
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31016,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 918.2099418945312,
+        "end_ms_from_rank0_origin": 918.3084389648437,
+        "duration_ms": 0.098497,
+        "correlation_rank_local": 1805185,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 918.1775620117188,
+        "end_ms_from_rank0_origin": 918.3081860351563,
+        "duration_ms": 0.130624,
+        "correlation_rank_local": 1802945,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -32.3798828125,
+      "rank1_minus_rank0_end_us": -0.2528593749999999,
+      "both_kernels_active_overlap_us": 98.244140625
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31018,
+      "phase": "forward",
+      "rank0": {
+        "start_ms_from_rank0_origin": 928.507962890625,
+        "end_ms_from_rank0_origin": 928.5518349609375,
+        "duration_ms": 0.043872,
+        "correlation_rank_local": 1807059,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 928.5119951171876,
+        "end_ms_from_rank0_origin": 928.5519311523437,
+        "duration_ms": 0.039936,
+        "correlation_rank_local": 1804660,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 4.0322265625,
+      "rank1_minus_rank0_end_us": 0.09626171875000011,
+      "both_kernels_active_overlap_us": 39.83984375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31028,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 1058.7529721679687,
+        "end_ms_from_rank0_origin": 1058.9089399414063,
+        "duration_ms": 0.155968,
+        "correlation_rank_local": 1817043,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 1058.8543959960937,
+        "end_ms_from_rank0_origin": 1058.9089877929687,
+        "duration_ms": 0.054592,
+        "correlation_rank_local": 1814809,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": 101.423828125,
+      "rank1_minus_rank0_end_us": 0.04762500000001069,
+      "both_kernels_active_overlap_us": 54.5439453125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31031,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 1089.504376953125,
+        "end_ms_from_rank0_origin": 1090.1125390625,
+        "duration_ms": 0.608162,
+        "correlation_rank_local": 1820733,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 1088.7741401367186,
+        "end_ms_from_rank0_origin": 1090.1124799804688,
+        "duration_ms": 1.3383399999999999,
+        "correlation_rank_local": 1818453,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -730.23681640625,
+      "rank1_minus_rank0_end_us": -0.05897265625003456,
+      "both_kernels_active_overlap_us": 608.10302734375
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31036,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 1143.3588090820313,
+        "end_ms_from_rank0_origin": 1144.5859501953125,
+        "duration_ms": 1.227141,
+        "correlation_rank_local": 1828934,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 1143.26807421875,
+        "end_ms_from_rank0_origin": 1144.5859663085937,
+        "duration_ms": 1.317892,
+        "correlation_rank_local": 1826557,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -90.73486328125,
+      "rank1_minus_rank0_end_us": 0.016226562499923602,
+      "both_kernels_active_overlap_us": 1227.14111328125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31039,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 1173.053283203125,
+        "end_ms_from_rank0_origin": 1174.5426333007813,
+        "duration_ms": 1.48935,
+        "correlation_rank_local": 1833247,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 1172.9374169921875,
+        "end_ms_from_rank0_origin": 1174.5427978515625,
+        "duration_ms": 1.6053810000000002,
+        "correlation_rank_local": 1830961,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -115.8662109375,
+      "rank1_minus_rank0_end_us": 0.16464843750009095,
+      "both_kernels_active_overlap_us": 1489.35009765625
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31042,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 1200.6734780273437,
+        "end_ms_from_rank0_origin": 1201.545705078125,
+        "duration_ms": 0.872227,
+        "correlation_rank_local": 1836838,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 1200.5062729492188,
+        "end_ms_from_rank0_origin": 1201.5458920898438,
+        "duration_ms": 1.0396189999999998,
+        "correlation_rank_local": 1834552,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -167.205078125,
+      "rank1_minus_rank0_end_us": 0.18706250000002456,
+      "both_kernels_active_overlap_us": 872.22705078125
+    },
+    {
+      "process_group_name": "0",
+      "process_group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "seq": 31045,
+      "phase": "backward_recompute",
+      "rank0": {
+        "start_ms_from_rank0_origin": 1229.012779296875,
+        "end_ms_from_rank0_origin": 1229.0289711914063,
+        "duration_ms": 0.016192,
+        "correlation_rank_local": 1841114,
+        "stream": 23
+      },
+      "rank1": {
+        "start_ms_from_rank0_origin": 1228.66703515625,
+        "end_ms_from_rank0_origin": 1229.0288603515626,
+        "duration_ms": 0.361825,
+        "correlation_rank_local": 1838856,
+        "stream": 23
+      },
+      "rank1_minus_rank0_start_us": -345.744140625,
+      "rank1_minus_rank0_end_us": -0.11094531250000017,
+      "both_kernels_active_overlap_us": 16.0810546875
+    }
+  ],
+  "observations": [
+    "Rank1 begins both selected kernels earlier than rank0 (115.866 us and 167.205 us), yet ends within 0.187 us of rank0. Rank1 late arrival does not explain the selected rank0 lifetimes.",
+    "The long selected intervals overlap almost entirely on both recorded GPUs. Rank0 lifetimes therefore are not explained solely by waiting for rank1 to begin.",
+    "Across all 39matches, observed end deltas are below 0.5 us while start skew ranges over hundreds of microseconds. This is consistent with common collective completion and variable arrival/wait time.",
+    "Long backward kernels are present on rank1 as well; the forward/backward change is not unique to rank0."
+  ],
+  "limits": [
+    "Ranks 2..7 are not recorded. Their arrival times, work, and potential straggler identities are unknown.",
+    "Concurrent long kernel lifetimes do not distinguish waiting for other ranks from NCCL protocol progress, fabric delays or resource effects. Exact root cause cannot be assigned from these two traces.",
+    "Kernel start is an observed device event boundary, not a directly instrumented per-channel readiness or NCCL loop-progress point. Preceding work is timing context only.",
+    "No GPU execution, source/configuration edits, policy changes, network measurements or production speedup claim are part of this evidence."
+  ]
+}

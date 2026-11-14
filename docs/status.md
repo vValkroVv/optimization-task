@@ -4,6 +4,33 @@ Updated: 14 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
 
+## Timing drift in fixed-window runs
+
+Across the three eight-rank runs, rank-zero median host cadence from updates 41–60 to
+121–140 decreases by about 9.9–10.4%, with the same direction on every rank and a
+nonmonotonic early hump. Data-cache effects remain possible; changing MoE routing/load
+imbalance is the leading unproven hypothesis. The [timing-drift record](../runs/flash-qla/timing-drift.md)
+owns the evidence and limits. The [comparison JSON](../runs/flash-qla/historical-drift-comparison.json)
+gives the exact all-rank values and hashes; these cadence intervals do not establish
+device-only time or stationary/general throughput.
+
+## FlashQLA gate variants: bounded experiment complete; no default promotion
+
+The task-copy block comparison and three native eight-rank runs completed; the two
+new update-21 rank-0/1 trace captures and MCP analyses also passed. Each capture
+covers three of 32 microbatches. Whole-GDN 3F+B work fell from 59.2–59.7 ms to
+30.9–31.4 ms (1.90–1.92×), removing 2.25–2.28% of the matched three-microbatch
+device span. This is not full-update critical-path or TPS evidence. Fixed-order
+native windows measured 156,452.36 / 160,090.72 / 159,735.21 global physical
+tokens/s for FLA / external / fused; about 10.4% within-window cadence drift
+precludes a general or causal TPS conclusion. Both variants remain task-copy
+experiments; no production source/default is promoted. CP warmup, PP4/EP32,
+convergence, checkpoint/resume and EMA updates remain unverified. The [integrated
+report](../runs/flash-qla/report.md), [block results](../runs/flash-qla/block-results.md),
+[native results](../runs/flash-qla/native-results.md), [trace analysis](../runs/flash-qla/trace-results.md),
+and [capture record](../runs/flash-qla/trace-capture-results.md) own their detailed
+protocols, receipts and limits.
+
 ## BF16 expert-weight reuse: integrated, verified, default off
 
 The [completed assignment](../planning/README.md#active-assignment-bf16-expert-weight-reuse)

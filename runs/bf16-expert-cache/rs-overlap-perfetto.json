@@ -1,0 +1,519 @@
+{
+  "analysis_date": "2026-11-14",
+  "purpose": "Explain the three exact reduce-scatter events selected by the owner, including FQN ownership and the exposed MTP dependency.",
+  "trace_path": "/Users/valerii.kropotin/sber-pretrain/optimization-task/runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/native/profiling/traces/iteration_21/rank0_trace.json",
+  "trace_sha256": "fdcf72769a9ddbad51db80b0bf7663784f7bbf4c72971e3ee8d7925cfc800203",
+  "trace_identity": "bf16-cache-trace-001, rank0, update21; accepted V2 prefetch plus BF16 expert-weight cache. Not the earlier v2-long-epoch-candidate-trace-001.",
+  "source_identity": {
+    "head_before_patch": "657e77a4f8ddb116b75925e5671b00642a0e4d32",
+    "frozen_patch_sha256": "4634d6ac225cc0993567de491605cb31b44121965ab633ea292179fa7436cb26",
+    "snapshot_sha256": "3dfde3ee2b0d9b207d042522bbc4882d4bcbaec6d07250efdde24ae6dc24e42c",
+    "hash_matching_committed_source": "6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507",
+    "verification": "Independent source worker compared git-show bytes at6c6cd9c0e against recorded source-identity hashes; all7 relevant GFSDP/parallelize files match."
+  },
+  "import_coverage": {
+    "native_kernels": 8781,
+    "perfetto_native_import_kernels": 8723,
+    "native_memcpy": 232,
+    "perfetto_memcpy": 232,
+    "native_memset": 861,
+    "perfetto_memset": 861,
+    "method": "Perfetto native import matches exact requested slice IDs, durations and CPU owner flows, but drops58 other kernels. Overlap quantities independently computed from all native JSON GPU events, with Decimal timestamps and interval unions; no dropped-event assumption used."
+  },
+  "targets": [
+    {
+      "slice_id": 9041,
+      "owner": "lm_head",
+      "start_ms": 180.671727,
+      "end_ms": 191.922071,
+      "duration_ms": 11.250344,
+      "overlapping_compute_module": "mtp.layers.0",
+      "input_numel": 525336576
+    },
+    {
+      "slice_id": 9233,
+      "owner": "mtp.layers.0",
+      "start_ms": 204.946757,
+      "end_ms": 212.433632,
+      "duration_ms": 7.486875,
+      "input_numel": 234271232
+    },
+    {
+      "slice_id": 10787,
+      "owner": "layers.7[fsdp]",
+      "start_ms": 242.449739,
+      "end_ms": 245.945464,
+      "duration_ms": 3.495725,
+      "overlapping_compute_module": "layers.6",
+      "input_numel": 85230080
+    }
+  ],
+  "observed_dependency_chain": {
+    "norm_wait_api": {
+      "slice_id": 8559,
+      "host_start_ms": 111.81562,
+      "name": "cudaStreamWaitEvent",
+      "context": "RegisterPostBackwardFunctionBackward, immediately before FSDP::post_backward_accumulate(norm)"
+    },
+    "last_main_event_before_long_wait_end_ms": 206.056745,
+    "first_main_event_after_wait": {
+      "slice_id": 9257,
+      "start_ms": 212.435936,
+      "owner": "FSDP::post_backward_accumulate(norm)",
+      "name": "multi_tensor_apply foreach_copy"
+    },
+    "continuous_main_gap_ms": 6.379191,
+    "mtp_RS_completion_to_norm_copy_us": 2.304,
+    "layer7_prefetch": {
+      "slice_id": 9259,
+      "start_ms": 212.439136,
+      "end_ms": 212.962914
+    },
+    "layer7_recompute_start_ms": 212.967554,
+    "tiny_intervening_norm_RS": {
+      "slice_id": 9262,
+      "start_ms": 212.965346,
+      "duration_ms": 0.089665
+    }
+  },
+  "source_mechanism": [
+    "Head has dedicated gradient buffer, allowing head RS to overlap MTP recomputation/backward.",
+    "MTP, norm and ordinary dense layers share the gradient buffer through the same shard process group.",
+    "Norm post_backward acquires the shared buffer via current_stream.wait_event(previous RS post_reduce_event), before accumulation and returning gradients upstream.",
+    "AG and RS share stream24, so layer7 AG is additionally serialized behind MTP RS."
+  ],
+  "source_references_at_hash_matching_revision": {
+    "head_own_buffer": "gift/torchtitan/models/gift_moe/_base/parallelize.py:257",
+    "grad_buffer_mapping": "gift/torchtitan/distributed/gfsdp/_state.py:708",
+    "grad_buffer_wait": "gift/torchtitan/distributed/gfsdp/_param_group.py:940",
+    "release_event": "gift/torchtitan/distributed/gfsdp/_param_group.py:1042",
+    "return_upstream": "gift/torchtitan/distributed/gfsdp/_param_group.py:1356",
+    "shared_AG_RS_stream": "gift/torchtitan/distributed/gfsdp/_param_group.py:88"
+  },
+  "native_overlap_evidence": "rs-overlap-native.json",
+  "earlier_launch_analysis": {
+    "question": "What prevents launching the unchanged MTP reduce-scatter earlier?",
+    "answer": "The full MTP group gradient input is not yet packed. No material stream24 queue delay is visible on rank0 at this launch.",
+    "full_group_packing_gpu": [
+      {
+        "slice_id": 9229,
+        "start_ms": 204.43562,
+        "end_ms": 204.746501,
+        "owner": "FSDP::post_backward_accumulate (mtp.layers.0)",
+        "operation": "aten::_foreach_copy_"
+      },
+      {
+        "slice_id": 9230,
+        "start_ms": 204.749349,
+        "end_ms": 204.938597,
+        "owner": "FSDP::post_backward_accumulate (mtp.layers.0)",
+        "operation": "aten::_foreach_copy_"
+      }
+    ],
+    "rs_start_ms": 204.946757,
+    "final_copy_end_to_rs_start_us": 8.16,
+    "preceding_stream24_device_event": {
+      "slice_id": 9132,
+      "operation": "all_gather",
+      "start_ms": 192.209176,
+      "end_ms": 192.540089
+    },
+    "native_verification": "All three target kernel correlations and every native stream24 kernel/memcpy/memset in the preceding interval were inspected. No stream24 device work intervenes between the preceding AG and this RS.",
+    "source_revision": "6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507",
+    "source_mechanism": "Whole MTP layer is wrapped as a GFSDP unit. Module-input post-backward hook packs full group's gradients into _reduce_scatter_input, then the RS stream waits for the compute stream and invokes one dist.reduce_scatter_tensor. This path does not reduce per-parameter subsets as soon as they become ready.",
+    "source_references": [
+      "gift/torchtitan/models/gift_moe/_base/parallelize.py:239",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:949",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:1032",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:1355",
+      "gift/torchtitan/distributed/gfsdp/_collectives.py:123",
+      "gift/torchtitan/distributed/gfsdp/_collectives.py:161"
+    ],
+    "implication": "Moving the unchanged RS call earlier offers no millisecond-scale launch slack here. Earlier reduction of already-ready parameter subsets requires changing reduction granularity/readiness scheduling. Its benefit is not measured.",
+    "scope": "Rank0 of this trace; peer readiness and any performance benefit of changing the schedule are not established.",
+    "perfetto_queries": [
+      {
+        "label": "mtp_grad_copy_owners",
+        "sql": "SELECT d.id,(d.ts-3762433098211544)/1e6 start_ms,d.dur/1e6 duration_ms,(d.ts+d.dur-3762433098211544)/1e6 end_ms,d.host_id,a.id ancestor_id,a.name ancestor_name FROM rs14_link d JOIN ancestor_slice(d.host_id) a WHERE d.id IN (9224,9225,9226,9227,9229,9230) AND (a.category='user_annotation' OR a.name GLOB '*copy*' OR a.name GLOB '*Backward*') ORDER BY d.id,a.depth;",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"ancestor_id\": 7231,\n    \"ancestor_name\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"duration_ms\": 0.00288,\n    \"end_ms\": 204.333123,\n    \"host_id\": 8198,\n    \"id\": 9224,\n    \"start_ms\": 204.330243\n  },\n  {\n    \"ancestor_id\": 7263,\n    \"ancestor_name\": \"CompiledFunctionBackward\",\n    \"duration_ms\": 0.00288,\n    \"end_ms\": 204.333123,\n    \"host_id\": 8198,\n    \"id\": 9224,\n    \"start_ms\": 204.330243\n  },\n  {\n    \"ancestor_id\": 7231,\n    \"ancestor_name\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"duration_ms\": 0.089473,\n    \"end_ms\": 204.422852,\n    \"host_id\": 8201,\n    \"id\": 9225,\n    \"start_ms\": 204.333379\n  },\n  {\n    \"ancestor_id\": 7263,\n    \"ancestor_name\": \"CompiledFunctionBackward\",\n    \"duration_ms\": 0.089473,\n    \"end_ms\": 204.422852,\n    \"host_id\": 8201,\n    \"id\": 9225,\n    \"start_ms\": 204.333379\n  },\n  {\n    \"ancestor_id\": 7231,\n    \"ancestor_name\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"duration_ms\": 0.006048,\n    \"end_ms\": 204.429188,\n    \"host_id\": 8205,\n    \"id\": 9226,\n    \"start_ms\": 204.42314\n  },\n  {\n    \"ancestor_id\": 7263,\n    \"ancestor_name\": \"CompiledFunctionBackward\",\n    \"duration_ms\": 0.006048,\n    \"end_ms\": 204.429188,\n    \"host_id\": 8205,\n    \"id\": 9226,\n    \"start_ms\": 204.42314\n  },\n  {\n    \"ancestor_id\": 7231,\n    \"ancestor_name\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"duration_ms\": 0.001312,\n    \"end_ms\": 204.433444,\n    \"host_id\": 8208,\n    \"id\": 9227,\n    \"start_ms\": 204.432132\n  },\n  {\n    \"ancestor_id\": 7263,\n    \"ancestor_name\": \"CompiledFunctionBackward\",\n    \"duration_ms\": 0.001312,\n    \"end_ms\": 204.433444,\n    \"host_id\": 8208,\n    \"id\": 9227,\n    \"start_ms\": 204.432132\n  },\n  {\n    \"ancestor_id\": 8207,\n    \"ancestor_name\": \"triton_poi_fused__to_copy_12\",\n    \"duration_ms\": 0.001312,\n    \"end_ms\": 204.433444,\n    \"host_id\": 8208,\n    \"id\": 9227,\n    \"start_ms\": 204.432132\n  },\n  {\n    \"ancestor_id\": 8341,\n    \"ancestor_name\": \"autograd::engine::evaluate_function: RegisterPostBackwardFunctionBackward\",\n    \"duration_ms\": 0.310881,\n    \"end_ms\": 204.746501,\n    \"host_id\": 8347,\n    \"id\": 9229,\n    \"start_ms\": 204.43562\n  },\n  {\n    \"ancestor_id\": 8342,\n    \"ancestor_name\": \"RegisterPostBackwardFunctionBackward\",\n    \"duration_ms\": 0.310881,\n    \"end_ms\": 204.746501,\n    \"host_id\": 8347,\n    \"id\": 9229,\n    \"start_ms\": 204.43562\n  },\n  {\n    \"ancestor_id\": 8345,\n    \"ancestor_name\": \"FSDP::post_backward_accumulate (mtp.layers.0)\",\n    \"duration_ms\": 0.310881,\n    \"end_ms\": 204.746501,\n    \"host_id\": 8347,\n    \"id\": 9229,\n    \"start_ms\": 204.43562\n  },\n  {\n    \"ancestor_id\": 8346,\n    \"ancestor_name\": \"aten::_foreach_copy_\",\n    \"duration_ms\": 0.310881,\n    \"end_ms\": 204.746501,\n    \"host_id\": 8347,\n    \"id\": 9229,\n    \"start_ms\": 204.43562\n  },\n  {\n    \"ancestor_id\": 8341,\n    \"ancestor_name\": \"autograd::engine::evaluate_function: RegisterPostBackwardFunctionBackward\",\n    \"duration_ms\": 0.189248,\n    \"end_ms\": 204.938597,\n    \"host_id\": 8348,\n    \"id\": 9230,\n    \"start_ms\": 204.749349\n  },\n  {\n    \"ancestor_id\": 8342,\n    \"ancestor_name\": \"RegisterPostBackwardFunctionBackward\",\n    \"duration_ms\": 0.189248,\n    \"end_ms\": 204.938597,\n    \"host_id\": 8348,\n    \"id\": 9230,\n    \"start_ms\": 204.749349\n  },\n  {\n    \"ancestor_id\": 8345,\n    \"ancestor_name\": \"FSDP::post_backward_accumulate (mtp.layers.0)\",\n    \"duration_ms\": 0.189248,\n    \"end_ms\": 204.938597,\n    \"host_id\": 8348,\n    \"id\": 9230,\n    \"start_ms\": 204.749349\n  },\n  {\n    \"ancestor_id\": 8346,\n    \"ancestor_name\": \"aten::_foreach_copy_\",\n    \"duration_ms\": 0.189248,\n    \"end_ms\": 204.938597,\n    \"host_id\": 8348,\n    \"id\": 9230,\n    \"start_ms\": 204.749349\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      },
+      {
+        "label": "stream24_before_rs",
+        "sql": "SELECT id,category,(ts-3762433098211544)/1e6 start_ms,dur/1e6 duration_ms,(ts+dur-3762433098211544)/1e6 end_ms,substr(name,1,110) name,host_id FROM rs14_link WHERE stream=24 AND ts BETWEEN 3762433270000000 AND 3762433303200000 ORDER BY ts;",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"category\": \"kernel\",\n    \"duration_ms\": 11.250344,\n    \"end_ms\": 191.922071,\n    \"host_id\": 6988,\n    \"id\": 9041,\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 180.671727\n  },\n  {\n    \"category\": \"kernel\",\n    \"duration_ms\": 0.330913,\n    \"end_ms\": 192.540089,\n    \"host_id\": 7255,\n    \"id\": 9132,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 192.209176\n  },\n  {\n    \"category\": \"kernel\",\n    \"duration_ms\": 7.486875,\n    \"end_ms\": 212.433632,\n    \"host_id\": 8366,\n    \"id\": 9233,\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 204.946757\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    ]
+  },
+  "framework_survey": {
+    "date": "2026-11-14",
+    "scope": "Read-only survey of current official training frameworks for the exposed MTP gradient reduce-scatter. No training source edits, GPU runs, benchmarks, dependency installation, or framework migration.",
+    "local_basis": {
+      "source_revision": "6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507",
+      "trace": "bf16-cache-trace-001 rank0 update21",
+      "rs_input_fp32_elements": 234271232,
+      "rs_input_mib": 893.673828125,
+      "packing_kernel_sum_first_mb_ms": 0.500129,
+      "packing_end_to_rs_start_us": 8.16,
+      "identified_continuous_rs_wait_three_mb_ms": 14.742773,
+      "three_mb_elapsed_ms": 1269.7101171875,
+      "conditional_throughput_gain_if_wait_removed_percent": 1.1747535,
+      "limitation": "Rank0 prefix only. No all-rank readiness measurement or full-update performance estimate."
+    },
+    "official_source_pins": [
+      {
+        "repository": "pytorch/pytorch",
+        "revision": "242a9cf0e013551eaada7827cfff1aa8d293dfb1",
+        "sources": [
+          "https://github.com/pytorch/pytorch/blob/242a9cf0e013551eaada7827cfff1aa8d293dfb1/torch/distributed/fsdp/_fully_shard/_fully_shard.py#L1008-L1095",
+          "https://github.com/pytorch/pytorch/blob/242a9cf0e013551eaada7827cfff1aa8d293dfb1/torch/distributed/fsdp/_fully_shard/_fsdp_param_group.py#L724-L752",
+          "https://github.com/pytorch/pytorch/blob/242a9cf0e013551eaada7827cfff1aa8d293dfb1/torch/_dynamo/backends/distributed.py#L388-L412"
+        ]
+      },
+      {
+        "repository": "NVIDIA/Megatron-LM",
+        "revision": "05c4a8ba04e2d3422f56ffdda7ff2059da431e18",
+        "sources": [
+          "https://github.com/NVIDIA/Megatron-LM/blob/05c4a8ba04e2d3422f56ffdda7ff2059da431e18/megatron/core/distributed/distributed_data_parallel.py#L616-L662",
+          "https://github.com/NVIDIA/Megatron-LM/blob/05c4a8ba04e2d3422f56ffdda7ff2059da431e18/megatron/core/distributed/param_and_grad_buffer.py#L849-L1058",
+          "https://github.com/NVIDIA/Megatron-LM/blob/05c4a8ba04e2d3422f56ffdda7ff2059da431e18/megatron/core/distributed/fsdp/src/megatron_fsdp/param_and_grad_buffer.py#L4139-L4570",
+          "https://github.com/NVIDIA/Megatron-LM/blob/05c4a8ba04e2d3422f56ffdda7ff2059da431e18/megatron/core/distributed/fsdp/src/megatron_fsdp/megatron_fsdp.py#L697-L846"
+        ]
+      },
+      {
+        "repository": "NVIDIA-NeMo/Megatron-Bridge",
+        "revision": "40d446774bb17a5dfe1029afd0fd18004d49dafb",
+        "sources": [
+          "https://github.com/NVIDIA-NeMo/Megatron-Bridge/blob/40d446774bb17a5dfe1029afd0fd18004d49dafb/src/megatron/bridge/training/comm_overlap.py#L563-L654"
+        ]
+      },
+      {
+        "repository": "deepspeedai/DeepSpeed",
+        "revision": "663de9736f53e7f1e4deab75b7aa766694825b2a",
+        "sources": [
+          "https://github.com/deepspeedai/DeepSpeed/blob/663de9736f53e7f1e4deab75b7aa766694825b2a/deepspeed/runtime/zero/stage_1_and_2.py#L1461-L1586",
+          "https://github.com/deepspeedai/DeepSpeed/blob/663de9736f53e7f1e4deab75b7aa766694825b2a/deepspeed/runtime/zero/stage_1_and_2.py#L3364-L3388",
+          "https://github.com/deepspeedai/DeepSpeed/blob/663de9736f53e7f1e4deab75b7aa766694825b2a/deepspeed/runtime/zero/stage3.py#L1558-L1618",
+          "https://github.com/deepspeedai/DeepSpeed/blob/663de9736f53e7f1e4deab75b7aa766694825b2a/deepspeed/runtime/engine.py#L3321-L3379"
+        ]
+      },
+      {
+        "repository": "NVIDIA/nccl",
+        "revision": "dbc86fd06e8b0c4517b95d8958a09ccacf9520c9",
+        "version": "v2.28.9-1 inspected compatibility baseline, not asserted latest release",
+        "sources": [
+          "https://github.com/NVIDIA/nccl/blob/dbc86fd06e8b0c4517b95d8958a09ccacf9520c9/src/graph/tuning.cc#L274"
+        ]
+      }
+    ],
+    "mechanisms": [
+      {
+        "name": "Independent gradient storage plus early weight prefetch",
+        "frameworks": "PyTorch FSDP2 in-flight input buffer cap; DeepSpeed overlap double buffers; Megatron-FSDP queued/event-protected buffers",
+        "effect": "Allow later backward work to execute while MTP RS remains in flight.",
+        "local_candidate": "Own norm FP32 gradient buffer; independent tiny BF16 norm data context; re-color dense tail contexts; prefetch layer7 during MTP backward, before its RS, using same stream/PG.",
+        "norm_elements": 135168,
+        "extra_norm_grad_mib": 0.515625,
+        "extra_norm_data_mib": 0.2578125,
+        "conditional_extra_tensor_capacity_mib": 0.7734375,
+        "capacity_not_measured_peak": true,
+        "requirements": "Norm-own gradient API already exists. Default two data slots alias layer7 with MTP and skip early prefetch. Merely changing the prefetch list is insufficient.",
+        "integration_blocker": "Current _lazy_init explicit data mapping passes num_buffers_per_process_group=2 under normal resharding but allocator asserts it must be None. A supported mapping integration change is required; this is not an existing flag-only recipe.",
+        "retention_effect": "With its own data context, norm is that context's final forward user and is retained unsharded; its backward AG can disappear.",
+        "mapping_constraints": "Map all parameter groups, including expert groups; entries refer to flattened param-group representative indices, not arbitrary slot numbers.",
+        "alternative": "A general K-buffer gradient pool is broader than a norm-specific fix. Separate AG/RS process groups are an experimental alternative when concurrent collectives are needed; an extra CUDA stream alone does not establish independent NCCL progress.",
+        "validation": "Actual buffer mapping/lifetimes, collective order, numerical parity, allocator memory and measured end-to-end performance remain untested.",
+        "original_survey_priority": 1,
+        "active_scope_status": "Rejected by owner for the early-launch task; retained as historical source analysis, not an active recommendation."
+      },
+      {
+        "name": "True early-ready buckets with matching compilation boundaries",
+        "frameworks": "Megatron parameter-ready hooks; DeepSpeed IPG buckets; PyTorch DDPOptimizer graph partitioning",
+        "effect": "Begin reducing an earlier-ready MTP subunit while later MTP backward computes.",
+        "local_constraint": "MTP is one outer fullgraph compiled Block and GFSDP unit. Post-return bucket subdivision alone cannot expose early gradients.",
+        "possible_subunits_fp32_mib": {
+          "ffn": 513,
+          "mla": 249,
+          "input_projection": 128,
+          "norms": 3.673828125
+        },
+        "tradeoff": "More compiled regions, AG/RS launches and padding; preserve SAC, FP8, FP32 reduction and cross-rank bucket order. Readiness order requires measurement, not parameter declaration order.",
+        "original_survey_priority": 2,
+        "active_scope_status": "Primary active mechanism for earlier MTP RS.",
+        "active_priority": 1
+      },
+      {
+        "name": "Targeted MTP accumulation without per-microbatch reduction",
+        "frameworks": "PyTorch FSDP2 no-sync; DeepSpeed coalesced gradient reduction",
+        "effect": "Potentially replace 32 MTP RS calls with one per optimizer update.",
+        "local_support": "GFSDP set_requires_gradient_sync(False, recurse=False) plus dedicated MTP grad buffer; final backward restores synchronization.",
+        "retained_full_grad_mib": 893.673828125,
+        "tradeoff": "Actual incremental peak memory depends on how the remaining shared pool shrinks. FP32 sum order changes; preserve global token normalization and divide factor. Not a free standard ZeRO3/MFSDP toggle: their normal sharded paths still reduce every backward.",
+        "original_survey_priority": 3,
+        "active_scope_status": "Different objective: reduction frequency, collective execution cost, or source lifetime; not an answer to earlier-ready MTP RS."
+      },
+      {
+        "name": "Direct producer accumulation into communication-ready FP32 gradients",
+        "frameworks": "Megatron-FSDP TransformerEngine get_main_grad/grad_added_to_main_grad path",
+        "effect": "Reduce packing/casting before RS and possibly advance readiness.",
+        "local_anchor": "First microbatch has 0.500129ms of MTP packing kernels; this is work, not measured removable latency.",
+        "tradeoff": "Requires gradient producer integration; contiguous buffers alone do not eliminate copying. Preserve FP8 recipe, FP32 intermediates, original rounding semantics, compile/SAC ownership and alias lifetimes.",
+        "original_survey_priority": 4,
+        "active_scope_status": "Secondary packing/readiness optimization; does not independently expose gradients during one monolithic compiled backward.",
+        "active_priority": 2
+      },
+      {
+        "name": "Hopper collective selection and registered FP32 buffers",
+        "frameworks": "NCCL NVLS; PyTorch NCCL symmetric memory",
+        "effect": "Reduce RS execution/interference rather than changing launch readiness.",
+        "candidate": "Compare automatic choice with eligible Ring/Simple and NVLS/Simple for exact size/topology; consider symmetric FP32 SUM ReduceScatter buffers.",
+        "constraints": "NVLS needs Hopper plus suitable NVSwitch. Inspected RS path permits NVLS but not NVLSTree. Symmetric kernels require compatible NCCL/version/registration. Preserve FP32 output. Ring_LL duration alone is not evidence of a bad algorithm; peer arrival waiting is unresolved.",
+        "composition_constraint": "At the inspected PyTorch pin, reduce_scatter_max_input_buffers>1 rejects SymmMemReduceScatter; do not assume these mechanisms compose by enabling both flags.",
+        "original_survey_priority": 5,
+        "active_scope_status": "Different objective: reduction frequency, collective execution cost, or source lifetime; not an answer to earlier-ready MTP RS."
+      },
+      {
+        "name": "Decouple source-read completion from final collective completion",
+        "reference": "TIDE arXiv:2610.38228v1, 2026-10-28",
+        "source": "https://arxiv.org/html/2610.38228v1",
+        "effect": "Release source gradients after their read phase; let network progress continue from separate banks; avoid full-group FP32 packing with BF16-input/FP32-output reduction.",
+        "availability": "Paper says implementation is intended for release upon publication. No released implementation pin established.",
+        "fit": "Research direction, substantial kernel/adapter work. Single-node eight-H100 benefit and exact compatibility are unverified; published 64-GPU gains are not an estimate for this trace.",
+        "original_survey_priority": 6,
+        "active_scope_status": "Different objective: reduction frequency, collective execution cost, or source lifetime; not an answer to earlier-ready MTP RS."
+      }
+    ],
+    "independent_review": {
+      "reviewer": "mtp_rs_candidate_review",
+      "source_revision": "6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507",
+      "result": "Retain the small norm/data-slot proposal as a source-level hypothesis requiring the explicit-map integration correction.",
+      "material_findings": [
+        "Explicit-map assertion under normal resharding.",
+        "Norm retention changes expected backward AG sequence.",
+        "Complete parameter-group and expert-context mapping is required.",
+        "No head-lifetime contradiction found; head data release precedes its RS.",
+        "0.7734375MiB arithmetic is static tensor capacity, not measured peak."
+      ]
+    },
+    "recommendation": "For earlier MTP RS, investigate readiness-aligned compiled/GFSDP subunits and ready-gradient buckets. A smaller bucket after the complete compiled backward returns is insufficient. Do not recommend the owner-rejected norm/data-buffer intervention for this task. No implementation or candidate speedup is established.",
+    "active_question": "Start MTP gradient reduce-scatter earlier so it overlaps remaining MTP backward computation.",
+    "owner_scope_correction": {
+      "date": "2026-11-14",
+      "decision": "Owner rejected the independent norm/data-buffer proposal as an answer to the early-launch question. Remove it from active recommendations; preserve its source findings as historical analysis only.",
+      "distinction": "Observed downstream buffer waits remain evidence. Removing them is a different scheduling intervention and does not advance the existing MTP RS launch.",
+      "active_recommendation": "Expose earlier gradient readiness by splitting MTP compilation and GFSDP reduction boundaries together, then reduce ready buckets while the remaining MTP backward runs.",
+      "remaining_unknown": "Actual device gradient-readiness times for MTP subunits and the benefit after compile/SAC boundary changes have not been established."
+    }
+  },
+  "limitations": [
+    "Durations include possible peer waiting, not isolated wire-transfer latency.",
+    "No optimization or speedup measured; addressing only shared gradient-buffer reuse does not address layer7 AG serialization.",
+    "Native importer loss prevents treating direct Perfetto full-device aggregates as complete; the three selected events themselves are exactly matched."
+  ],
+  "queries": [
+    {
+      "label": "launch_linkage_and_owners",
+      "sql": "CREATE PERFETTO TABLE rs14_link AS\nSELECT d.*,CAST(EXTRACT_ARG(d.arg_set_id,'args.stream') AS INT) stream,\nh.id host_id,h.ts host_ts,h.dur host_dur,h.name host_name,h.tid host_tid\nFROM thread_slice d JOIN flow f ON f.slice_in=d.id JOIN thread_slice h ON h.id=f.slice_out\nWHERE d.category IN ('kernel','gpu_memcpy','gpu_memset');\nSELECT d.id,(d.ts-3762433098211544)/1e6 start_ms,d.dur/1e6 gpu_ms,d.host_id,(d.host_ts-3762433098211544)/1e6 host_ms,a.name owner\nFROM rs14_link d JOIN ancestor_slice(d.host_id) a WHERE d.id IN (9041,9233,10787) AND a.name GLOB 'GFSDP::post_backward_reduce*' ORDER BY d.ts;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"gpu_ms\": 11.250344,\n    \"host_id\": 6988,\n    \"host_ms\": 100.089555,\n    \"id\": 9041,\n    \"owner\": \"GFSDP::post_backward_reduce (lm_head)\",\n    \"start_ms\": 180.671727\n  },\n  {\n    \"gpu_ms\": 7.486875,\n    \"host_id\": 8366,\n    \"host_ms\": 110.675637,\n    \"id\": 9233,\n    \"owner\": \"GFSDP::post_backward_reduce (mtp.layers.0)\",\n    \"start_ms\": 204.946757\n  },\n  {\n    \"gpu_ms\": 3.495725,\n    \"host_id\": 10384,\n    \"host_ms\": 228.334118,\n    \"id\": 10787,\n    \"owner\": \"GFSDP::post_backward_reduce (layers.7[fsdp])\",\n    \"start_ms\": 242.449739\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "target_args",
+      "sql": "SELECT s.id,a.key,a.display_value FROM slice s JOIN args a ON a.arg_set_id=s.arg_set_id WHERE s.id IN (9041,9233,10787) ORDER BY s.id,a.key;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"display_value\": \"_reduce_scatter_base\",\n    \"id\": 9041,\n    \"key\": \"args.Collective name\"\n  },\n  {\n    \"display_value\": \"2297668046889140633\",\n    \"id\": 9041,\n    \"key\": \"args.Comms Id\"\n  },\n  {\n    \"display_value\": \"4269\",\n    \"id\": 9041,\n    \"key\": \"args.External id\"\n  },\n  {\n    \"display_value\": \"8\",\n    \"id\": 9041,\n    \"key\": \"args.Group size\"\n  },\n  {\n    \"display_value\": \"525336576\",\n    \"id\": 9041,\n    \"key\": \"args.In msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 9041,\n    \"key\": \"args.In split size\"\n  },\n  {\n    \"display_value\": \"65667072\",\n    \"id\": 9041,\n    \"key\": \"args.Out msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 9041,\n    \"key\": \"args.Out split size\"\n  },\n  {\n    \"display_value\": \"default_pg\",\n    \"id\": 9041,\n    \"key\": \"args.Process Group Description\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9041,\n    \"key\": \"args.Process Group Name\"\n  },\n  {\n    \"display_value\": \"[0, 1, 2, 3, 4, 5, 6, 7]\",\n    \"id\": 9041,\n    \"key\": \"args.Process Group Ranks\"\n  },\n  {\n    \"display_value\": \"30926\",\n    \"id\": 9041,\n    \"key\": \"args.Seq\"\n  },\n  {\n    \"display_value\": \"544\",\n    \"id\": 9041,\n    \"key\": \"args.block[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9041,\n    \"key\": \"args.block[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9041,\n    \"key\": \"args.block[2]\"\n  },\n  {\n    \"display_value\": \"0.181818187236786\",\n    \"id\": 9041,\n    \"key\": \"args.blocks per SM\"\n  },\n  {\n    \"display_value\": \"4\",\n    \"id\": 9041,\n    \"key\": \"args.channel\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9041,\n    \"key\": \"args.channel_type\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9041,\n    \"key\": \"args.context\"\n  },\n  {\n    \"display_value\": \"1702283\",\n    \"id\": 9041,\n    \"key\": \"args.correlation\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9041,\n    \"key\": \"args.device\"\n  },\n  {\n    \"display_value\": \"Float\",\n    \"id\": 9041,\n    \"key\": \"args.dtype\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9041,\n    \"key\": \"args.est. achieved occupancy %\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9041,\n    \"key\": \"args.graph id\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9041,\n    \"key\": \"args.graph node id\"\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 9041,\n    \"key\": \"args.grid[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9041,\n    \"key\": \"args.grid[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9041,\n    \"key\": \"args.grid[2]\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.activeBlocksPerMultiprocessor\"\n  },\n  {\n    \"display_value\": \"52224\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.allocatedRegistersPerBlock\"\n  },\n  {\n    \"display_value\": \"120064\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.allocatedSharedMemPerBlock\"\n  },\n  {\n    \"display_value\": \"2147483647\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.blockLimitBarriers\"\n  },\n  {\n    \"display_value\": \"32\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.blockLimitBlocks\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.blockLimitRegs\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.blockLimitSharedMem\"\n  },\n  {\n    \"display_value\": \"3\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.blockLimitWarps\"\n  },\n  {\n    \"display_value\": \"SMEM\",\n    \"id\": 9041,\n    \"key\": \"args.occupancy.limitingFactors\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9041,\n    \"key\": \"args.queued\"\n  },\n  {\n    \"display_value\": \"96\",\n    \"id\": 9041,\n    \"key\": \"args.registers per thread\"\n  },\n  {\n    \"display_value\": \"119040\",\n    \"id\": 9041,\n    \"key\": \"args.shared memory\"\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 9041,\n    \"key\": \"args.stream\"\n  },\n  {\n    \"display_value\": \"3.09090924263\",\n    \"id\": 9041,\n    \"key\": \"args.warps per SM\"\n  },\n  {\n    \"display_value\": \"_reduce_scatter_base\",\n    \"id\": 9233,\n    \"key\": \"args.Collective name\"\n  },\n  {\n    \"display_value\": \"2297668046889141010\",\n    \"id\": 9233,\n    \"key\": \"args.Comms Id\"\n  },\n  {\n    \"display_value\": \"5225\",\n    \"id\": 9233,\n    \"key\": \"args.External id\"\n  },\n  {\n    \"display_value\": \"8\",\n    \"id\": 9233,\n    \"key\": \"args.Group size\"\n  },\n  {\n    \"display_value\": \"234271232\",\n    \"id\": 9233,\n    \"key\": \"args.In msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 9233,\n    \"key\": \"args.In split size\"\n  },\n  {\n    \"display_value\": \"29283904\",\n    \"id\": 9233,\n    \"key\": \"args.Out msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 9233,\n    \"key\": \"args.Out split size\"\n  },\n  {\n    \"display_value\": \"default_pg\",\n    \"id\": 9233,\n    \"key\": \"args.Process Group Description\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9233,\n    \"key\": \"args.Process Group Name\"\n  },\n  {\n    \"display_value\": \"[0, 1, 2, 3, 4, 5, 6, 7]\",\n    \"id\": 9233,\n    \"key\": \"args.Process Group Ranks\"\n  },\n  {\n    \"display_value\": \"30928\",\n    \"id\": 9233,\n    \"key\": \"args.Seq\"\n  },\n  {\n    \"display_value\": \"544\",\n    \"id\": 9233,\n    \"key\": \"args.block[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9233,\n    \"key\": \"args.block[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9233,\n    \"key\": \"args.block[2]\"\n  },\n  {\n    \"display_value\": \"0.181818187236786\",\n    \"id\": 9233,\n    \"key\": \"args.blocks per SM\"\n  },\n  {\n    \"display_value\": \"4\",\n    \"id\": 9233,\n    \"key\": \"args.channel\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9233,\n    \"key\": \"args.channel_type\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9233,\n    \"key\": \"args.context\"\n  },\n  {\n    \"display_value\": \"1706224\",\n    \"id\": 9233,\n    \"key\": \"args.correlation\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9233,\n    \"key\": \"args.device\"\n  },\n  {\n    \"display_value\": \"Float\",\n    \"id\": 9233,\n    \"key\": \"args.dtype\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9233,\n    \"key\": \"args.est. achieved occupancy %\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9233,\n    \"key\": \"args.graph id\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9233,\n    \"key\": \"args.graph node id\"\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 9233,\n    \"key\": \"args.grid[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9233,\n    \"key\": \"args.grid[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9233,\n    \"key\": \"args.grid[2]\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.activeBlocksPerMultiprocessor\"\n  },\n  {\n    \"display_value\": \"52224\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.allocatedRegistersPerBlock\"\n  },\n  {\n    \"display_value\": \"120064\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.allocatedSharedMemPerBlock\"\n  },\n  {\n    \"display_value\": \"2147483647\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.blockLimitBarriers\"\n  },\n  {\n    \"display_value\": \"32\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.blockLimitBlocks\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.blockLimitRegs\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.blockLimitSharedMem\"\n  },\n  {\n    \"display_value\": \"3\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.blockLimitWarps\"\n  },\n  {\n    \"display_value\": \"SMEM\",\n    \"id\": 9233,\n    \"key\": \"args.occupancy.limitingFactors\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9233,\n    \"key\": \"args.queued\"\n  },\n  {\n    \"display_value\": \"96\",\n    \"id\": 9233,\n    \"key\": \"args.registers per thread\"\n  },\n  {\n    \"display_value\": \"119040\",\n    \"id\": 9233,\n    \"key\": \"args.shared memory\"\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 9233,\n    \"key\": \"args.stream\"\n  },\n  {\n    \"display_value\": \"3.09090924263\",\n    \"id\": 9233,\n    \"key\": \"args.warps per SM\"\n  },\n  {\n    \"display_value\": \"_reduce_scatter_base\",\n    \"id\": 10787,\n    \"key\": \"args.Collective name\"\n  },\n  {\n    \"display_value\": \"2297668046889141200\",\n    \"id\": 10787,\n    \"key\": \"args.Comms Id\"\n  },\n  {\n    \"display_value\": \"6261\",\n    \"id\": 10787,\n    \"key\": \"args.External id\"\n  },\n  {\n    \"display_value\": \"8\",\n    \"id\": 10787,\n    \"key\": \"args.Group size\"\n  },\n  {\n    \"display_value\": \"85230080\",\n    \"id\": 10787,\n    \"key\": \"args.In msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 10787,\n    \"key\": \"args.In split size\"\n  },\n  {\n    \"display_value\": \"10653760\",\n    \"id\": 10787,\n    \"key\": \"args.Out msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 10787,\n    \"key\": \"args.Out split size\"\n  },\n  {\n    \"display_value\": \"default_pg\",\n    \"id\": 10787,\n    \"key\": \"args.Process Group Description\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 10787,\n    \"key\": \"args.Process Group Name\"\n  },\n  {\n    \"display_value\": \"[0, 1, 2, 3, 4, 5, 6, 7]\",\n    \"id\": 10787,\n    \"key\": \"args.Process Group Ranks\"\n  },\n  {\n    \"display_value\": \"30933\",\n    \"id\": 10787,\n    \"key\": \"args.Seq\"\n  },\n  {\n    \"display_value\": \"544\",\n    \"id\": 10787,\n    \"key\": \"args.block[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 10787,\n    \"key\": \"args.block[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 10787,\n    \"key\": \"args.block[2]\"\n  },\n  {\n    \"display_value\": \"0.181818187236786\",\n    \"id\": 10787,\n    \"key\": \"args.blocks per SM\"\n  },\n  {\n    \"display_value\": \"4\",\n    \"id\": 10787,\n    \"key\": \"args.channel\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 10787,\n    \"key\": \"args.channel_type\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 10787,\n    \"key\": \"args.context\"\n  },\n  {\n    \"display_value\": \"1710666\",\n    \"id\": 10787,\n    \"key\": \"args.correlation\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 10787,\n    \"key\": \"args.device\"\n  },\n  {\n    \"display_value\": \"Float\",\n    \"id\": 10787,\n    \"key\": \"args.dtype\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 10787,\n    \"key\": \"args.est. achieved occupancy %\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 10787,\n    \"key\": \"args.graph id\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 10787,\n    \"key\": \"args.graph node id\"\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 10787,\n    \"key\": \"args.grid[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 10787,\n    \"key\": \"args.grid[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 10787,\n    \"key\": \"args.grid[2]\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.activeBlocksPerMultiprocessor\"\n  },\n  {\n    \"display_value\": \"52224\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.allocatedRegistersPerBlock\"\n  },\n  {\n    \"display_value\": \"120064\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.allocatedSharedMemPerBlock\"\n  },\n  {\n    \"display_value\": \"2147483647\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.blockLimitBarriers\"\n  },\n  {\n    \"display_value\": \"32\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.blockLimitBlocks\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.blockLimitRegs\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.blockLimitSharedMem\"\n  },\n  {\n    \"display_value\": \"3\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.blockLimitWarps\"\n  },\n  {\n    \"display_value\": \"SMEM\",\n    \"id\": 10787,\n    \"key\": \"args.occupancy.limitingFactors\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 10787,\n    \"key\": \"args.queued\"\n  },\n  {\n    \"display_value\": \"96\",\n    \"id\": 10787,\n    \"key\": \"args.registers per thread\"\n  },\n  {\n    \"display_value\": \"119040\",\n    \"id\": 10787,\n    \"key\": \"args.shared memory\"\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 10787,\n    \"key\": \"args.stream\"\n  },\n  {\n    \"display_value\": \"3.09090924263\",\n    \"id\": 10787,\n    \"key\": \"args.warps per SM\"\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "mtp_transition_device",
+      "sql": "SELECT id,(ts-3762433098211544)/1e6 start_ms,dur/1e6 duration_ms,stream,substr(name,1,130) name,host_id,(host_ts-3762433098211544)/1e6 host_ms FROM rs14_link WHERE ts BETWEEN 3762433302500000 AND 3762433312500000 ORDER BY ts;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"duration_ms\": 0.00288,\n    \"host_id\": 8198,\n    \"host_ms\": 109.954448,\n    \"id\": 9224,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdFin_object_at__tensorptrf32gmemalign16o4i6416i64div16\",\n    \"start_ms\": 204.330243,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.089473,\n    \"host_id\": 8201,\n    \"host_ms\": 109.966638,\n    \"id\": 9225,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVL\",\n    \"start_ms\": 204.333379,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.006048,\n    \"host_id\": 8205,\n    \"host_ms\": 109.984709,\n    \"id\": 9226,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdWFin_object_at__tensorptrf32gmemalign16o2940961665536\",\n    \"start_ms\": 204.42314,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001312,\n    \"host_id\": 8208,\n    \"host_ms\": 110.039099,\n    \"id\": 9227,\n    \"name\": \"triton_poi_fused__to_copy_12\",\n    \"start_ms\": 204.432132,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.310881,\n    \"host_id\": 8347,\n    \"host_ms\": 110.453944,\n    \"id\": 9229,\n    \"name\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::na\",\n    \"start_ms\": 204.43562,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.189248,\n    \"host_id\": 8348,\n    \"host_ms\": 110.468084,\n    \"id\": 9230,\n    \"name\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::na\",\n    \"start_ms\": 204.749349,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.0232,\n    \"host_id\": 8389,\n    \"host_ms\": 110.841099,\n    \"id\": 9231,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<c10::BFloat16>, std::array<char*, 1ul>, false>(int, at::\",\n    \"start_ms\": 204.940933,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 7.486875,\n    \"host_id\": 8366,\n    \"host_ms\": 110.675637,\n    \"id\": 9233,\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 204.946757,\n    \"stream\": 24\n  },\n  {\n    \"duration_ms\": 0.11808,\n    \"host_id\": 8393,\n    \"host_ms\": 110.859139,\n    \"id\": 9234,\n    \"name\": \"void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorItera\",\n    \"start_ms\": 204.967622,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.091936,\n    \"host_id\": 8459,\n    \"host_ms\": 111.274483,\n    \"id\": 9235,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVL\",\n    \"start_ms\": 205.088678,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.00288,\n    \"host_id\": 8460,\n    \"host_ms\": 111.288094,\n    \"id\": 9236,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdFin_object_at__tensorptrf32gmemalign16o4i6416i64div16\",\n    \"start_ms\": 205.18151,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.088897,\n    \"host_id\": 8463,\n    \"host_ms\": 111.302174,\n    \"id\": 9237,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVL\",\n    \"start_ms\": 205.18487,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.006656,\n    \"host_id\": 8467,\n    \"host_ms\": 111.321124,\n    \"id\": 9238,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdWFin_object_at__tensorptrf32gmemalign16o2940961665536\",\n    \"start_ms\": 205.274055,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.00144,\n    \"host_id\": 8485,\n    \"host_ms\": 111.417235,\n    \"id\": 9239,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1\",\n    \"start_ms\": 205.282855,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001088,\n    \"host_id\": 8496,\n    \"host_ms\": 111.457306,\n    \"id\": 9240,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::\",\n    \"start_ms\": 205.286535,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.0016,\n    \"host_id\": 8498,\n    \"host_ms\": 111.474026,\n    \"id\": 9241,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulF\",\n    \"start_ms\": 205.289735,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.00144,\n    \"host_id\": 8502,\n    \"host_ms\": 111.487296,\n    \"id\": 9242,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulF\",\n    \"start_ms\": 205.293959,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001504,\n    \"host_id\": 8505,\n    \"host_ms\": 111.525256,\n    \"id\": 9243,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, false>(int, at::nati\",\n    \"start_ms\": 205.297991,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.0016,\n    \"host_id\": 8512,\n    \"host_ms\": 111.574137,\n    \"id\": 9244,\n    \"name\": \"void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::BUnaryFunctor<float, float, float, at::\",\n    \"start_ms\": 205.302247,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001472,\n    \"host_id\": 8516,\n    \"host_ms\": 111.594887,\n    \"id\": 9245,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulF\",\n    \"start_ms\": 205.306343,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001664,\n    \"host_id\": 8523,\n    \"host_ms\": 111.617887,\n    \"id\": 9246,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"start_ms\": 205.310567,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001344,\n    \"host_id\": 8526,\n    \"host_ms\": 111.639908,\n    \"id\": 9247,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulF\",\n    \"start_ms\": 205.314759,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001408,\n    \"host_id\": 8528,\n    \"host_ms\": 111.648778,\n    \"id\": 9248,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulF\",\n    \"start_ms\": 205.318663,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.137344,\n    \"host_id\": 8536,\n    \"host_ms\": 111.678628,\n    \"id\": 9249,\n    \"name\": \"void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<float> >(at::TensorIter\",\n    \"start_ms\": 205.322151,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.088129,\n    \"host_id\": 8538,\n    \"host_ms\": 111.693908,\n    \"id\": 9250,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::exp_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()()\",\n    \"start_ms\": 205.462279,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.139552,\n    \"host_id\": 8540,\n    \"host_ms\": 111.705218,\n    \"id\": 9251,\n    \"name\": \"void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::\",\n    \"start_ms\": 205.55268,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.08848,\n    \"host_id\": 8544,\n    \"host_ms\": 111.732819,\n    \"id\": 9252,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::sign_kernel_cuda(at::TensorIteratorBase&)::{lambda()#1}::operator()(\",\n    \"start_ms\": 205.694824,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.132321,\n    \"host_id\": 8546,\n    \"host_ms\": 111.743409,\n    \"id\": 9253,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulF\",\n    \"start_ms\": 205.78564,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.06768,\n    \"host_id\": 8553,\n    \"host_ms\": 111.763129,\n    \"id\": 9254,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1\",\n    \"start_ms\": 205.920585,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.065824,\n    \"host_id\": 8555,\n    \"host_ms\": 111.778529,\n    \"id\": 9255,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul>, false>(int, \",\n    \"start_ms\": 205.990921,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.016736,\n    \"host_id\": 8562,\n    \"host_ms\": 111.84408,\n    \"id\": 9257,\n    \"name\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::na\",\n    \"start_ms\": 212.435936,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.523778,\n    \"host_id\": 8411,\n    \"host_ms\": 111.021171,\n    \"id\": 9259,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 212.439136,\n    \"stream\": 24\n  },\n  {\n    \"duration_ms\": 0.083265,\n    \"host_id\": 8589,\n    \"host_ms\": 112.087523,\n    \"id\": 9260,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul>, false>(int, \",\n    \"start_ms\": 212.456928,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.089665,\n    \"host_id\": 8580,\n    \"host_ms\": 112.004622,\n    \"id\": 9262,\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 212.965346,\n    \"stream\": 24\n  },\n  {\n    \"duration_ms\": 0.001536,\n    \"host_id\": 8629,\n    \"host_ms\": 112.515748,\n    \"id\": 9263,\n    \"name\": \"triton_poi_fused__to_copy_add_cute_gated_norm_fwd_0\",\n    \"start_ms\": 212.967554,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.005696,\n    \"host_id\": 8639,\n    \"host_ms\": 112.636229,\n    \"id\": 9264,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tens\",\n    \"start_ms\": 212.971298,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.038624,\n    \"host_id\": 8647,\n    \"host_ms\": 112.67324,\n    \"id\": 9265,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_T\",\n    \"start_ms\": 212.977346,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.062081,\n    \"host_id\": 8652,\n    \"host_ms\": 112.69666,\n    \"id\": 9266,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVL\",\n    \"start_ms\": 213.01853,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.633571,\n    \"host_id\": 8610,\n    \"host_ms\": 112.285095,\n    \"id\": 9268,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 213.06701,\n    \"stream\": 24\n  },\n  {\n    \"duration_ms\": 0.00256,\n    \"host_id\": 8657,\n    \"host_ms\": 112.769491,\n    \"id\": 9269,\n    \"name\": \"triton_poi_fused__to_copy__unsafe_view_add_cute_gated_norm_fwd_split_with_sizes_1\",\n    \"start_ms\": 213.084034,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.113281,\n    \"host_id\": 8659,\n    \"host_ms\": 112.812791,\n    \"id\": 9270,\n    \"name\": \"nvjet_sm90_tst_192x192_64x4_1x2_h_bz_coopB_TNN\",\n    \"start_ms\": 213.087938,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.025312,\n    \"host_id\": 8666,\n    \"host_ms\": 112.883792,\n    \"id\": 9271,\n    \"name\": \"void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorItera\",\n    \"start_ms\": 213.202627,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.00544,\n    \"host_id\": 8674,\n    \"host_ms\": 112.946863,\n    \"id\": 9272,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o165125121_tensor\",\n    \"start_ms\": 213.229571,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.00544,\n    \"host_id\": 8682,\n    \"host_ms\": 112.980033,\n    \"id\": 9272,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o165125121_tensor\",\n    \"start_ms\": 213.229571,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.020096,\n    \"host_id\": 8687,\n    \"host_ms\": 113.002193,\n    \"id\": 9273,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVL\",\n    \"start_ms\": 213.253219,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.008608,\n    \"host_id\": 8692,\n    \"host_ms\": 113.070534,\n    \"id\": 9274,\n    \"name\": \"triton_poi_fused_mul_view_2\",\n    \"start_ms\": 213.274979,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.002272,\n    \"host_id\": 8694,\n    \"host_ms\": 113.107665,\n    \"id\": 9275,\n    \"name\": \"Memset (Device)\",\n    \"start_ms\": 213.285603,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.161761,\n    \"host_id\": 8695,\n    \"host_ms\": 113.114235,\n    \"id\": 9276,\n    \"name\": \"nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT\",\n    \"start_ms\": 213.291747,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.009568,\n    \"host_id\": 8705,\n    \"host_ms\": 113.171205,\n    \"id\": 9277,\n    \"name\": \"void at::native::vectorized_gather_kernel<16, int>(char*, char*, int*, int, long, long, long, long, bool)\",\n    \"start_ms\": 213.455396,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.003616,\n    \"host_id\": 8711,\n    \"host_ms\": 113.213406,\n    \"id\": 9278,\n    \"name\": \"triton_poi_fused__to_copy__unsafe_view_split_with_sizes_unsqueeze_view_view_as_complex_3\",\n    \"start_ms\": 213.466148,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.002912,\n    \"host_id\": 8714,\n    \"host_ms\": 113.238486,\n    \"id\": 9279,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<2, at::native::BinaryFunctor<c10::complex<float>, c10::complex<float>, c10::complex\",\n    \"start_ms\": 213.470852,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.072512,\n    \"host_id\": 8717,\n    \"host_ms\": 113.284577,\n    \"id\": 9280,\n    \"name\": \"triton_poi_fused__to_copy__unsafe_view_cat_expand_split_with_sizes_view_4\",\n    \"start_ms\": 213.474788,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001856,\n    \"host_id\": 8719,\n    \"host_ms\": 113.318347,\n    \"id\": 9281,\n    \"name\": \"Memset (Device)\",\n    \"start_ms\": 213.54938,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.577026,\n    \"host_id\": 8720,\n    \"host_ms\": 113.323237,\n    \"id\": 9282,\n    \"name\": \"nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN\",\n    \"start_ms\": 213.554276,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.03168,\n    \"host_id\": 8722,\n    \"host_ms\": 113.354687,\n    \"id\": 9283,\n    \"name\": \"triton_poi_fused__to_copy_mul_split_with_sizes_view_view_as_complex_5\",\n    \"start_ms\": 214.132902,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.051457,\n    \"host_id\": 8725,\n    \"host_ms\": 113.381108,\n    \"id\": 9284,\n    \"name\": \"void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::complex<float>, c10:\",\n    \"start_ms\": 214.166022,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.076864,\n    \"host_id\": 8728,\n    \"host_ms\": 113.416838,\n    \"id\": 9285,\n    \"name\": \"triton_poi_fused__to_copy_cat_mul_split_with_sizes_view_6\",\n    \"start_ms\": 214.219111,\n    \"stream\": 7\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "mtp_transition_host_waits",
+      "sql": "SELECT id,name,(ts-3762433098211544)/1e6 start_ms,dur/1e6 duration_ms,arg_set_id FROM thread_slice WHERE category IN ('cuda_runtime','cuda_driver') AND (name GLOB '*Wait*' OR name GLOB '*Synchronize*') AND ts BETWEEN 3762433208000000 AND 3762433216000000 ORDER BY ts;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"arg_set_id\": 50285,\n    \"duration_ms\": 0.00199,\n    \"id\": 8344,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.399873\n  },\n  {\n    \"arg_set_id\": 50318,\n    \"duration_ms\": 0.00099,\n    \"id\": 8356,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.579386\n  },\n  {\n    \"arg_set_id\": 50333,\n    \"duration_ms\": 0.00079,\n    \"id\": 8364,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.672697\n  },\n  {\n    \"arg_set_id\": 50345,\n    \"duration_ms\": 0.00042,\n    \"id\": 8368,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.685697\n  },\n  {\n    \"arg_set_id\": 50472,\n    \"duration_ms\": 0.00123,\n    \"id\": 8397,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.915819\n  },\n  {\n    \"arg_set_id\": 50481,\n    \"duration_ms\": 0.00066,\n    \"id\": 8401,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.95461\n  },\n  {\n    \"arg_set_id\": 50496,\n    \"duration_ms\": 0.0007,\n    \"id\": 8409,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.018371\n  },\n  {\n    \"arg_set_id\": 50508,\n    \"duration_ms\": 0.00031,\n    \"id\": 8413,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.031681\n  },\n  {\n    \"arg_set_id\": 50560,\n    \"duration_ms\": 0.00074,\n    \"id\": 8422,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.108172\n  },\n  {\n    \"arg_set_id\": 50566,\n    \"duration_ms\": 0.00067,\n    \"id\": 8424,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.111882\n  },\n  {\n    \"arg_set_id\": 51012,\n    \"duration_ms\": 0.00117,\n    \"id\": 8559,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.81562\n  },\n  {\n    \"arg_set_id\": 51042,\n    \"duration_ms\": 0.00095,\n    \"id\": 8570,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.930881\n  },\n  {\n    \"arg_set_id\": 51057,\n    \"duration_ms\": 0.00115,\n    \"id\": 8578,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.001442\n  },\n  {\n    \"arg_set_id\": 51069,\n    \"duration_ms\": 0.0004,\n    \"id\": 8582,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.014372\n  },\n  {\n    \"arg_set_id\": 51134,\n    \"duration_ms\": 0.00132,\n    \"id\": 8593,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.138663\n  },\n  {\n    \"arg_set_id\": 51143,\n    \"duration_ms\": 0.00089,\n    \"id\": 8596,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.196304\n  },\n  {\n    \"arg_set_id\": 51152,\n    \"duration_ms\": 0.00055,\n    \"id\": 8600,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.223874\n  },\n  {\n    \"arg_set_id\": 51167,\n    \"duration_ms\": 0.00067,\n    \"id\": 8608,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.282555\n  },\n  {\n    \"arg_set_id\": 51179,\n    \"duration_ms\": 0.0003,\n    \"id\": 8612,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.294975\n  },\n  {\n    \"arg_set_id\": 51231,\n    \"duration_ms\": 0.00082,\n    \"id\": 8621,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.368796\n  },\n  {\n    \"arg_set_id\": 51237,\n    \"duration_ms\": 0.00057,\n    \"id\": 8623,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.372466\n  },\n  {\n    \"arg_set_id\": 52320,\n    \"duration_ms\": 0.0014,\n    \"id\": 8852,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 114.527631\n  },\n  {\n    \"arg_set_id\": 52332,\n    \"duration_ms\": 0.0008,\n    \"id\": 8857,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 114.558751\n  },\n  {\n    \"arg_set_id\": 52344,\n    \"duration_ms\": 0.00037,\n    \"id\": 8861,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 114.571191\n  },\n  {\n    \"arg_set_id\": 52477,\n    \"duration_ms\": 0.00092,\n    \"id\": 8871,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 114.624082\n  },\n  {\n    \"arg_set_id\": 61517,\n    \"duration_ms\": 101.86014,\n    \"id\": 8882,\n    \"name\": \"cudaStreamSynchronize\",\n    \"start_ms\": 114.747023\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "census",
+      "sql": "SELECT category,count(*) n,sum(dur)/1e6 sum_ms FROM slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset') GROUP BY category;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"category\": \"gpu_memcpy\",\n    \"n\": 232,\n    \"sum_ms\": 6.632766\n  },\n  {\n    \"category\": \"gpu_memset\",\n    \"n\": 861,\n    \"sum_ms\": 0.943489\n  },\n  {\n    \"category\": \"kernel\",\n    \"n\": 8723,\n    \"sum_ms\": 1390.735188\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "wait_parentage",
+      "sql": "SELECT s.id,s.name,(s.ts-3762433098211544)/1e6 start_ms,a.name ancestor FROM thread_slice s JOIN ancestor_slice(s.id) a WHERE s.id IN (8559,8368,8422,8424,8593,8596,8600) AND a.category IN ('cpu_op','user_annotation') ORDER BY s.id,a.depth;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: RegisterPostBackwardFunctionBackward\",\n    \"id\": 8368,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.685697\n  },\n  {\n    \"ancestor\": \"RegisterPostBackwardFunctionBackward\",\n    \"id\": 8368,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.685697\n  },\n  {\n    \"ancestor\": \"GFSDP::post_backward_reduce (mtp.layers.0)\",\n    \"id\": 8368,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.685697\n  },\n  {\n    \"ancestor\": \"c10d::_reduce_scatter_base_\",\n    \"id\": 8368,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.685697\n  },\n  {\n    \"ancestor\": \"record_param_comms\",\n    \"id\": 8368,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.685697\n  },\n  {\n    \"ancestor\": \"nccl:_reduce_scatter_base\",\n    \"id\": 8368,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 110.685697\n  },\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: GeneratedBackwardFor_torchtitan_cute_gated_norm_fwd_defaultBackward\",\n    \"id\": 8422,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.108172\n  },\n  {\n    \"ancestor\": \"GFSDP::backward_prefetch for layers.7[efsdp]\",\n    \"id\": 8422,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.108172\n  },\n  {\n    \"ancestor\": \"GFSDP::all_gather (layers.7[efsdp])\",\n    \"id\": 8422,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.108172\n  },\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: GeneratedBackwardFor_torchtitan_cute_gated_norm_fwd_defaultBackward\",\n    \"id\": 8424,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.111882\n  },\n  {\n    \"ancestor\": \"GFSDP::backward_prefetch for layers.7[efsdp]\",\n    \"id\": 8424,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.111882\n  },\n  {\n    \"ancestor\": \"GFSDP::all_gather (layers.7[efsdp])\",\n    \"id\": 8424,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.111882\n  },\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: RegisterPostBackwardFunctionBackward\",\n    \"id\": 8559,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.81562\n  },\n  {\n    \"ancestor\": \"RegisterPostBackwardFunctionBackward\",\n    \"id\": 8559,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.81562\n  },\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"id\": 8593,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.138663\n  },\n  {\n    \"ancestor\": \"GFSDP::pre_backward (layers.7[fsdp])\",\n    \"id\": 8593,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.138663\n  },\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"id\": 8596,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.196304\n  },\n  {\n    \"ancestor\": \"GFSDP::pre_backward (layers.7[efsdp])\",\n    \"id\": 8596,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.196304\n  },\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"id\": 8600,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.223874\n  },\n  {\n    \"ancestor\": \"GFSDP::backward_prefetch for layers.6[fsdp]\",\n    \"id\": 8600,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.223874\n  },\n  {\n    \"ancestor\": \"GFSDP::all_gather (layers.6[fsdp])\",\n    \"id\": 8600,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.223874\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "event_args",
+      "sql": "SELECT s.id,s.name,a.key,a.display_value FROM slice s JOIN args a ON a.arg_set_id=s.arg_set_id WHERE s.id IN (8559,8368,8422,8424,8593,8596,8600) ORDER BY s.id,a.key;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"display_value\": \"5225\",\n    \"id\": 8368,\n    \"key\": \"args.External id\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"147\",\n    \"id\": 8368,\n    \"key\": \"args.cbid\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"1706227\",\n    \"id\": 8368,\n    \"key\": \"args.correlation\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"5245\",\n    \"id\": 8422,\n    \"key\": \"args.External id\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"147\",\n    \"id\": 8422,\n    \"key\": \"args.cbid\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"1706383\",\n    \"id\": 8422,\n    \"key\": \"args.correlation\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"5245\",\n    \"id\": 8424,\n    \"key\": \"args.External id\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"147\",\n    \"id\": 8424,\n    \"key\": \"args.cbid\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"1706389\",\n    \"id\": 8424,\n    \"key\": \"args.correlation\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"5363\",\n    \"id\": 8559,\n    \"key\": \"args.External id\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"147\",\n    \"id\": 8559,\n    \"key\": \"args.cbid\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"1706736\",\n    \"id\": 8559,\n    \"key\": \"args.correlation\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"5372\",\n    \"id\": 8593,\n    \"key\": \"args.External id\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"147\",\n    \"id\": 8593,\n    \"key\": \"args.cbid\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"1706858\",\n    \"id\": 8593,\n    \"key\": \"args.correlation\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"5372\",\n    \"id\": 8596,\n    \"key\": \"args.External id\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"147\",\n    \"id\": 8596,\n    \"key\": \"args.cbid\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"1706870\",\n    \"id\": 8596,\n    \"key\": \"args.correlation\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"5372\",\n    \"id\": 8600,\n    \"key\": \"args.External id\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"147\",\n    \"id\": 8600,\n    \"key\": \"args.cbid\",\n    \"name\": \"cudaStreamWaitEvent\"\n  },\n  {\n    \"display_value\": \"1706880\",\n    \"id\": 8600,\n    \"key\": \"args.correlation\",\n    \"name\": \"cudaStreamWaitEvent\"\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "prefetch_owner",
+      "sql": "SELECT d.id,(d.ts-3762433098211544)/1e6 start_ms,d.dur/1e6 dur_ms,a.name owner FROM rs14_link d JOIN ancestor_slice(d.host_id) a WHERE d.id IN (9259,9268,9262) AND (a.name GLOB 'GFSDP::*' OR a.name GLOB 'FSDP::*') ORDER BY d.id,a.depth;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"dur_ms\": 0.523778,\n    \"id\": 9259,\n    \"owner\": \"GFSDP::backward_prefetch for layers.7[fsdp]\",\n    \"start_ms\": 212.439136\n  },\n  {\n    \"dur_ms\": 0.523778,\n    \"id\": 9259,\n    \"owner\": \"GFSDP::all_gather (layers.7[fsdp])\",\n    \"start_ms\": 212.439136\n  },\n  {\n    \"dur_ms\": 0.089665,\n    \"id\": 9262,\n    \"owner\": \"GFSDP::post_backward_reduce (norm)\",\n    \"start_ms\": 212.965346\n  },\n  {\n    \"dur_ms\": 0.633571,\n    \"id\": 9268,\n    \"owner\": \"GFSDP::backward_prefetch for layers.6[fsdp]\",\n    \"start_ms\": 213.06701\n  },\n  {\n    \"dur_ms\": 0.633571,\n    \"id\": 9268,\n    \"owner\": \"GFSDP::all_gather (layers.6[fsdp])\",\n    \"start_ms\": 213.06701\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "norm_postbackward_context",
+      "sql": "SELECT id,name,(ts-3762433098211544)/1e6 start_ms,dur/1e6 duration_ms,category FROM thread_slice WHERE ts BETWEEN 3762433210000000 AND 3762433210520000 AND category IN ('cpu_op','user_annotation','cuda_runtime','cuda_driver') ORDER BY ts LIMIT 65;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 0.311024,\n    \"id\": 8556,\n    \"name\": \"autograd::engine::evaluate_function: RegisterPostBackwardFunctionBackward\",\n    \"start_ms\": 111.790619\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 0.280804,\n    \"id\": 8557,\n    \"name\": \"RegisterPostBackwardFunctionBackward\",\n    \"start_ms\": 111.791689\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00048,\n    \"id\": 8558,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 111.81489\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00117,\n    \"id\": 8559,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.81562\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.03422,\n    \"id\": 8560,\n    \"name\": \"FSDP::post_backward_accumulate (norm)\",\n    \"start_ms\": 111.82652\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 0.01419,\n    \"id\": 8561,\n    \"name\": \"aten::_foreach_copy_\",\n    \"start_ms\": 111.83958\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00739,\n    \"id\": 8562,\n    \"name\": \"cudaLaunchKernel\",\n    \"start_ms\": 111.84408\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.039171,\n    \"id\": 8563,\n    \"name\": \"GFSDP::post_backward_reshard (norm)\",\n    \"start_ms\": 111.86656\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.0004,\n    \"id\": 8564,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 111.899021\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.0015,\n    \"id\": 8565,\n    \"name\": \"cudaEventRecordWithFlags\",\n    \"start_ms\": 111.899681\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.152102,\n    \"id\": 8566,\n    \"name\": \"GFSDP::post_backward_reduce (norm)\",\n    \"start_ms\": 111.912081\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.0002,\n    \"id\": 8567,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 111.927911\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00064,\n    \"id\": 8568,\n    \"name\": \"cudaEventRecordWithFlags\",\n    \"start_ms\": 111.928261\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00018,\n    \"id\": 8569,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 111.930391\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00095,\n    \"id\": 8570,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 111.930881\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 0.078131,\n    \"id\": 8571,\n    \"name\": \"c10d::_reduce_scatter_base_\",\n    \"start_ms\": 111.959931\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 0.064551,\n    \"id\": 8572,\n    \"name\": \"record_param_comms\",\n    \"start_ms\": 111.970551\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00026,\n    \"id\": 8573,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 111.971872\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.05422,\n    \"id\": 8574,\n    \"name\": \"nccl:_reduce_scatter_base\",\n    \"start_ms\": 111.973742\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00054,\n    \"id\": 8575,\n    \"name\": \"cudaStreamGetCaptureInfo\",\n    \"start_ms\": 111.990312\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00016,\n    \"id\": 8576,\n    \"name\": \"cudaStreamGetCaptureInfo\",\n    \"start_ms\": 111.991282\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00137,\n    \"id\": 8577,\n    \"name\": \"cudaEventRecord\",\n    \"start_ms\": 111.999902\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00115,\n    \"id\": 8578,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.001442\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00089,\n    \"id\": 8579,\n    \"name\": \"cudaGetFuncBySymbol\",\n    \"start_ms\": 112.003412\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"duration_ms\": 0.00847,\n    \"id\": 8580,\n    \"name\": \"cuLaunchKernelEx\",\n    \"start_ms\": 112.004622\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.0004,\n    \"id\": 8581,\n    \"name\": \"cudaEventRecord\",\n    \"start_ms\": 112.013762\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.0004,\n    \"id\": 8582,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.014372\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00022,\n    \"id\": 8583,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 112.016672\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00069,\n    \"id\": 8584,\n    \"name\": \"cudaEventRecordWithFlags\",\n    \"start_ms\": 112.017142\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00035,\n    \"id\": 8585,\n    \"name\": \"cudaEventRecord\",\n    \"start_ms\": 112.023412\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00019,\n    \"id\": 8586,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 112.046622\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00051,\n    \"id\": 8587,\n    \"name\": \"cudaEventRecordWithFlags\",\n    \"start_ms\": 112.046982\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 0.01879,\n    \"id\": 8588,\n    \"name\": \"aten::add\",\n    \"start_ms\": 112.077753\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00781,\n    \"id\": 8589,\n    \"name\": \"cudaLaunchKernel\",\n    \"start_ms\": 112.087523\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 115.004481,\n    \"id\": 8590,\n    \"name\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"start_ms\": 112.108833\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.060081,\n    \"id\": 8591,\n    \"name\": \"GFSDP::pre_backward (layers.7[fsdp])\",\n    \"start_ms\": 112.119533\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00057,\n    \"id\": 8592,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 112.137773\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00132,\n    \"id\": 8593,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.138663\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.02113,\n    \"id\": 8594,\n    \"name\": \"GFSDP::pre_backward (layers.7[efsdp])\",\n    \"start_ms\": 112.185564\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00024,\n    \"id\": 8595,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 112.195914\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00089,\n    \"id\": 8596,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.196304\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.134842,\n    \"id\": 8597,\n    \"name\": \"GFSDP::backward_prefetch for layers.6[fsdp]\",\n    \"start_ms\": 112.211484\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.119252,\n    \"id\": 8598,\n    \"name\": \"GFSDP::all_gather (layers.6[fsdp])\",\n    \"start_ms\": 112.219424\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.0002,\n    \"id\": 8599,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 112.223394\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00055,\n    \"id\": 8600,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.223874\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 0.06957,\n    \"id\": 8601,\n    \"name\": \"c10d::_allgather_base_\",\n    \"start_ms\": 112.247415\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"duration_ms\": 0.05803,\n    \"id\": 8602,\n    \"name\": \"record_param_comms\",\n    \"start_ms\": 112.256405\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00032,\n    \"id\": 8603,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 112.257615\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"duration_ms\": 0.04836,\n    \"id\": 8604,\n    \"name\": \"nccl:_all_gather_base\",\n    \"start_ms\": 112.259395\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00054,\n    \"id\": 8605,\n    \"name\": \"cudaStreamGetCaptureInfo\",\n    \"start_ms\": 112.272065\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00017,\n    \"id\": 8606,\n    \"name\": \"cudaStreamGetCaptureInfo\",\n    \"start_ms\": 112.272995\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00147,\n    \"id\": 8607,\n    \"name\": \"cudaEventRecord\",\n    \"start_ms\": 112.280935\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00067,\n    \"id\": 8608,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.282555\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00079,\n    \"id\": 8609,\n    \"name\": \"cudaGetFuncBySymbol\",\n    \"start_ms\": 112.283985\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"duration_ms\": 0.0087,\n    \"id\": 8610,\n    \"name\": \"cuLaunchKernelEx\",\n    \"start_ms\": 112.285095\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00034,\n    \"id\": 8611,\n    \"name\": \"cudaEventRecord\",\n    \"start_ms\": 112.294475\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.0003,\n    \"id\": 8612,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"start_ms\": 112.294975\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00017,\n    \"id\": 8613,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"start_ms\": 112.296875\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00093,\n    \"id\": 8614,\n    \"name\": \"cudaEventRecordWithFlags\",\n    \"start_ms\": 112.297355\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"duration_ms\": 0.00033,\n    \"id\": 8615,\n    \"name\": \"cudaEventRecord\",\n    \"start_ms\": 112.303935\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "overlap_compute_graphs",
+      "sql": "WITH k AS(SELECT * FROM rs14_link WHERE stream=7 AND category='kernel'\nAND ((ts BETWEEN 3762433278883271 AND 3762433290133615) OR (ts BETWEEN 3762433340661283 AND 3762433344157008))\nAND (name GLOB '*gemm*' OR name GLOB '*nvjet*'))\nSELECT k.id,(k.ts-3762433098211544)/1e6 start_ms,substr(k.name,1,100) kernel,a.name graph,a.id graph_id,\n(SELECT group_concat(s.name,'; ') FROM descendant_slice(a.id) s WHERE s.name GLOB 'GFSDP::pre_backward*') graph_prebackward\nFROM k JOIN ancestor_slice(k.host_id) a WHERE a.name='CompiledFunctionBackward' ORDER BY k.ts LIMIT 12;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9056,\n    \"kernel\": \"nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT\",\n    \"start_ms\": 181.537906\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9061,\n    \"kernel\": \"nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN\",\n    \"start_ms\": 182.734902\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9065,\n    \"kernel\": \"nvjet_sm90_tst_192x192_64x4_1x2_h_bz_coopB_TNN\",\n    \"start_ms\": 183.575577\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9075,\n    \"kernel\": \"nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT\",\n    \"start_ms\": 183.764538\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9081,\n    \"kernel\": \"nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT\",\n    \"start_ms\": 184.894814\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9086,\n    \"kernel\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN\",\n    \"start_ms\": 185.543328\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9098,\n    \"kernel\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN\",\n    \"start_ms\": 186.513828\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9102,\n    \"kernel\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN\",\n    \"start_ms\": 187.416007\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9108,\n    \"kernel\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN\",\n    \"start_ms\": 188.698252\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9126,\n    \"kernel\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN\",\n    \"start_ms\": 190.527474\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 7263,\n    \"graph_prebackward\": null,\n    \"id\": 9130,\n    \"kernel\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT\",\n    \"start_ms\": 191.425141\n  },\n  {\n    \"graph\": \"CompiledFunctionBackward\",\n    \"graph_id\": 10428,\n    \"graph_prebackward\": null,\n    \"id\": 10794,\n    \"kernel\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN\",\n    \"start_ms\": 242.71726\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "overlap_module_context",
+      "sql": "SELECT k.id,(k.ts-3762433098211544)/1e6 gpu_ms,a.id engine_id,(SELECT group_concat(s.name,'; ') FROM descendant_slice(a.id) s WHERE s.name GLOB 'GFSDP::pre_backward*') owning_prebackward FROM rs14_link k JOIN ancestor_slice(k.host_id) a WHERE k.id IN (9056,10794) AND a.name='autograd::engine::evaluate_function: CompiledFunctionBackward';",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"engine_id\": 7231,\n    \"gpu_ms\": 181.537906,\n    \"id\": 9056,\n    \"owning_prebackward\": \"GFSDP::pre_backward (mtp.layers.0)\"\n  },\n  {\n    \"engine_id\": 10392,\n    \"gpu_ms\": 242.71726,\n    \"id\": 10794,\n    \"owning_prebackward\": \"GFSDP::pre_backward (layers.6[fsdp]); GFSDP::pre_backward (layers.6[efsdp])\"\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "target_pg_summary",
+      "sql": "SELECT id,EXTRACT_ARG(arg_set_id,'args.In msg nelems') input_numel,EXTRACT_ARG(arg_set_id,'args.Out msg nelems') output_numel,EXTRACT_ARG(arg_set_id,'args.Group size') group_size,EXTRACT_ARG(arg_set_id,'args.dtype') dtype,EXTRACT_ARG(arg_set_id,'args.Seq') seq FROM slice WHERE id IN (9041,9233,10787);",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"dtype\": \"Float\",\n    \"group_size\": 8,\n    \"id\": 9041,\n    \"input_numel\": 525336576,\n    \"output_numel\": 65667072,\n    \"seq\": 30926\n  },\n  {\n    \"dtype\": \"Float\",\n    \"group_size\": 8,\n    \"id\": 9233,\n    \"input_numel\": 234271232,\n    \"output_numel\": 29283904,\n    \"seq\": 30928\n  },\n  {\n    \"dtype\": \"Float\",\n    \"group_size\": 8,\n    \"id\": 10787,\n    \"input_numel\": 85230080,\n    \"output_numel\": 10653760,\n    \"seq\": 30933\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    }
+  ]
+}

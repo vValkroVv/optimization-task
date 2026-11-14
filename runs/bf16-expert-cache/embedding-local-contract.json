@@ -1,0 +1,158 @@
+{
+  "scope": "Read-only local source and preserved native trace inspection; no training, installation, GPU use, or source edits.",
+  "source_identity": {
+    "task_head": "6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507",
+    "historical_trace_candidate_head": "657e77a4f8ddb116b75925e5671b00642a0e4d32",
+    "historical_patch_sha256": "4634d6ac225cc0993567de491605cb31b44121965ab633ea292179fa7436cb26",
+    "trace_resolved_config_sha256_from_receipt": "a71150cc5997eafd3d6d6cedc6bfab13c5c1472c7a06e0befdc1051f4cc5777e",
+    "limitations": [
+      "Raw resolved_config.yaml is not present locally; configuration provenance is its retained results.json receipt plus canonical YAML, baseline.md, and active source. This is not a new direct resolved-config verification.",
+      "Current task HEAD and historical run HEAD differ; no claim that the old trace directly executes every current working-copy byte."
+    ]
+  },
+  "model_contract": {
+    "weight_shape": [
+      128256,
+      4096
+    ],
+    "numel": 525336576,
+    "fp32_full_mib": 2004,
+    "bf16_full_mib": 1002,
+    "implementation": "Embedding subclasses nn.Embedding, calls super(num_embeddings, embedding_dim), and does not override forward; standard dense-gradient lookup defaults. No local sparse=True, padding_idx, max_norm or scale_grad_by_freq override.",
+    "ownership": "Input table has its own GFSDP unit and one weight. lm_head is separate; GFSDP explicitly rejects weight tying. Preserve parameter object/FQN and ragged shard metadata.",
+    "mtp": "Decoder performs one token lookup. Its output is both trunk input and carried MTP input. MTP shifts the same embedding tensor left, zero-fills the tail, and never performs a second token lookup. Embedding output gradient therefore includes trunk and MTP branches before embedding backward.",
+    "refs": [
+      "gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml:7",
+      "gift/torchtitan/config/schema/models/common/decoder_blocks/decoder.py:295",
+      "gift/torchtitan/models/common/embeddings/token_embeddings.py:12",
+      "gift/torchtitan/models/common/decoder_blocks/decoder.py:135",
+      "gift/torchtitan/models/common/decoder_blocks/mtp.py:100",
+      "gift/torchtitan/models/gift_moe/_base/parallelize.py:212"
+    ]
+  },
+  "row_and_rank_contract": {
+    "layout": "One contiguous embedding parameter is flattened and chunked by GFSDP shard-group rank; shard sizes are group-padding/alignment dependent in general.",
+    "crop_rows_per_owner": 16032,
+    "crop_elements_per_owner": 65667072,
+    "crop_fp32_local_grad_mib": 250.5,
+    "crop_mapping": "For this divisible single-parameter group: owner = token_id // 16032; local_row = token_id % 16032; owner is dense FSDP process-group rank, never EP local-expert rank. Use actual mesh/group order rather than hardcoded global ranks.",
+    "forward_known_ids": "All possible nonzero gradient rows are a subset of the current forward tokens. Full input IDs, owner partition, duplicates and conservative touched-row set are knowable before backward. MTP introduces no new IDs. Masked/loss-zero tokens may yield zero gradients, so exact nonzero support is not knowable from tokens alone and is unnecessary for correctness.",
+    "preprocessing_implication": "IDs/owner/count/unique preprocessing may be scheduled before backward. Actual cost, any dynamic-count CPU synchronization, collectives ordering, and metadata lifetime across microbatches remain unmeasured; merely moving a unique operation does not prove no host synchronization.",
+    "refs": [
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:260",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:350",
+      "gift/torchtitan/distributed/parallel_dims.py:164",
+      "gift/torchtitan/models/common/decoder_blocks/decoder.py:135",
+      "gift/torchtitan/models/common/decoder_blocks/mtp.py:106"
+    ],
+    "index_width": "Native embedding backward uses signed long IDs; preserve int64 IDs and offset arithmetic. Validate [0,128256) before owner indexing; padding/empty-row sentinels must not become valid IDs."
+  },
+  "numerical_contract": {
+    "baseline": "FP32 original/master parameters and local shard gradients; BF16 all-gathered compute weight; BF16 embedding dense backward result copied to FP32 reduction buffer. Existing local row coalescing and BF16 rounding precede cross-rank FP32 communication.",
+    "native_evidence": "rank0 traceEvents 9238 embedding_dense_backward, 66366 compute_grad_weight<c10::BFloat16,long>, 66370 sum_and_scatter<c10::BFloat16,long> with BF16 output pointer. This confirms BF16 output boundary, not the exact installed PyTorch internal reduction algorithm.",
+    "minimal_preserving_seam": "After actual dense BF16 unsharded_param.grad is complete and before post_backward copies/clears it, select the input touched rows from that tensor. Preserve each source rank row already coalesced and rounded to BF16, then cast/exchange/reduce in FP32. Do not replace with per-token BF16 derivatives followed by FP32 owner accumulation: that bypasses existing BF16 coalescing/output rounding.",
+    "cross_rank": "GFSDP sets gradient_divide_factor=1.0 for every module. The FP32 path uses premultiplied SUM with multiplier 1 (or SUM then divide by 1 when forced), not default averaging by 8. Loss owns global valid-token normalization over all microbatches/ranks.",
+    "accumulation": "Per-microbatch reductions are copied on first contribution and added on subsequent contributions into FP32 local shard gradients. Keep 32 microbatch update cadence and order; owner reduction order may differ from NCCL and requires elementwise numerical assessment.",
+    "refs": [
+      "gift/torchtitan/config/configs.py:54",
+      "gift/torchtitan/config/configs.py:61",
+      "gift/torchtitan/config/configs.py:69",
+      "gift/torchtitan/distributed/gfsdp/_param.py:228",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:948",
+      "gift/torchtitan/distributed/gfsdp/_collectives.py:149",
+      "gift/torchtitan/distributed/gfsdp/_collectives.py:193",
+      "gift/torchtitan/distributed/gfsdp/_collectives.py:254",
+      "gift/torchtitan/models/gift_moe/_base/parallelize.py:267",
+      "gift/torchtitan/trainer.py:765"
+    ],
+    "optional_lossless_bf16_transport": {
+      "scope": "Current synchronized embedding-only microbatch, before GFSDP FP32 copy.",
+      "statement": "Already-coalesced BF16 .grad values can be transported as BF16 without new quantization; each source contribution must widen before owner FP32 SUM and local FP32 accumulation. This does not authorize BF16 accumulation or BF16 collective SUM. No extra FP32 contribution is visible between unsharded BF16 .grad completion and ordinary copy_ on this path.",
+      "maximum_rows_for_B2_S4096": 8192,
+      "values_mib_bf16": 64,
+      "values_mib_fp32": 128,
+      "remaining_difference": "Owner accumulation order may differ from NCCL. Deferred/no-sync FP32 accumulated gradients require separate handling or a guard; transporting that accumulated buffer as BF16 would be a precision loss."
+    }
+  },
+  "integration_contract": {
+    "verdict": "A backward communication adapter preserving existing forward and dense optimizer is source-level feasible in this guarded crop. Full sharded embedding forward/optimizer integration is not required to replace only dense gradient communication. This is feasibility, not an implemented or runtime-verified design.",
+    "required_gfsdp_seams": [
+      "Capture IDs per actual lookup and retain until corresponding backward; do not use a single mutable slot that can be overwritten by another forward.",
+      "Intercept before ordinary FP32 full-buffer copy and dense reduce_scatter so they do not also run. A collectives-only hook after copy preserves numerics but leaves dense copy cost and needs row metadata.",
+      "Write dense local FP32 ragged gradient storage, initializing omitted rows to zero on first backward and adding later microbatch contributions. Keep .grad materialized even when all incoming values are zero; None changes optimizer behavior.",
+      "Publish correct _post_reduce_event and respect shared grad_buffer_ctx owner/release_event, finalize_backward waits, reshard and group collective ordering.",
+      "Preserve no-grad/eval, frozen parameter, absent backward and exception behavior; explicit unsupported guards for tied weights, multiple parameter groups, incompatible mesh/placements/padding, PP/TP/CP/HSDP/offload/no-sync paths unless separately integrated."
+    ],
+    "forward_costs_remain": "A backward-only indexed gradient adapter retains full BF16 forward all-gather, lookup, GFSDP reshard and native dense BF16 wgrad generation. Default pre_backward also gathers weights, but current GFSDP already implements set_unshard_in_backward(False), which skips actual backward unshard/prefetch. Skipping that gather is a separate existing setting to validate, not a missing capability.",
+    "trace_forward_gpu_annotation_ms": [
+      2.6499,
+      2.825164,
+      2.80942
+    ],
+    "trace_backward_gpu_annotation_ms": [
+      4.214321,
+      3.941328,
+      4.047825
+    ],
+    "timing_scope": "GPU nccl:_all_gather_base annotations joined by External id to host calls nested in tok_embeddings GFSDP all_gather: forward host events 28916/32570/36217 and GPU annotations 91384/91289/91300; backward host 8404/17926/27502 and GPU annotations 91353/91235/91269. Timings are collective intervals, not exposed/avoidable step time or speedup.",
+    "refs": [
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:897",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:924",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:935",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:1031",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:1083"
+    ]
+  },
+  "dense_state_contract": {
+    "optimizer": "Canonical AdamW(fused=True, foreach=False), weight_decay=0.1. Optimizer builder forwards those flags to torch.optim.AdamW over original model parameters. Existing dense local gradient, state and parameter ownership must remain; changing to sparse optimizer/row-only updates would alter weight decay and momentum treatment of untouched rows.",
+    "ema_checkpoint": "EMA updates whole GFSDP shard buffers with lerp_; DCP wraps model/EMA and ragged optimizer leaves. Keeping same FQN, shape, shard backing and dense optimizer preserves existing format by construction; an actual save/load/next-update test is still required for acceptance.",
+    "refs": [
+      "gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml:59",
+      "gift/torchtitan/components/optimizer.py:90",
+      "gift/torchtitan/components/optimizer.py:170",
+      "gift/torchtitan/trainer.py:822",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:763",
+      "gift/torchtitan/distributed/gfsdp/_dcp.py:221",
+      "gift/torchtitan/distributed/gfsdp/_dcp.py:410"
+    ]
+  },
+  "open_gates": [
+    "Inspect actual pinned runtime PyTorch embedding and AdamW implementations before implementation-specific numerical claims.",
+    "Direct run resolved-config and actual dense mesh/group order must be re-established through authorized runtime evidence.",
+    "Local row duplicates including MTP branches, cross-rank duplicate rows, zero rows, 32-step accumulation, clipping, AdamW next-step, EMA and DCP roundtrip need affected-path numerical checks.",
+    "GPU/NCCL ordering, compiled/SAC integration, row metadata count sync and tail cost, memory lifetime and matched unprofiled performance remain unverified."
+  ],
+  "trace": "runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/native/profiling/traces/iteration_21/rank0_trace.json",
+  "backward_all_gather_existing_control": {
+    "api": "model.tok_embeddings.set_unshard_in_backward(False) after wrapping",
+    "default": "True",
+    "source_refs": [
+      "gift/torchtitan/distributed/gfsdp/fully_shard.py:466",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:172",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:800",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:924",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py:1129"
+    ],
+    "mechanism": "PRE_BACKWARD unshard early-exits before buffer acquisition/collective, including prefetch. Plain embedding backward needs IDs, incoming gradient and saved shape, not weight values. Generic GFSDP restores weights by default.",
+    "storage_correction": "Forward reshard switches module attributes back to original FP32 shards and releases shared buffer ownership. The BF16 allocation is reusable, not necessarily freed; its contents can be overwritten.",
+    "limits": "Source-level feasibility only; compiled/SAC/numerical/runtime path with this setting has not been run. Does not remove forward all-gather or gradient reduce-scatter. Trace collective intervals are not measured recoverable step time.",
+    "primary_reference": "https://www.domyn.com/blog/training-1t-moe-eu-public-infrastructure-pytorch#no-embedding-all-gather-in-the-backward-pass"
+  },
+  "full_owner_integration": {
+    "existing_exclusion": "GFSDP fully_shard supports ignored_params at fully_shard.py:76; current apply_gfsdp wraps token embedding and root without excluding owner weights. Exclude final owner parameter at every enclosing wrapper and adjust prefetch chain.",
+    "gradient_owner": "Exclusion bypasses GFSDP precision conversion, gradient reduction, FP32 accumulation and completion handling. Custom owner backward must publish dense FP32 shard gradients with current loss normalization (divide factor1).",
+    "optimizer_norm": "Optimizer enumerates registered model parameters; dense fusedAdamW need not be replaced. Standard Shard(0) DTensor is a potential norm/optimizer route; mixed standard-DTensor and GFSDP RaggedShardDTensor foreach/norm behavior requires validation.",
+    "EMA": "Current setup/update/swap and EMA checkpoint binding enumerate tracked GFSDPParamGroup only. An excluded owner table needs explicit EMA registration/update/swap/checkpoint integration.",
+    "main_DCP": "Managed main state begins from ordinary state_dict and substitutes GFSDP-owned entries, so ordinary DTensor owner weights are not automatically dropped. Need preserve FQN/shape and verify optimizer/master/EMA reload and next update.",
+    "source_refs": [
+      "gift/torchtitan/distributed/gfsdp/fully_shard.py:76",
+      "gift/torchtitan/models/gift_moe/_base/parallelize.py:215",
+      "gift/torchtitan/models/gift_moe/_base/parallelize.py:250",
+      "gift/torchtitan/components/optimizer.py:108",
+      "gift/torchtitan/distributed/utils.py:498",
+      "gift/torchtitan/distributed/gfsdp/fully_shard.py:533",
+      "gift/torchtitan/distributed/gfsdp/_dcp.py:383"
+    ],
+    "scope": "Source inspection only; no implementation or runtime checks."
+  }
+}

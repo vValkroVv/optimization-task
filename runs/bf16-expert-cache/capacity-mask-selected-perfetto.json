@@ -1,0 +1,117 @@
+{
+  "trace": "/Users/valerii.kropotin/sber-pretrain/optimization-task/runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/native/profiling/traces/iteration_21/rank0_trace.json",
+  "trace_sha256": "fdcf72769a9ddbad51db80b0bf7663784f7bbf4c72971e3ee8d7925cfc800203",
+  "scope": "V2 with BF16 expert cache, update 21, rank 0; two owner-selected capacity-check all-reduces.",
+  "observed": [
+    {
+      "slice_id": 58892,
+      "start_ms": 1173.053283,
+      "duration_ms": 1.48935,
+      "correlation": 1833247,
+      "stream": 23,
+      "collective": "allreduce",
+      "dtype": "Long",
+      "input_elements": 128,
+      "output_elements": 128,
+      "payload_bytes": 1024,
+      "group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "compiled_backward_graph_slice": 58452,
+      "capacity_custom_op_slice": 58739,
+      "dispatch_op_slice": 58904
+    },
+    {
+      "slice_id": 60411,
+      "start_ms": 1200.673478,
+      "duration_ms": 0.872227,
+      "correlation": 1836838,
+      "stream": 23,
+      "collective": "allreduce",
+      "dtype": "Long",
+      "input_elements": 128,
+      "output_elements": 128,
+      "payload_bytes": 1024,
+      "group_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "compiled_backward_graph_slice": 60004,
+      "capacity_custom_op_slice": 60280,
+      "dispatch_op_slice": 60423
+    }
+  ],
+  "attribution": "CUDA launch ancestry and consumer operations connect both integer-count all-reduces to conditional_capacity_mask and forward dispatch inside compiled backward, consistent with activation recomputation of the capacity path.",
+  "limitations": [
+    "Kernel durations include the lifetime of the NCCL kernel on this rank, potentially waiting for peers; they do not isolate network transfer time.",
+    "The two collective durations are not an established recoverable step-time saving.",
+    "No code/config changes or runtime experiments performed."
+  ],
+  "queries": [
+    {
+      "label": "selected_exact_slices",
+      "sql": "SELECT d.id,d.name,d.category,(d.ts-3762433098211544)/1e6 AS start_ms,d.dur/1e6 AS dur_ms,d.track_id,d.arg_set_id,EXTRACT_ARG(d.arg_set_id,'args.correlation') correlation,EXTRACT_ARG(d.arg_set_id,'args.stream') stream\nFROM slice d WHERE d.id IN (60411,58892);",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"arg_set_id\": 412093,\n    \"category\": \"kernel\",\n    \"correlation\": 1833247,\n    \"dur_ms\": 1.48935,\n    \"id\": 58892,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 1173.053283,\n    \"stream\": 23,\n    \"track_id\": 4\n  },\n  {\n    \"arg_set_id\": 424376,\n    \"category\": \"kernel\",\n    \"correlation\": 1836838,\n    \"dur_ms\": 0.872227,\n    \"id\": 60411,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 1200.673478,\n    \"stream\": 23,\n    \"track_id\": 4\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "selected_collective_arguments",
+      "sql": "SELECT d.id AS kernel_id,a.key,a.display_value\nFROM slice d JOIN args a ON a.arg_set_id=d.arg_set_id\nWHERE d.id IN (58892,60411) ORDER BY d.id,a.key;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"display_value\": \"allreduce\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Collective name\"\n  },\n  {\n    \"display_value\": \"2297668046889135840\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Comms Id\"\n  },\n  {\n    \"display_value\": \"35444\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.External id\"\n  },\n  {\n    \"display_value\": \"8\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Group size\"\n  },\n  {\n    \"display_value\": \"128\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.In msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.In split size\"\n  },\n  {\n    \"display_value\": \"128\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Out msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Out split size\"\n  },\n  {\n    \"display_value\": \"default_pg\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Process Group Description\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Process Group Name\"\n  },\n  {\n    \"display_value\": \"[0, 1, 2, 3, 4, 5, 6, 7]\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Process Group Ranks\"\n  },\n  {\n    \"display_value\": \"31039\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.Seq\"\n  },\n  {\n    \"display_value\": \"128\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.block[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.block[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.block[2]\"\n  },\n  {\n    \"display_value\": \"0.00757575780153275\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.blocks per SM\"\n  },\n  {\n    \"display_value\": \"3\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.channel\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.channel_type\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.context\"\n  },\n  {\n    \"display_value\": \"1833247\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.correlation\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.device\"\n  },\n  {\n    \"display_value\": \"Long\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.dtype\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.est. achieved occupancy %\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.graph id\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.graph node id\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.grid[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.grid[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.grid[2]\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.activeBlocksPerMultiprocessor\"\n  },\n  {\n    \"display_value\": \"12288\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.allocatedRegistersPerBlock\"\n  },\n  {\n    \"display_value\": \"120064\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.allocatedSharedMemPerBlock\"\n  },\n  {\n    \"display_value\": \"2147483647\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.blockLimitBarriers\"\n  },\n  {\n    \"display_value\": \"32\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.blockLimitBlocks\"\n  },\n  {\n    \"display_value\": \"5\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.blockLimitRegs\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.blockLimitSharedMem\"\n  },\n  {\n    \"display_value\": \"16\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.blockLimitWarps\"\n  },\n  {\n    \"display_value\": \"SMEM\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.occupancy.limitingFactors\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.queued\"\n  },\n  {\n    \"display_value\": \"96\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.registers per thread\"\n  },\n  {\n    \"display_value\": \"119040\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.shared memory\"\n  },\n  {\n    \"display_value\": \"23\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.stream\"\n  },\n  {\n    \"display_value\": \"0.030303031206131\",\n    \"kernel_id\": 58892,\n    \"key\": \"args.warps per SM\"\n  },\n  {\n    \"display_value\": \"allreduce\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Collective name\"\n  },\n  {\n    \"display_value\": \"2297668046889135660\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Comms Id\"\n  },\n  {\n    \"display_value\": \"36373\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.External id\"\n  },\n  {\n    \"display_value\": \"8\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Group size\"\n  },\n  {\n    \"display_value\": \"128\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.In msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.In split size\"\n  },\n  {\n    \"display_value\": \"128\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Out msg nelems\"\n  },\n  {\n    \"display_value\": \"[]\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Out split size\"\n  },\n  {\n    \"display_value\": \"default_pg\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Process Group Description\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Process Group Name\"\n  },\n  {\n    \"display_value\": \"[0, 1, 2, 3, 4, 5, 6, 7]\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Process Group Ranks\"\n  },\n  {\n    \"display_value\": \"31042\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.Seq\"\n  },\n  {\n    \"display_value\": \"128\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.block[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.block[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.block[2]\"\n  },\n  {\n    \"display_value\": \"0.00757575780153275\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.blocks per SM\"\n  },\n  {\n    \"display_value\": \"3\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.channel\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.channel_type\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.context\"\n  },\n  {\n    \"display_value\": \"1836838\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.correlation\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.device\"\n  },\n  {\n    \"display_value\": \"Long\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.dtype\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.est. achieved occupancy %\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.graph id\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.graph node id\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.grid[0]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.grid[1]\"\n  },\n  {\n    \"display_value\": \"1\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.grid[2]\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.activeBlocksPerMultiprocessor\"\n  },\n  {\n    \"display_value\": \"12288\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.allocatedRegistersPerBlock\"\n  },\n  {\n    \"display_value\": \"120064\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.allocatedSharedMemPerBlock\"\n  },\n  {\n    \"display_value\": \"2147483647\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.blockLimitBarriers\"\n  },\n  {\n    \"display_value\": \"32\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.blockLimitBlocks\"\n  },\n  {\n    \"display_value\": \"5\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.blockLimitRegs\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.blockLimitSharedMem\"\n  },\n  {\n    \"display_value\": \"16\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.blockLimitWarps\"\n  },\n  {\n    \"display_value\": \"SMEM\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.occupancy.limitingFactors\"\n  },\n  {\n    \"display_value\": \"0\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.queued\"\n  },\n  {\n    \"display_value\": \"96\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.registers per thread\"\n  },\n  {\n    \"display_value\": \"119040\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.shared memory\"\n  },\n  {\n    \"display_value\": \"23\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.stream\"\n  },\n  {\n    \"display_value\": \"0.030303031206131\",\n    \"kernel_id\": 60411,\n    \"key\": \"args.warps per SM\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "selected_launch_ancestors",
+      "sql": "WITH RECURSIVE anc AS (\nSELECT r.id AS kernel_id,s.id,s.parent_id,s.name,s.category,s.ts,s.dur,s.arg_set_id,0 AS level\nFROM rs14_link r JOIN slice s ON s.id=r.host_id WHERE r.id IN (58892,60411)\nUNION ALL\nSELECT a.kernel_id,s.id,s.parent_id,s.name,s.category,s.ts,s.dur,s.arg_set_id,a.level+1\nFROM anc a JOIN slice s ON s.id=a.parent_id WHERE a.level<25)\nSELECT kernel_id,id,parent_id,name,category,(ts-3762433098211544)/1e6 AS start_ms,dur/1e6 AS dur_ms,arg_set_id,level FROM anc ORDER BY kernel_id,level;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"arg_set_id\": 397335,\n    \"category\": \"cuda_driver\",\n    \"dur_ms\": 0.00664,\n    \"id\": 58723,\n    \"kernel_id\": 58892,\n    \"level\": 0,\n    \"name\": \"cuLaunchKernelEx\",\n    \"parent_id\": 58717,\n    \"start_ms\": 1157.653111\n  },\n  {\n    \"arg_set_id\": 397383,\n    \"category\": \"user_annotation\",\n    \"dur_ms\": 0.053661,\n    \"id\": 58717,\n    \"kernel_id\": 58892,\n    \"level\": 1,\n    \"name\": \"nccl:all_reduce\",\n    \"parent_id\": 58711,\n    \"start_ms\": 1157.622181\n  },\n  {\n    \"arg_set_id\": 397386,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.067291,\n    \"id\": 58711,\n    \"kernel_id\": 58892,\n    \"level\": 2,\n    \"name\": \"record_param_comms\",\n    \"parent_id\": 58710,\n    \"start_ms\": 1157.612041\n  },\n  {\n    \"arg_set_id\": 397405,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.083611,\n    \"id\": 58710,\n    \"kernel_id\": 58892,\n    \"level\": 3,\n    \"name\": \"c10d::allreduce_\",\n    \"parent_id\": 58709,\n    \"start_ms\": 1157.598931\n  },\n  {\n    \"arg_set_id\": 397408,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.089431,\n    \"id\": 58709,\n    \"kernel_id\": 58892,\n    \"level\": 4,\n    \"name\": \"_c10d_functional::all_reduce_\",\n    \"parent_id\": 58452,\n    \"start_ms\": 1157.595551\n  },\n  {\n    \"arg_set_id\": 405891,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 26.441764,\n    \"id\": 58452,\n    \"kernel_id\": 58892,\n    \"level\": 5,\n    \"name\": \"## Call CompiledFxGraph fvva6ykpo7ajj6jtqos5tddx6z3akmlf25onj5hxmxih7bxgrtka ##\",\n    \"parent_id\": 58451,\n    \"start_ms\": 1155.443066\n  },\n  {\n    \"arg_set_id\": 405894,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 26.580565,\n    \"id\": 58451,\n    \"kernel_id\": 58892,\n    \"level\": 6,\n    \"name\": \"CompiledFunctionBackward\",\n    \"parent_id\": 58415,\n    \"start_ms\": 1155.371585\n  },\n  {\n    \"arg_set_id\": 405899,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 26.95446,\n    \"id\": 58415,\n    \"kernel_id\": 58892,\n    \"level\": 7,\n    \"name\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"parent_id\": null,\n    \"start_ms\": 1155.026441\n  },\n  {\n    \"arg_set_id\": 408650,\n    \"category\": \"cuda_driver\",\n    \"dur_ms\": 0.00642,\n    \"id\": 60264,\n    \"kernel_id\": 60411,\n    \"level\": 0,\n    \"name\": \"cuLaunchKernelEx\",\n    \"parent_id\": 60258,\n    \"start_ms\": 1186.014237\n  },\n  {\n    \"arg_set_id\": 408668,\n    \"category\": \"user_annotation\",\n    \"dur_ms\": 0.05304,\n    \"id\": 60258,\n    \"kernel_id\": 60411,\n    \"level\": 1,\n    \"name\": \"nccl:all_reduce\",\n    \"parent_id\": 60251,\n    \"start_ms\": 1185.983827\n  },\n  {\n    \"arg_set_id\": 408671,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.06866,\n    \"id\": 60251,\n    \"kernel_id\": 60411,\n    \"level\": 2,\n    \"name\": \"record_param_comms\",\n    \"parent_id\": 60250,\n    \"start_ms\": 1185.971747\n  },\n  {\n    \"arg_set_id\": 408690,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.087161,\n    \"id\": 60250,\n    \"kernel_id\": 60411,\n    \"level\": 3,\n    \"name\": \"c10d::allreduce_\",\n    \"parent_id\": 60249,\n    \"start_ms\": 1185.956866\n  },\n  {\n    \"arg_set_id\": 408693,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.093111,\n    \"id\": 60249,\n    \"kernel_id\": 60411,\n    \"level\": 4,\n    \"name\": \"_c10d_functional::all_reduce_\",\n    \"parent_id\": 60004,\n    \"start_ms\": 1185.952616\n  },\n  {\n    \"arg_set_id\": 417254,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 27.682588,\n    \"id\": 60004,\n    \"kernel_id\": 60411,\n    \"level\": 5,\n    \"name\": \"## Call CompiledFxGraph fjex3ayvtmf6igumvqw6inoadwa6q6avjuctxl7q7lthhmrfnqqx ##\",\n    \"parent_id\": 60003,\n    \"start_ms\": 1183.461878\n  },\n  {\n    \"arg_set_id\": 417257,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 27.82276,\n    \"id\": 60003,\n    \"kernel_id\": 60411,\n    \"level\": 6,\n    \"name\": \"CompiledFunctionBackward\",\n    \"parent_id\": 59967,\n    \"start_ms\": 1183.390227\n  },\n  {\n    \"arg_set_id\": 417262,\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 28.197884,\n    \"id\": 59967,\n    \"kernel_id\": 60411,\n    \"level\": 7,\n    \"name\": \"autograd::engine::evaluate_function: CompiledFunctionBackward\",\n    \"parent_id\": null,\n    \"start_ms\": 1183.039823\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "consumer_operations_in_backward_graphs",
+      "sql": "WITH g AS (SELECT id,ts,dur,tid FROM thread_slice WHERE id IN (58452,60004))\nSELECT g.id AS graph_id,s.id,s.parent_id,s.name,s.category,(s.ts-3762433098211544)/1e6 AS start_ms,s.dur/1e6 AS dur_ms\nFROM g JOIN thread_slice s ON s.tid=g.tid AND s.ts>=g.ts AND s.ts<g.ts+g.dur\nWHERE s.name GLOB '*capacity*' OR s.name GLOB '*dispatch*' OR s.name GLOB '*is_nonzero*' OR s.name GLOB '*Synchronize*' OR s.name GLOB '*all_reduce*' OR s.name GLOB '*wait_tensor*'\nORDER BY g.id,s.ts LIMIT 100;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.089431,\n    \"graph_id\": 58452,\n    \"id\": 58709,\n    \"name\": \"_c10d_functional::all_reduce_\",\n    \"parent_id\": 58452,\n    \"start_ms\": 1157.595551\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"dur_ms\": 0.053661,\n    \"graph_id\": 58452,\n    \"id\": 58717,\n    \"name\": \"nccl:all_reduce\",\n    \"parent_id\": 58711,\n    \"start_ms\": 1157.622181\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.0263,\n    \"graph_id\": 58452,\n    \"id\": 58730,\n    \"name\": \"_c10d_functional::wait_tensor\",\n    \"parent_id\": 58452,\n    \"start_ms\": 1157.695252\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 16.857834,\n    \"graph_id\": 58452,\n    \"id\": 58739,\n    \"name\": \"torchtitan::conditional_capacity_mask\",\n    \"parent_id\": 58452,\n    \"start_ms\": 1157.792053\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 16.764913,\n    \"graph_id\": 58452,\n    \"id\": 58740,\n    \"name\": \"aten::is_nonzero\",\n    \"parent_id\": 58739,\n    \"start_ms\": 1157.808863\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"dur_ms\": 16.730913,\n    \"graph_id\": 58452,\n    \"id\": 58745,\n    \"name\": \"cudaStreamSynchronize\",\n    \"parent_id\": 58742,\n    \"start_ms\": 1157.829463\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.0248,\n    \"graph_id\": 58452,\n    \"id\": 58901,\n    \"name\": \"triton_poi_fused__unsafe_view_add_bitwise_not_dispatch_div_gather_masked_fill_mul_sigmoid_view_17\",\n    \"parent_id\": 58452,\n    \"start_ms\": 1174.689697\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 1.067202,\n    \"graph_id\": 58452,\n    \"id\": 58904,\n    \"name\": \"hybridep::dispatch\",\n    \"parent_id\": 58452,\n    \"start_ms\": 1174.734058\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"dur_ms\": 0.216193,\n    \"graph_id\": 58452,\n    \"id\": 59012,\n    \"name\": \"cudaStreamSynchronize\",\n    \"parent_id\": 58904,\n    \"start_ms\": 1175.409115\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.141442,\n    \"graph_id\": 58452,\n    \"id\": 59211,\n    \"name\": \"hybridep::dispatch_bwd\",\n    \"parent_id\": 58452,\n    \"start_ms\": 1177.210806\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.093111,\n    \"graph_id\": 60004,\n    \"id\": 60249,\n    \"name\": \"_c10d_functional::all_reduce_\",\n    \"parent_id\": 60004,\n    \"start_ms\": 1185.952616\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"dur_ms\": 0.05304,\n    \"graph_id\": 60004,\n    \"id\": 60258,\n    \"name\": \"nccl:all_reduce\",\n    \"parent_id\": 60251,\n    \"start_ms\": 1185.983827\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.02685,\n    \"graph_id\": 60004,\n    \"id\": 60270,\n    \"name\": \"_c10d_functional::wait_tensor\",\n    \"parent_id\": 60004,\n    \"start_ms\": 1186.055528\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 15.501238,\n    \"graph_id\": 60004,\n    \"id\": 60280,\n    \"name\": \"torchtitan::conditional_capacity_mask\",\n    \"parent_id\": 60004,\n    \"start_ms\": 1186.150209\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 15.414777,\n    \"graph_id\": 60004,\n    \"id\": 60281,\n    \"name\": \"aten::is_nonzero\",\n    \"parent_id\": 60280,\n    \"start_ms\": 1186.161589\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"dur_ms\": 15.384597,\n    \"graph_id\": 60004,\n    \"id\": 60286,\n    \"name\": \"cudaStreamSynchronize\",\n    \"parent_id\": 60283,\n    \"start_ms\": 1186.181849\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.02283,\n    \"graph_id\": 60004,\n    \"id\": 60420,\n    \"name\": \"triton_poi_fused__unsafe_view_add_bitwise_not_dispatch_div_gather_masked_fill_mul_sigmoid_view_13\",\n    \"parent_id\": 60004,\n    \"start_ms\": 1201.686767\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 1.032581,\n    \"graph_id\": 60004,\n    \"id\": 60423,\n    \"name\": \"hybridep::dispatch\",\n    \"parent_id\": 60004,\n    \"start_ms\": 1201.726018\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"dur_ms\": 0.224112,\n    \"graph_id\": 60004,\n    \"id\": 60531,\n    \"name\": \"cudaStreamSynchronize\",\n    \"parent_id\": 60423,\n    \"start_ms\": 1202.360875\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 0.139502,\n    \"graph_id\": 60004,\n    \"id\": 60730,\n    \"name\": \"hybridep::dispatch_bwd\",\n    \"parent_id\": 60004,\n    \"start_ms\": 1204.136945\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ]
+}

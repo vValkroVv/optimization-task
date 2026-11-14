@@ -1,0 +1,181 @@
+{
+  "scope": "Read-only screening of exposed layers.0 and input-embedding gradient reduce-scatter tails. Preserve FP8, compile, SAC, loss normalization, gradient accumulation count, dense AdamW, EMA and checkpoint semantics.",
+  "source_revision": "6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507",
+  "trace_evidence": "tail-optimization-native.json",
+  "observed": {
+    "microbatches": 3,
+    "reduce_scatter_kernel_ms": 24.617337,
+    "no_stream7_kernel_ms": 22.438004,
+    "three_microbatch_window_ms": 1269.7101171875,
+    "embedding_reduce_scatter_ms": [
+      5.198802,
+      5.182387,
+      5.217619
+    ],
+    "layers0_reduce_scatter_ms": [
+      3.152716,
+      3.029419,
+      2.836394
+    ],
+    "layers0_ffn_producer_to_compiled_end_ms": [
+      6.399959,
+      6.393303,
+      6.434647
+    ]
+  },
+  "recommendations": [
+    {
+      "target": "layers.0",
+      "mechanism": "Early FFN group with matching callable, compilation, activation-checkpoint and GFSDP boundaries",
+      "priority": 1,
+      "payload_fp32_mib": 513,
+      "opportunity": "Three FFN wgrad candidates finish about6.4ms before remaining GDN/norm kernels end, consistently in all3microbatches.",
+      "limitations": "Producer labels inferred from source-order FP8 pattern, no generated FX/tensor shapes. BF16 local wgrad completion is not automatically a module-input hook or communication-buffer readiness. Smaller buckets launched after the original complete compiled block are insufficient.",
+      "source": "gift/torchtitan/ops/float8/cuda_gemm.py:201"
+    },
+    {
+      "target": "tok_embeddings",
+      "mechanism": "Dedicated gradient buffer with targeted local accumulation; reduce only after the final accumulation microbatch",
+      "priority": 1,
+      "existing_local_apis": [
+        "set_own_grad_buffer() before first forward",
+        "set_requires_gradient_sync(False,recurse=False) for nonfinal microbatches",
+        "restore True for final microbatch"
+      ],
+      "potential": "Replace32input-embedding reduce-scatters per optimizer update by1, keeping32microbatches and1optimizer step. Final reduction still must complete before gradient consumers.",
+      "retained_full_fp32_gradient_mib": 2004,
+      "memory_limit": "2004MiB is dedicated retained capacity, not established incremental peak. Moving the largest group out of the shared gradient pool can shrink that pool; measure net allocation and allocator peaks.",
+      "numerical_contract": "Preserve divide_factor1.0 and update-wide token normalization; no extra division by32. Sum/reduction ordering changes FP32 rounding and needs affected-block numerical validation. No optimizer/SparseAdam substitution.",
+      "source_refs": [
+        "gift/torchtitan/distributed/gfsdp/fully_shard.py:326",
+        "gift/torchtitan/distributed/gfsdp/fully_shard.py:403",
+        "gift/torchtitan/distributed/gfsdp/_state.py:254",
+        "gift/torchtitan/distributed/gfsdp/_param_group.py:940"
+      ]
+    },
+    {
+      "target": "both tails",
+      "mechanism": "Carry in-flight reductions into following microbatch forward",
+      "priority": 3,
+      "upstream_pattern": "PyTorchFSDP2set_is_last_backward(False) defers root finalization without disabling reductions.",
+      "local_barriers": [
+        "Current all-gather and reduce-scatter use the same communication stream; next embedding weight all-gather queues behind the previous tail.",
+        "Current next-microbatch input .to(device) uses non_blocking=False; actual H2D copy is followed by a blocking CUDA stream synchronization behind the root reduction dependency.",
+        "Shared data/gradient storage, allocator lifetime and rank-consistent collective order require explicit ownership."
+      ],
+      "integration": "Coordinate finalization, H2D scheduling and next-forward weight readiness; simply changing the last-backward flag does not remove these dependencies. A second full embedding gradient buffer is not inherently necessary if completion precedes its next producer.",
+      "final_microbatch": "Has no subsequent forward in this update; all reductions must finish before clipping and optimizer."
+    },
+    {
+      "target": "tok_embeddings",
+      "mechanism": "Longer-term indexed/row-owner gradient exchange",
+      "priority": 4,
+      "principle": "Onlyrows referenced by local input IDs receive input-embedding gradients. Route row IDs and gradients to shard owners, then accumulate into dense local gradients for the existing dense optimizer.",
+      "shape_bound": "At8192tokens, at most8192local rows;8192*4096*4=128MiBFP32 row values versus2004MiB dense input buffer, plus IDs/protocol. This is a shape bound, not a wire-volume/speedup measurement.",
+      "reference": "TorchRecRwSequenceEmbeddingSharding",
+      "blockers": "Not a drop-in standard tensor-parallel vocabulary embedding: these DP ranks process different inputs. Requires custom distributed/autograd/compile/FSDP and dense-optimizer integration, duplicate-row accumulation, BF16/FP32 rounding parity, MTP ownership, EMA/checkpoint compatibility. Not an initial experiment."
+    }
+  ],
+  "measured_host_boundary": {
+    "between_microbatches": [
+      2,
+      3
+    ],
+    "cpu_sync_slice": 43244,
+    "cpu_sync_start_ms": 829.080548,
+    "cpu_sync_duration_ms": 29.892983,
+    "copy_parent_slice": 43241,
+    "cudaMemcpyAsync_slice": 43243,
+    "cudaMemcpyAsync_start_ms": 829.049607,
+    "matching_device_copy_slice": 43469,
+    "direction": "HtoD Pageable->Device",
+    "bytes": 65536,
+    "device_start_ms": 858.958499,
+    "device_duration_ms": 0.004672,
+    "interpretation": "The copy and synchronization share aten::copy_ parent43241. The H2D transfer is enqueued early but executes after the preceding reduction/accumulation; the host blocks waiting. The29.893ms includes already queued backward/communication, not an additional removable delay.",
+    "source": "gift/torchtitan/trainer.py:789"
+  },
+  "primary_references": [
+    {
+      "project": "PyTorch",
+      "revision": "242a9cf0e013551eaada7827cfff1aa8d293dfb1",
+      "url": "https://github.com/pytorch/pytorch/blob/242a9cf0e013551eaada7827cfff1aa8d293dfb1/torch/distributed/fsdp/_fully_shard/_fully_shard.py#L435",
+      "mechanism": "set_is_last_backward, set_requires_gradient_sync"
+    },
+    {
+      "project": "Megatron-LM",
+      "revision": "05c4a8ba04e2d3422f56ffdda7ff2059da431e18",
+      "url": "https://github.com/NVIDIA/Megatron-LM/blob/05c4a8ba04e2d3422f56ffdda7ff2059da431e18/megatron/core/distributed/param_and_grad_buffer.py#L849",
+      "mechanism": "Expected gradient-readiness counts and last-microbatch communication; standardDDPoverlap_grad_reduce is not evidence for per-microbatch cross-microbatch FSDP overlap."
+    },
+    {
+      "project": "TorchRec",
+      "revision": "16c16e982bde3eb48a8d8505305c70019cb362ec",
+      "url": "https://github.com/meta-pytorch/torchrec/blob/16c16e982bde3eb48a8d8505305c70019cb362ec/torchrec/distributed/sharding/rw_sequence_sharding.py#L121",
+      "mechanism": "Row-wise nonpooled embedding sharding and embeddingall-to-all; analogy only, no recommendation to replace the optimizer or install TorchRec."
+    }
+  ],
+  "remaining_gates": [
+    "Actual changed compiled/GFSDP readiness and reductions",
+    "Per-rank consistent schedule and final flush",
+    "Loss/input/weight-gradient comparisons including accumulation and MTP",
+    "Net retained and peak memory",
+    "Repeated matched unprofiled performance"
+  ],
+  "no_runtime_execution": "No source/config changes, GPU experiments, benchmarks, installs or new training runs.",
+  "host_boundary_queries": [
+    {
+      "sql": "SELECT id,parent_id,name,category,(ts-3762433098211544)/1e6 start_ms,dur/1e6 dur_ms,arg_set_id\nFROM thread_slice\nWHERE ts <3762433098211544+859200000 AND ts+dur>3762433098211544+827800000\nAND name IN ('cudaStreamSynchronize','cudaDeviceSynchronize','cudaEventSynchronize','aten::item','aten::_local_scalar_dense')\nORDER BY ts LIMIT 40;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"arg_set_id\": 296042,\n    \"category\": \"cuda_runtime\",\n    \"dur_ms\": 29.892983,\n    \"id\": 43244,\n    \"name\": \"cudaStreamSynchronize\",\n    \"parent_id\": 43241,\n    \"start_ms\": 829.080548\n  },\n  {\n    \"arg_set_id\": 296078,\n    \"category\": \"cuda_runtime\",\n    \"dur_ms\": 0.00605,\n    \"id\": 43477,\n    \"name\": \"cudaStreamSynchronize\",\n    \"parent_id\": 43473,\n    \"start_ms\": 859.111123\n  },\n  {\n    \"arg_set_id\": 296114,\n    \"category\": \"cuda_runtime\",\n    \"dur_ms\": 0.00973,\n    \"id\": 43484,\n    \"name\": \"cudaStreamSynchronize\",\n    \"parent_id\": 43481,\n    \"start_ms\": 859.134683\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "sql": "WITH RECURSIVE anc AS (\n SELECT id,parent_id,name,category,ts,dur,arg_set_id,0 level FROM thread_slice WHERE id=43244\n UNION ALL\n SELECT s.id,s.parent_id,s.name,s.category,s.ts,s.dur,s.arg_set_id,a.level+1 FROM anc a JOIN thread_slice s ON s.id=a.parent_id WHERE a.level<20)\nSELECT id,parent_id,name,category,(ts-3762433098211544)/1e6 start_ms,dur/1e6 dur_ms,level FROM anc ORDER BY level;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"cuda_runtime\",\n    \"dur_ms\": 29.892983,\n    \"id\": 43244,\n    \"level\": 0,\n    \"name\": \"cudaStreamSynchronize\",\n    \"parent_id\": 43241,\n    \"start_ms\": 829.080548\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 29.938914,\n    \"id\": 43241,\n    \"level\": 1,\n    \"name\": \"aten::copy_\",\n    \"parent_id\": 43239,\n    \"start_ms\": 829.042587\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 29.956104,\n    \"id\": 43239,\n    \"level\": 2,\n    \"name\": \"aten::_to_copy\",\n    \"parent_id\": 43238,\n    \"start_ms\": 829.030567\n  },\n  {\n    \"category\": \"cpu_op\",\n    \"dur_ms\": 29.957944,\n    \"id\": 43238,\n    \"level\": 3,\n    \"name\": \"aten::to\",\n    \"parent_id\": 3,\n    \"start_ms\": 829.029407\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"dur_ms\": 1279.589706,\n    \"id\": 3,\n    \"level\": 4,\n    \"name\": \"task.profile_update.21.train_step.rank0\",\n    \"parent_id\": 2,\n    \"start_ms\": 1.24803\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"dur_ms\": 1280.441886,\n    \"id\": 2,\n    \"level\": 5,\n    \"name\": \"ProfilerStep#20\",\n    \"parent_id\": null,\n    \"start_ms\": 0.444911\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "sql": "SELECT id,name,category,(ts-3762433098211544)/1e6 start_ms,dur/1e6 dur_ms,EXTRACT_ARG(arg_set_id,'args.correlation') correlation,EXTRACT_ARG(arg_set_id,'args.bytes') bytes\nFROM thread_slice WHERE category IN ('gpu_memcpy','gpu_memset') AND ts>=3762433098211544+858650000 AND ts<3762433098211544+859300000 ORDER BY ts;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"bytes\": 65536,\n    \"category\": \"gpu_memcpy\",\n    \"correlation\": 1793900,\n    \"dur_ms\": 0.004672,\n    \"id\": 43469,\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"start_ms\": 858.958499\n  },\n  {\n    \"bytes\": 32768,\n    \"category\": \"gpu_memcpy\",\n    \"correlation\": 1793917,\n    \"dur_ms\": 0.002784,\n    \"id\": 43476,\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"start_ms\": 859.110947\n  },\n  {\n    \"bytes\": 65536,\n    \"category\": \"gpu_memcpy\",\n    \"correlation\": 1793934,\n    \"dur_ms\": 0.004768,\n    \"id\": 43485,\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"start_ms\": 859.136515\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "sql": "SELECT d.id AS device_id,d.name AS device_name,h.id AS host_id,h.name AS host_name,h.parent_id,\n(h.ts-3762433098211544)/1e6 host_start_ms,h.dur/1e6 host_dur_ms\nFROM thread_slice d JOIN flow f ON f.slice_in=d.id JOIN thread_slice h ON h.id=f.slice_out WHERE d.id IN (43469,43476,43485);",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"device_id\": 43469,\n    \"device_name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"host_dur_ms\": 0.030391,\n    \"host_id\": 43243,\n    \"host_name\": \"cudaMemcpyAsync\",\n    \"host_start_ms\": 829.049607,\n    \"parent_id\": 43241\n  },\n  {\n    \"device_id\": 43476,\n    \"device_name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"host_dur_ms\": 0.027011,\n    \"host_id\": 43475,\n    \"host_name\": \"cudaMemcpyAsync\",\n    \"host_start_ms\": 859.083742,\n    \"parent_id\": 43473\n  },\n  {\n    \"device_id\": 43485,\n    \"device_name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"host_dur_ms\": 0.00582,\n    \"host_id\": 43483,\n    \"host_name\": \"cudaMemcpyAsync\",\n    \"host_start_ms\": 859.128593,\n    \"parent_id\": 43481\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "caveats": [
+    "Uncovered kernel durations are not guaranteed recoverable step time.",
+    "Forward/backward accumulation mathematically commutes, but precision and distributed lifetimes remain contracts.",
+    "The owner-rejected MTP norm-buffer proposal is not revived."
+  ]
+}

@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "analysis_date": "2026-11-14",
+  "purpose": "Full recorded V2 rank-0 profiling-window accounting, requested by the owner; exclusive semantic component accounting is stored in the companion native-JSON summary.",
+  "trace_path": "/Users/valerii.kropotin/sber-pretrain/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/v2-rank0.perfetto.json.gz",
+  "canonical_path": "artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+  "canonical_sha256": "196806cee1fe857e97e4d80f3b7aa5961e323860f5fa1274d3e4b59a6f522c94",
+  "derived_sha256": "876696a98da197a3b1ac4bb22e6ccac869db6ecd5ff9fd4d931ea8244f7397bd",
+  "scope": {
+    "rank": 0,
+    "optimizer_update": 21,
+    "captured_microbatches": 3,
+    "accumulation_microbatches": 32,
+    "optimizer_captured": false,
+    "hardware": "8 x NVIDIA H100 80GB NVLink, single node",
+    "main_stream": 7,
+    "GFSDP_stream": 24,
+    "capacity_count_stream": 23
+  },
+  "timing": {
+    "units": "milliseconds",
+    "train_annotation": 1302.201039,
+    "input_before_first_microbatch": 8.445556,
+    "first_microbatch_to_final_linked_device_completion": 1293.712761,
+    "after_final_device_to_train_annotation_end": 0.042722,
+    "outer_Trace_event": 1303.020059
+  },
+  "method": [
+    "Actual Perfetto MCP analysis; thread_slice from slices.with_context, original actual CUDA stream ID from args.stream.",
+    "All 9930 kernel/memcpy/memset events have CPU launch flow linkage. The three-microbatch window intersects 9921; nine setup events precede it.",
+    "GPU busy and idle use interval unions; exclusive stream activity uses a sweep of all event endpoints.",
+    "Early temporal forward is microbatch entry to the first main-stream device event launched after the first autograd engine entry. It is not semantic forward: ChunkedCELoss interleaves first-time head forward and head backward.",
+    "Semantic original-forward/recompute/backward attribution is separately provided by v2-window-component-summary.json and its per-kernel evidence.",
+    "Kernel sums across concurrent streams must not be added to elapsed time; EP/NCCL kernel activity may include device peer/spin waits.",
+    "These are measurements of the captured diagnostic prefix, not full-step percentages, optimization gains or all-rank bottleneck proof."
+  ],
+  "queries": [
+    {
+      "label": "construct_and_phase_boundaries",
+      "sql": "CREATE PERFETTO TABLE win26_dev AS\nSELECT d.*,CAST(EXTRACT_ARG(d.arg_set_id,'args.stream') AS INT) stream,\nCASE WHEN d.category='gpu_memcpy' THEN 'copy' WHEN d.category='gpu_memset' THEN 'memset'\nWHEN d.name GLOB '*hybrid_ep*' OR d.name GLOB '*ag_nvl*' OR d.name GLOB '*rs_nvl*'\nOR lower(d.name) GLOB '*deep_ep*' OR lower(d.name) GLOB '*deepep*' THEN 'ep'\nWHEN lower(d.name) GLOB '*nccl*' THEN 'nccl' ELSE 'compute' END kind,\nh.id host_id,h.ts host_ts,h.dur host_dur,h.name host_name,h.tid host_tid\nFROM thread_slice d JOIN flow f ON f.slice_in=d.id JOIN thread_slice h ON h.id=f.slice_out\nWHERE d.category IN ('kernel','gpu_memcpy','gpu_memset');\nCREATE PERFETTO TABLE win26_mb AS\nWITH m AS (SELECT ROW_NUMBER() OVER(ORDER BY ts) mb,id,ts,ts+dur cpu_end\nFROM thread_slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.microbatch.rank0')\nSELECT *, (SELECT max(ts+dur) FROM win26_dev d WHERE d.host_ts>=m.ts AND d.host_ts<m.cpu_end) device_end,\n(SELECT min(ts) FROM thread_slice a WHERE a.name GLOB 'autograd::engine::evaluate_function:*' AND a.ts>=m.ts AND a.ts<m.cpu_end) bwd_cpu_start\nFROM m;\nSELECT m.mb,(m.ts-(SELECT min(ts) FROM win26_mb))/1e6 start_ms,\n(m.cpu_end-m.ts)/1e6 host_span_ms,(m.device_end-m.ts)/1e6 device_span_ms,\n(m.bwd_cpu_start-m.ts)/1e6 backward_host_start_ms,\n(SELECT min(d.ts)-m.ts FROM win26_dev d WHERE d.stream=7 AND d.host_ts>=m.bwd_cpu_start AND d.host_ts<m.cpu_end)/1e6 first_backward_gpu_ms\nFROM win26_mb m;"
+    },
+    {
+      "label": "construct_occupancy_and_phases",
+      "sql": "CREATE PERFETTO TABLE win26_win AS SELECT min(ts) lo,max(device_end) hi FROM win26_mb;\nCREATE PERFETTO TABLE win26_events AS\nSELECT d.*,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM win26_dev d JOIN win26_win w ON d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE win26_phase AS\nWITH x AS (SELECT m.*,(SELECT min(d.ts) FROM win26_dev d WHERE d.stream=7 AND d.host_ts>=m.bwd_cpu_start AND d.host_ts<m.cpu_end) bwd_gpu_start FROM win26_mb m)\nSELECT mb,'forward' phase,ts b,bwd_gpu_start e FROM x\nUNION ALL SELECT mb,'backward_including_recompute',bwd_gpu_start,device_end FROM x\nUNION ALL SELECT mb,'between_microbatches',device_end,lead(ts) OVER(ORDER BY ts) FROM x;\nCREATE PERFETTO TABLE win26_union AS\nWITH x AS(\nSELECT id,kind,b,e FROM win26_events\nUNION ALL SELECT id,'all_device',b,e FROM win26_events\nUNION ALL SELECT id,'main_stream',b,e FROM win26_events WHERE stream=7),\ny AS(SELECT *,MAX(e) OVER(PARTITION BY kind ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM x)\nSELECT kind,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms FROM y GROUP BY kind;\nSELECT * FROM win26_union;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"kind\": \"all_device\",\n    \"n\": 9921,\n    \"sum_ms\": 1427.691543,\n    \"union_ms\": 1250.600571\n  },\n  {\n    \"kind\": \"compute\",\n    \"n\": 8210,\n    \"sum_ms\": 1022.108422,\n    \"union_ms\": 1013.092583\n  },\n  {\n    \"kind\": \"copy\",\n    \"n\": 268,\n    \"sum_ms\": 23.527795,\n    \"union_ms\": 23.527795\n  },\n  {\n    \"kind\": \"ep\",\n    \"n\": 438,\n    \"sum_ms\": 157.626586,\n    \"union_ms\": 157.626586\n  },\n  {\n    \"kind\": \"main_stream\",\n    \"n\": 9633,\n    \"sum_ms\": 1147.971823,\n    \"union_ms\": 1147.90811\n  },\n  {\n    \"kind\": \"memset\",\n    \"n\": 861,\n    \"sum_ms\": 0.929444,\n    \"union_ms\": 0.929444\n  },\n  {\n    \"kind\": \"nccl\",\n    \"n\": 144,\n    \"sum_ms\": 223.499296,\n    \"union_ms\": 223.499296\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "phase_occupancy",
+      "sql": "WITH x AS(\nSELECT p.mb,p.phase,p.b pb,p.e pe,d.id,d.kind,d.stream,MAX(p.b,d.b) b,MIN(p.e,d.e) e\nFROM win26_phase p JOIN win26_events d ON d.b<p.e AND d.e>p.b WHERE p.e>p.b),\na AS(SELECT mb,phase,id,'all_device' kind,b,e FROM x UNION ALL SELECT mb,phase,id,'main_stream',b,e FROM x WHERE stream=7 UNION ALL SELECT mb,phase,id,kind,b,e FROM x),\ny AS(SELECT *,MAX(e) OVER(PARTITION BY mb,phase,kind ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM a)\nSELECT phase,kind,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms,sum(e-b)/1e6 sum_ms FROM y GROUP BY phase,kind ORDER BY phase,kind;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"kind\": \"all_device\",\n    \"phase\": \"backward_including_recompute\",\n    \"sum_ms\": 1096.117625,\n    \"union_ms\": 954.263618\n  },\n  {\n    \"kind\": \"compute\",\n    \"phase\": \"backward_including_recompute\",\n    \"sum_ms\": 796.578398,\n    \"union_ms\": 788.465956\n  },\n  {\n    \"kind\": \"copy\",\n    \"phase\": \"backward_including_recompute\",\n    \"sum_ms\": 14.827416,\n    \"union_ms\": 14.827416\n  },\n  {\n    \"kind\": \"ep\",\n    \"phase\": \"backward_including_recompute\",\n    \"sum_ms\": 101.118159,\n    \"union_ms\": 101.118159\n  },\n  {\n    \"kind\": \"main_stream\",\n    \"phase\": \"backward_including_recompute\",\n    \"sum_ms\": 879.364815,\n    \"union_ms\": 879.319247\n  },\n  {\n    \"kind\": \"memset\",\n    \"phase\": \"backward_including_recompute\",\n    \"sum_ms\": 0.680197,\n    \"union_ms\": 0.680197\n  },\n  {\n    \"kind\": \"nccl\",\n    \"phase\": \"backward_including_recompute\",\n    \"sum_ms\": 182.913455,\n    \"union_ms\": 182.913455\n  },\n  {\n    \"kind\": \"all_device\",\n    \"phase\": \"between_microbatches\",\n    \"sum_ms\": 0.024128,\n    \"union_ms\": 0.024128\n  },\n  {\n    \"kind\": \"copy\",\n    \"phase\": \"between_microbatches\",\n    \"sum_ms\": 0.024128,\n    \"union_ms\": 0.024128\n  },\n  {\n    \"kind\": \"main_stream\",\n    \"phase\": \"between_microbatches\",\n    \"sum_ms\": 0.024128,\n    \"union_ms\": 0.024128\n  },\n  {\n    \"kind\": \"all_device\",\n    \"phase\": \"forward\",\n    \"sum_ms\": 331.54979,\n    \"union_ms\": 296.312825\n  },\n  {\n    \"kind\": \"compute\",\n    \"phase\": \"forward\",\n    \"sum_ms\": 225.530024,\n    \"union_ms\": 224.626627\n  },\n  {\n    \"kind\": \"copy\",\n    \"phase\": \"forward\",\n    \"sum_ms\": 8.676251,\n    \"union_ms\": 8.676251\n  },\n  {\n    \"kind\": \"ep\",\n    \"phase\": \"forward\",\n    \"sum_ms\": 56.508427,\n    \"union_ms\": 56.508427\n  },\n  {\n    \"kind\": \"main_stream\",\n    \"phase\": \"forward\",\n    \"sum_ms\": 268.58288,\n    \"union_ms\": 268.564735\n  },\n  {\n    \"kind\": \"memset\",\n    \"phase\": \"forward\",\n    \"sum_ms\": 0.249247,\n    \"union_ms\": 0.249247\n  },\n  {\n    \"kind\": \"nccl\",\n    \"phase\": \"forward\",\n    \"sum_ms\": 40.585841,\n    \"union_ms\": 40.585841\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "phase_elapsed",
+      "sql": "SELECT phase,sum(e-b)/1e6 elapsed_ms FROM win26_phase WHERE e>b GROUP BY phase;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"elapsed_ms\": 979.315467,\n    \"phase\": \"backward_including_recompute\"\n  },\n  {\n    \"elapsed_ms\": 0.44949,\n    \"phase\": \"between_microbatches\"\n  },\n  {\n    \"elapsed_ms\": 313.947804,\n    \"phase\": \"forward\"\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "main_stream_families",
+      "sql": "SELECT stream,kind,count(*) n,sum(e-b)/1e6 sum_ms FROM win26_events GROUP BY stream,kind ORDER BY stream,kind;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"kind\": \"compute\",\n    \"n\": 8115,\n    \"stream\": 7,\n    \"sum_ms\": 988.95243\n  },\n  {\n    \"kind\": \"copy\",\n    \"n\": 219,\n    \"stream\": 7,\n    \"sum_ms\": 0.463363\n  },\n  {\n    \"kind\": \"ep\",\n    \"n\": 438,\n    \"stream\": 7,\n    \"sum_ms\": 157.626586\n  },\n  {\n    \"kind\": \"memset\",\n    \"n\": 861,\n    \"stream\": 7,\n    \"sum_ms\": 0.929444\n  },\n  {\n    \"kind\": \"nccl\",\n    \"n\": 39,\n    \"stream\": 23,\n    \"sum_ms\": 15.689081\n  },\n  {\n    \"kind\": \"compute\",\n    \"n\": 95,\n    \"stream\": 24,\n    \"sum_ms\": 33.155992\n  },\n  {\n    \"kind\": \"copy\",\n    \"n\": 49,\n    \"stream\": 24,\n    \"sum_ms\": 23.064432\n  },\n  {\n    \"kind\": \"nccl\",\n    \"n\": 105,\n    \"stream\": 24,\n    \"sum_ms\": 207.810215\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "nccl_families",
+      "sql": "SELECT CASE WHEN name GLOB '*AllGather*' THEN 'allgather' WHEN name GLOB '*ReduceScatter*' THEN 'reduce_scatter' WHEN name GLOB '*AllReduce*' THEN 'allreduce' ELSE name END family,count(*) n,sum(e-b)/1e6 sum_ms FROM win26_events WHERE kind='nccl' GROUP BY family;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"family\": \"allgather\",\n    \"n\": 69,\n    \"sum_ms\": 94.03208\n  },\n  {\n    \"family\": \"allreduce\",\n    \"n\": 39,\n    \"sum_ms\": 15.689081\n  },\n  {\n    \"family\": \"reduce_scatter\",\n    \"n\": 36,\n    \"sum_ms\": 113.778135\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "full_train_census",
+      "sql": "WITH w AS(SELECT ts lo,ts+dur hi FROM thread_slice WHERE category='user_annotation' AND name='task.profile_update.21.train_step.rank0'),\nx AS(SELECT d.id,d.kind,d.category,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM win26_dev d JOIN w ON d.ts<w.hi AND d.ts+d.dur>w.lo),\np AS(SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM x)\nSELECT count(*) events,(SELECT hi-lo FROM w)/1e6 window_ms,\nsum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 busy_ms,\n((SELECT hi-lo FROM w)-sum(MAX(0,e-MAX(b,coalesce(prev_end,b)))))/1e6 idle_ms\nFROM p;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"busy_ms\": 1250.626332,\n    \"events\": 9930,\n    \"idle_ms\": 51.574707,\n    \"window_ms\": 1302.201039\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "full_train_margin_work",
+      "sql": "SELECT d.kind,d.name,d.stream,(d.ts-(SELECT min(ts) FROM win26_mb))/1e6 start_ms,d.dur/1e6 duration_ms\nFROM win26_dev d WHERE d.ts<(SELECT lo FROM win26_win) ORDER BY d.ts;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"duration_ms\": 0.000992,\n    \"kind\": \"compute\",\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)\",\n    \"start_ms\": -8.222941,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.000864,\n    \"kind\": \"copy\",\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"start_ms\": -0.625954,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001344,\n    \"kind\": \"compute\",\n    \"name\": \"void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::launch_clamp_scalar(at::TensorIteratorBase&, c10::Scalar, c10::Scalar, at::native::detail::ClampLimits)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::(anonymous namespace)::launch_clamp_scalar(at::TensorIteratorBase&, c10::Scalar, c10::Scalar, at::native::detail::ClampLimits)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, std::array<char*, 2ul>)\",\n    \"start_ms\": -0.584706,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.001024,\n    \"kind\": \"copy\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"start_ms\": -0.492354,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.0072,\n    \"kind\": \"nccl\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": -0.368865,\n    \"stream\": 23\n  },\n  {\n    \"duration_ms\": 0.002177,\n    \"kind\": \"copy\",\n    \"name\": \"Memcpy DtoH (Device -> Pinned)\",\n    \"start_ms\": -0.188705,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.004608,\n    \"kind\": \"copy\",\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"start_ms\": -0.112832,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.002848,\n    \"kind\": \"copy\",\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"start_ms\": -0.044992,\n    \"stream\": 7\n  },\n  {\n    \"duration_ms\": 0.004704,\n    \"kind\": \"copy\",\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"start_ms\": -0.020608,\n    \"stream\": 7\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "phase_main_idle",
+      "sql": "WITH x AS(SELECT d.id,p.phase,MAX(d.b,p.b)b,MIN(d.e,p.e)e FROM win26_events d JOIN win26_phase p ON d.b<p.e AND d.e>p.b WHERE d.stream=7 AND p.e>p.b),\ny AS(SELECT *,MAX(e)OVER(PARTITION BY phase ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)prev_end FROM x)\nSELECT phase,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 main_busy_ms,\n(SELECT sum(e-b)/1e6 FROM win26_phase p WHERE p.phase=y.phase AND e>b)-sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 main_idle_ms FROM y GROUP BY phase;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"main_busy_ms\": 879.319247,\n    \"main_idle_ms\": 99.99622,\n    \"phase\": \"backward_including_recompute\"\n  },\n  {\n    \"main_busy_ms\": 0.024128,\n    \"main_idle_ms\": 0.425362,\n    \"phase\": \"between_microbatches\"\n  },\n  {\n    \"main_busy_ms\": 268.564735,\n    \"main_idle_ms\": 45.383069000000035,\n    \"phase\": \"forward\"\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "phase_margin_markers",
+      "sql": "SELECT name,(ts-(SELECT min(ts) FROM win26_mb))/1e6 start_ms,dur/1e6 duration_ms FROM thread_slice WHERE category='user_annotation' AND name IN ('ProfilerStep#20','task.profile_update.21.train_step.rank0') ORDER BY ts;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"duration_ms\": 1302.532154,\n    \"name\": \"ProfilerStep#20\",\n    \"start_ms\": -8.73682\n  },\n  {\n    \"duration_ms\": 1302.201039,\n    \"name\": \"task.profile_update.21.train_step.rank0\",\n    \"start_ms\": -8.445556\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "exposed_other_stream_work",
+      "sql": "WITH m AS(SELECT * FROM win26_events WHERE stream=7),\np AS(SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM m),\ng AS(SELECT prev_end b,b e FROM p WHERE b>prev_end\nUNION ALL SELECT w.lo,(SELECT min(b) FROM m) FROM win26_win w\nUNION ALL SELECT (SELECT max(e) FROM m),w.hi FROM win26_win w)\nSELECT CASE WHEN d.name GLOB '*AllGather*' THEN 'all_gather' WHEN d.name GLOB '*ReduceScatter*' THEN 'reduce_scatter'\nWHEN d.name GLOB '*AllReduce*' THEN 'all_reduce' WHEN d.kind='copy' THEN 'copy' ELSE 'GFSDP_preparation_kernels' END family,\ncount(DISTINCT d.id) n,sum(MIN(d.e,g.e)-MAX(d.b,g.b))/1e6 intersects_main_idle_ms\nFROM win26_events d JOIN g ON d.b<g.e AND d.e>g.b WHERE d.stream<>7 GROUP BY family;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"family\": \"GFSDP_preparation_kernels\",\n    \"intersects_main_idle_ms\": 24.203866,\n    \"n\": 78\n  },\n  {\n    \"family\": \"all_gather\",\n    \"intersects_main_idle_ms\": 18.917733,\n    \"n\": 69\n  },\n  {\n    \"family\": \"all_reduce\",\n    \"intersects_main_idle_ms\": 15.689081,\n    \"n\": 39\n  },\n  {\n    \"family\": \"copy\",\n    \"intersects_main_idle_ms\": 8.578429,\n    \"n\": 22\n  },\n  {\n    \"family\": \"reduce_scatter\",\n    \"intersects_main_idle_ms\": 36.10265,\n    \"n\": 36\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "host_apis",
+      "sql": "SELECT name,count(*) n,sum(dur)/1e6 sum_ms,max(dur)/1e6 max_ms FROM thread_slice\nWHERE category IN ('cuda_runtime','cuda_driver') AND ts>=(SELECT lo FROM win26_win) AND ts<(SELECT hi FROM win26_win)\nGROUP BY name ORDER BY sum(dur) DESC LIMIT 12;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "[\n  {\n    \"max_ms\": 103.093141,\n    \"n\": 87,\n    \"name\": \"cudaStreamSynchronize\",\n    \"sum_ms\": 716.983053\n  },\n  {\n    \"max_ms\": 29.966003,\n    \"n\": 1,\n    \"name\": \"cudaDeviceSynchronize\",\n    \"sum_ms\": 29.966003\n  },\n  {\n    \"max_ms\": 2.071473,\n    \"n\": 3188,\n    \"name\": \"cudaLaunchKernel\",\n    \"sum_ms\": 17.63216\n  },\n  {\n    \"max_ms\": 0.01783,\n    \"n\": 2175,\n    \"name\": \"cuLaunchKernelEx\",\n    \"sum_ms\": 13.231515\n  },\n  {\n    \"max_ms\": 0.01589,\n    \"n\": 2004,\n    \"name\": \"cuLaunchKernel\",\n    \"sum_ms\": 9.812504\n  },\n  {\n    \"max_ms\": 0.0157,\n    \"n\": 1425,\n    \"name\": \"cudaLaunchKernelExC\",\n    \"sum_ms\": 7.203929\n  },\n  {\n    \"max_ms\": 0.021611,\n    \"n\": 861,\n    \"name\": \"cudaMemsetAsync\",\n    \"sum_ms\": 4.998118\n  },\n  {\n    \"max_ms\": 0.07604,\n    \"n\": 268,\n    \"name\": \"cudaMemcpyAsync\",\n    \"sum_ms\": 4.364271\n  },\n  {\n    \"max_ms\": 0.014241,\n    \"n\": 735,\n    \"name\": \"cudaEventQuery\",\n    \"sum_ms\": 1.441572\n  },\n  {\n    \"max_ms\": 0.01046,\n    \"n\": 870,\n    \"name\": \"cudaStreamWaitEvent\",\n    \"sum_ms\": 0.795715\n  },\n  {\n    \"max_ms\": 0.007731,\n    \"n\": 841,\n    \"name\": \"cudaEventRecordWithFlags\",\n    \"sum_ms\": 0.690454\n  },\n  {\n    \"max_ms\": 0.00885,\n    \"n\": 1693,\n    \"name\": \"cudaStreamIsCapturing\",\n    \"sum_ms\": 0.607647\n  }\n]"
+            }
+          ],
+          "isError": false
+        }
+      }
+    },
+    {
+      "label": "trace_quality",
+      "sql": "SELECT severity,source,code,sum(value) value FROM stats WHERE value>0 AND severity IN ('error','data_loss') GROUP BY severity,source,code;",
+      "result": {
+        "status": "fulfilled",
+        "value": {
+          "content": [
+            {
+              "type": "text",
+              "text": "SQL error: Traceback (most recent call last):\n  File \"stdin\" line 1 col 24\n    SELECT severity,source,code,sum(value) value FROM stats WHERE value>0 AND severity IN ('error','data_loss') GROUP BY severity,source,code\n                           ^\nno such column: code"
+            }
+          ],
+          "isError": true
+        }
+      }
+    },
+    {
+      "label": "disjoint_elapsed_occupancy",
+      "sql": "CREATE PERFETTO TABLE win26_sweep AS\nWITH endpoints AS(\nSELECT b t,CASE WHEN stream=7 THEN 1 ELSE 0 END dm,CASE WHEN stream=24 THEN 1 ELSE 0 END ds,CASE WHEN stream=23 THEN 1 ELSE 0 END dc,1 da FROM win26_events\nUNION ALL SELECT e,CASE WHEN stream=7 THEN -1 ELSE 0 END,CASE WHEN stream=24 THEN -1 ELSE 0 END,CASE WHEN stream=23 THEN -1 ELSE 0 END,-1 FROM win26_events\nUNION ALL SELECT lo,0,0,0,0 FROM win26_win UNION ALL SELECT hi,0,0,0,0 FROM win26_win),\ngrouped AS(SELECT t,sum(dm)dm,sum(ds)ds,sum(dc)dc,sum(da)da FROM endpoints GROUP BY t),\nrunning AS(SELECT t,lead(t)OVER(ORDER BY t) e,sum(dm)OVER(ORDER BY t)m,sum(ds)OVER(ORDER BY t)s,sum(dc)OVER(ORDER BY t)c,sum(da)OVER(ORDER BY t)a FROM grouped)\nSELECT * FROM running WHERE e>t;\nSELECT CASE WHEN m>0 THEN 'main_stream_active'\nWHEN s>0 AND c>0 THEN 'main_idle_GFSDP_and_capacity_AR_active'\nWHEN s>0 THEN 'main_idle_GFSDP_stream_active'\nWHEN c>0 THEN 'main_idle_capacity_AR_active'\nELSE 'all_device_idle' END state,sum(e-t)/1e6 elapsed_ms FROM win26_sweep GROUP BY state;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"elapsed_ms\": 43.11219,\n    \"state\": \"all_device_idle\"\n  },\n  {\n    \"elapsed_ms\": 0.799298,\n    \"state\": \"main_idle_GFSDP_and_capacity_AR_active\"\n  },\n  {\n    \"elapsed_ms\": 87.00338,\n    \"state\": \"main_idle_GFSDP_stream_active\"\n  },\n  {\n    \"elapsed_ms\": 14.889783,\n    \"state\": \"main_idle_capacity_AR_active\"\n  },\n  {\n    \"elapsed_ms\": 1147.90811,\n    \"state\": \"main_stream_active\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "resolved_query_failure": "Initial stats query used nonexistent code column; inspected stats schema and reran with name. Corrected query returned no positive error/data_loss stats.",
+  "presentation": {
+    "main_stream_kernel_rows": [
+      {
+        "component": "Output head GEMMs",
+        "forward_ms": 69.285145,
+        "recompute_ms": 0,
+        "backward_ms": 134.317286,
+        "sum_ms": 203.602431,
+        "fraction_of_microbatch_elapsed_percent": 15.737838965321917
+      },
+      {
+        "component": "Cross entropy",
+        "forward_ms": 8.432958000000001,
+        "recompute_ms": 0,
+        "backward_ms": 9.704193000000002,
+        "sum_ms": 18.137151000000003,
+        "fraction_of_microbatch_elapsed_percent": 1.4019457445855714
+      },
+      {
+        "component": "Routed expert GEMMs",
+        "forward_ms": 43.50690499999999,
+        "recompute_ms": 17.836129,
+        "backward_ms": 107.09168499999998,
+        "sum_ms": 168.43471899999997,
+        "fraction_of_microbatch_elapsed_percent": 13.019483464768882
+      },
+      {
+        "component": "Expert parallel transport and waits",
+        "forward_ms": 56.50842699999999,
+        "recompute_ms": 40.862357999999986,
+        "backward_ms": 60.255801000000005,
+        "sum_ms": 157.62658599999997,
+        "fraction_of_microbatch_elapsed_percent": 12.184048171416311
+      },
+      {
+        "component": "GDN including projections and unpack",
+        "forward_ms": 36.05901000000001,
+        "recompute_ms": 53.122168,
+        "backward_ms": 68.59755800000002,
+        "sum_ms": 157.77873600000004,
+        "fraction_of_microbatch_elapsed_percent": 12.195808896407728
+      },
+      {
+        "component": "MLA including projections, MTP and helpers",
+        "forward_ms": 20.595183000000002,
+        "recompute_ms": 25.042169,
+        "backward_ms": 47.11018500000001,
+        "sum_ms": 92.74753700000001,
+        "fraction_of_microbatch_elapsed_percent": 7.169098102449653
+      },
+      {
+        "component": "Dense FFN and shared expert GEMMs",
+        "forward_ms": 15.427255000000002,
+        "recompute_ms": 18.257155,
+        "backward_ms": 36.131420000000006,
+        "sum_ms": 69.81583,
+        "fraction_of_microbatch_elapsed_percent": 5.396547989990802
+      },
+      {
+        "component": "Normalization",
+        "forward_ms": 17.752345999999992,
+        "recompute_ms": 19.871016000000004,
+        "backward_ms": 30.989518000000004,
+        "sum_ms": 68.61288,
+        "fraction_of_microbatch_elapsed_percent": 5.303563671039649
+      },
+      {
+        "component": "Quantization, layout and SwiGLU",
+        "forward_ms": 25.150179999999985,
+        "recompute_ms": 23.014288000000004,
+        "backward_ms": 50.172514,
+        "sum_ms": 98.33698199999999,
+        "fraction_of_microbatch_elapsed_percent": 7.601144934520747
+      },
+      {
+        "component": "Router GEMMs and local control",
+        "forward_ms": 6.376085000000001,
+        "recompute_ms": 6.229787,
+        "backward_ms": 11.90609,
+        "sum_ms": 24.511962,
+        "fraction_of_microbatch_elapsed_percent": 1.8946989423721081
+      },
+      {
+        "component": "GFSDP gradient staging",
+        "forward_ms": 0,
+        "recompute_ms": 0,
+        "backward_ms": 44.45487699999998,
+        "sum_ms": 44.45487699999998,
+        "fraction_of_microbatch_elapsed_percent": 3.4362246659480835
+      },
+      {
+        "component": "Other pointwise, reductions and concatenation",
+        "forward_ms": 13.205831999999997,
+        "recompute_ms": 8.306776000000006,
+        "backward_ms": 21.00671700000001,
+        "sum_ms": 42.51932500000001,
+        "fraction_of_microbatch_elapsed_percent": 3.2866124754875172
+      }
+    ],
+    "semantic_phase_totals_ms": {
+      "forward": 312.29932599999995,
+      "recompute": 212.541846,
+      "backward": 621.737844
+    },
+    "caution": "Semantic replay/VJP split is an operational estimate for fused mixed kernels. GDN/MLA projections, shared/dense FFN and router GEMM ownership use source-order inference. Direct strong family anchors are output-head GEMMs, routed expert GEMMs, HybridEP, GDN scan and SDPA.",
+    "exclusive_elapsed_reconciliation_ms": {
+      "input_preparation": 8.445556,
+      "main_stream_active": 1147.90811,
+      "main_idle_with_GFSDP_stream_active_including_capacity_overlap": 87.802678,
+      "main_idle_with_only_capacity_allreduce_active": 14.889783,
+      "all_device_idle_in_three_microbatch_window": 43.11219,
+      "post_device_host_tail": 0.042722
+    },
+    "same_stream_recorded_event_overlap_ms": 0.063713,
+    "earlier_idle_number_reconciliation": "42.899ms counted internal gaps only. 43.112190ms includes the leading/trailing edges of the full three-microbatch window.",
+    "review": "Independent bounded source/method review found no concrete misclassified derivative kernel, accepted strong family anchors and required rounding to0.1ms with semantic and inferred-ownership caveats."
+  }
+}

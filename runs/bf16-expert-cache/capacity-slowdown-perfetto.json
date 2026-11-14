@@ -1,0 +1,59 @@
+{
+  "scope": "Rank-0 checks of why capacity all-reduce kernel durations increase during backward recomputation.",
+  "companion": "capacity-crossrank-wait.json",
+  "observations": {
+    "kernel_configuration": "All39: identical AllReduce_Sum_u64_RING_LL,128Long inputs,8ranks,grid1,block128,119040 shared bytes.",
+    "selected_local_edges": [
+      {
+        "slice": 58892,
+        "last_local_input_kernel_end_ms": 1173.050531,
+        "collective_start_ms": 1173.053283,
+        "collective_end_ms": 1174.542633,
+        "next_compute_start_ms": 1174.544233
+      },
+      {
+        "slice": 60411,
+        "last_local_input_kernel_end_ms": 1200.670758,
+        "collective_start_ms": 1200.673478,
+        "collective_end_ms": 1201.545705,
+        "next_compute_start_ms": 1201.547209
+      }
+    ],
+    "interpretation": "Local input work completes just before collective start; local compute resumes just after collective end. These are observed event boundaries, not reconstructed CUDA event dependencies. No other recorded local device work overlaps these collectives."
+  },
+  "official_nccl_reference": {
+    "url": "https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/mpi.html",
+    "relevant_section": "Inter-GPU Communication with CUDA-aware MPI",
+    "mechanism": "A launched NCCL kernel may wait until all communicator ranks have launched the collective."
+  },
+  "causal_status": "Rank0/1 both show long backward kernels and almost simultaneous ends. Peer arrival/resource/protocol waiting is a plausible explanation; ranks2-7 are unavailable, so late arrival versus fabric/protocol/resource delay cannot be resolved.",
+  "implication": "Removing replayed capacity collectives does not establish equivalent step-time saving: peer waiting may be encountered at the subsequent EP dispatch.",
+  "queries": [
+    {
+      "label": "same_capacity_kernel_configuration",
+      "sql": "SELECT name,\nEXTRACT_ARG(arg_set_id,'args.In msg nelems') nelems,\nEXTRACT_ARG(arg_set_id,'args.dtype') dtype,\nEXTRACT_ARG(arg_set_id,'args.Group size') nranks,\nEXTRACT_ARG(arg_set_id,'args.grid[0]') grid_x,\nEXTRACT_ARG(arg_set_id,'args.block[0]') block_x,\nEXTRACT_ARG(arg_set_id,'args.shared memory') shared_bytes,\nCOUNT(*) n\nFROM thread_slice\nWHERE category='kernel' AND name GLOB 'ncclDevKernel_AllReduce_Sum_u64*'\nAND CAST(EXTRACT_ARG(arg_set_id,'args.In msg nelems') AS INT)=128\nGROUP BY 1,2,3,4,5,6,7;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"block_x\": 128,\n    \"dtype\": \"Long\",\n    \"grid_x\": 1,\n    \"n\": 39,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"nelems\": 128,\n    \"nranks\": 8,\n    \"shared_bytes\": 119040\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "selected_local_compute_and_collective_edges",
+      "sql": "WITH targets AS (SELECT * FROM thread_slice WHERE id IN (58892,60411))\nSELECT t.id AS collective_id,s.id,s.name,s.category,EXTRACT_ARG(s.arg_set_id,'args.stream') stream,\n(s.ts-3762433098211544)/1e6 start_ms,s.dur/1e6 dur_ms\nFROM targets t JOIN thread_slice s ON s.category IN ('kernel','gpu_memcpy','gpu_memset')\nAND s.ts+s.dur>=t.ts-150000 AND s.ts<=t.ts+t.dur+150000\nORDER BY t.id,s.ts LIMIT 90;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.719811,\n    \"id\": 58875,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 1172.187296,\n    \"stream\": 24\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.341697,\n    \"id\": 58886,\n    \"name\": \"sm80_xmma_gemm_f32f32_f32f32_f32_tn_n_tilesize128x128x8_stage3_warpsize2x2x1_ffma_aligna4_alignc4_execute_kernel__5x_cublas\",\n    \"start_ms\": 1172.678562,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.009696,\n    \"id\": 58887,\n    \"name\": \"sm80_xmma_gemm_f32f32_f32f32_f32_tn_n_tilesize128x128x8_stage3_warpsize2x2x1_ffma_aligna4_alignc4_execute_split_k_kernel__5x_cublas\",\n    \"start_ms\": 1173.021731,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.002272,\n    \"id\": 58888,\n    \"name\": \"triton_per_fused__unsafe_view_add_bitwise_and_div_gather_ge_mul_ne_scalar_tensor_sigmoid_sum_view_where_13\",\n    \"start_ms\": 1173.032515,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.012224,\n    \"id\": 58889,\n    \"name\": \"void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, long, long>::operator()<at::native::ReduceAdd>(at::TensorIterator&, long, long, long, at::native::ReduceAdd const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, long, long>::operator()<at::native::ReduceAdd>(at::TensorIterator&, long, long, long, at::native::ReduceAdd const&)::{lambda(int)#1})\",\n    \"start_ms\": 1173.035939,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.001248,\n    \"id\": 58890,\n    \"name\": \"triton_per_fused_any_gt_slice_14\",\n    \"start_ms\": 1173.049283,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 1.48935,\n    \"id\": 58892,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 1173.053283,\n    \"stream\": 23\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.001088,\n    \"id\": 58893,\n    \"name\": \"triton_per_fused_slice_sum_view_15\",\n    \"start_ms\": 1174.544233,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.001312,\n    \"id\": 58894,\n    \"name\": \"triton_per_fused_any_bitwise_and_gt_16\",\n    \"start_ms\": 1174.546505,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"gpu_memcpy\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.00224,\n    \"id\": 58895,\n    \"name\": \"Memcpy DtoH (Device -> Pinned)\",\n    \"start_ms\": 1174.549673,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"gpu_memcpy\",\n    \"collective_id\": 58892,\n    \"dur_ms\": 0.001216,\n    \"id\": 58900,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"start_ms\": 1174.629545,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.257089,\n    \"id\": 60405,\n    \"name\": \"sm80_xmma_gemm_f32f32_f32f32_f32_tn_n_tilesize128x128x8_stage3_warpsize2x2x1_ffma_aligna4_alignc4_execute_kernel__5x_cublas\",\n    \"start_ms\": 1200.385765,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.007136,\n    \"id\": 60406,\n    \"name\": \"sm80_xmma_gemm_f32f32_f32f32_f32_tn_n_tilesize128x128x8_stage3_warpsize2x2x1_ffma_aligna4_alignc4_execute_split_k_kernel__5x_cublas\",\n    \"start_ms\": 1200.644166,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.002464,\n    \"id\": 60407,\n    \"name\": \"triton_per_fused__unsafe_view_add_bitwise_and_div_gather_ge_mul_ne_scalar_tensor_sigmoid_sum_view_where_9\",\n    \"start_ms\": 1200.65239,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.012448,\n    \"id\": 60408,\n    \"name\": \"void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, long, long>::operator()<at::native::ReduceAdd>(at::TensorIterator&, long, long, long, at::native::ReduceAdd const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, long, long>::operator()<at::native::ReduceAdd>(at::TensorIterator&, long, long, long, at::native::ReduceAdd const&)::{lambda(int)#1})\",\n    \"start_ms\": 1200.655974,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.001248,\n    \"id\": 60409,\n    \"name\": \"triton_per_fused_any_gt_slice_10\",\n    \"start_ms\": 1200.66951,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.872227,\n    \"id\": 60411,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 1200.673478,\n    \"stream\": 23\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.00112,\n    \"id\": 60412,\n    \"name\": \"triton_per_fused_slice_sum_view_11\",\n    \"start_ms\": 1201.547209,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"kernel\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.001408,\n    \"id\": 60413,\n    \"name\": \"triton_per_fused_any_bitwise_and_gt_12\",\n    \"start_ms\": 1201.549545,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"gpu_memcpy\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.002208,\n    \"id\": 60414,\n    \"name\": \"Memcpy DtoH (Device -> Pinned)\",\n    \"start_ms\": 1201.556745,\n    \"stream\": 7\n  },\n  {\n    \"category\": \"gpu_memcpy\",\n    \"collective_id\": 60411,\n    \"dur_ms\": 0.001216,\n    \"id\": 60419,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"start_ms\": 1201.629129,\n    \"stream\": 7\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ]
+}

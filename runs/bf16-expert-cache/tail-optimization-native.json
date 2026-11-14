@@ -1,0 +1,385 @@
+{
+  "trace": "optimization-task/runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/native/profiling/traces/iteration_21/rank0_trace.json",
+  "trace_sha256": "fdcf72769a9ddbad51db80b0bf7663784f7bbf4c72971e3ee8d7925cfc800203",
+  "origin_us": "3762433098211.544",
+  "index_convention": "native zero-based traceEvents index",
+  "method": "GPU kernel correlation to same-thread cuda launch nested inside named host GFSDP post_backward_reduce; complete native stream7 kernel interval union, excluding memcpy/memset",
+  "reductions": [
+    {
+      "index": 66230,
+      "name": "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+      "start_ms": 426.631356,
+      "end_ms": 429.784072,
+      "duration_ms": 3.152716,
+      "correlation": 1738446,
+      "owner": "layers.0",
+      "microbatch": 1,
+      "scope_index": 9228,
+      "input_fp32_elements": 202424512,
+      "stream7_overlap_ms": 0.722211,
+      "no_stream7_ms": 2.430505
+    },
+    {
+      "index": 77546,
+      "name": "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+      "start_ms": 849.248544,
+      "end_ms": 852.277963,
+      "duration_ms": 3.029419,
+      "correlation": 1793161,
+      "owner": "layers.0",
+      "microbatch": 2,
+      "scope_index": 18750,
+      "input_fp32_elements": 202424512,
+      "stream7_overlap_ms": 0.72352,
+      "no_stream7_ms": 2.305899
+    },
+    {
+      "index": 88870,
+      "name": "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+      "start_ms": 1271.238498,
+      "end_ms": 1274.074892,
+      "duration_ms": 2.836394,
+      "correlation": 1847785,
+      "owner": "layers.0",
+      "microbatch": 3,
+      "scope_index": 28326,
+      "input_fp32_elements": 202424512,
+      "stream7_overlap_ms": 0.733602,
+      "no_stream7_ms": 2.102792
+    },
+    {
+      "index": 66418,
+      "name": "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+      "start_ms": 430.91998,
+      "end_ms": 436.118782,
+      "duration_ms": 5.198802,
+      "correlation": 1738846,
+      "owner": "tok_embeddings",
+      "microbatch": 1,
+      "scope_index": 9267,
+      "input_fp32_elements": 525336576,
+      "stream7_overlap_ms": 0.0,
+      "no_stream7_ms": 5.198802
+    },
+    {
+      "index": 77738,
+      "name": "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+      "start_ms": 853.516399,
+      "end_ms": 858.698786,
+      "duration_ms": 5.182387,
+      "correlation": 1793568,
+      "owner": "tok_embeddings",
+      "microbatch": 2,
+      "scope_index": 18816,
+      "input_fp32_elements": 525336576,
+      "stream7_overlap_ms": 0.0,
+      "no_stream7_ms": 5.182387
+    },
+    {
+      "index": 89062,
+      "name": "ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)",
+      "start_ms": 1275.314608,
+      "end_ms": 1280.532227,
+      "duration_ms": 5.217619,
+      "correlation": 1848192,
+      "owner": "tok_embeddings",
+      "microbatch": 3,
+      "scope_index": 28392,
+      "input_fp32_elements": 525336576,
+      "stream7_overlap_ms": 0.0,
+      "no_stream7_ms": 5.217619
+    }
+  ],
+  "layers0_compiled_regions": [
+    {
+      "microbatch": 1,
+      "compiled_index": 8405,
+      "kernel_count": 154,
+      "candidate_ffn_wgrad_and_adjacent": [
+        {
+          "ordinal": 59,
+          "index": 65764,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 415.90975,
+          "end_ms": 416.607321,
+          "duration_ms": 0.697571,
+          "correlation": 1736594
+        },
+        {
+          "ordinal": 60,
+          "index": 65768,
+          "name": "triton_poi_fused_clone_slice_9",
+          "start_ms": 416.609497,
+          "end_ms": 416.664601,
+          "duration_ms": 0.055104,
+          "correlation": 1736605
+        },
+        {
+          "ordinal": 67,
+          "index": 65804,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 417.627324,
+          "end_ms": 418.325663,
+          "duration_ms": 0.698339,
+          "correlation": 1736744
+        },
+        {
+          "ordinal": 68,
+          "index": 65808,
+          "name": "triton_poi_fused_constant_pad_nd_quantize_blk128x128_5",
+          "start_ms": 418.328031,
+          "end_ms": 418.383295,
+          "duration_ms": 0.055264,
+          "correlation": 1736751
+        },
+        {
+          "ordinal": 73,
+          "index": 65836,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 419.07917,
+          "end_ms": 419.78042,
+          "duration_ms": 0.70125,
+          "correlation": 1736834
+        },
+        {
+          "ordinal": 74,
+          "index": 65840,
+          "name": "triton_poi_fused_add_cute_gated_norm_bwd_10",
+          "start_ms": 419.784164,
+          "end_ms": 419.845316,
+          "duration_ms": 0.061152,
+          "correlation": 1736841
+        },
+        {
+          "ordinal": 153,
+          "index": 66190,
+          "name": "triton_poi_fused__to_copy_8",
+          "start_ms": 426.178875,
+          "end_ms": 426.180379,
+          "duration_ms": 0.001504,
+          "correlation": 1738278
+        }
+      ],
+      "remaining_layer_gpu_after_last_ffn_wgrad_ms": 6.399959
+    },
+    {
+      "microbatch": 2,
+      "compiled_index": 17927,
+      "kernel_count": 154,
+      "candidate_ffn_wgrad_and_adjacent": [
+        {
+          "ordinal": 59,
+          "index": 77080,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 838.535386,
+          "end_ms": 839.231388,
+          "duration_ms": 0.696002,
+          "correlation": 1791309
+        },
+        {
+          "ordinal": 60,
+          "index": 77084,
+          "name": "triton_poi_fused_clone_slice_9",
+          "start_ms": 839.234076,
+          "end_ms": 839.28934,
+          "duration_ms": 0.055264,
+          "correlation": 1791320
+        },
+        {
+          "ordinal": 67,
+          "index": 77120,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 840.252512,
+          "end_ms": 840.95405,
+          "duration_ms": 0.701538,
+          "correlation": 1791459
+        },
+        {
+          "ordinal": 68,
+          "index": 77124,
+          "name": "triton_poi_fused_constant_pad_nd_quantize_blk128x128_5",
+          "start_ms": 840.956802,
+          "end_ms": 841.011907,
+          "duration_ms": 0.055105,
+          "correlation": 1791466
+        },
+        {
+          "ordinal": 73,
+          "index": 77152,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 841.707749,
+          "end_ms": 842.408616,
+          "duration_ms": 0.700867,
+          "correlation": 1791549
+        },
+        {
+          "ordinal": 74,
+          "index": 77156,
+          "name": "triton_poi_fused_add_cute_gated_norm_bwd_10",
+          "start_ms": 842.410952,
+          "end_ms": 842.471848,
+          "duration_ms": 0.060896,
+          "correlation": 1791556
+        },
+        {
+          "ordinal": 153,
+          "index": 77506,
+          "name": "triton_poi_fused__to_copy_8",
+          "start_ms": 848.800414,
+          "end_ms": 848.801919,
+          "duration_ms": 0.001505,
+          "correlation": 1792993
+        }
+      ],
+      "remaining_layer_gpu_after_last_ffn_wgrad_ms": 6.393303
+    },
+    {
+      "microbatch": 3,
+      "compiled_index": 27503,
+      "kernel_count": 154,
+      "candidate_ffn_wgrad_and_adjacent": [
+        {
+          "ordinal": 59,
+          "index": 88404,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 1260.475611,
+          "end_ms": 1261.171838,
+          "duration_ms": 0.696227,
+          "correlation": 1845933
+        },
+        {
+          "ordinal": 60,
+          "index": 88408,
+          "name": "triton_poi_fused_clone_slice_9",
+          "start_ms": 1261.174398,
+          "end_ms": 1261.22995,
+          "duration_ms": 0.055552,
+          "correlation": 1845944
+        },
+        {
+          "ordinal": 67,
+          "index": 88444,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 1262.192961,
+          "end_ms": 1262.892516,
+          "duration_ms": 0.699555,
+          "correlation": 1846083
+        },
+        {
+          "ordinal": 68,
+          "index": 88448,
+          "name": "triton_poi_fused_constant_pad_nd_quantize_blk128x128_5",
+          "start_ms": 1262.895108,
+          "end_ms": 1262.951396,
+          "duration_ms": 0.056288,
+          "correlation": 1846090
+        },
+        {
+          "ordinal": 73,
+          "index": 88476,
+          "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+          "start_ms": 1263.64919,
+          "end_ms": 1264.350441,
+          "duration_ms": 0.701251,
+          "correlation": 1846173
+        },
+        {
+          "ordinal": 74,
+          "index": 88480,
+          "name": "triton_poi_fused_add_cute_gated_norm_bwd_10",
+          "start_ms": 1264.353225,
+          "end_ms": 1264.413897,
+          "duration_ms": 0.060672,
+          "correlation": 1846180
+        },
+        {
+          "ordinal": 153,
+          "index": 88830,
+          "name": "triton_poi_fused__to_copy_8",
+          "start_ms": 1270.783584,
+          "end_ms": 1270.785088,
+          "duration_ms": 0.001504,
+          "correlation": 1847617
+        }
+      ],
+      "remaining_layer_gpu_after_last_ffn_wgrad_ms": 6.434647
+    }
+  ],
+  "microbatch_starts": [
+    {
+      "scope_index": 28853,
+      "host_start_ms": 11.078143,
+      "first_stream7_kernel": {
+        "index": 39875,
+        "name": "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+        "start_ms": 11.279859,
+        "end_ms": 11.280851,
+        "duration_ms": 0.000992,
+        "correlation": 1684537
+      }
+    },
+    {
+      "scope_index": 32507,
+      "host_start_ms": 436.347447,
+      "first_stream7_kernel": {
+        "index": 45055,
+        "name": "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+        "start_ms": 436.611584,
+        "end_ms": 436.612896,
+        "duration_ms": 0.001312,
+        "correlation": 1739351
+      }
+    },
+    {
+      "scope_index": 36154,
+      "host_start_ms": 859.183193,
+      "first_stream7_kernel": {
+        "index": 50161,
+        "name": "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#3}::operator()() const::{lambda(long)#1}>::result_type*)",
+        "start_ms": 859.491877,
+        "end_ms": 859.492932,
+        "duration_ms": 0.001055,
+        "correlation": 1793952
+      }
+    }
+  ],
+  "limitations": [
+    "No FX/generated shape metadata: three FFN wgrad labels are source-order candidates; w1 vs w3 unresolved.",
+    "BF16 local wgrad completion is not current FP32 group buffer readiness; a compile/AC boundary plus early gradient packing and correctly ordered collectives is required.",
+    "Overlap windows are opportunities, not measured speedups.",
+    "Next microbatch forward overlap needs asynchronous lifetime and dependency redesign; present trace starts it only after tail RS ends. Last microbatch has no following forward in this update.",
+    "Do not equate all no-stream7-kernel time with removable step time. Kernels on other streams and packing/host costs remain."
+  ],
+  "totals_ms": {
+    "reduce_scatter": 24.617337,
+    "no_stream7_kernel": 22.438004
+  },
+  "next_microbatch_overlap_candidates": [
+    {
+      "after_microbatch": 1,
+      "embedding_rs_end_ms": 436.118782,
+      "next_host_start_ms": 436.347447,
+      "next_first_stream7_ms": 436.611584,
+      "next_embedding_gather_ms": 440.295885,
+      "next_first_layer_gemm_ms": 441.895571,
+      "embedding_gather_native_index": 45187,
+      "gather_host_ancestor": "aten::embedding -> aten::index_select -> aten::gather -> cudaLaunchKernel",
+      "next_backward_host_start_ms": 515.315894
+    },
+    {
+      "after_microbatch": 2,
+      "embedding_rs_end_ms": 858.698786,
+      "next_host_start_ms": 859.183193,
+      "next_first_stream7_ms": 859.491877,
+      "next_embedding_gather_ms": 863.15013,
+      "next_first_layer_gemm_ms": 864.768503,
+      "embedding_gather_native_index": 50293,
+      "gather_host_ancestor": "aten::embedding -> aten::index_select -> aten::gather -> cudaLaunchKernel",
+      "next_backward_host_start_ms": 938.11592
+    }
+  ],
+  "source_evidence": [
+    "optimization-task/gift/torchtitan/ops/float8/cuda_gemm.py:201-232: dgrad then FP8 transpose then wgrad and unpad",
+    "optimization-task/gift/torchtitan/models/common/ffn/__init__.py:104-121: w1/w3 then fused SwiGLU then w2; backward order candidates w2 then w1/w3"
+  ]
+}

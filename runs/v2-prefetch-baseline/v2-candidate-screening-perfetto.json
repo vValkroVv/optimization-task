@@ -1,0 +1,971 @@
+{
+  "schema_version": 1,
+  "analysis_date": "2026-11-14",
+  "purpose": "Read-only screening of non-fusion candidates against the accepted V2 long-epoch profile, requested by the repository owner.",
+  "scope": {
+    "run_id": "v2-long-epoch-candidate-trace-001",
+    "rank": 0,
+    "optimizer_update": 21,
+    "microbatches": 3,
+    "accumulation_in_actual_run": 32,
+    "hardware": "8 NVIDIA H100 80GB, single node",
+    "source_head_at_execution": "3b6b8928ec4b15a529d07ee99e672f2fc75ef73a",
+    "source_snapshot_tracked_and_untracked_sha256": "ac22aae7ced85f3970b89e420010d87076b1ed0fa58b162b3aa245215aae35b7",
+    "resolved_config_sha256": "d7477b7a10b0b2cc6569fc9f42b1860b64dbaad8062bb26f0b9f74f8f32a794f",
+    "prefetch_batches": 32,
+    "model_compile": true,
+    "loss_compile": true,
+    "expert_fsdp": 1,
+    "expert_parallel": 8,
+    "pp": 1,
+    "sequence_length": 4096,
+    "microbatch_size": 2
+  },
+  "trace": {
+    "canonical": "runs/v2-prefetch-baseline/artifacts/raw/v2-long-epoch-candidate-trace-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+    "canonical_sha256": "196806cee1fe857e97e4d80f3b7aa5961e323860f5fa1274d3e4b59a6f522c94",
+    "derived": "/Users/valerii.kropotin/sber-pretrain/optimization-task/runs/v2-prefetch-baseline/artifacts/raw/local-perfetto-comparison/v2-rank0.perfetto.json.gz",
+    "derived_sha256": "876696a98da197a3b1ac4bb22e6ccac869db6ecd5ff9fd4d931ea8244f7397bd",
+    "transformation": "Previously recorded lossless device display-lane repair; canonical bytes unchanged. GPU timestamps, durations, names, args and actual stream IDs preserved; CPU launch flows retained.",
+    "coverage": {
+      "kernels": 8795,
+      "copies": 274,
+      "memsets": 861,
+      "device_events": 9930,
+      "distinct_linked_device_events": 9930,
+      "import_errors": 0
+    }
+  },
+  "method": {
+    "engine": "Actual mcp__perfetto_mcp_rs tools",
+    "window": "First CPU microbatch entry through last device completion linked to launches made before third CPU microbatch return.",
+    "timing": "Nanosecond trace timestamps; report milliseconds. Busy and idle use interval unions over recorded local-device streams.",
+    "main_stream": 7,
+    "communication_streams": [
+      23,
+      24
+    ],
+    "exposure": "Intersection of communication/kernel/copy intervals with main-stream idle. This is scheduling evidence, not proof of removable delay or speedup.",
+    "host": "Host operation/API durations include waiting/scheduling, not CPU utilization. Capacity synchronization intersection with all-device idle is reported separately.",
+    "classification": "Final cand_kind corrects initial missing hybrid_ep classification. Main idle and GEMM aggregate queries use unique aliases after two GROUP BY alias collisions with the inherited family column."
+  },
+  "summary_ms": {
+    "three_microbatch_elapsed": 1293.713,
+    "all_device_busy_union": 1250.601,
+    "internal_all_device_idle": 42.899,
+    "largest_internal_all_device_gap": 0.381666,
+    "main_stream_idle": 145.805,
+    "nccl_union": 223.499,
+    "ep_union": 157.627,
+    "other_kernel_union": 1013.093,
+    "copy_union": 23.528,
+    "memset_union": 0.929,
+    "allgather_kernel_sum": 94.032,
+    "allgather_intersection_main_idle": 18.918,
+    "reduce_scatter_kernel_sum": 113.778,
+    "reduce_scatter_intersection_main_idle": 36.103,
+    "capacity_count_allreduces": 15.689,
+    "capacity_host_sync": 652.941,
+    "capacity_host_sync_intersection_all_device_idle": 6.319,
+    "gdn_scan_forward_kernels": 30.245,
+    "gdn_scan_backward_kernels": 28.734,
+    "gdn_vjp_extra_forward_kernels": 8.868,
+    "gdn_internal_recompute_w_u_kernels": 1.726,
+    "gdn_internal_recompute_h_kernels": 2.337,
+    "sdpa_kernels": 29.969,
+    "main_stream_gemm_kernels": 593.319
+  },
+  "dispositions": [
+    {
+      "candidate": "GFSDP buffers/reshard/prefetch",
+      "result": "Real, bounded scheduling opportunity. Most all-gather is overlapped; 18.918 ms intersects main-stream idle. Reduce-scatter intersects main idle for 36.103 ms, concentrated in token embeddings, MTP and layer0. Required communication is not automatically removable. Current source explicitly waits for gradient-buffer release and post-reduce events."
+    },
+    {
+      "candidate": "MoE metadata / quantization overlap, excluding fusion",
+      "result": "Concrete capacity collective and CPU predicate synchronization. 42 capacity checks/host syncs, 39 128-int64/eight-rank all-reduces due SAC collective reuse, and 42 no-drop clones. The 652.941 ms host-sync sum is mostly overlapped; only 6.319 ms intersects all-device idle. Collective durations may include peer waits. No new kernel/algorithm recommendation or token-drop policy change."
+    },
+    {
+      "candidate": "GDN recomputation",
+      "result": "Concrete repeated work. 54 scan forward calls and 18 scan backward calls. Of the forward work, 18 calls occur outside torchtitan::gdn_chunk in VJP reconstruction, totaling 8.868 ms of kernels; FLA backward recomputes w/u and h for another 4.063 ms. Removing recomputation would require retaining/reusing valid state with an assessed memory cost. Required SAC settings are preserved."
+    },
+    {
+      "candidate": "MLA backend",
+      "result": "Low priority from this profile alone: active cuDNN flash SDPA, 29.969 ms of forward/recompute/backward kernels (~2.32% of the sampled elapsed window). This is not the cost of all MLA projections or all layout transformations, nor evidence that another backend is faster."
+    },
+    {
+      "candidate": "Local FFN/shared-expert recomputation",
+      "result": "Memory/computation tradeoff, no demonstrated immediate speed problem. The matched V2 receipt has zero allocation retry/OOM deltas; extra recomputation adds GEMMs. Routed donor rejects FP8. Additional configuration changes are outside this screening."
+    },
+    {
+      "candidate": "CompactCE",
+      "result": "Poor fit: near-full supervised fixture (4095/4096 main targets), donor rejects MTP, active MTP1."
+    },
+    {
+      "candidate": "Frozen BF16 storage",
+      "result": "No established benefit for this full-pretraining crop: preserved same-model smoke records zero frozen parameters."
+    },
+    {
+      "candidate": "Metric accounting",
+      "result": "Bookkeeping improvement; no demonstrated speed bottleneck here."
+    },
+    {
+      "candidate": "Streaming prefetch",
+      "result": "Already accepted V2. Ready queue evidence is retained in the existing run report/receipts."
+    },
+    {
+      "candidate": "All fusion directions",
+      "result": "Excluded by the preceding user scope, including linear/CE, softcap/CE, hidden z-loss, norm/residual and routing/input preparation fusion."
+    }
+  ],
+  "limits": [
+    "Only rank0 was queried in this screening. Existing receipts cover ranks0/1 and matched inputs; no new rank1 screening is claimed.",
+    "Three microbatches are not a full optimizer update. Remaining29 microbatches, optimizer, full-step tail, prior input producer work and memory peaks are absent.",
+    "Profile timings do not establish unprofiled speedup, repeatability, convergence, or production PP4/EP32 behavior.",
+    "Current source inspection explains mechanisms; execution source identity and dirty-snapshot digest are kept separately. No training-source/config/runner changes or new training/benchmark were performed.",
+    "Main-stream exposure, all-device idle, host synchronization and kernel sums overlap; they must not be added as a predicted speedup."
+  ],
+  "superseded_queries": [
+    "Initial family field in cand_dev omitted hybrid_ep and was superseded by cand_kind; top_kernels names/durations remain valid but its initial family labels must not be used.",
+    "main_idle_exposure grouped by inherited family instead of its CASE alias; superseded by corrected_main_idle_exposure.",
+    "gemm_budget grouped by inherited family instead of its CASE alias; superseded by corrected_gemm_budget.",
+    "coverage_streams used multiple SELECT statements; the tool returns only the last result. Independent streams and coverage queries provide final counts."
+  ],
+  "sota_screening": {
+    "date": "2026-11-14",
+    "request": "Recent pretraining research screening beyond hypothetical completed GFSDP, including MLA source consistency. All fusion directions remain excluded.",
+    "evidence_limits": [
+      "Costs are from the existing V2 rank0 first-three-microbatch capture, not a post-GFSDP implementation or whole-update measurement.",
+      "Source read establishes MLA consistency with the current causal row-wise contract, not numerical forward/backward parity.",
+      "LM-head attribution combines exact launch/CPU-operator flows, six eager linear calls and six MmBackward nodes with the chunked MTP source. Input shape recording was disabled.",
+      "Kernel budgets are opportunity anchors and overlap other-stream work. They are not established removable delay or measured speedup."
+    ],
+    "summary_ms": {
+      "main_gemm_total": 593.319,
+      "fp8_dense_custom_path": 147.842,
+      "fp8_grouped_gemm": 169.217,
+      "other_aten_mm": 276.26,
+      "eager_lm_head_forward": 69.285,
+      "eager_lm_head_backward_two_gemms": 134.317,
+      "eager_lm_head_gemms": 203.602,
+      "dense_weight_block_quantization": 9.246
+    },
+    "measured_rows": {
+      "gemm_paths": [
+        {
+          "kernel_ms": 276.26,
+          "n": 372,
+          "op_path": "aten_mm"
+        },
+        {
+          "kernel_ms": 169.217,
+          "n": 252,
+          "op_path": "fp8_grouped"
+        },
+        {
+          "kernel_ms": 147.842,
+          "n": 576,
+          "op_path": "fp8_dense"
+        }
+      ],
+      "non_fp8_nvjet_kernels": [
+        {
+          "kernel_ms": 80.777,
+          "n": 24,
+          "name": "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN"
+        },
+        {
+          "kernel_ms": 77.206,
+          "n": 60,
+          "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT"
+        },
+        {
+          "kernel_ms": 66.961,
+          "n": 6,
+          "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT"
+        },
+        {
+          "kernel_ms": 15.641,
+          "n": 42,
+          "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT"
+        },
+        {
+          "kernel_ms": 10.95,
+          "n": 30,
+          "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT"
+        },
+        {
+          "kernel_ms": 2.324,
+          "n": 3,
+          "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NNT"
+        },
+        {
+          "kernel_ms": 1.625,
+          "n": 18,
+          "name": "nvjet_sm90_tst_192x192_64x4_1x2_h_bz_coopB_TNN"
+        },
+        {
+          "kernel_ms": 1.17,
+          "n": 36,
+          "name": "nvjet_sm90_tst_64x64_64x13_1x2_h_bz_TNT"
+        },
+        {
+          "kernel_ms": 0.517,
+          "n": 9,
+          "name": "nvjet_sm90_tst_128x160_64x5_2x1_v_bz_NTT"
+        },
+        {
+          "kernel_ms": 0.497,
+          "n": 18,
+          "name": "nvjet_sm90_tst_64x64_64x13_2x1_v_bz_splitK_NTT"
+        }
+      ],
+      "sample_lm_head_wgrad_launch_ancestry": [
+        {
+          "cpu_ancestry": "autograd::engine::evaluate_function: MmBackward0 > MmBackward0 > aten::mm",
+          "id": 8686,
+          "ms": 10.46647,
+          "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT"
+        },
+        {
+          "cpu_ancestry": "autograd::engine::evaluate_function: MmBackward0 > MmBackward0 > aten::mm",
+          "id": 9032,
+          "ms": 11.48545,
+          "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT"
+        }
+      ],
+      "dense_weight_quantization": [
+        {
+          "ms": 6.299,
+          "n": 288,
+          "name": "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)"
+        },
+        {
+          "ms": 2.947,
+          "n": 144,
+          "name": "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)"
+        },
+        {
+          "ms": 0.033,
+          "n": 24,
+          "name": "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1})"
+        }
+      ]
+    },
+    "sql": {
+      "gemm_paths": "WITH a AS (SELECT d.id,d.name,d.dur,CASE WHEN EXISTS(SELECT 1 FROM ancestor_slice(d.host_id) s WHERE s.name='torchtitan::fp8_dense_gemm') THEN 'fp8_dense' WHEN d.name GLOB '*deep_gemm*' THEN 'fp8_grouped' WHEN EXISTS(SELECT 1 FROM ancestor_slice(d.host_id) s WHERE s.name='aten::mm') THEN 'aten_mm' ELSE 'other' END op_path FROM cand_link d WHERE d.stream=7 AND d.category='kernel' AND (d.name GLOB '*nvjet*' OR lower(d.name) GLOB '*gemm*')) SELECT op_path,count(*) n,round(sum(dur)/1e6,3) kernel_ms FROM a GROUP BY op_path ORDER BY sum(dur) DESC;",
+      "lm_head_paths": "SELECT d.name,count(*) n,round(sum(d.dur)/1e6,3) ms,coalesce((SELECT group_concat(a.name,' > ') FROM ancestor_slice(d.host_id) a WHERE a.category='cpu_op'),'') ancestry FROM cand_link d WHERE d.stream=7 AND d.category='kernel' AND d.name GLOB '*nvjet*' AND NOT EXISTS(SELECT 1 FROM ancestor_slice(d.host_id) a WHERE a.name='torchtitan::fp8_dense_gemm') GROUP BY d.name,ancestry ORDER BY sum(d.dur) DESC LIMIT 25;",
+      "weight_quantization": "SELECT d.name,count(*) n,round(sum(d.dur)/1e6,3) ms FROM cand_link d WHERE d.category='kernel' AND d.stream=7 AND EXISTS(SELECT 1 FROM ancestor_slice(d.host_id) a WHERE a.name='cudacherry::quantize_blk128x128') GROUP BY d.name ORDER BY sum(d.dur) DESC;"
+    },
+    "reference_revisions": {
+      "flash_attention": "f63c472c4dc19237c0635d6a629df065ff64796e",
+      "deep_ep": "f6aa38fe06cd4a0489e7730365d4e0114970a2f3",
+      "megatron_lm": "5b069b1f76890bb322c6fdb656419999c0ba073e",
+      "ultra_ep": "1474022d7e19b30d931d43364fe814c478b9fb3a",
+      "flash_linear_attention": "7a78a662c525a7ac10e5b6b4cdd54d275d141cf2",
+      "transformer_engine": "ab4b922219f2e3de3c575d40209340ef24cd4d20",
+      "remat": "71905a6e60123a9adadd4d0cd5acae4e3cb8ba88"
+    },
+    "material_reference_constraints": [
+      "DeepEP at the inspected pin supports Hopper but requires CUDA Toolkit>=13.1 and NCCL>=2.32.3; captured runtime uses CUDA13.0/NCCL2.30.7.",
+      "Current Megatron cross-microbatch EP overlap conflicts with shared-expert overlap and selected recompute modes; PP>1 reference requires virtual pipeline parallelism.",
+      "Shared-expert asynchronous combine overlap already exists in local MoE source; it is not a new independent candidate.",
+      "TapeSAC November2026 evaluation is eager. No inspected official released implementation; do not disable required compilation to port it.",
+      "FA4 inspected SM90 forward/backward supports QK192/V128. FlashMLA current code removed Hopper support.",
+      "Transformer Engine disables its named FP8 weight cache for FSDP2 at the inspected revision; its lifecycle contract is a reference, not demonstrated GFSDP compatibility.",
+      "A 2025 fully-FP8 training reference keeps final projection BF16. No safe production FP8-head recipe was established here.",
+      "LatentMoE and Token Superposition change model computation/training objectives and require quality validation. Trace timing cannot establish equal-quality efficiency.",
+      "UltraEP requires demonstrated multi-rank load skew and a favorable replica communication/storage cost; rank0 EP kernel time alone does not establish skew."
+    ],
+    "research_sources": [
+      "https://arxiv.org/abs/2611.04897",
+      "https://arxiv.org/abs/2603.07685",
+      "https://arxiv.org/abs/2606.04101",
+      "https://arxiv.org/abs/2601.18089",
+      "https://arxiv.org/abs/2605.06546",
+      "https://microsoft.ai/news/frontier-pre-training-at-microsoft-ai/",
+      "https://pytorch.org/blog/flexattention-flashattention-4-fast-and-flexible/",
+      "https://docs.nvidia.com/deeplearning/transformer-engine/examples/advanced_optimizations.html"
+    ]
+  },
+  "queries": [
+    {
+      "sql": "INCLUDE PERFETTO MODULE slices.with_context;\nCREATE PERFETTO TABLE cand_dev AS\nSELECT *,CAST(EXTRACT_ARG(arg_set_id,'args.stream') AS INT) stream,\nCASE WHEN category='gpu_memcpy' THEN 'copy' WHEN category='gpu_memset' THEN 'memset'\nWHEN name GLOB '*ag_nvl*' OR name GLOB '*rs_nvl*' OR lower(name) GLOB '*deep_ep*' OR lower(name) GLOB '*deepep*' THEN 'ep'\nWHEN lower(name) GLOB '*nccl*' THEN 'nccl' ELSE 'compute' END family\nFROM thread_slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset');\nCREATE PERFETTO TABLE cand_link AS\nSELECT d.*,h.id host_id,h.ts host_ts,h.dur host_dur,h.name host_name,h.tid host_tid\nFROM cand_dev d JOIN flow f ON f.slice_in=d.id JOIN thread_slice h ON h.id=f.slice_out;\nSELECT category,count(*) n,round(sum(dur)/1e6,3) sum_ms FROM thread_slice GROUP BY category ORDER BY n DESC;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"category\": \"cpu_op\",\n    \"n\": 38267,\n    \"sum_ms\": 6776.335\n  },\n  {\n    \"category\": \"cuda_runtime\",\n    \"n\": 11897,\n    \"sum_ms\": 786.353\n  },\n  {\n    \"category\": \"kernel\",\n    \"n\": 8795,\n    \"sum_ms\": 1403.244\n  },\n  {\n    \"category\": \"cuda_driver\",\n    \"n\": 4180,\n    \"sum_ms\": 23.052\n  },\n  {\n    \"category\": \"user_annotation\",\n    \"n\": 1075,\n    \"sum_ms\": 3909.734\n  },\n  {\n    \"category\": \"gpu_memset\",\n    \"n\": 861,\n    \"sum_ms\": 0.929\n  },\n  {\n    \"category\": \"gpu_memcpy\",\n    \"n\": 274,\n    \"sum_ms\": 23.544\n  },\n  {\n    \"category\": \"overhead\",\n    \"n\": 3,\n    \"sum_ms\": 2.156\n  },\n  {\n    \"category\": \"Trace\",\n    \"n\": 1,\n    \"sum_ms\": 1303.02\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "windows",
+      "sql": "CREATE PERFETTO TABLE cand_mb AS\nWITH m AS (SELECT ROW_NUMBER() OVER(ORDER BY ts) mb,id,ts,ts+dur cpu_end FROM thread_slice WHERE category='user_annotation' AND name GLOB 'task.profile_update.*.microbatch.rank0')\nSELECT *, (SELECT max(ts+dur) FROM cand_link d WHERE d.host_ts>=m.ts AND d.host_ts<m.cpu_end) device_end FROM m;\nCREATE PERFETTO TABLE cand_win AS SELECT min(ts) lo,max(device_end) hi FROM cand_mb;\nCREATE PERFETTO TABLE cand_events AS SELECT d.*,MAX(d.ts,w.lo) b,MIN(d.ts+d.dur,w.hi) e FROM cand_dev d JOIN cand_win w ON d.ts<w.hi AND d.ts+d.dur>w.lo;\nCREATE PERFETTO TABLE cand_gaps AS\nWITH p AS (SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM cand_events)\nSELECT *,b-prev_end gap FROM p WHERE b>prev_end;\nSELECT mb,id,round((ts-(SELECT lo FROM cand_win))/1e6,3) start_ms,round((cpu_end-ts)/1e6,3) host_span_ms,round((device_end-ts)/1e6,3) through_device_ms FROM cand_mb;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"host_span_ms\": 405.531,\n    \"id\": 474,\n    \"mb\": 1,\n    \"start_ms\": 0.0,\n    \"through_device_ms\": 430.705\n  },\n  {\n    \"host_span_ms\": 401.014,\n    \"id\": 21877,\n    \"mb\": 2,\n    \"start_ms\": 430.93,\n    \"through_device_ms\": 431.135\n  },\n  {\n    \"host_span_ms\": 401.394,\n    \"id\": 43601,\n    \"mb\": 3,\n    \"start_ms\": 862.289,\n    \"through_device_ms\": 431.424\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "top_kernels",
+      "sql": "SELECT family,name,count(*) n,round(sum(dur)/1e6,3) sum_ms,round(avg(dur)/1e3,3) avg_us FROM cand_dev WHERE category='kernel' GROUP BY name ORDER BY sum(dur) DESC LIMIT 38;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"avg_us\": 3160.504,\n    \"family\": \"nccl\",\n    \"n\": 36,\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"sum_ms\": 113.778\n  },\n  {\n    \"avg_us\": 246.077,\n    \"family\": \"compute\",\n    \"n\": 432,\n    \"name\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN\",\n    \"sum_ms\": 106.305\n  },\n  {\n    \"avg_us\": 1362.784,\n    \"family\": \"nccl\",\n    \"n\": 69,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"sum_ms\": 94.032\n  },\n  {\n    \"avg_us\": 3365.69,\n    \"family\": \"compute\",\n    \"n\": 24,\n    \"name\": \"nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN\",\n    \"sum_ms\": 80.777\n  },\n  {\n    \"avg_us\": 1286.773,\n    \"family\": \"compute\",\n    \"n\": 60,\n    \"name\": \"nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT\",\n    \"sum_ms\": 77.206\n  },\n  {\n    \"avg_us\": 11160.174,\n    \"family\": \"compute\",\n    \"n\": 6,\n    \"name\": \"nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT\",\n    \"sum_ms\": 66.961\n  },\n  {\n    \"avg_us\": 1652.057,\n    \"family\": \"compute\",\n    \"n\": 39,\n    \"name\": \"void hybrid_ep::combine_kernel<hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<4, 0>, hybrid_ep::warp_group<0, 4>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<0, 6>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<4, 0>, 2, 10, 2, 2, 2, 4, 64, 4096, 8192, 16, 8, 1, 16, 108, 1, 1, false>(hybrid_ep::combine_kernel_param_t)\",\n    \"sum_ms\": 64.43\n  },\n  {\n    \"avg_us\": 288.447,\n    \"family\": \"compute\",\n    \"n\": 144,\n    \"name\": \"nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT\",\n    \"sum_ms\": 41.536\n  },\n  {\n    \"avg_us\": 1968.429,\n    \"family\": \"compute\",\n    \"n\": 21,\n    \"name\": \"void deep_gemm::sm90_fp8_gemm_1d1d_impl<3072u, 4096u, 0u, 16u, 128u, 152u, 128u, 128u, 128u, 5u, 128u, 256u, 1u, false, 116u, (deep_gemm::GemmType)3, true, cutlass::bfloat16_t>(__nv_fp8_e4m3*, __nv_fp8_e4m3*, int*, CUtensorMap_st*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)\",\n    \"sum_ms\": 41.337\n  },\n  {\n    \"avg_us\": 1943.495,\n    \"family\": \"compute\",\n    \"n\": 21,\n    \"name\": \"void hybrid_ep::combine_kernel<hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<4, 0>, hybrid_ep::warp_group<0, 4>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<0, 6>, hybrid_ep::warp_group<2, 4>, hybrid_ep::warp_group<4, 0>, 2, 10, 2, 2, 2, 4, 64, 4096, 8192, 16, 8, 1, 16, 108, 1, 1, true>(hybrid_ep::combine_kernel_param_t)\",\n    \"sum_ms\": 40.813\n  },\n  {\n    \"avg_us\": 305.29,\n    \"family\": \"compute\",\n    \"n\": 123,\n    \"name\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"sum_ms\": 37.551\n  },\n  {\n    \"avg_us\": 1314.669,\n    \"family\": \"compute\",\n    \"n\": 24,\n    \"name\": \"void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 3072u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)\",\n    \"sum_ms\": 31.552\n  },\n  {\n    \"avg_us\": 763.871,\n    \"family\": \"compute\",\n    \"n\": 39,\n    \"name\": \"void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 1536u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)\",\n    \"sum_ms\": 29.791\n  },\n  {\n    \"avg_us\": 1396.305,\n    \"family\": \"compute\",\n    \"n\": 21,\n    \"name\": \"void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 3072u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)\",\n    \"sum_ms\": 29.322\n  },\n  {\n    \"avg_us\": 696.646,\n    \"family\": \"compute\",\n    \"n\": 39,\n    \"name\": \"void hybrid_ep::dispatch_kernel<unsigned char, hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, 10, 10, 8, 8, 128, 6, 64, 4096, 8192, 16, 8, 1, 16, 108, true>(hybrid_ep::dispatch_kernel_param_t<unsigned char>)\",\n    \"sum_ms\": 27.169\n  },\n  {\n    \"avg_us\": 1058.18,\n    \"family\": \"compute\",\n    \"n\": 21,\n    \"name\": \"void deep_gemm::sm90_fp8_gemm_1d1d_impl<4096u, 1536u, 0u, 16u, 128u, 152u, 128u, 128u, 128u, 5u, 128u, 256u, 1u, false, 116u, (deep_gemm::GemmType)3, true, cutlass::bfloat16_t>(__nv_fp8_e4m3*, __nv_fp8_e4m3*, int*, CUtensorMap_st*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)\",\n    \"sum_ms\": 22.222\n  },\n  {\n    \"avg_us\": 231.983,\n    \"family\": \"compute\",\n    \"n\": 83,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, false>(int, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>)\",\n    \"sum_ms\": 19.255\n  },\n  {\n    \"avg_us\": 866.01,\n    \"family\": \"compute\",\n    \"n\": 21,\n    \"name\": \"void hybrid_ep::dispatch_kernel<unsigned char, hybrid_ep::warp_group<0, 0>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, hybrid_ep::warp_group<1, 0>, hybrid_ep::warp_group<3, 1>, 10, 10, 8, 8, 128, 6, 64, 4096, 8192, 16, 8, 1, 16, 108, false>(hybrid_ep::dispatch_kernel_param_t<unsigned char>)\",\n    \"sum_ms\": 18.186\n  },\n  {\n    \"avg_us\": 73.488,\n    \"family\": \"compute\",\n    \"n\": 237,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0\",\n    \"sum_ms\": 17.417\n  },\n  {\n    \"avg_us\": 1925.874,\n    \"family\": \"compute\",\n    \"n\": 9,\n    \"name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_bprop_wgmma_f16_knob_2_64x64x192_1x4x1_cga1x1x1_kernel0_0\",\n    \"sum_ms\": 17.333\n  },\n  {\n    \"avg_us\": 315.049,\n    \"family\": \"compute\",\n    \"n\": 54,\n    \"name\": \"_qkv_conv1d_unpack_kernel\",\n    \"sum_ms\": 17.013\n  },\n  {\n    \"avg_us\": 392.407,\n    \"family\": \"nccl\",\n    \"n\": 40,\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"sum_ms\": 15.696\n  },\n  {\n    \"avg_us\": 372.399,\n    \"family\": \"compute\",\n    \"n\": 42,\n    \"name\": \"nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT\",\n    \"sum_ms\": 15.641\n  },\n  {\n    \"avg_us\": 176.918,\n    \"family\": \"compute\",\n    \"n\": 84,\n    \"name\": \"requantize_grouped_kernel(unsigned char const*, float const*, int const*, int const*, unsigned char*, float*, int, int, long, long)\",\n    \"sum_ms\": 14.861\n  },\n  {\n    \"avg_us\": 94.711,\n    \"family\": \"compute\",\n    \"n\": 156,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)\",\n    \"sum_ms\": 14.775\n  },\n  {\n    \"avg_us\": 676.69,\n    \"family\": \"compute\",\n    \"n\": 21,\n    \"name\": \"void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 1536u, 4096u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)\",\n    \"sum_ms\": 14.21\n  },\n  {\n    \"avg_us\": 701.992,\n    \"family\": \"compute\",\n    \"n\": 18,\n    \"name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0_0\",\n    \"sum_ms\": 12.636\n  },\n  {\n    \"avg_us\": 160.181,\n    \"family\": \"compute\",\n    \"n\": 78,\n    \"name\": \"_block_quantization_kernel\",\n    \"sum_ms\": 12.494\n  },\n  {\n    \"avg_us\": 157.827,\n    \"family\": \"compute\",\n    \"n\": 72,\n    \"name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"sum_ms\": 11.364\n  },\n  {\n    \"avg_us\": 46.678,\n    \"family\": \"compute\",\n    \"n\": 237,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0\",\n    \"sum_ms\": 11.063\n  },\n  {\n    \"avg_us\": 365.014,\n    \"family\": \"compute\",\n    \"n\": 30,\n    \"name\": \"nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT\",\n    \"sum_ms\": 10.95\n  },\n  {\n    \"avg_us\": 85.335,\n    \"family\": \"compute\",\n    \"n\": 120,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0\",\n    \"sum_ms\": 10.24\n  },\n  {\n    \"avg_us\": 84.993,\n    \"family\": \"compute\",\n    \"n\": 120,\n    \"name\": \"kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0\",\n    \"sum_ms\": 10.199\n  },\n  {\n    \"avg_us\": 42.076,\n    \"family\": \"compute\",\n    \"n\": 234,\n    \"name\": \"void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)\",\n    \"sum_ms\": 9.846\n  },\n  {\n    \"avg_us\": 808.683,\n    \"family\": \"compute\",\n    \"n\": 12,\n    \"name\": \"triton_red_fused__log_softmax__log_softmax_backward_data__to_copy_arange_eq_expand_nll_loss_backward_scalar_tensor_view_0\",\n    \"sum_ms\": 9.704\n  },\n  {\n    \"avg_us\": 229.584,\n    \"family\": \"compute\",\n    \"n\": 42,\n    \"name\": \"sm80_xmma_gemm_f32f32_f32f32_f32_tn_n_tilesize128x128x8_stage3_warpsize2x2x1_ffma_aligna4_alignc4_execute_kernel__5x_cublas\",\n    \"sum_ms\": 9.643\n  },\n  {\n    \"avg_us\": 219.747,\n    \"family\": \"compute\",\n    \"n\": 42,\n    \"name\": \"_swiglu_quant_fwd_kernel\",\n    \"sum_ms\": 9.229\n  },\n  {\n    \"avg_us\": 992.053,\n    \"family\": \"compute\",\n    \"n\": 9,\n    \"name\": \"void at::native::(anonymous namespace)::CatArrayBatchedCopy_vectorized<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 1, 128, 1, 16, 8>(char*, at::native::(anonymous namespace)::CatArrInputTensorMetadata<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 128, 1>, at::native::(anonymous namespace)::TensorSizeStride<unsigned int, 4u>, int, unsigned int)\",\n    \"sum_ms\": 8.928\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "coverage_streams",
+      "sql": "SELECT stream,family,count(*) n,round(sum(dur)/1e6,3) sum_ms FROM cand_dev GROUP BY stream,family ORDER BY stream,family; SELECT count(*) linked,count(DISTINCT id) distinct_device FROM cand_link; SELECT * FROM stats WHERE severity='error' AND value>0;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "annotations",
+      "sql": "SELECT name,count(*) n,round(sum(dur)/1e6,3) sum_ms FROM thread_slice WHERE category='user_annotation' GROUP BY name ORDER BY sum(dur) DESC LIMIT 35;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"n\": 1,\n    \"name\": \"ProfilerStep#20\",\n    \"sum_ms\": 1302.532\n  },\n  {\n    \"n\": 1,\n    \"name\": \"task.profile_update.21.train_step.rank0\",\n    \"sum_ms\": 1302.201\n  },\n  {\n    \"n\": 3,\n    \"name\": \"task.profile_update.21.microbatch.rank0\",\n    \"sum_ms\": 1207.938\n  },\n  {\n    \"n\": 9,\n    \"name\": \"GFSDP::root_post_backward_callback\",\n    \"sum_ms\": 7.458\n  },\n  {\n    \"n\": 111,\n    \"name\": \"nccl:_all_gather_base\",\n    \"sum_ms\": 7.028\n  },\n  {\n    \"n\": 57,\n    \"name\": \"nccl:_reduce_scatter_base\",\n    \"sum_ms\": 3.695\n  },\n  {\n    \"n\": 40,\n    \"name\": \"nccl:all_reduce\",\n    \"sum_ms\": 2.26\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (mtp.layers.0)\",\n    \"sum_ms\": 1.511\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\",\n    \"sum_ms\": 1.293\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.4[fsdp])\",\n    \"sum_ms\": 1.288\n  },\n  {\n    \"n\": 3,\n    \"name\": \"GFSDP::pre_forward (tok_embeddings)\",\n    \"sum_ms\": 1.095\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.6[fsdp])\",\n    \"sum_ms\": 1.086\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.7[efsdp])\",\n    \"sum_ms\": 1.085\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.7[fsdp])\",\n    \"sum_ms\": 1.071\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.3[fsdp])\",\n    \"sum_ms\": 1.065\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (norm)\",\n    \"sum_ms\": 1.019\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::backward_prefetch for mtp.layers.0\",\n    \"sum_ms\": 1.014\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.5[fsdp])\",\n    \"sum_ms\": 1.007\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.2[fsdp])\",\n    \"sum_ms\": 0.971\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.6[efsdp])\",\n    \"sum_ms\": 0.959\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.1[fsdp])\",\n    \"sum_ms\": 0.948\n  },\n  {\n    \"n\": 3,\n    \"name\": \"GFSDP::forward_prefetch for layers.4[fsdp]\",\n    \"sum_ms\": 0.934\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.0)\",\n    \"sum_ms\": 0.908\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.1[efsdp])\",\n    \"sum_ms\": 0.904\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.3[efsdp])\",\n    \"sum_ms\": 0.881\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.5[efsdp])\",\n    \"sum_ms\": 0.879\n  },\n  {\n    \"n\": 3,\n    \"name\": \"GFSDP::post_backward_reduce (layers.7[efsdp])\",\n    \"sum_ms\": 0.87\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.4[efsdp])\",\n    \"sum_ms\": 0.869\n  },\n  {\n    \"n\": 6,\n    \"name\": \"GFSDP::all_gather (layers.2[efsdp])\",\n    \"sum_ms\": 0.854\n  },\n  {\n    \"n\": 9,\n    \"name\": \"GFSDP::root_pre_forward\",\n    \"sum_ms\": 0.786\n  },\n  {\n    \"n\": 3,\n    \"name\": \"GFSDP::forward_prefetch for layers.7[fsdp]\",\n    \"sum_ms\": 0.785\n  },\n  {\n    \"n\": 3,\n    \"name\": \"GFSDP::post_backward_reduce (mtp.layers.0)\",\n    \"sum_ms\": 0.766\n  },\n  {\n    \"n\": 3,\n    \"name\": \"GFSDP::post_backward_reduce (lm_head)\",\n    \"sum_ms\": 0.75\n  },\n  {\n    \"n\": 3,\n    \"name\": \"GFSDP::post_backward_reduce (layers.7[fsdp])\",\n    \"sum_ms\": 0.748\n  },\n  {\n    \"n\": 3,\n    \"name\": \"GFSDP::forward_prefetch for layers.3[fsdp]\",\n    \"sum_ms\": 0.728\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "corrected_hybrid_ep_classification",
+      "sql": "CREATE PERFETTO TABLE cand_kind AS\nSELECT id, CASE WHEN category='gpu_memcpy' THEN 'copy' WHEN category='gpu_memset' THEN 'memset'\nWHEN name GLOB '*hybrid_ep*' OR name GLOB '*ag_nvl*' OR name GLOB '*rs_nvl*' OR lower(name) GLOB '*deep_ep*' OR lower(name) GLOB '*deepep*' THEN 'ep'\nWHEN lower(name) GLOB '*nccl*' THEN 'nccl' ELSE 'compute' END kind FROM cand_dev;\nCREATE PERFETTO TABLE cand_union AS\nWITH expanded AS (\nSELECT d.id,k.kind,d.b,d.e FROM cand_events d JOIN cand_kind k USING(id)\nUNION ALL SELECT id,'all_device',b,e FROM cand_events\nUNION ALL SELECT id,'communication',b,e FROM cand_events d WHERE EXISTS(SELECT 1 FROM cand_kind k WHERE k.id=d.id AND k.kind IN ('ep','nccl'))),\np AS (SELECT *,MAX(e) OVER(PARTITION BY kind ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM expanded)\nSELECT kind,count(*) n,sum(e-b)/1e6 sum_ms,sum(MAX(0,e-MAX(b,coalesce(prev_end,b))))/1e6 union_ms FROM p GROUP BY kind;\nSELECT kind,n,round(sum_ms,3) sum_ms,round(union_ms,3) union_ms FROM cand_union;"
+    },
+    {
+      "label": "gpu_idle",
+      "sql": "SELECT round((SELECT hi-lo FROM cand_win)/1e6,3) span_ms,round(sum(gap)/1e6,3) idle_ms,round(max(gap)/1e6,6) max_gap_ms,count(*) gaps,sum(gap>=100000) gaps_ge100us FROM cand_gaps;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"gaps\": 8053,\n    \"gaps_ge100us\": 38,\n    \"idle_ms\": 42.899,\n    \"max_gap_ms\": 0.381666,\n    \"span_ms\": 1293.713\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "streams",
+      "sql": "SELECT stream,k.kind,count(*) n,round(sum(dur)/1e6,3) sum_ms FROM cand_dev d JOIN cand_kind k USING(id) GROUP BY stream,k.kind ORDER BY stream,k.kind;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"kind\": \"compute\",\n    \"n\": 8117,\n    \"stream\": 7,\n    \"sum_ms\": 988.955\n  },\n  {\n    \"kind\": \"copy\",\n    \"n\": 225,\n    \"stream\": 7,\n    \"sum_ms\": 0.48\n  },\n  {\n    \"kind\": \"ep\",\n    \"n\": 438,\n    \"stream\": 7,\n    \"sum_ms\": 157.627\n  },\n  {\n    \"kind\": \"memset\",\n    \"n\": 861,\n    \"stream\": 7,\n    \"sum_ms\": 0.929\n  },\n  {\n    \"kind\": \"nccl\",\n    \"n\": 40,\n    \"stream\": 23,\n    \"sum_ms\": 15.696\n  },\n  {\n    \"kind\": \"compute\",\n    \"n\": 95,\n    \"stream\": 24,\n    \"sum_ms\": 33.156\n  },\n  {\n    \"kind\": \"copy\",\n    \"n\": 49,\n    \"stream\": 24,\n    \"sum_ms\": 23.064\n  },\n  {\n    \"kind\": \"nccl\",\n    \"n\": 105,\n    \"stream\": 24,\n    \"sum_ms\": 207.81\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "coverage",
+      "sql": "SELECT (SELECT count(*) FROM cand_dev) device,(SELECT count(*) FROM cand_link) linked,(SELECT count(DISTINCT id) FROM cand_link) distinct_linked,(SELECT sum(value) FROM stats WHERE severity='error') import_errors;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"device\": 9930,\n    \"distinct_linked\": 9930,\n    \"import_errors\": 0,\n    \"linked\": 9930\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "attention_gdn",
+      "sql": "SELECT name,count(*) n,round(sum(dur)/1e6,3) sum_ms FROM cand_dev WHERE category='kernel' AND (lower(name) GLOB '*sdpa*' OR lower(name) GLOB '*chunk*' OR lower(name) GLOB '*delta*' OR lower(name) GLOB '*wy*') GROUP BY name ORDER BY sum(dur) DESC LIMIT 35;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"n\": 9,\n    \"name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_bprop_wgmma_f16_knob_2_64x64x192_1x4x1_cga1x1x1_kernel0_0\",\n    \"sum_ms\": 17.333\n  },\n  {\n    \"n\": 18,\n    \"name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0_0\",\n    \"sum_ms\": 12.636\n  },\n  {\n    \"n\": 72,\n    \"name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"sum_ms\": 11.364\n  },\n  {\n    \"n\": 54,\n    \"name\": \"chunk_fwd_kernel_o\",\n    \"sum_ms\": 8.876\n  },\n  {\n    \"n\": 54,\n    \"name\": \"chunk_gated_delta_rule_fwd_kkt_solve_kernel\",\n    \"sum_ms\": 5.785\n  },\n  {\n    \"n\": 18,\n    \"name\": \"prepare_wy_repr_bwd_kernel\",\n    \"sum_ms\": 4.967\n  },\n  {\n    \"n\": 18,\n    \"name\": \"chunk_gated_delta_rule_bwd_kernel_dhu_blockdim64\",\n    \"sum_ms\": 4.095\n  },\n  {\n    \"n\": 18,\n    \"name\": \"chunk_bwd_kernel_dv_local\",\n    \"sum_ms\": 1.335\n  },\n  {\n    \"n\": 54,\n    \"name\": \"gdn_gate_chunk_cumsum_scalar_kernel\",\n    \"sum_ms\": 0.355\n  },\n  {\n    \"n\": 18,\n    \"name\": \"chunk_local_cumsum_scalar_kernel\",\n    \"sum_ms\": 0.132\n  },\n  {\n    \"n\": 54,\n    \"name\": \"triton_poi_fused__unsafe_view_clone_gdn_chunk_sigmoid_split_with_sizes_view_1\",\n    \"sum_ms\": 0.123\n  },\n  {\n    \"n\": 54,\n    \"name\": \"triton_poi_fused__unsafe_view_clone_gdn_chunk_sigmoid_split_with_sizes_view_2\",\n    \"sum_ms\": 0.11\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "host_ops",
+      "sql": "SELECT name,count(*) n,round(sum(dur)/1e6,3) sum_ms FROM thread_slice WHERE category='cpu_op' AND (name GLOB '*capacity*' OR name GLOB '*gated_delta*' OR name GLOB '*sdpa*' OR name GLOB '*indices_to*' OR name GLOB '*quantiz*' OR name GLOB '*foreach*' OR name GLOB '*all_gather*' OR name GLOB '*hybridep*') GROUP BY name ORDER BY sum(dur) DESC LIMIT 35;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"n\": 42,\n    \"name\": \"torchtitan::conditional_capacity_mask\",\n    \"sum_ms\": 657.598\n  },\n  {\n    \"n\": 39,\n    \"name\": \"hybridep::dispatch\",\n    \"sum_ms\": 42.159\n  },\n  {\n    \"n\": 432,\n    \"name\": \"cudacherry::quantize_blk128x128\",\n    \"sum_ms\": 8.1\n  },\n  {\n    \"n\": 234,\n    \"name\": \"cudacherry::quantize_vec128\",\n    \"sum_ms\": 4.273\n  },\n  {\n    \"n\": 21,\n    \"name\": \"hybridep::dispatch_bwd\",\n    \"sum_ms\": 3.072\n  },\n  {\n    \"n\": 39,\n    \"name\": \"hybridep::combine\",\n    \"sum_ms\": 2.762\n  },\n  {\n    \"n\": 57,\n    \"name\": \"aten::_foreach_copy_\",\n    \"sum_ms\": 1.699\n  },\n  {\n    \"n\": 21,\n    \"name\": \"hybridep::combine_bwd\",\n    \"sum_ms\": 1.485\n  },\n  {\n    \"n\": 54,\n    \"name\": \"triton_poi_fused_mul_quantize_vec128_view_3\",\n    \"sum_ms\": 0.887\n  },\n  {\n    \"n\": 18,\n    \"name\": \"triton_poi_fused_constant_pad_nd_quantize_blk128x128_10\",\n    \"sum_ms\": 0.253\n  },\n  {\n    \"n\": 12,\n    \"name\": \"triton_poi_fused__to_copy__unsafe_view_mul_quantize_vec128_sigmoid_transpose_view_7\",\n    \"sum_ms\": 0.191\n  },\n  {\n    \"n\": 12,\n    \"name\": \"triton_poi_fused_constant_pad_nd_quantize_blk128x128_5\",\n    \"sum_ms\": 0.184\n  },\n  {\n    \"n\": 3,\n    \"name\": \"aten::_foreach_add_\",\n    \"sum_ms\": 0.117\n  },\n  {\n    \"n\": 6,\n    \"name\": \"triton_poi_fused_constant_pad_nd_quantize_blk128x128_6\",\n    \"sum_ms\": 0.109\n  },\n  {\n    \"n\": 6,\n    \"name\": \"triton_poi_fused_constant_pad_nd_quantize_blk128x128_11\",\n    \"sum_ms\": 0.104\n  },\n  {\n    \"n\": 6,\n    \"name\": \"triton_poi_fused__to_copy__unsafe_view_mul_quantize_vec128_sigmoid_transpose_view_8\",\n    \"sum_ms\": 0.103\n  },\n  {\n    \"n\": 3,\n    \"name\": \"triton_poi_fused_constant_pad_nd_quantize_blk128x128_7\",\n    \"sum_ms\": 0.053\n  },\n  {\n    \"n\": 3,\n    \"name\": \"triton_per_fused__unsafe_view_add_bitwise_and_conditional_capacity_mask_div_gather_ge_mul_ne_scalar_tensor_scatter_sigmoid_sum_view_where_zeros_like_9\",\n    \"sum_ms\": 0.049\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "largest_gaps",
+      "sql": "SELECT round(g.gap/1e3,3) gap_us,round((g.b-w.lo)/1e6,3) at_ms,d.id,d.stream,substr(d.name,1,105) next_name,h.host_name,round((h.host_ts-g.prev_end)/1e3,3) launch_after_idle_start_us FROM cand_gaps g JOIN cand_dev d USING(id) JOIN cand_win w LEFT JOIN cand_link h USING(id) ORDER BY g.gap DESC LIMIT 12;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"at_ms\": 862.622,\n    \"gap_us\": 381.666,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"id\": 43607,\n    \"launch_after_idle_start_us\": 351.186,\n    \"next_name\": \"void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar co\",\n    \"stream\": 7\n  },\n  {\n    \"at_ms\": 431.217,\n    \"gap_us\": 336.129,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"id\": 21883,\n    \"launch_after_idle_start_us\": 307.671,\n    \"next_name\": \"void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar co\",\n    \"stream\": 7\n  },\n  {\n    \"at_ms\": 431.962,\n    \"gap_us\": 280.481,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"id\": 21967,\n    \"launch_after_idle_start_us\": 268.742,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIterato\",\n    \"stream\": 24\n  },\n  {\n    \"at_ms\": 863.432,\n    \"gap_us\": 274.401,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"id\": 43691,\n    \"launch_after_idle_start_us\": 262.528,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIterato\",\n    \"stream\": 24\n  },\n  {\n    \"at_ms\": 209.102,\n    \"gap_us\": 259.841,\n    \"host_name\": \"cuLaunchKernel\",\n    \"id\": 9329,\n    \"launch_after_idle_start_us\": 246.345,\n    \"next_name\": \"triton_poi_fused__unsafe_view_add_bitwise_not_dispatch_div_gather_masked_fill_mul_sigmoid_view_17\",\n    \"stream\": 7\n  },\n  {\n    \"at_ms\": 210.101,\n    \"gap_us\": 229.985,\n    \"host_name\": \"cuLaunchKernelEx\",\n    \"id\": 9403,\n    \"launch_after_idle_start_us\": 219.178,\n    \"next_name\": \"_rowwise_1d_quantize_kernel\",\n    \"stream\": 7\n  },\n  {\n    \"at_ms\": 209.333,\n    \"gap_us\": 228.897,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"id\": 9333,\n    \"launch_after_idle_start_us\": 215.679,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorItera\",\n    \"stream\": 7\n  },\n  {\n    \"at_ms\": 0.812,\n    \"gap_us\": 228.097,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"id\": 564,\n    \"launch_after_idle_start_us\": 216.716,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIterato\",\n    \"stream\": 24\n  },\n  {\n    \"at_ms\": 208.84,\n    \"gap_us\": 202.368,\n    \"host_name\": \"cudaMemcpyAsync\",\n    \"id\": 9326,\n    \"launch_after_idle_start_us\": 140.043,\n    \"next_name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"at_ms\": 639.154,\n    \"gap_us\": 199.201,\n    \"host_name\": \"cudaMemcpyAsync\",\n    \"id\": 30781,\n    \"launch_after_idle_start_us\": 126.475,\n    \"next_name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"at_ms\": 639.524,\n    \"gap_us\": 189.888,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"id\": 30788,\n    \"launch_after_idle_start_us\": 178.273,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorItera\",\n    \"stream\": 7\n  },\n  {\n    \"at_ms\": 1069.752,\n    \"gap_us\": 188.321,\n    \"host_name\": \"cudaLaunchKernel\",\n    \"id\": 52524,\n    \"launch_after_idle_start_us\": 176.394,\n    \"next_name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorItera\",\n    \"stream\": 7\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "device_arguments",
+      "sql": "SELECT d.id,d.stream,substr(d.name,1,100) name,a.key,a.display_value FROM cand_dev d JOIN args a ON a.arg_set_id=d.arg_set_id WHERE d.id IN ((SELECT min(id) FROM cand_dev WHERE name GLOB '*AllGather*'),(SELECT min(id) FROM cand_dev WHERE name GLOB '*ReduceScatter*'),(SELECT min(id) FROM cand_dev WHERE name GLOB '*AllReduce*'),(SELECT min(id) FROM cand_dev WHERE category='gpu_memcpy' AND stream=24)) ORDER BY d.id,a.key;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"display_value\": \"allreduce\",\n    \"id\": 435,\n    \"key\": \"args.Collective name\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"2297668046889143553\",\n    \"id\": 435,\n    \"key\": \"args.Comms Id\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"409\",\n    \"id\": 435,\n    \"key\": \"args.External id\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"8\",\n    \"id\": 435,\n    \"key\": \"args.Group size\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.In msg nelems\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 435,\n    \"key\": \"args.In split size\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.Out msg nelems\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 435,\n    \"key\": \"args.Out split size\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"default_pg\",\n    \"id\": 435,\n    \"key\": \"args.Process Group Description\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 435,\n    \"key\": \"args.Process Group Name\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"[0, 1, 2, 3, 4, 5, 6, 7]\",\n    \"id\": 435,\n    \"key\": \"args.Process Group Ranks\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"30905\",\n    \"id\": 435,\n    \"key\": \"args.Seq\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"128\",\n    \"id\": 435,\n    \"key\": \"args.block[0]\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.block[1]\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.block[2]\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0.00757575780153275\",\n    \"id\": 435,\n    \"key\": \"args.blocks per SM\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"3\",\n    \"id\": 435,\n    \"key\": \"args.channel\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.channel_type\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.context\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1687361\",\n    \"id\": 435,\n    \"key\": \"args.correlation\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 435,\n    \"key\": \"args.device\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"Long\",\n    \"id\": 435,\n    \"key\": \"args.dtype\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 435,\n    \"key\": \"args.est. achieved occupancy %\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 435,\n    \"key\": \"args.graph id\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 435,\n    \"key\": \"args.graph node id\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.grid[0]\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.grid[1]\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 435,\n    \"key\": \"args.grid[2]\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.activeBlocksPerMultiprocessor\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"12288\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.allocatedRegistersPerBlock\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"120064\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.allocatedSharedMemPerBlock\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"2147483647\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.blockLimitBarriers\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"32\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.blockLimitBlocks\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"5\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.blockLimitRegs\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.blockLimitSharedMem\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"16\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.blockLimitWarps\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"SMEM\",\n    \"id\": 435,\n    \"key\": \"args.occupancy.limitingFactors\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 435,\n    \"key\": \"args.queued\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"96\",\n    \"id\": 435,\n    \"key\": \"args.registers per thread\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"119040\",\n    \"id\": 435,\n    \"key\": \"args.shared memory\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"23\",\n    \"id\": 435,\n    \"key\": \"args.stream\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"0.030303031206131\",\n    \"id\": 435,\n    \"key\": \"args.warps per SM\",\n    \"name\": \"ncclDevKernel_AllReduce_Sum_u64_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 23\n  },\n  {\n    \"display_value\": \"_allgather_base\",\n    \"id\": 582,\n    \"key\": \"args.Collective name\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"2297668046889143366\",\n    \"id\": 582,\n    \"key\": \"args.Comms Id\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"491\",\n    \"id\": 582,\n    \"key\": \"args.External id\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"8\",\n    \"id\": 582,\n    \"key\": \"args.Group size\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"65667072\",\n    \"id\": 582,\n    \"key\": \"args.In msg nelems\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 582,\n    \"key\": \"args.In split size\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"525336576\",\n    \"id\": 582,\n    \"key\": \"args.Out msg nelems\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 582,\n    \"key\": \"args.Out split size\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"default_pg\",\n    \"id\": 582,\n    \"key\": \"args.Process Group Description\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 582,\n    \"key\": \"args.Process Group Name\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"[0, 1, 2, 3, 4, 5, 6, 7]\",\n    \"id\": 582,\n    \"key\": \"args.Process Group Ranks\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"30906\",\n    \"id\": 582,\n    \"key\": \"args.Seq\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"544\",\n    \"id\": 582,\n    \"key\": \"args.block[0]\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 582,\n    \"key\": \"args.block[1]\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 582,\n    \"key\": \"args.block[2]\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0.181818187236786\",\n    \"id\": 582,\n    \"key\": \"args.blocks per SM\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"4\",\n    \"id\": 582,\n    \"key\": \"args.channel\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 582,\n    \"key\": \"args.channel_type\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 582,\n    \"key\": \"args.context\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1687648\",\n    \"id\": 582,\n    \"key\": \"args.correlation\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 582,\n    \"key\": \"args.device\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"BFloat16\",\n    \"id\": 582,\n    \"key\": \"args.dtype\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 582,\n    \"key\": \"args.est. achieved occupancy %\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 582,\n    \"key\": \"args.graph id\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 582,\n    \"key\": \"args.graph node id\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 582,\n    \"key\": \"args.grid[0]\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 582,\n    \"key\": \"args.grid[1]\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 582,\n    \"key\": \"args.grid[2]\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.activeBlocksPerMultiprocessor\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"52224\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.allocatedRegistersPerBlock\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"120064\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.allocatedSharedMemPerBlock\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"2147483647\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.blockLimitBarriers\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"32\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.blockLimitBlocks\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.blockLimitRegs\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.blockLimitSharedMem\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"3\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.blockLimitWarps\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"SMEM\",\n    \"id\": 582,\n    \"key\": \"args.occupancy.limitingFactors\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 582,\n    \"key\": \"args.queued\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"96\",\n    \"id\": 582,\n    \"key\": \"args.registers per thread\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"119040\",\n    \"id\": 582,\n    \"key\": \"args.shared memory\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 582,\n    \"key\": \"args.stream\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"3.09090924263\",\n    \"id\": 582,\n    \"key\": \"args.warps per SM\",\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"527\",\n    \"id\": 924,\n    \"key\": \"args.External id\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"603979776\",\n    \"id\": 924,\n    \"key\": \"args.bytes\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"4\",\n    \"id\": 924,\n    \"key\": \"args.channel\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 924,\n    \"key\": \"args.channel_type\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 924,\n    \"key\": \"args.context\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1687929\",\n    \"id\": 924,\n    \"key\": \"args.correlation\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 924,\n    \"key\": \"args.device\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 924,\n    \"key\": \"args.graph id\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 924,\n    \"key\": \"args.graph node id\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1517.35031616711\",\n    \"id\": 924,\n    \"key\": \"args.memory bandwidth (GB/s)\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 924,\n    \"key\": \"args.stream\",\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"_reduce_scatter_base\",\n    \"id\": 9036,\n    \"key\": \"args.Collective name\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"2297668046889140633\",\n    \"id\": 9036,\n    \"key\": \"args.Comms Id\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"4269\",\n    \"id\": 9036,\n    \"key\": \"args.External id\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"8\",\n    \"id\": 9036,\n    \"key\": \"args.Group size\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"525336576\",\n    \"id\": 9036,\n    \"key\": \"args.In msg nelems\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 9036,\n    \"key\": \"args.In split size\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"65667072\",\n    \"id\": 9036,\n    \"key\": \"args.Out msg nelems\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"[]\",\n    \"id\": 9036,\n    \"key\": \"args.Out split size\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"default_pg\",\n    \"id\": 9036,\n    \"key\": \"args.Process Group Description\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9036,\n    \"key\": \"args.Process Group Name\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"[0, 1, 2, 3, 4, 5, 6, 7]\",\n    \"id\": 9036,\n    \"key\": \"args.Process Group Ranks\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"30926\",\n    \"id\": 9036,\n    \"key\": \"args.Seq\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"544\",\n    \"id\": 9036,\n    \"key\": \"args.block[0]\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9036,\n    \"key\": \"args.block[1]\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9036,\n    \"key\": \"args.block[2]\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0.181818187236786\",\n    \"id\": 9036,\n    \"key\": \"args.blocks per SM\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"4\",\n    \"id\": 9036,\n    \"key\": \"args.channel\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9036,\n    \"key\": \"args.channel_type\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9036,\n    \"key\": \"args.context\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1705157\",\n    \"id\": 9036,\n    \"key\": \"args.correlation\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9036,\n    \"key\": \"args.device\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"Float\",\n    \"id\": 9036,\n    \"key\": \"args.dtype\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9036,\n    \"key\": \"args.est. achieved occupancy %\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9036,\n    \"key\": \"args.graph id\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9036,\n    \"key\": \"args.graph node id\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 9036,\n    \"key\": \"args.grid[0]\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9036,\n    \"key\": \"args.grid[1]\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9036,\n    \"key\": \"args.grid[2]\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.activeBlocksPerMultiprocessor\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"52224\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.allocatedRegistersPerBlock\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"120064\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.allocatedSharedMemPerBlock\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"2147483647\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.blockLimitBarriers\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"32\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.blockLimitBlocks\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"1\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.blockLimitRegs\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.blockLimitSharedMem\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"3\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.blockLimitWarps\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"SMEM\",\n    \"id\": 9036,\n    \"key\": \"args.occupancy.limitingFactors\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"0\",\n    \"id\": 9036,\n    \"key\": \"args.queued\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"96\",\n    \"id\": 9036,\n    \"key\": \"args.registers per thread\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"119040\",\n    \"id\": 9036,\n    \"key\": \"args.shared memory\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"24\",\n    \"id\": 9036,\n    \"key\": \"args.stream\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"display_value\": \"3.09090924263\",\n    \"id\": 9036,\n    \"key\": \"args.warps per SM\",\n    \"name\": \"ncclDevKernel_ReduceScatter_Sum_f32_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "ag_ancestors",
+      "sql": "SELECT d.id,d.stream,round(d.dur/1e6,3) gpu_ms,substr(d.name,1,70) name,a.id ancestor_id,a.category,a.name ancestor FROM cand_link d JOIN ancestor_slice(d.host_id) a WHERE d.id IN (SELECT id FROM cand_dev WHERE name GLOB '*AllGather*' LIMIT 2) ORDER BY d.id,a.depth;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"ancestor\": \"ProfilerStep#20\",\n    \"ancestor_id\": 2,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 2.647,\n    \"id\": 582,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"task.profile_update.21.train_step.rank0\",\n    \"ancestor_id\": 3,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 2.647,\n    \"id\": 582,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"task.profile_update.21.microbatch.rank0\",\n    \"ancestor_id\": 474,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 2.647,\n    \"id\": 582,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"GFSDP::pre_forward (tok_embeddings)\",\n    \"ancestor_id\": 558,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 2.647,\n    \"id\": 582,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"GFSDP::all_gather (tok_embeddings)\",\n    \"ancestor_id\": 559,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 2.647,\n    \"id\": 582,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"c10d::_allgather_base_\",\n    \"ancestor_id\": 565,\n    \"category\": \"cpu_op\",\n    \"gpu_ms\": 2.647,\n    \"id\": 582,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"record_param_comms\",\n    \"ancestor_id\": 566,\n    \"category\": \"cpu_op\",\n    \"gpu_ms\": 2.647,\n    \"id\": 582,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"nccl:_all_gather_base\",\n    \"ancestor_id\": 568,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 2.647,\n    \"id\": 582,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"ProfilerStep#20\",\n    \"ancestor_id\": 2,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 1.189,\n    \"id\": 747,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"task.profile_update.21.train_step.rank0\",\n    \"ancestor_id\": 3,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 1.189,\n    \"id\": 747,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"task.profile_update.21.microbatch.rank0\",\n    \"ancestor_id\": 474,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 1.189,\n    \"id\": 747,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"GFSDP::forward_prefetch for layers.0\",\n    \"ancestor_id\": 585,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 1.189,\n    \"id\": 747,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"GFSDP::all_gather (layers.0)\",\n    \"ancestor_id\": 586,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 1.189,\n    \"id\": 747,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"c10d::_allgather_base_\",\n    \"ancestor_id\": 591,\n    \"category\": \"cpu_op\",\n    \"gpu_ms\": 1.189,\n    \"id\": 747,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"record_param_comms\",\n    \"ancestor_id\": 592,\n    \"category\": \"cpu_op\",\n    \"gpu_ms\": 1.189,\n    \"id\": 747,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  },\n  {\n    \"ancestor\": \"nccl:_all_gather_base\",\n    \"ancestor_id\": 594,\n    \"category\": \"user_annotation\",\n    \"gpu_ms\": 1.189,\n    \"id\": 747,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"stream\": 24\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "capacity_sync",
+      "sql": "WITH c AS(SELECT id,ts,ts+dur e FROM thread_slice WHERE name='torchtitan::conditional_capacity_mask'),\ns AS(SELECT h.id,h.ts,h.ts+h.dur e FROM thread_slice h JOIN c ON h.ts>=c.ts AND h.ts+h.dur<=c.e WHERE h.category='cuda_runtime' AND h.name='cudaStreamSynchronize')\nSELECT (SELECT count(*) FROM c) capacity_calls,count(*) sync_calls,round(sum(e-ts)/1e6,3) host_sync_ms,round((SELECT sum(MIN(s.e,g.b)-MAX(s.ts,g.prev_end)) FROM s JOIN cand_gaps g ON s.ts<g.b AND s.e>g.prev_end)/1e6,3) sync_intersection_all_device_idle_ms FROM s;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"capacity_calls\": 42,\n    \"host_sync_ms\": 652.941,\n    \"sync_calls\": 42,\n    \"sync_intersection_all_device_idle_ms\": 6.319\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "copies_volume",
+      "sql": "SELECT stream,name,EXTRACT_ARG(arg_set_id,'args.bytes') bytes,count(*) n,round(sum(dur)/1e6,3) ms FROM cand_dev WHERE category='gpu_memcpy' GROUP BY stream,name,bytes ORDER BY sum(dur) DESC LIMIT 12;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"bytes\": 603979776,\n    \"ms\": 17.005,\n    \"n\": 42,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"bytes\": 1207959552,\n    \"ms\": 6.06,\n    \"n\": 7,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 24\n  },\n  {\n    \"bytes\": 67108864,\n    \"ms\": 0.137,\n    \"n\": 3,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 1,\n    \"ms\": 0.092,\n    \"n\": 42,\n    \"name\": \"Memcpy DtoH (Device -> Pinned)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 65536,\n    \"ms\": 0.058,\n    \"n\": 45,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 262144,\n    \"ms\": 0.05,\n    \"n\": 39,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 64,\n    \"ms\": 0.05,\n    \"n\": 39,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 128,\n    \"ms\": 0.042,\n    \"n\": 39,\n    \"name\": \"Memcpy HtoD (Pinned -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 65536,\n    \"ms\": 0.028,\n    \"n\": 6,\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 32768,\n    \"ms\": 0.008,\n    \"n\": 3,\n    \"name\": \"Memcpy HtoD (Pageable -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 32768,\n    \"ms\": 0.006,\n    \"n\": 3,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 7\n  },\n  {\n    \"bytes\": 4,\n    \"ms\": 0.004,\n    \"n\": 3,\n    \"name\": \"Memcpy DtoD (Device -> Device)\",\n    \"stream\": 7\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "kernel_consumers",
+      "sql": "SELECT d.id,substr(d.name,1,100) gpu_name,a.name ancestor,round(a.dur/1e6,3) ancestor_ms FROM cand_link d JOIN ancestor_slice(d.host_id) a WHERE d.id IN ((SELECT min(id) FROM cand_dev WHERE name GLOB '*tst_320x128*'),(SELECT min(id) FROM cand_dev WHERE name GLOB '*sdpa*'),(SELECT min(id) FROM cand_dev WHERE name GLOB '*fwd_kernel_h*'),(SELECT min(id) FROM cand_dev WHERE name GLOB '*CopyFunctor<float, c10::BFloat16*')) AND a.category IN ('cpu_op','user_annotation') ORDER BY d.id,a.depth;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"ancestor\": \"ProfilerStep#20\",\n    \"ancestor_ms\": 1302.532,\n    \"gpu_name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"id\": 988\n  },\n  {\n    \"ancestor\": \"task.profile_update.21.train_step.rank0\",\n    \"ancestor_ms\": 1302.201,\n    \"gpu_name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"id\": 988\n  },\n  {\n    \"ancestor\": \"task.profile_update.21.microbatch.rank0\",\n    \"ancestor_ms\": 405.531,\n    \"gpu_name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"id\": 988\n  },\n  {\n    \"ancestor\": \"Torch-Compiled Region: 0/0\",\n    \"ancestor_ms\": 4.385,\n    \"gpu_name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"id\": 988\n  },\n  {\n    \"ancestor\": \"CompiledFunction\",\n    \"ancestor_ms\": 4.265,\n    \"gpu_name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"id\": 988\n  },\n  {\n    \"ancestor\": \"## Call CompiledFxGraph fb7xs3fuixvjhyddomuwu77hudgczwb72cwwhkmyboaeitidzxwd ##\",\n    \"ancestor_ms\": 4.182,\n    \"gpu_name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"id\": 988\n  },\n  {\n    \"ancestor\": \"torchtitan::gdn_chunk\",\n    \"ancestor_ms\": 0.645,\n    \"gpu_name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"id\": 988\n  },\n  {\n    \"ancestor\": \"ChunkGatedDeltaRuleFunction\",\n    \"ancestor_ms\": 0.583,\n    \"gpu_name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\",\n    \"id\": 988\n  },\n  {\n    \"ancestor\": \"ProfilerStep#20\",\n    \"ancestor_ms\": 1302.532,\n    \"gpu_name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0\",\n    \"id\": 2690\n  },\n  {\n    \"ancestor\": \"task.profile_update.21.train_step.rank0\",\n    \"ancestor_ms\": 1302.201,\n    \"gpu_name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0\",\n    \"id\": 2690\n  },\n  {\n    \"ancestor\": \"task.profile_update.21.microbatch.rank0\",\n    \"ancestor_ms\": 405.531,\n    \"gpu_name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0\",\n    \"id\": 2690\n  },\n  {\n    \"ancestor\": \"Torch-Compiled Region: 0/3\",\n    \"ancestor_ms\": 8.2,\n    \"gpu_name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0\",\n    \"id\": 2690\n  },\n  {\n    \"ancestor\": \"CompiledFunction\",\n    \"ancestor_ms\": 8.143,\n    \"gpu_name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0\",\n    \"id\": 2690\n  },\n  {\n    \"ancestor\": \"## Call CompiledFxGraph f3g5om4vxewhavn7b77eezv4ju7xn7qahlmxprenviccu5zwtu5q ##\",\n    \"ancestor_ms\": 8.07,\n    \"gpu_name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0\",\n    \"id\": 2690\n  },\n  {\n    \"ancestor\": \"aten::_scaled_dot_product_cudnn_attention\",\n    \"ancestor_ms\": 0.117,\n    \"gpu_name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0\",\n    \"id\": 2690\n  },\n  {\n    \"ancestor\": \"aten::_cudnn_attention_forward\",\n    \"ancestor_ms\": 0.104,\n    \"gpu_name\": \"cudnn_generated_fort_native_sdpa_sm90_flash_fprop_wgmma_f16_knob_1_64x128x192_4x1x1_cga1x1x1_kernel0\",\n    \"id\": 2690\n  },\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: MmBackward0\",\n    \"ancestor_ms\": 0.195,\n    \"gpu_name\": \"nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT\",\n    \"id\": 8686\n  },\n  {\n    \"ancestor\": \"MmBackward0\",\n    \"ancestor_ms\": 0.188,\n    \"gpu_name\": \"nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT\",\n    \"id\": 8686\n  },\n  {\n    \"ancestor\": \"aten::mm\",\n    \"ancestor_ms\": 0.134,\n    \"gpu_name\": \"nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT\",\n    \"id\": 8686\n  },\n  {\n    \"ancestor\": \"autograd::engine::evaluate_function: RegisterPostBackwardFunctionBackward\",\n    \"ancestor_ms\": 0.12,\n    \"gpu_name\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace):\",\n    \"id\": 9001\n  },\n  {\n    \"ancestor\": \"RegisterPostBackwardFunctionBackward\",\n    \"ancestor_ms\": 0.117,\n    \"gpu_name\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace):\",\n    \"id\": 9001\n  },\n  {\n    \"ancestor\": \"FSDP::post_backward_accumulate (lm_head)\",\n    \"ancestor_ms\": 0.079,\n    \"gpu_name\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace):\",\n    \"id\": 9001\n  },\n  {\n    \"ancestor\": \"aten::_foreach_copy_\",\n    \"ancestor_ms\": 0.048,\n    \"gpu_name\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace):\",\n    \"id\": 9001\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "main_idle_exposure",
+      "sql": "CREATE PERFETTO TABLE cand_main_gaps AS\nWITH m AS (SELECT * FROM cand_events WHERE stream=7),\np AS (SELECT *,MAX(e) OVER(ORDER BY b,e,id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM m)\nSELECT id,b,e,prev_end,b-prev_end gap FROM p WHERE b>prev_end;\nCREATE PERFETTO TABLE cand_main_idle AS\nSELECT prev_end b,b e FROM cand_main_gaps\nUNION ALL SELECT w.lo,(SELECT min(b) FROM cand_events WHERE stream=7) FROM cand_win w\nUNION ALL SELECT (SELECT max(e) FROM cand_events WHERE stream=7),w.hi FROM cand_win w;\nSELECT CASE WHEN d.name GLOB '*AllGather*' THEN 'all_gather' WHEN d.name GLOB '*ReduceScatter*' THEN 'reduce_scatter'\nWHEN d.name GLOB '*AllReduce*' THEN 'all_reduce' WHEN d.category='gpu_memcpy' THEN 'copy' ELSE 'weight_preparation_kernels' END family,\ncount(DISTINCT d.id) n,round(sum(MIN(d.e,g.e)-MAX(d.b,g.b))/1e6,3) overlaps_main_stream_idle_ms\nFROM cand_events d JOIN cand_main_idle g ON d.b<g.e AND d.e>g.b WHERE d.stream<>7 GROUP BY family;"
+    },
+    {
+      "label": "ag_exposure_groups",
+      "sql": "WITH ag AS(\nSELECT d.*, (SELECT a.name FROM ancestor_slice(d.host_id) a WHERE a.name GLOB 'GFSDP::all_gather*' LIMIT 1) owner FROM cand_link d WHERE d.name GLOB '*AllGather*')\nSELECT owner,count(*) n,round(sum(dur)/1e6,3) sum_ms,\nround(sum((SELECT coalesce(sum(MIN(d.ts+d.dur,g.e)-MAX(d.ts,g.b)),0) FROM cand_main_idle g WHERE d.ts<g.e AND d.ts+d.dur>g.b))/1e6,3) overlaps_main_idle_ms\nFROM ag d GROUP BY owner ORDER BY overlaps_main_idle_ms DESC;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 8.375,\n    \"owner\": \"GFSDP::all_gather (tok_embeddings)\",\n    \"sum_ms\": 20.088\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 3.798,\n    \"owner\": \"GFSDP::all_gather (layers.0)\",\n    \"sum_ms\": 8.438\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 2.506,\n    \"owner\": \"GFSDP::all_gather (layers.5[fsdp])\",\n    \"sum_ms\": 4.657\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 1.359,\n    \"owner\": \"GFSDP::all_gather (layers.7[fsdp])\",\n    \"sum_ms\": 3.49\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 1.114,\n    \"owner\": \"GFSDP::all_gather (mtp.layers.0)\",\n    \"sum_ms\": 24.352\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 0.803,\n    \"owner\": \"GFSDP::all_gather (layers.3[fsdp])\",\n    \"sum_ms\": 3.864\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.23,\n    \"owner\": \"GFSDP::all_gather (lm_head)\",\n    \"sum_ms\": 9.623\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 0.19,\n    \"owner\": \"GFSDP::all_gather (layers.6[fsdp])\",\n    \"sum_ms\": 3.84\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 0.178,\n    \"owner\": \"GFSDP::all_gather (layers.1[fsdp])\",\n    \"sum_ms\": 4.741\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 0.172,\n    \"owner\": \"GFSDP::all_gather (layers.4[fsdp])\",\n    \"sum_ms\": 5.24\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 0.148,\n    \"owner\": \"GFSDP::all_gather (layers.2[fsdp])\",\n    \"sum_ms\": 4.292\n  },\n  {\n    \"n\": 6,\n    \"overlaps_main_idle_ms\": 0.045,\n    \"owner\": \"GFSDP::all_gather (norm)\",\n    \"sum_ms\": 1.408\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "main_gaps_long",
+      "sql": "SELECT round(g.gap/1e6,3) main_gap_ms,round((g.b-w.lo)/1e6,3) end_at_ms,d.id,substr(d.name,1,85) next_kernel,round((d.host_ts-g.prev_end)/1e6,3) launch_after_gap_start_ms FROM cand_main_gaps g JOIN cand_link d USING(id) JOIN cand_win w ORDER BY g.gap DESC LIMIT 14;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"end_at_ms\": 862.067,\n    \"id\": 43584,\n    \"launch_after_gap_start_ms\": -24.273,\n    \"main_gap_ms\": 5.477,\n    \"next_kernel\": \"Memcpy HtoD (Pageable -> Device)\"\n  },\n  {\n    \"end_at_ms\": 203.706,\n    \"id\": 9262,\n    \"launch_after_gap_start_ms\": -91.98,\n    \"main_gap_ms\": 5.416,\n    \"next_kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonym\"\n  },\n  {\n    \"end_at_ms\": 430.706,\n    \"id\": 21860,\n    \"launch_after_gap_start_ms\": -19.725,\n    \"main_gap_ms\": 5.216,\n    \"next_kernel\": \"Memcpy HtoD (Pageable -> Device)\"\n  },\n  {\n    \"end_at_ms\": 1064.287,\n    \"id\": 52453,\n    \"launch_after_gap_start_ms\": -95.517,\n    \"main_gap_ms\": 4.569,\n    \"next_kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonym\"\n  },\n  {\n    \"end_at_ms\": 434.892,\n    \"id\": 22150,\n    \"launch_after_gap_start_ms\": 0.958,\n    \"main_gap_ms\": 3.211,\n    \"next_kernel\": \"void at::native::vectorized_gather_kernel<16, long>(char*, char*, long*, int, long, l\"\n  },\n  {\n    \"end_at_ms\": 866.352,\n    \"id\": 43877,\n    \"launch_after_gap_start_ms\": 0.869,\n    \"main_gap_ms\": 3.194,\n    \"next_kernel\": \"void at::native::vectorized_gather_kernel<16, long>(char*, char*, long*, int, long, l\"\n  },\n  {\n    \"end_at_ms\": 3.606,\n    \"id\": 742,\n    \"launch_after_gap_start_ms\": 0.734,\n    \"main_gap_ms\": 3.022,\n    \"next_kernel\": \"void at::native::vectorized_gather_kernel<16, long>(char*, char*, long*, int, long, l\"\n  },\n  {\n    \"end_at_ms\": 1101.846,\n    \"id\": 54045,\n    \"launch_after_gap_start_ms\": -16.221,\n    \"main_gap_ms\": 2.825,\n    \"next_kernel\": \"triton_per_fused_slice_sum_view_11\"\n  },\n  {\n    \"end_at_ms\": 855.455,\n    \"id\": 43578,\n    \"launch_after_gap_start_ms\": -22.106,\n    \"main_gap_ms\": 2.472,\n    \"next_kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonym\"\n  },\n  {\n    \"end_at_ms\": 670.745,\n    \"id\": 32293,\n    \"launch_after_gap_start_ms\": -15.839,\n    \"main_gap_ms\": 2.433,\n    \"next_kernel\": \"triton_per_fused_slice_sum_view_11\"\n  },\n  {\n    \"end_at_ms\": 240.593,\n    \"id\": 10843,\n    \"launch_after_gap_start_ms\": -13.98,\n    \"main_gap_ms\": 2.256,\n    \"next_kernel\": \"triton_per_fused_slice_sum_view_11\"\n  },\n  {\n    \"end_at_ms\": 1287.1,\n    \"id\": 65312,\n    \"launch_after_gap_start_ms\": -22.282,\n    \"main_gap_ms\": 2.145,\n    \"next_kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonym\"\n  },\n  {\n    \"end_at_ms\": 296.054,\n    \"id\": 14053,\n    \"launch_after_gap_start_ms\": -5.207,\n    \"main_gap_ms\": 2.138,\n    \"next_kernel\": \"triton_per_fused_slice_sum_view_11\"\n  },\n  {\n    \"end_at_ms\": 424.366,\n    \"id\": 21855,\n    \"launch_after_gap_start_ms\": -17.84,\n    \"main_gap_ms\": 2.053,\n    \"next_kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonym\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "host_barriers",
+      "sql": "SELECT h.name,count(*) n,round(sum(h.dur)/1e6,3) sum_ms FROM thread_slice h JOIN cand_win w ON h.ts>=w.lo AND h.ts<w.hi WHERE (h.category IN ('cuda_runtime','cuda_driver') AND h.name GLOB '*Synchronize*') OR (h.category='user_annotation' AND h.name GLOB '*post_backward_callback*') GROUP BY h.name;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"n\": 9,\n    \"name\": \"GFSDP::root_post_backward_callback\",\n    \"sum_ms\": 7.458\n  },\n  {\n    \"n\": 1,\n    \"name\": \"cudaDeviceSynchronize\",\n    \"sum_ms\": 29.966\n  },\n  {\n    \"n\": 87,\n    \"name\": \"cudaStreamSynchronize\",\n    \"sum_ms\": 716.983\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "main_idle_total",
+      "sql": "SELECT round(sum(e-b)/1e6,3) main_stream_idle_ms FROM cand_main_idle;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"main_stream_idle_ms\": 145.805\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "gemm_budget",
+      "sql": "SELECT CASE WHEN name GLOB '*deep_gemm*' THEN 'grouped_fp8_gemm' WHEN name GLOB '*nvjet*' THEN 'nvjet_gemm' WHEN name GLOB '*xmma_gemm*' OR name GLOB '*gemm*' THEN 'other_gemm' WHEN name GLOB '*sdpa*' THEN 'sdpa' ELSE 'rest' END family,count(*) n,round(sum(dur)/1e6,3) sum_ms FROM cand_dev d JOIN cand_kind k USING(id) WHERE k.kind='compute' AND d.stream=7 GROUP BY family;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"family\": \"rest\",\n    \"n\": 8117,\n    \"sum_ms\": 988.955\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "corrected_main_idle_exposure",
+      "sql": "SELECT CASE WHEN d.name GLOB '*AllGather*' THEN 'all_gather' WHEN d.name GLOB '*ReduceScatter*' THEN 'reduce_scatter'\nWHEN d.name GLOB '*AllReduce*' THEN 'all_reduce' WHEN d.category='gpu_memcpy' THEN 'copy' ELSE 'weight_preparation_kernels' END exposure_kind,\ncount(DISTINCT d.id) n,round(sum(MIN(d.e,g.e)-MAX(d.b,g.b))/1e6,3) overlaps_main_stream_idle_ms\nFROM cand_events d JOIN cand_main_idle g ON d.b<g.e AND d.e>g.b WHERE d.stream<>7 GROUP BY exposure_kind;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"exposure_kind\": \"all_gather\",\n    \"n\": 69,\n    \"overlaps_main_stream_idle_ms\": 18.918\n  },\n  {\n    \"exposure_kind\": \"all_reduce\",\n    \"n\": 39,\n    \"overlaps_main_stream_idle_ms\": 15.689\n  },\n  {\n    \"exposure_kind\": \"copy\",\n    \"n\": 22,\n    \"overlaps_main_stream_idle_ms\": 8.578\n  },\n  {\n    \"exposure_kind\": \"reduce_scatter\",\n    \"n\": 36,\n    \"overlaps_main_stream_idle_ms\": 36.103\n  },\n  {\n    \"exposure_kind\": \"weight_preparation_kernels\",\n    \"n\": 78,\n    \"overlaps_main_stream_idle_ms\": 24.204\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "corrected_gemm_budget",
+      "sql": "SELECT CASE WHEN d.name GLOB '*deep_gemm*' THEN 'grouped_fp8_gemm' WHEN d.name GLOB '*nvjet*' THEN 'nvjet_gemm' WHEN d.name GLOB '*xmma_gemm*' OR d.name GLOB '*gemm*' THEN 'other_gemm' WHEN d.name GLOB '*sdpa*' THEN 'sdpa' ELSE 'rest' END cost_class,count(*) n,round(sum(d.dur)/1e6,3) sum_ms FROM cand_dev d JOIN cand_kind k USING(id) WHERE k.kind='compute' AND d.stream=7 GROUP BY cost_class;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"cost_class\": \"grouped_fp8_gemm\",\n    \"n\": 252,\n    \"sum_ms\": 169.217\n  },\n  {\n    \"cost_class\": \"nvjet_gemm\",\n    \"n\": 822,\n    \"sum_ms\": 405.51\n  },\n  {\n    \"cost_class\": \"other_gemm\",\n    \"n\": 126,\n    \"sum_ms\": 18.592\n  },\n  {\n    \"cost_class\": \"rest\",\n    \"n\": 6890,\n    \"sum_ms\": 365.667\n  },\n  {\n    \"cost_class\": \"sdpa\",\n    \"n\": 27,\n    \"sum_ms\": 29.969\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "gdn_owners",
+      "sql": "WITH a AS (\nSELECT d.id,d.name,d.dur,(SELECT x.name FROM ancestor_slice(d.host_id) x WHERE x.name GLOB '*GatedDelta*' ORDER BY x.depth DESC LIMIT 1) gdn_owner FROM cand_link d WHERE d.category='kernel')\nSELECT gdn_owner,count(*) n,round(sum(dur)/1e6,3) kernels_ms FROM a WHERE gdn_owner IS NOT NULL GROUP BY gdn_owner;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"gdn_owner\": \"ChunkGatedDeltaRuleFunction\",\n    \"kernels_ms\": 30.245,\n    \"n\": 324\n  },\n  {\n    \"gdn_owner\": \"ChunkGatedDeltaRuleFunctionBackward\",\n    \"kernels_ms\": 28.734,\n    \"n\": 360\n  },\n  {\n    \"gdn_owner\": \"autograd::engine::evaluate_function: ChunkGatedDeltaRuleFunctionBackward\",\n    \"kernels_ms\": 0.03,\n    \"n\": 18\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "gdn_calls",
+      "sql": "SELECT name,count(*) n,round(sum(dur)/1e6,3) host_ms FROM thread_slice WHERE category='cpu_op' AND (name GLOB '*gdn*' OR name GLOB '*GatedDelta*') GROUP BY name;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"host_ms\": 26.242,\n    \"n\": 54,\n    \"name\": \"ChunkGatedDeltaRuleFunction\"\n  },\n  {\n    \"host_ms\": 17.255,\n    \"n\": 18,\n    \"name\": \"ChunkGatedDeltaRuleFunctionBackward\"\n  },\n  {\n    \"host_ms\": 17.631,\n    \"n\": 18,\n    \"name\": \"autograd::engine::evaluate_function: ChunkGatedDeltaRuleFunctionBackward\"\n  },\n  {\n    \"host_ms\": 19.653,\n    \"n\": 36,\n    \"name\": \"torchtitan::gdn_chunk\"\n  },\n  {\n    \"host_ms\": 0.988,\n    \"n\": 54,\n    \"name\": \"triton_poi_fused__unsafe_view_clone_gdn_chunk_sigmoid_split_with_sizes_view_1\"\n  },\n  {\n    \"host_ms\": 0.581,\n    \"n\": 54,\n    \"name\": \"triton_poi_fused__unsafe_view_clone_gdn_chunk_sigmoid_split_with_sizes_view_2\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "rs_exposure_groups",
+      "sql": "WITH rs AS(\nSELECT d.*, (SELECT a.name FROM ancestor_slice(d.host_id) a WHERE a.name GLOB 'GFSDP::post_backward_reduce*' LIMIT 1) rs_owner FROM cand_link d WHERE d.name GLOB '*ReduceScatter*')\nSELECT rs_owner,count(*) n,round(sum(dur)/1e6,3) sum_ms,\nround(sum((SELECT coalesce(sum(MIN(d.ts+d.dur,g.e)-MAX(d.ts,g.b)),0) FROM cand_main_idle g WHERE d.ts<g.e AND d.ts+d.dur>g.b))/1e6,3) overlaps_main_idle_ms\nFROM rs d GROUP BY rs_owner ORDER BY overlaps_main_idle_ms DESC;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 15.643,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (tok_embeddings)\",\n    \"sum_ms\": 15.643\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 11.559,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (mtp.layers.0)\",\n    \"sum_ms\": 15.033\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 6.643,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (layers.0)\",\n    \"sum_ms\": 8.908\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.618,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (lm_head)\",\n    \"sum_ms\": 26.098\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.397,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (layers.7[fsdp])\",\n    \"sum_ms\": 9.727\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.331,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (layers.6[fsdp])\",\n    \"sum_ms\": 9.052\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.258,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (layers.4[fsdp])\",\n    \"sum_ms\": 8.573\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.25,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (layers.5[fsdp])\",\n    \"sum_ms\": 7.421\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.169,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (layers.3[fsdp])\",\n    \"sum_ms\": 5.633\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.152,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (layers.1[fsdp])\",\n    \"sum_ms\": 4.515\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.066,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (layers.2[fsdp])\",\n    \"sum_ms\": 2.943\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.018,\n    \"rs_owner\": \"GFSDP::post_backward_reduce (norm)\",\n    \"sum_ms\": 0.233\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "gdn_forward_replay_cost",
+      "sql": "WITH fw AS(\nSELECT d.id,d.dur,\nCASE WHEN EXISTS(SELECT 1 FROM ancestor_slice(d.host_id) a WHERE a.name='torchtitan::gdn_chunk') THEN 'gdn_custom_forward_including_SAC'\nELSE 'gdn_VJP_extra_forward' END replay_role\nFROM cand_link d WHERE d.category='kernel'\nAND EXISTS(SELECT 1 FROM ancestor_slice(d.host_id) a WHERE a.name='ChunkGatedDeltaRuleFunction'))\nSELECT replay_role,count(*) n,round(sum(dur)/1e6,3) kernels_ms FROM fw GROUP BY replay_role;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"kernels_ms\": 8.868,\n    \"n\": 108,\n    \"replay_role\": \"gdn_VJP_extra_forward\"\n  },\n  {\n    \"kernels_ms\": 21.376,\n    \"n\": 216,\n    \"replay_role\": \"gdn_custom_forward_including_SAC\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "gdn_internal_recompute",
+      "sql": "SELECT d.name,count(*) n,round(sum(d.dur)/1e6,3) kernels_ms\nFROM cand_link d WHERE d.category='kernel' AND EXISTS(SELECT 1 FROM ancestor_slice(d.host_id) a WHERE a.name='ChunkGatedDeltaRuleFunctionBackward') GROUP BY d.name ORDER BY sum(d.dur) DESC LIMIT 12;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"kernels_ms\": 8.75,\n    \"n\": 18,\n    \"name\": \"kernel_kernel\"\n  },\n  {\n    \"kernels_ms\": 4.967,\n    \"n\": 18,\n    \"name\": \"prepare_wy_repr_bwd_kernel\"\n  },\n  {\n    \"kernels_ms\": 4.307,\n    \"n\": 72,\n    \"name\": \"void at::native::reduce_kernel<128, 4, at::native::ReduceOp<c10::BFloat16, at::native::func_wrapper_t<c10::BFloat16, at::native::sum_functor<c10::BFloat16, float, c10::BFloat16>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, c10::BFloat16, 4, 8> >(at::native::ReduceOp<c10::BFloat16, at::native::func_wrapper_t<c10::BFloat16, at::native::sum_functor<c10::BFloat16, float, c10::BFloat16>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, c10::BFloat16, 4, 8>)\"\n  },\n  {\n    \"kernels_ms\": 4.095,\n    \"n\": 18,\n    \"name\": \"chunk_gated_delta_rule_bwd_kernel_dhu_blockdim64\"\n  },\n  {\n    \"kernels_ms\": 2.337,\n    \"n\": 18,\n    \"name\": \"chunk_gated_delta_rule_fwd_kernel_h_blockdim64\"\n  },\n  {\n    \"kernels_ms\": 1.726,\n    \"n\": 18,\n    \"name\": \"recompute_w_u_fwd_kernel\"\n  },\n  {\n    \"kernels_ms\": 1.335,\n    \"n\": 18,\n    \"name\": \"chunk_bwd_kernel_dv_local\"\n  },\n  {\n    \"kernels_ms\": 0.554,\n    \"n\": 18,\n    \"name\": \"void at::native::vectorized_elementwise_kernel<8, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul>, false>(int, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul>)\"\n  },\n  {\n    \"kernels_ms\": 0.195,\n    \"n\": 36,\n    \"name\": \"void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)\"\n  },\n  {\n    \"kernels_ms\": 0.146,\n    \"n\": 18,\n    \"name\": \"gdn_gate_bwd_kernel\"\n  },\n  {\n    \"kernels_ms\": 0.132,\n    \"n\": 18,\n    \"name\": \"chunk_local_cumsum_scalar_kernel\"\n  },\n  {\n    \"kernels_ms\": 0.055,\n    \"n\": 18,\n    \"name\": \"void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "moe_group_counts",
+      "sql": "SELECT EXTRACT_ARG(arg_set_id,'args.In msg nelems') elements,EXTRACT_ARG(arg_set_id,'args.dtype') dtype,EXTRACT_ARG(arg_set_id,'args.Group size') ranks,count(*) n,round(sum(dur)/1e6,3) ms FROM cand_dev WHERE name GLOB '*AllReduce*' GROUP BY elements,dtype,ranks;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"dtype\": \"Long\",\n    \"elements\": 1,\n    \"ms\": 0.007,\n    \"n\": 1,\n    \"ranks\": 8\n  },\n  {\n    \"dtype\": \"Long\",\n    \"elements\": 128,\n    \"ms\": 15.689,\n    \"n\": 39,\n    \"ranks\": 8\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "capacity_no_drop",
+      "sql": "SELECT a.name,count(DISTINCT a.id) n FROM thread_slice c JOIN descendant_slice(c.id) a WHERE c.name='torchtitan::conditional_capacity_mask' AND a.name IN ('aten::clone','aten::argsort','aten::sort') GROUP BY a.name;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"n\": 42,\n    \"name\": \"aten::clone\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "label": "gfsdp_weightpreparation_owner",
+      "sql": "WITH prep AS(\nSELECT d.*,(SELECT a.name FROM ancestor_slice(d.host_id) a WHERE a.name GLOB 'GFSDP::all_gather*' LIMIT 1) prep_owner FROM cand_link d WHERE d.stream=24 AND d.category IN ('kernel','gpu_memcpy') AND d.name NOT GLOB '*nccl*')\nSELECT prep_owner,count(*) n,round(sum(dur)/1e6,3) sum_ms,round(sum((SELECT coalesce(sum(MIN(d.ts+d.dur,g.e)-MAX(d.ts,g.b)),0) FROM cand_main_idle g WHERE d.ts<g.e AND d.ts+d.dur>g.b))/1e6,3) overlaps_main_idle_ms FROM prep d GROUP BY prep_owner ORDER BY sum(dur) DESC LIMIT 12;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"n\": 45,\n    \"overlaps_main_idle_ms\": 13.492,\n    \"prep_owner\": null,\n    \"sum_ms\": 25.217\n  },\n  {\n    \"n\": 9,\n    \"overlaps_main_idle_ms\": 2.207,\n    \"prep_owner\": \"GFSDP::all_gather (layers.4[efsdp])\",\n    \"sum_ms\": 4.301\n  },\n  {\n    \"n\": 9,\n    \"overlaps_main_idle_ms\": 2.795,\n    \"prep_owner\": \"GFSDP::all_gather (layers.6[efsdp])\",\n    \"sum_ms\": 4.231\n  },\n  {\n    \"n\": 9,\n    \"overlaps_main_idle_ms\": 2.462,\n    \"prep_owner\": \"GFSDP::all_gather (layers.1[efsdp])\",\n    \"sum_ms\": 4.184\n  },\n  {\n    \"n\": 9,\n    \"overlaps_main_idle_ms\": 2.192,\n    \"prep_owner\": \"GFSDP::all_gather (layers.2[efsdp])\",\n    \"sum_ms\": 4.18\n  },\n  {\n    \"n\": 9,\n    \"overlaps_main_idle_ms\": 2.554,\n    \"prep_owner\": \"GFSDP::all_gather (layers.3[efsdp])\",\n    \"sum_ms\": 4.167\n  },\n  {\n    \"n\": 9,\n    \"overlaps_main_idle_ms\": 2.896,\n    \"prep_owner\": \"GFSDP::all_gather (layers.7[efsdp])\",\n    \"sum_ms\": 4.152\n  },\n  {\n    \"n\": 9,\n    \"overlaps_main_idle_ms\": 2.892,\n    \"prep_owner\": \"GFSDP::all_gather (layers.5[efsdp])\",\n    \"sum_ms\": 4.141\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.4,\n    \"prep_owner\": \"GFSDP::all_gather (tok_embeddings)\",\n    \"sum_ms\": 0.4\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.375,\n    \"prep_owner\": \"GFSDP::all_gather (lm_head)\",\n    \"sum_ms\": 0.389\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.109,\n    \"prep_owner\": \"GFSDP::all_gather (mtp.layers.0)\",\n    \"sum_ms\": 0.181\n  },\n  {\n    \"n\": 3,\n    \"overlaps_main_idle_ms\": 0.0,\n    \"prep_owner\": \"GFSDP::all_gather (layers.0)\",\n    \"sum_ms\": 0.163\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "expanded_sota_screening": {
+    "date": "2026-11-14",
+    "survey_window": {
+      "start": "2025-11-14",
+      "end": "2026-11-14",
+      "older_predecessors_included": true
+    },
+    "scope": {
+      "type": "Read-only research and source screening",
+      "gpu_or_training_changes": false,
+      "measurement_context": "The trace context is rank 0, first three microbatches of the original V2 baseline. It is not a post-GFSDP trace or an optimizer interval; it does not establish all-rank skew."
+    },
+    "coverage": [
+      {
+        "area": "Frontier model and pretraining reports",
+        "items": [
+          {
+            "name": "DeepSeek V4",
+            "source": "https://arxiv.org/html/2606.19348v1"
+          },
+          {
+            "name": "DeepSeek V4.1",
+            "source": "https://arxiv.org/html/2609.19969v1"
+          },
+          {
+            "name": "Kimi K3",
+            "source": "https://arxiv.org/html/2607.24653v1"
+          },
+          {
+            "name": "GLM 5",
+            "source": "https://arxiv.org/html/2602.15763v1"
+          },
+          {
+            "name": "Qwen 3.8 Next",
+            "source": "https://arxiv.org/html/2608.30320v1"
+          },
+          {
+            "name": "MiniMax-01 (older predecessor)",
+            "source": "https://arxiv.org/html/2501.08313v1"
+          },
+          {
+            "name": "MiniMax M2 series",
+            "source": "https://arxiv.org/html/2605.26494v2"
+          },
+          {
+            "name": "Nemotron Nano 2",
+            "source": "https://arxiv.org/abs/2508.14444"
+          },
+          {
+            "name": "Nemotron 3 Super/Ultra and 3.5 reports",
+            "assessment": "Architecture, precision, and distillation were assessed as research context; these reports do not establish a drop-in implementation."
+          },
+          {
+            "name": "MAI Base 2",
+            "sources": [
+              "https://microsoft.ai/news/frontier-pre-training-at-microsoft-ai/",
+              "https://microsoft.ai/pdf/mai-thinking-1.pdf"
+            ]
+          },
+          {
+            "name": "MiMo V2.6",
+            "source": "https://arxiv.org/html/2610.11959v1"
+          },
+          {
+            "name": "Ling/Ring 2.6",
+            "source": "https://arxiv.org/html/2606.15079v1"
+          },
+          {
+            "name": "LongCat 2.0",
+            "source": "https://tech.meituan.com/2026/06/30/LongCat2.0.html"
+          },
+          {
+            "name": "ERNIE 5",
+            "source": "https://arxiv.org/html/2602.04705v1"
+          },
+          {
+            "name": "Hunyuan A13B",
+            "source": "https://arxiv.org/html/2609.27284v1"
+          }
+        ]
+      },
+      {
+        "area": "MoE systems, kernels, and balancing research",
+        "items": [
+          {
+            "name": "ByteDance MegaScale-MoE",
+            "source": "https://chaojin0310.github.io/files/papers/EuroSys26-MegaScale-MoE.pdf"
+          },
+          {
+            "name": "SonicMoE",
+            "source": "https://arxiv.org/html/2512.14080"
+          },
+          {
+            "name": "FP8FlowMoE",
+            "source": "https://arxiv.org/html/2511.02302"
+          },
+          {
+            "name": "ReWY",
+            "source": "https://arxiv.org/abs/2611.01940"
+          },
+          {
+            "name": "FUSCO",
+            "source": "https://arxiv.org/html/2512.22036v1"
+          },
+          {
+            "name": "FEPLB",
+            "source": "https://arxiv.org/html/2604.19654v1"
+          },
+          {
+            "name": "Expert Coupling",
+            "source": "https://arxiv.org/html/2610.09372v1"
+          },
+          {
+            "name": "PlaceMoE",
+            "source": "https://arxiv.org/html/2610.14798v1"
+          }
+        ]
+      }
+    ],
+    "mechanism_groups_screened": [
+      "Intra-layer MoE pipeline",
+      "Distribution-aware grouped-GEMM scheduling",
+      "Backward dispatch, recomputation, and combine-dW overlap",
+      "FlashQLA",
+      "Dynamic replica balancing",
+      "Expert co-selection placement",
+      "GPU-resident metadata and graphs",
+      "Producer quantization fusion",
+      "Native FP8 parameter gather, with a numerical gate",
+      "FP8 weight cache (previously known)"
+    ],
+    "implementation_pins_and_contracts": [
+      {
+        "project": "FlashQLA",
+        "pin": "a14dbf3474514e1674526431e960325f72081e9f",
+        "pin_date_as_supplied": "Oct 30",
+        "contract": "SM90 forward/backward; BF16/FP16; FP32 states; K/V=128. GVA is structurally compatible with our K=16,V=32 dimensions. auto_cp=False is gated because CP warmup uses a -10 decay threshold. Compilation, SAC, and numerical behavior are untested."
+      },
+      {
+        "project": "MoonEP",
+        "pin": "d86fda40329de4002e0cade6817df7b4b5512ee5",
+        "pin_date_as_supplied": "Oct 12",
+        "contract": "BF16 training with dynamic redundancy on H20 EP8. H100 FP8 is untested. Zero-copy lifetime constraints apply."
+      },
+      {
+        "project": "SonicMoE",
+        "pin": "7396f3e604827d8186c2e16e64b28ee33d3defd0",
+        "pin_date_as_supplied": "Aug 17",
+        "contract": "H100 BF16 training. FP8 EP is not established. Token rounding changes router behavior and is excluded."
+      },
+      {
+        "project": "MegaMoE DeepGEMM",
+        "pin": "5081f8513af57e61696de4f4f04b0e707ffb503e",
+        "pin_date_as_supplied": "Oct 20",
+        "contract": "SM100 forward only; FP8xFP8 or FP8xFP4. H100 training is not established."
+      },
+      {
+        "project": "FlashComm ByteDance TritonDistributed",
+        "pin": "7908e4ea9010bb2238f9f05b28c904fd4b71c60a",
+        "pin_date_as_supplied": "Sep 18",
+        "contract": "Fused SM90 dispatch GEMM/GEMM combine, BF16/FP16 only. Full training integration is not established."
+      },
+      {
+        "project": "FLUX",
+        "pin": "19831ca2d820e3e782ed1d15d8b52d0898b78b26",
+        "pin_date_as_supplied": "Aug 28, 2025"
+      },
+      {
+        "project": "Transformer Engine",
+        "version": "2.21.0",
+        "pin": "7457e47d26d9d02dfb783007335dfbe75e1b90a8",
+        "pin_date_as_supplied": "Nov 10",
+        "contract": "Fused MLP is SM100-only. Hopper device-offset GEMM requires cuBLASLt 13.4 for BF16, 13.5 for current FP8, and 13.6 for FP8 block-128 alignment; our environment was not verified against these requirements."
+      },
+      {
+        "project": "linghe",
+        "pin": "adaa17798a84ff6ff353ca8f713d7a06b1093638",
+        "pin_date_as_supplied": "Apr 28",
+        "contract": "H800 training with normalization and quantization mechanisms; scale-recipe compatibility is unknown."
+      },
+      {
+        "project": "FUSCO",
+        "pin": "dd3f46113c1cf40dbebd426f2f3557e31a16b7fe",
+        "pin_date_as_supplied": "Mar 7",
+        "contract": "CUDA runtime source is absent; libfusco.so is required; float8 is rejected; weighted-combine probability-gradient wrapper gap remains."
+      },
+      {
+        "project": "ReWY",
+        "pin": "40777dca852a9bb943d3eed9a0ce4188eff46d38",
+        "contract": "Equal-head API is incompatible with our 16/32 head dimensions; distributed compilation is unvalidated."
+      },
+      {
+        "project": "MAI Base 2, FEPLB, Expert Coupling, and PlaceMoE",
+        "contract": "No official implementation pin was established for these references."
+      }
+    ],
+    "new_trace_anchors": {
+      "trace_context": "Existing original-baseline V2 rank-0 capture, first three microbatches; no optimizer interval, post-GFSDP trace, or all-rank skew evidence.",
+      "perfetto_sql": "SELECT name,count(*) n,round(sum(dur)/1e6,3) ms FROM cand_link WHERE category='kernel' AND (lower(name) GLOB '*delta*' OR lower(name) GLOB '*wy*' OR lower(name) GLOB '*conv1d*' OR lower(name) GLOB '*swiglu*' OR lower(name) GLOB '*quant*' OR lower(name) GLOB '*transpose*') GROUP BY name ORDER BY sum(dur) DESC LIMIT 40;",
+      "observed_kernel_rows": [
+        {
+          "anchor": "qkv_conv1d_unpack",
+          "kernels": 54,
+          "ms": 17.013
+        },
+        {
+          "anchor": "requantize_grouped",
+          "kernels": 84,
+          "ms": 14.861
+        },
+        {
+          "anchor": "swiglu_quant_forward",
+          "kernels": 42,
+          "ms": 9.229
+        },
+        {
+          "anchor": "swiglu_quant_backward",
+          "kernels": 21,
+          "ms": 7.569
+        },
+        {
+          "anchor": "scaling_aware_transpose",
+          "kernels": 243,
+          "ms": 7.241
+        },
+        {
+          "anchor": "quantize_vec128",
+          "kernels": 234,
+          "ms": 9.846
+        },
+        {
+          "anchor": "causal_conv_forward",
+          "kernels": 18,
+          "ms": 1.701
+        },
+        {
+          "anchor": "causal_conv_backward",
+          "kernels": 18,
+          "ms": 6.397
+        }
+      ],
+      "gdn_context": {
+        "forward_kernels_ms": 30.245,
+        "backward_kernels_ms": 28.734,
+        "forward_plus_backward_kernels_ms": 58.979,
+        "extra_vjp_forward_kernels_ms": 8.868,
+        "extra_vjp_is_already_inside_forward_total": true,
+        "interpretation": "Do not add the extra VJP amount again to the forward-plus-backward total."
+      },
+      "interpretation_limit": "These are trace anchors, not demonstrated removable delay or speedups. Kernel and stream costs may overlap."
+    },
+    "local_task_head_context": {
+      "head": "657e77a4f8ddb116b75925e5671b00642a0e4d32",
+      "source_findings": [
+        "Router-gradient expert-output save is already avoided: gmm.py computes probability inside SwiGLU; fused_swiglu_quantization has grad_probs.",
+        "Shared-expert asynchronous combine overlap is already implemented.",
+        "Scaling-aware transpose and SwiGLU quantization are already active.",
+        "HybridEP already has a fuse_permute option."
+      ],
+      "prior_fusion_experiments": "Four earlier fusion experiments were measured; none was accepted or enabled. Their results and artifacts remain preserved in the existing four-fusion report.",
+      "identity_limit": "The current task checkout is not proof of identical V2 execution."
+    },
+    "limitations": [
+      "Architecture changes such as LatentMoE and TST, sparse-attention or activation changes, Muon, FP4/FP8 head changes, and quantization-recipe changes are not drop-in candidates.",
+      "No source, GPU, installation, training, benchmark, or commit changes were made for this screening record.",
+      "Reported trace sums and anchors overlap; do not combine them into predicted speedups.",
+      "Compatibility claims remain bounded by each stated pin, hardware, precision, and validation gap; untested compilation, SAC, numerical, distributed, and environment behavior remains unverified where listed."
+    ]
+  }
+}

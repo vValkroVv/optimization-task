@@ -1,0 +1,86 @@
+{
+  "scope": "Read-only research of kernel and transport components for indexed input embedding gradients. No source edits, installs, GPU execution or measured speedup.",
+  "repositories": [
+    {
+      "name": "NVIDIA/cuEmbed",
+      "revision": "792db47311f4556bda205da2e9c7a00df5bbcf5b",
+      "inspected": [
+        "README.md",
+        "cuembed/README.md",
+        "cuembed/include/embedding_lookup.cuh",
+        "examples/pytorch/cuembed_pyt.py"
+      ],
+      "findings": [
+        "Compressed EmbeddingBackward produces unique-row gradients and inverse mapping.",
+        "Current support matrix specifies FP32/FP16 and a single GPU; BF16 and multiple devices are future work.",
+        "PyTorch example returns dense gradients despite kernel compressed-output capability. Fake registrations exist."
+      ],
+      "hopper_evidence": {
+        "url": "https://developer.nvidia.com/blog/accelerating-embedding-lookups-with-cuembed/",
+        "hardware": "H100 SXM",
+        "workload": "Forward embedding-bag sum,10M categories,widths32/64/128,hotness64; not distributed backward and not our D4096.",
+        "use": "Hardware and kernel reference only; cannot estimate the5.2ms tail."
+      }
+    },
+    {
+      "name": "deepseek-ai/DeepEP",
+      "revision": "f6aa38fe06cd4a0489e7730365d4e0114970a2f3",
+      "inspected": [
+        "README.md",
+        "deep_ep/buffers/engram.py"
+      ],
+      "findings": [
+        "EngramBuffer has write and fetch with per-layer wait hooks for GPU/CPU BF16/FP8 remote data.",
+        "No backward gradient push/reduce API in inspected EngramBuffer.",
+        "Experimental current feature requires CUDA13.1+ and Hopper+; recorded training baseline CUDA13.0 and earlier DeepEP1.2.1."
+      ]
+    },
+    {
+      "name": "deepseek-ai/Engram",
+      "revision": "fb7f84a21f91223715394a33a1dc24bbfb7f788e",
+      "inspected": [
+        "README.md"
+      ],
+      "findings": [
+        "Official released code is a demonstration mocking ordinary components; not an integrated distributed training implementation."
+      ]
+    }
+  ],
+  "shape_bounds": {
+    "vocabulary": 128256,
+    "hidden": 4096,
+    "tokens_per_rank": 8192,
+    "ranks": 8,
+    "dense_fp32_input_mib": 2004,
+    "dense_ring_reduce_scatter_sent_mib": 1753.5,
+    "indexed_fp32_rows_upper_mib": 128,
+    "indexed_fp32_balanced_remote_sent_upper_mib": 112,
+    "indexed_bf16_rows_upper_mib": 64,
+    "indexed_bf16_balanced_remote_sent_upper_mib": 56,
+    "int64_row_ids_upper_bytes": 65536,
+    "limits": "Balanced row ownership is an assumption. Unique row counts, skew, padding, pack/unpack and protocol overhead are unmeasured. Dense input is not wire traffic. Sparse all-gather has different cost than owner-directed exchange. BF16 transport is lossless only after native local BF16 duplicate coalescing; widen before FP32 owner SUM and FP32 accumulation."
+  },
+  "torchrec_fbgemm": {
+    "torchrec_revision": "16c16e982bde3eb48a8d8505305c70019cb362ec",
+    "fbgemm_revision": "81de8c84ee278ca16a65d3f8ae0618573a0280d8",
+    "pattern": "RwSequenceEmbeddingSharding with row-owner input routing and inverse autograd SequenceEmbeddingsAllToAll. DENSE selects BatchedDenseEmbedding backed by DenseTableBatchedEmbeddingBagsCodegen, not plain nn.Embedding.",
+    "blockers": [
+      "Generated CUDA backward max_embedding_dim=2048 and checked for DENSE/FUSED non-index-select paths. Our D4096 exceeds it.",
+      "Inspected weight/cache dispatcher accepts Float/Half/FP8 weights but not BF16 weights; BF16 output/gradient support is separate.",
+      "FP32 external dense AdamW, microbatch accumulation, scaling, EMA and GFSDP ownership need integration."
+    ],
+    "references": [
+      "https://github.com/meta-pytorch/torchrec/blob/16c16e982bde3eb48a8d8505305c70019cb362ec/torchrec/distributed/sharding/rw_sequence_sharding.py#L121",
+      "https://github.com/meta-pytorch/torchrec/blob/16c16e982bde3eb48a8d8505305c70019cb362ec/torchrec/distributed/batched_embedding_kernel.py#L3438",
+      "https://github.com/pytorch/FBGEMM/blob/81de8c84ee278ca16a65d3f8ae0618573a0280d8/fbgemm_gpu/codegen/training/backward/embedding_backward_split_template.cu#L811",
+      "https://github.com/pytorch/FBGEMM/blob/81de8c84ee278ca16a65d3f8ae0618573a0280d8/fbgemm_gpu/include/fbgemm_gpu/utils/dispatch_macros.h#L39"
+    ],
+    "hopper_benchmark": {
+      "url": "https://github.com/NVIDIA/recsys-examples/blob/85e628db7a6ac4d5f5f070d1e2d15d51eead0534/corelib/dynamicemb/benchmark/README.md",
+      "conditions": "8H100,NVSwitch,DLRM26features,globalbatch65536,staticTorchRec tables.",
+      "dedup_ms": 14.88,
+      "no_dedup_ms": 23.99,
+      "limitation": "Not our single D4096 table or gradient-tail-only benchmark. No transfer of this ratio to our throughput."
+    }
+  }
+}

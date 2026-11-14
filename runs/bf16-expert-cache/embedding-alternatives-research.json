@@ -1,0 +1,107 @@
+{
+  "date": "2026-11-14",
+  "scope": "Read-only official-source survey beyond TorchRec; no installation, GPU run, or training-source edits.",
+  "verdict": "No inspected implementation is a drop-in preserving the requested GFSDP BF16-weight/FP32-gradient contract. NeMo Automodel owner sharding is the strongest reusable maintained implementation.",
+  "ranked": [
+    {
+      "rank": 1,
+      "candidate": "NVIDIA-NeMo/Automodel owner-sharded embedding",
+      "revision": "3ea1de8d0aa902c3329b585d194c2e5274a85f3f",
+      "source": "https://github.com/NVIDIA-NeMo/Automodel/blob/3ea1de8d0aa902c3329b585d194c2e5274a85f3f/nemo_automodel/components/models/qwen3_8_flash_next/engram.py",
+      "api": "Qwen3_8_FlashNextEngramTableConfig(num_embeddings, embedding_dim).build(process_group, device, dtype); table.parallelize_weight(one-dimensional same-order owner DeviceMesh); table(global_ids)",
+      "generic_fit": "Arbitrary global IDs with shape [...] return [..., embedding_dim]. No n-gram hashing is required by the owner-sharded table. Requested 128256 rows divide evenly over 8 owners.",
+      "source_lines": {
+        "config_and_generic_API": "308-401",
+        "local_weight_dtype_allocation": "443-449",
+        "DTensor_identity_and_owner_divisor": "454-558",
+        "dense_owner_F_embedding_and_value_return": "951-1007",
+        "reverse_autograd_all_to_all": "210-284",
+        "capacity_mode": "615-643"
+      },
+      "FSDP_seam": {
+        "source": "https://github.com/NVIDIA-NeMo/Automodel/blob/3ea1de8d0aa902c3329b585d194c2e5274a85f3f/nemo_automodel/components/moe/parallelizer.py",
+        "lines": "992-1018 prepare final DTensor identities and select model-owned params; 1121-1138 exclude at block wrappers; 1238-1244 exclude at root wrappers",
+        "gradient_scaling": "components/training/utils.py:754-756 divides model-owned gradient by owner-group size once before clipping"
+      },
+      "precision_gap": "Baseline persistent original/master owner shards are FP32; gathered compute weights and source-rank duplicate-coalesced dense embedding gradients are BF16, then cross-rank reduction and microbatch accumulation are FP32. Automodel BF16 owner parameters use ordinary BF16 parameter gradients and would demote persistent owner storage/accumulation relative to baseline. Selecting FP32 owner storage matches the baseline persistent master dtype, but ordinary FP32 F.embedding changes compute/output dtype and owner-side duplicate coalescing compared with the baseline per-source BF16 coalescing boundary. Merely casting lookup output to BF16 does not establish backward parity. Ignored parameters do not inherit FSDP FP32 reduction/accumulation. Adaptation is required.",
+      "compile_and_SAC": "Exact-count mode reads count metadata to host. Default strict_validation documents about twenty device-host synchronizations and seven small collectives per lookup; disabling strict validation retains one count-matrix read. Opt-in capacity_mode calibrates once at max first-lookup count times 1.25 then rejects overflow. Official Qwen model guide keeps owner-collective block eager and outside activation checkpoint recomputation; no fullgraph compile/SAC readiness established.",
+      "tests": {
+        "source": "https://github.com/NVIDIA-NeMo/Automodel/blob/3ea1de8d0aa902c3329b585d194c2e5274a85f3f/tests/unit_tests/models/qwen3_8_flash_next/test_engram.py",
+        "lines": "320-340 exact local FP32 F.embedding values/gradients; 343-409 two-rank CPU/gloo distributed values, summed gradients, and one SGD update, including duplicate rows and empty requester",
+        "limitations": "Inspected test is SGD, not AdamW; no BF16-owner/FP32-grad or current workload parity established. Tests were read, not executed. Separate owner-divisor/global-norm CPU tests exist in test_engram_training_utils.py:54-94."
+      },
+      "Hopper_evidence": {
+        "pinned_guide": "https://github.com/NVIDIA-NeMo/Automodel/blob/3ea1de8d0aa902c3329b585d194c2e5274a85f3f/docs/model-coverage/llm/qwen/qwen3-8-flash-next.mdx",
+        "qwen_lines": "44-69: 64/128 row owners, 8 nodes/64 H100 baseline, 100 steps, finite training/validation and full distributed checkpoint; 164-177: owner block not checkpointed, MTP unsupported",
+        "deepseek_official": "https://docs.nvidia.com/nemo/automodel/nightly/model-coverage/large-language-models/deepseek-ai/DeepSeek-V4.1-Flash",
+        "deepseek_pinned_guide": "https://github.com/NVIDIA-NeMo/Automodel/blob/3ea1de8d0aa902c3329b585d194c2e5274a85f3f/docs/model-coverage/llm/deepseek-ai/deepseek-v41-flash.mdx",
+        "deepseek_conditions": "Guide lines 148-192 identifies 100-update H100 validation at e2c47c5b with torch 2.13/NCCL 2.30.5 and owner128/owner64 configurations, BF16 gradients/moments and no or little accumulation, specific network-plugin/PXN workarounds. This is actual owner-path validation, not only build support; it is not a benchmark of [128256,4096], DP8, acc32, GFSDP, EMA or MTP1."
+      },
+      "occurrence_routing_detail": {
+        "source_lines": "engram.py:963-1007,258-305",
+        "deduplication": "None. Stable sort groups every token occurrence by owner. Both forward values and reverse gradients are per occurrence. Owner F.embedding backward coalesces duplicates after reverse all-to-all.",
+        "metadata": "AllGather P int64 counts into P-by-P count matrix. Exact-count path reads matrix to host; payload still uses equal-split global-maximum padding. Capacity mode calibrates first maximum times1.25 aligned64 and asserts overflow later.",
+        "performance_risk": "With raw language token IDs, balanced request distribution is not established. One hot requester-owner pair increases every padded segment. Deduplication and a workload-safe count/capacity schedule need consideration; first-batch capacity is not a general bound."
+      }
+    },
+    {
+      "rank": 2,
+      "candidate": "DeepSpeed native sparse-gradient all-gather",
+      "revision": "892ed83e417df01d9d4f21f559a0b88183cf5e4c",
+      "source": "https://github.com/deepspeedai/DeepSpeed/blob/892ed83e417df01d9d4f21f559a0b88183cf5e4c/deepspeed/runtime/engine.py",
+      "facts": "Native sparse=True embedding gradients enter SparseTensor and sparse_allreduce gathers row indices and values with padded all_gather, then returns COO gradients. Current config.py explicitly rejects removed sparse_gradients flag (dense-gradient compression removed). engine.py:3144-3168 routes ZeRO>=2 through partition epilogue and ZeRO1 through optimizer.reduce_gradients rather than sparse fallback. Sparse engine gather is not a ready ZeRO/GFSDP row reduce-scatter replacement, and AdamW sparse-gradient handling needs densification/custom optimizer seam.",
+      "Hopper": "No matching Hopper embedding-gradient benchmark identified."
+    },
+    {
+      "rank": 3,
+      "candidate": "HugeCTR / Sparse Operation Kit",
+      "revision": "61b4d539aa7044e9021896f0485be1a6697f4f44",
+      "source": "https://github.com/NVIDIA-Merlin/HugeCTR/tree/61b4d539aa7044e9021896f0485be1a6697f4f44/sparse_operation_kit",
+      "facts": "Maintained recommendation framework and TensorFlow custom-op embedding integration, not a maintained PyTorch/GFSDP input embedding replacement. SOK optimizer dump/load documentation explicitly says Adam behaves as LazyAdam, not TensorFlow Adam. HugeCTR Global update exists and updates all rows, so it should not be mischaracterized as all sparse-only updates; still no ready dense AdamW/EMA/GFSDP integration.",
+      "refs": [
+        "https://nvidia-merlin.github.io/HugeCTR/sparse_operation_kit/sok_v2.0.0/api/utils.html",
+        "https://nvidia-merlin.github.io/HugeCTR/main/api/python_interface.html",
+        "https://github.com/NVIDIA-Merlin/HugeCTR/issues/482"
+      ],
+      "Hopper": "H100 examples/build support and HPS inference numbers are not row-gradient training measurements. Official open issue 482 reports obsolete SOK benchmark APIs on H20 Hopper; no matching H100/H200 LLM training benchmark found. HPS and embedding cache, not SOK itself, deprecated since 25.03."
+    }
+  ],
+  "exclusions": [
+    {
+      "candidate": "PyTorch sparse DDP/NCCLX",
+      "pytorch_revision": "e63b330cbcbcc136d3aab1895a183579dbb80dde",
+      "source": "https://github.com/pytorch/pytorch/blob/e63b330cbcbcc136d3aab1895a183579dbb80dde/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp",
+      "facts": "allreduce_sparse is conditional on IS_NCCLX; ordinary NCCL errors. NCCLX allocates dense output. Crucially sparse API is not sparse-wire transport.",
+      "ncclx_revision": "8ecc3488fb132278b406f2abb755f1e8ba8a16e8",
+      "ncclx_source": "https://github.com/meta-pytorch/torchcomms/blob/8ecc3488fb132278b406f2abb755f1e8ba8a16e8/comms/ncclx/meta/collectives/AllReduceSparseBlock.cc#L91",
+      "ncclx_facts": "Lines 91-111 describe memset dense receive buffer, unpack sparse blocks, ordinary dense allreduce. Explicitly warns sparse input causes significant padding data exchange. Meta NCCLX is not an NVIDIA sparse collective product."
+    },
+    {
+      "candidate": "Megatron VocabParallelEmbedding",
+      "revision": "154e7bd2f5117c745ad0a24937a576a7fae5e904",
+      "source": "https://github.com/NVIDIA/Megatron-LM/blob/154e7bd2f5117c745ad0a24937a576a7fae5e904/megatron/core/tensor_parallel/layers.py",
+      "facts": "TP vocabulary mask then local dense embedding and allreduce/reduce-scatter embedding outputs. Assumes aligned TP token requests; distinct DP rank requests need explicit routing. No drop-in row-only DP gradient communication."
+    },
+    {
+      "candidate": "OmniReduce / Pici research collectives",
+      "refs": [
+        "https://github.com/sands-lab/omnireduce",
+        "https://arxiv.org/abs/2607.04676"
+      ],
+      "facts": "OmniReduce exposes research sparse collectives with RDMA/DPDK aggregation infrastructure, not ready maintained GFSDP integration. Pici paper reports adaptive sparse reduce-scatter/allreduce but no inspected maintained LLM integration or matching Hopper workload was established. Do not use paper maximum speedups as prediction."
+    },
+    {
+      "candidate": "NVIDIA recsys-examples DynamicEmb",
+      "revision": "85e628db7a6ac4d5f5f070d1e2d15d51eead0534",
+      "source": "https://github.com/NVIDIA/recsys-examples/tree/85e628db7a6ac4d5f5f070d1e2d15d51eead0534/corelib/dynamicemb",
+      "facts": "Newer PyTorch/TorchRec sequence-mode dynamic embedding supports BF16 and row routing, with actual H100 NVSwitch and Eos IB benchmarks. README:230-232 lists separation of backward and optimizer update as future work. APIs:804-807 limits non-rowwise-Adagrad optimizer states to embedding dtype, so BF16 Adam moments differ from FP32 baseline. Fused optimizer path is not an external dense AdamW once-per-acc32 update seam. D4096 support was not established in bounded inspection; benchmark D128 and BF16 256-byte rows cannot establish it.",
+      "refs": [
+        "https://github.com/NVIDIA/recsys-examples/blob/85e628db7a6ac4d5f5f070d1e2d15d51eead0534/corelib/dynamicemb/README.md#L230",
+        "https://github.com/NVIDIA/recsys-examples/blob/85e628db7a6ac4d5f5f070d1e2d15d51eead0534/corelib/dynamicemb/DynamicEmb_APIs.md#L797",
+        "https://github.com/NVIDIA/recsys-examples/blob/85e628db7a6ac4d5f5f070d1e2d15d51eead0534/corelib/dynamicemb/benchmark/README.md#L823"
+      ]
+    }
+  ],
+  "verification": "Official source code and documentation inspected at listed revisions. No benchmarks, installs, test execution, or source edits performed.",
+  "coordinator_reconciliation": "Local contract is the authority for baseline persistent FP32 shards versus BF16 compute replicas. Prefer initial backward-only row exchange selecting already-coalesced native BF16 rows, widening each contribution before owner FP32 SUM, and retaining existing dense local gradients/AdamW/EMA/checkpoint ownership. Reuse Automodel routing/all-to-all concepts, not its numerical/optimizer path unchanged."
+}

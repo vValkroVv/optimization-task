@@ -1,0 +1,158 @@
+{
+  "scope": "First main layer layers.0 (user layer1). Read-only estimate, not measured speedup.",
+  "source_revision": "6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507",
+  "trace_revision": "657e77a4f8ddb116b75925e5671b00642a0e4d32",
+  "trace": "optimization-task/runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/native/profiling/traces/iteration_21/rank0_trace.json",
+  "trace_sha256": "fdcf72769a9ddbad51db80b0bf7663784f7bbf4c72971e3ee8d7925cfc800203",
+  "payload": {
+    "dtype": "FP32 reduction input, not wire bytes",
+    "total_mib": 772.188232421875,
+    "each_ffn_weight_mib": 171,
+    "ffn_total_mib": 513,
+    "residual_mib": 259.188232421875,
+    "ffn_fraction": 0.6643457883203394,
+    "ffn_shape_basis": "D4096 x F10944 per matrix; 3 x 44826624 elements. Total native input202424512 elements."
+  },
+  "model": "Zero-intercept proportional-payload model T_ffn=T_full*513/772.188232421875; T_residual=T_full-T_ffn. Not a bandwidth fit, ignores startup/protocol, split pack and compile costs, contention and all-rank readiness.",
+  "per_microbatch": [
+    {
+      "microbatch": 1,
+      "measured": {
+        "candidate_ffn_wgrad_end_ms": 419.78042,
+        "embedding_local_work_end_ms": 427.4318709373474,
+        "embedding_pack_start_ms": 429.7865037918091,
+        "embedding_rs_ms": 5.198802,
+        "layer_rs_to_embedding_rs_gap_ms": 1.135908,
+        "mb": 1,
+        "prior_stream24_end_ms": 414.8292660713196,
+        "rs_dur_ms": 3.152716,
+        "rs_id": 21806,
+        "rs_start_ms": 426.631356,
+        "trailing_layer_elapsed_ms": 6.399959,
+        "trailing_stream7_busy_ms": 6.194646
+      },
+      "conservative_candidate_boundary_end_ms": 419.845316,
+      "conservative_candidate_trailing_layer_ms": 6.335062999999991,
+      "full_reduction_ms": 3.152716,
+      "stream7_overlap_ms": 0.722211,
+      "no_stream7_ms": 2.430505,
+      "model_ffn_reduction_ms": 2.094493596370147,
+      "model_residual_reduction_ms": 1.0582224036298526,
+      "model_residual_end_ms": 427.6895784036298,
+      "model_tail_saving_if_early_ffn_hidden_ms": 2.094493596370147
+    },
+    {
+      "microbatch": 2,
+      "measured": {
+        "candidate_ffn_wgrad_end_ms": 842.408616,
+        "embedding_local_work_end_ms": 850.0493788719177,
+        "embedding_pack_start_ms": 852.38205909729,
+        "embedding_rs_ms": 5.182387,
+        "layer_rs_to_embedding_rs_gap_ms": 1.238436,
+        "mb": 2,
+        "prior_stream24_end_ms": 836.9996681213379,
+        "rs_dur_ms": 3.029419,
+        "rs_id": 43435,
+        "rs_start_ms": 849.248544,
+        "trailing_layer_elapsed_ms": 6.393303,
+        "trailing_stream7_busy_ms": 6.184411
+      },
+      "conservative_candidate_boundary_end_ms": 842.471848,
+      "conservative_candidate_trailing_layer_ms": 6.330070999999975,
+      "full_reduction_ms": 3.029419,
+      "stream7_overlap_ms": 0.72352,
+      "no_stream7_ms": 2.305899,
+      "model_ffn_reduction_ms": 2.012581753707614,
+      "model_residual_reduction_ms": 1.0168372462923856,
+      "model_residual_end_ms": 850.2653812462925,
+      "model_tail_saving_if_early_ffn_hidden_ms": 2.012581753707614
+    },
+    {
+      "microbatch": 3,
+      "measured": {
+        "candidate_ffn_wgrad_end_ms": 1264.350441,
+        "embedding_local_work_end_ms": 1272.0466918945312,
+        "embedding_pack_start_ms": 1274.1783800125122,
+        "embedding_rs_ms": 5.217619,
+        "layer_rs_to_embedding_rs_gap_ms": 1.239716,
+        "mb": 3,
+        "prior_stream24_end_ms": 1258.9694299697876,
+        "rs_dur_ms": 2.836394,
+        "rs_id": 65073,
+        "rs_start_ms": 1271.238498,
+        "trailing_layer_elapsed_ms": 6.434647,
+        "trailing_stream7_busy_ms": 6.234393
+      },
+      "conservative_candidate_boundary_end_ms": 1264.413897,
+      "conservative_candidate_trailing_layer_ms": 6.371191000000181,
+      "full_reduction_ms": 2.836394,
+      "stream7_overlap_ms": 0.733602,
+      "no_stream7_ms": 2.102792,
+      "model_ffn_reduction_ms": 1.8843464079170806,
+      "model_residual_reduction_ms": 0.9520475920829191,
+      "model_residual_end_ms": 1272.1905455920828,
+      "model_tail_saving_if_early_ffn_hidden_ms": 1.8843464079170806
+    }
+  ],
+  "total_model_tail_saving_ms": 5.991421757994841,
+  "window_ms": 1269.7101171875,
+  "combined_formula": {
+    "definitions": "t_i = native layers.0 RS start; r_i = model residual duration; g_i = native embedding local-gradient end; e_i = complete compact embedding route cost through consumer-ready including pack/exchange/accumulation; p_i = native layer-RS-end to embedding-RS-start gap; b_i = native embedding RS duration.",
+    "baseline_tail_from_layer_rs_start": "B_i = T_full_i + p_i + b_i",
+    "new_tail_if_compact_route_independent": "N_i = max(r_i, g_i - t_i + e_i)",
+    "saving": "B_i - N_i; evaluate max once, then sum perMB only if identical next-MB/optimizer boundaries and collective order remain. Add forward embedding gather removal separately minus full replacement cost; do not add native0.72ms overlap or full layer RS again.",
+    "warning": "If route shares the communication stream or gradient buffer with residual RS, use its actual serialization dependency; independent max is an optimistic model. If new embedding computes earlier than native g_i, replace g_i with its measured readiness. Model FFN reduction must finish before residual, with no slowdown.",
+    "no_route_cost_limit": "For e_i=0 and native g_i, residual is latest for all3MB; under those assumptions layer movement and native embedding pack/RS removal are additive. Positive e_i consumes available slack and may become the maximum."
+  },
+  "source_refs": [
+    "optimization-task/gift/torchtitan/models/common/ffn/__init__.py:104-121",
+    "optimization-task/gift/torchtitan/ops/float8/cuda_gemm.py:201-232",
+    "optimization-task/gift/torchtitan/distributed/gfsdp/_param_group.py:940-947",
+    "optimization-task/gift/torchtitan/distributed/gfsdp/_param_group.py:1064"
+  ],
+  "perfetto_receipts": [
+    {
+      "sql": "WITH bounds(mb,ready_corr,end_corr,rs_corr,emb_corr) AS (VALUES (1,1736834,1738278,1738446,1738846),(2,1791549,1792993,1793161,1793568),(3,1846173,1847617,1847785,1848192)),\nk AS (SELECT id,name,ts,dur,EXTRACT_ARG(arg_set_id,'args.correlation') corr,EXTRACT_ARG(arg_set_id,'args.stream') stream FROM thread_slice WHERE category='kernel')\nSELECT b.mb,r.id rs_id,(r.ts-3762433098211544)/1e6 rs_start_ms,r.dur/1e6 rs_dur_ms,\n(f.ts+f.dur-3762433098211544)/1e6 candidate_ffn_wgrad_end_ms,(l.ts+l.dur-f.ts-f.dur)/1e6 trailing_layer_elapsed_ms,\n(SELECT SUM(z.dur)/1e6 FROM k z WHERE z.stream=7 AND z.ts>=f.ts+f.dur AND z.ts+z.dur<=l.ts+l.dur) trailing_stream7_busy_ms,\n(SELECT MAX(z.ts+z.dur)/1e6-3762433098211544/1e6 FROM k z WHERE z.stream=24 AND z.ts+z.dur<=f.ts+f.dur) prior_stream24_end_ms,\n(SELECT MAX(z.ts+z.dur)/1e6-3762433098211544/1e6 FROM k z WHERE z.stream=7 AND z.ts>=r.ts AND z.ts<r.ts+r.dur) embedding_local_work_end_ms,\n(SELECT MIN(z.ts)/1e6-3762433098211544/1e6 FROM k z WHERE z.stream=7 AND z.ts>=r.ts+r.dur AND z.ts<e.ts) embedding_pack_start_ms,\n(e.ts-r.ts-r.dur)/1e6 layer_rs_to_embedding_rs_gap_ms,\ne.dur/1e6 embedding_rs_ms FROM bounds b JOIN k r ON r.corr=b.rs_corr JOIN k f ON f.corr=b.ready_corr JOIN k l ON l.corr=b.end_corr JOIN k e ON e.corr=b.emb_corr ORDER BY b.mb;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"candidate_ffn_wgrad_end_ms\": 419.78042,\n    \"embedding_local_work_end_ms\": 427.4318709373474,\n    \"embedding_pack_start_ms\": 429.7865037918091,\n    \"embedding_rs_ms\": 5.198802,\n    \"layer_rs_to_embedding_rs_gap_ms\": 1.135908,\n    \"mb\": 1,\n    \"prior_stream24_end_ms\": 414.8292660713196,\n    \"rs_dur_ms\": 3.152716,\n    \"rs_id\": 21806,\n    \"rs_start_ms\": 426.631356,\n    \"trailing_layer_elapsed_ms\": 6.399959,\n    \"trailing_stream7_busy_ms\": 6.194646\n  },\n  {\n    \"candidate_ffn_wgrad_end_ms\": 842.408616,\n    \"embedding_local_work_end_ms\": 850.0493788719177,\n    \"embedding_pack_start_ms\": 852.38205909729,\n    \"embedding_rs_ms\": 5.182387,\n    \"layer_rs_to_embedding_rs_gap_ms\": 1.238436,\n    \"mb\": 2,\n    \"prior_stream24_end_ms\": 836.9996681213379,\n    \"rs_dur_ms\": 3.029419,\n    \"rs_id\": 43435,\n    \"rs_start_ms\": 849.248544,\n    \"trailing_layer_elapsed_ms\": 6.393303,\n    \"trailing_stream7_busy_ms\": 6.184411\n  },\n  {\n    \"candidate_ffn_wgrad_end_ms\": 1264.350441,\n    \"embedding_local_work_end_ms\": 1272.0466918945312,\n    \"embedding_pack_start_ms\": 1274.1783800125122,\n    \"embedding_rs_ms\": 5.217619,\n    \"layer_rs_to_embedding_rs_gap_ms\": 1.239716,\n    \"mb\": 3,\n    \"prior_stream24_end_ms\": 1258.9694299697876,\n    \"rs_dur_ms\": 2.836394,\n    \"rs_id\": 65073,\n    \"rs_start_ms\": 1271.238498,\n    \"trailing_layer_elapsed_ms\": 6.434647,\n    \"trailing_stream7_busy_ms\": 6.234393\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "sql": "WITH b(mb,w2corr,w13corr,wlastcorr,boundcorr,endcorr,rscorr) AS (VALUES (1,1736605,1736751,1736834,1736841,1738278,1738446),(2,1791320,1791466,1791549,1791556,1792993,1793161),(3,1845944,1846090,1846173,1846180,1847617,1847785)), k AS (SELECT id,name,ts,dur,EXTRACT_ARG(arg_set_id,'args.correlation') corr,EXTRACT_ARG(arg_set_id,'args.stream') stream FROM thread_slice WHERE category='kernel')\nSELECT b.mb,w2.id w2_slice,(w2.ts+w2.dur-3762433098211544)/1e6 w2_postclone_end_ms,w13.id one_w1_or_w3_adjacent_slice,(w13.ts+w13.dur-3762433098211544)/1e6 one_w1_or_w3_adjacent_end_ms,wl.id last_wgrad_slice,(wl.ts+wl.dur-3762433098211544)/1e6 last_wgrad_end_ms,bc.id candidate_boundary_slice,(bc.ts+bc.dur-3762433098211544)/1e6 candidate_boundary_end_ms,(le.ts+le.dur-bc.ts-bc.dur)/1e6 boundary_trailing_elapsed_ms,(SELECT SUM(dur)/1e6 FROM k z WHERE z.stream=7 AND z.ts>=bc.ts+bc.dur AND z.ts+z.dur<=le.ts+le.dur) boundary_trailing_kernel_busy_ms,(rs.ts-bc.ts-bc.dur)/1e6 boundary_to_rs_start_ms FROM b JOIN k w2 ON w2.corr=b.w2corr JOIN k w13 ON w13.corr=b.w13corr JOIN k wl ON wl.corr=b.wlastcorr JOIN k bc ON bc.corr=b.boundcorr JOIN k le ON le.corr=b.endcorr JOIN k rs ON rs.corr=b.rscorr ORDER BY b.mb;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Query failed: RPC error: error decoding response body"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "sql": "SELECT id,EXTRACT_ARG(arg_set_id,'args.correlation') correlation,(ts-3762433098211544)/1e6 start_ms,dur/1e6 dur_ms FROM thread_slice WHERE category='kernel' AND EXTRACT_ARG(arg_set_id,'args.correlation') IN (1736841,1791556,1846180) ORDER BY ts;",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Query failed: RPC error: error sending request for url (http://127.0.0.1:9003/query)"
+          }
+        ],
+        "isError": true
+      }
+    }
+  ],
+  "limitations": [
+    "No split module/compile/GFSDP readiness measured; BF16 producers are source-order candidates and w1/w3 identity unresolved.",
+    "Conservative fused add/norm-prep boundary inferred from native receipt; does not prove hook readiness.",
+    "New MCP query2 confirms trace quantities and packing delay. Subsequent queries failed twice with RPC errors; reused complete native evidence for candidate boundary.",
+    "Rank0 update21 only; no controlled runtime or magnitude claim. Extra collectives, packing, allocator lifetime, AC replay and compile boundaries require integrated verification."
+  ],
+  "model_percent_window": 0.4718731997872298
+}

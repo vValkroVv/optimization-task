@@ -1,0 +1,160 @@
+{
+  "status": "Conditional trace-derived opportunity model, not measured speedup; no source/configuration edits or GPU runs.",
+  "trace": "/Users/valerii.kropotin/sber-pretrain/optimization-task/runs/overnight-streaming-perf/artifacts/raw/bf16-cache-trace-001/native/profiling/traces/iteration_21/rank0_trace.json",
+  "trace_sha256": "fdcf72769a9ddbad51db80b0bf7663784f7bbf4c72971e3ee8d7925cfc800203",
+  "scope": "V2 plus BF16 expert cache, update21 rank0, three captured microbatches. First main layer means layers.0. Adopt the 1269.7101171875ms enclosing window from rs-overlap-native.json for comparability. No optimizer or remaining29microbatches measured.",
+  "source_evidence": [
+    "mtp-split-potential.json",
+    "layer0-split-potential.json",
+    "embedding-local-contract.json",
+    "rs-overlap-native.json",
+    "tail-optimization-native.json"
+  ],
+  "per_microbatch": [
+    {
+      "microbatch": 1,
+      "mtp_split_model_ms": 4.297727822082739,
+      "layer0_split_model_ms": 2.094493596370147,
+      "embedding_forward_all_gather_plus_gradient_reduce_scatter_ms": 7.848701999999999,
+      "total_gross_model_ms": 14.240923418452885,
+      "embedding_dense_gradient_pack_kernels_ms": 1.120964
+    },
+    {
+      "microbatch": 2,
+      "mtp_split_model_ms": 2.774849297313364,
+      "layer0_split_model_ms": 2.012581753707614,
+      "embedding_forward_all_gather_plus_gradient_reduce_scatter_ms": 8.007551,
+      "total_gross_model_ms": 12.794982051020977,
+      "embedding_dense_gradient_pack_kernels_ms": 1.122531
+    },
+    {
+      "microbatch": 3,
+      "mtp_split_model_ms": 3.3769356000183586,
+      "layer0_split_model_ms": 1.8843464079170806,
+      "embedding_forward_all_gather_plus_gradient_reduce_scatter_ms": 8.027039,
+      "total_gross_model_ms": 13.28832100793544,
+      "embedding_dense_gradient_pack_kernels_ms": 1.12426
+    }
+  ],
+  "totals": {
+    "window_ms": 1269.7101171875,
+    "mtp_split_model_ms": 10.44951271941446,
+    "layer0_split_model_ms": 5.991421757994841,
+    "embedding_forward_all_gather_ms": 8.284484,
+    "embedding_gradient_reduce_scatter_ms": 15.598808,
+    "embedding_gross_communication_substitution_ms": 23.883292,
+    "embedding_backward_all_gather_ms": 12.203474,
+    "embedding_backward_all_gather_stream7_kernel_overlap_ms": 11.58898,
+    "embedding_backward_all_gather_no_stream7_kernel_ms": 0.614494,
+    "core_gross_model_saving_ms": 40.3242264774093,
+    "core_gross_model_throughput_percent": 3.2800300363068358,
+    "optional_embedding_full_dense_gradient_pack_kernel_saving_ms": 3.3677550000000003,
+    "gross_model_with_optional_pack_saving_ms": 43.6919814774093,
+    "gross_model_with_optional_pack_throughput_percent": 3.5637304379762424,
+    "broad_exposed_communication_screen_ms": 45.465261,
+    "broad_exposed_communication_screen_percent": 3.7137391895267102
+  },
+  "model": {
+    "mtp": "Move513MiB FFN into early reduction; leave380.673828125MiB residual. Assume zero-intercept payload-linear durations and unchanged additive packing; early communication hidden by8.57-8.85ms remaining MTP. Use result from mtp-split-potential.json. Candidate callable readiness and all-rank readiness remain unmeasured.",
+    "layer0": "Move513MiB FFN early; leave259.188232421875MiB residual. Assume zero-intercept payload-linear duration and unchanged packing; early communication fits6.33-6.37ms trailing layer. Use layer0-split-potential.json.",
+    "embedding": "Replace all full forward weight gathers and full gradient reduce-scatters with row-owner route. Gross core model temporarily assigns zero cost to replacement routing, coalescing, communication and owner accumulation. Backward full weight gathers are already overlapped and receive zero direct step-time credit. Do not count.614494ms gaps as dependency-proven waits.",
+    "optional_pack": "Existing full-table BF16-to-FP32 embedding gradient copy kernels sum3.367755ms. Full-owner route can replace these with compact row widening/owner accumulation; credit is optional gross budget only. Required dense local FP32 gradient, native BF16 local coalescing and rounding, optimizer, EMA and SAC/compile remain. New materialization/accumulation cost is not zero in an implementation.",
+    "combined_dependencies": "MTP is separated in time from the final-layer/embedding tail. Layer0 is predecessor of embedding packing in the old shared-buffer path. Core model advances this tail once, then substitutes embedding communication once; no double count of existing main-stream overlap. A full-owner route removes that buffer dependency, so use max(residual_layer_reduction, embedding_gradient_ready_relative + row_route_elapsed) for the new tail rather than blindly summing isolated speedups. Formula and measured quantities in layer0-split-potential.json. The simple additive core is an optimistic gross screen with replacement cost omitted; exact changed critical path unknown.",
+    "formula": "throughput_percent=100*(T/(T-saved_ms)-1). Net saving = gross opportunity minus exposed replacement/split costs, adjusted for newly exposed dependencies. Do not subtract work that remains fully hidden.",
+    "sensitivity_not_benchmark": [
+      {
+        "assumed_new_exposed_cost_total_ms": 0,
+        "core_net_saving_ms": 40.3242264774093,
+        "core_throughput_percent": 3.2800300363068358
+      },
+      {
+        "assumed_new_exposed_cost_total_ms": 1.5,
+        "core_net_saving_ms": 38.8242264774093,
+        "core_throughput_percent": 3.1541694295489586
+      },
+      {
+        "assumed_new_exposed_cost_total_ms": 3,
+        "core_net_saving_ms": 37.3242264774093,
+        "core_throughput_percent": 3.0286152055752025
+      },
+      {
+        "assumed_new_exposed_cost_total_ms": 6,
+        "core_net_saving_ms": 34.3242264774093,
+        "core_throughput_percent": 2.778421441876744
+      },
+      {
+        "assumed_new_exposed_cost_total_ms": 9,
+        "core_net_saving_ms": 31.324226477409297,
+        "core_throughput_percent": 2.5294398710766774
+      }
+    ],
+    "communication_screen": "14.742773ms MTP final contiguous gaps +6.839196ms layer0 no-main-kernel intersections +23.883292ms embedding forward gather and gradient reduction =45.465261ms. Broader than the FFN split model; not all gaps are causal waits or eliminable and no claim that this is a full implementation upper bound including compute/copies."
+  },
+  "constraints": [
+    "Preserve FP32 original/master parameters and FP32 cross-rank SUM/accumulation.",
+    "Preserve native source-local BF16 embedding coalescing/output rounding before widening every received row contribution to FP32.",
+    "Keep SAC, enabled model/loss compile, MTP, dense fusedAdamW, EMA, accumulation32 and checkpoint continuation."
+  ],
+  "unknowns": [
+    "No positive lower bound or actual speedup established; regression possible.",
+    "NCCL kernel time may include peer waits; rank0 trace does not establish all-rank early readiness or payload-linear scaling.",
+    "Split compile/SAC may change launch count/fusion/recomputation, collectives count, memory and contention.",
+    "Row request/return/backward exchanges, metadata/dedup, owner skew/padding and FP32 accumulation costs are unmeasured.",
+    "Backward embedding weight-gather removal may reduce resource contention, but no extra speedup credited.",
+    "Extrapolation to full32microbatch update or productionPP4/EP32 is unsupported by this prefix."
+  ],
+  "mcp_perfetto_queries": [
+    {
+      "sql": "WITH host AS (SELECT id,ts,track_id FROM slice WHERE name='GFSDP::all_gather (tok_embeddings)' AND category='user_annotation'),\n cpucomm AS (SELECT h.id AS host_id,c.id AS cpu_id,c.arg_set_id FROM host h JOIN descendant_slice(h.id) c ON c.name='nccl:_all_gather_base' AND c.category='user_annotation'),\n gpucomm AS (SELECT c.host_id,g.id,g.ts,g.dur FROM cpucomm c JOIN slice g ON g.category='gpu_user_annotation' AND g.name='nccl:_all_gather_base' AND EXTRACT_ARG(g.arg_set_id,'args.External id')=EXTRACT_ARG(c.arg_set_id,'args.External id'))\nSELECT h.id AS host_scope_id,CASE WHEN h.track_id=2 THEN 'forward' ELSE 'backward' END AS phase,g.id AS gpu_annotation_id,(g.ts-3762433098211544)/1e6 AS start_ms,g.dur/1e6 AS duration_ms FROM gpucomm g JOIN host h ON h.id=g.host_id ORDER BY g.ts",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"duration_ms\": 2.6499,\n    \"gpu_annotation_id\": 587,\n    \"host_scope_id\": 563,\n    \"phase\": \"forward\",\n    \"start_ms\": 12.051476\n  },\n  {\n    \"duration_ms\": 4.214321,\n    \"gpu_annotation_id\": 21566,\n    \"host_scope_id\": 20266,\n    \"phase\": \"backward\",\n    \"start_ms\": 410.614946\n  },\n  {\n    \"duration_ms\": 2.825164,\n    \"gpu_annotation_id\": 21959,\n    \"host_scope_id\": 21938,\n    \"phase\": \"forward\",\n    \"start_ms\": 437.422914\n  },\n  {\n    \"duration_ms\": 3.941328,\n    \"gpu_annotation_id\": 43276,\n    \"host_scope_id\": 41839,\n    \"phase\": \"backward\",\n    \"start_ms\": 833.058341\n  },\n  {\n    \"duration_ms\": 2.80942,\n    \"gpu_annotation_id\": 43593,\n    \"host_scope_id\": 43572,\n    \"phase\": \"forward\",\n    \"start_ms\": 860.293767\n  },\n  {\n    \"duration_ms\": 4.047825,\n    \"gpu_annotation_id\": 64911,\n    \"host_scope_id\": 63503,\n    \"phase\": \"backward\",\n    \"start_ms\": 1254.921606\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "sql": "WITH target AS (SELECT *, CASE WHEN id IN (587,21959,43593) THEN 'forward' ELSE 'backward' END AS phase FROM slice WHERE id IN (587,21959,43593,21566,43276,64911))\nSELECT a.id,a.phase,(a.ts-3762433098211544)/1e6 AS start_ms,(a.ts+a.dur-3762433098211544)/1e6 AS end_ms,a.dur/1e6 AS duration_ms,COALESCE(SUM(MAX(0,MIN(a.ts+a.dur,k.ts+k.dur)-MAX(a.ts,k.ts))),0)/1e6 AS stream7_kernel_overlap_ms,(a.dur-COALESCE(SUM(MAX(0,MIN(a.ts+a.dur,k.ts+k.dur)-MAX(a.ts,k.ts))),0))/1e6 AS no_stream7_kernel_ms FROM target a LEFT JOIN slice k ON k.category='kernel' AND k.track_id=3 AND k.ts<a.ts+a.dur AND k.ts+k.dur>a.ts GROUP BY a.id ORDER BY a.ts",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"duration_ms\": 2.6499,\n    \"end_ms\": 14.701376,\n    \"id\": 587,\n    \"no_stream7_kernel_ms\": 2.6499,\n    \"phase\": \"forward\",\n    \"start_ms\": 12.051476,\n    \"stream7_kernel_overlap_ms\": 0.0\n  },\n  {\n    \"duration_ms\": 4.214321,\n    \"end_ms\": 414.829267,\n    \"id\": 21566,\n    \"no_stream7_kernel_ms\": 0.218592,\n    \"phase\": \"backward\",\n    \"start_ms\": 410.614946,\n    \"stream7_kernel_overlap_ms\": 3.995729\n  },\n  {\n    \"duration_ms\": 2.825164,\n    \"end_ms\": 440.248078,\n    \"id\": 21959,\n    \"no_stream7_kernel_ms\": 2.825164,\n    \"phase\": \"forward\",\n    \"start_ms\": 437.422914,\n    \"stream7_kernel_overlap_ms\": 0.0\n  },\n  {\n    \"duration_ms\": 3.941328,\n    \"end_ms\": 836.999669,\n    \"id\": 43276,\n    \"no_stream7_kernel_ms\": 0.219743,\n    \"phase\": \"backward\",\n    \"start_ms\": 833.058341,\n    \"stream7_kernel_overlap_ms\": 3.721585\n  },\n  {\n    \"duration_ms\": 2.80942,\n    \"end_ms\": 863.103187,\n    \"id\": 43593,\n    \"no_stream7_kernel_ms\": 2.80942,\n    \"phase\": \"forward\",\n    \"start_ms\": 860.293767,\n    \"stream7_kernel_overlap_ms\": 0.0\n  },\n  {\n    \"duration_ms\": 4.047825,\n    \"end_ms\": 1258.969431,\n    \"id\": 64911,\n    \"no_stream7_kernel_ms\": 0.176159,\n    \"phase\": \"backward\",\n    \"start_ms\": 1254.921606,\n    \"stream7_kernel_overlap_ms\": 3.871666\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "sql": "WITH target AS (SELECT * FROM slice WHERE id IN (587,21959,43593,21566,43276,64911)) SELECT a.id AS annotation_id,k.id AS kernel_id,k.name,(k.ts-3762433098211544)/1e6 AS start_ms,k.dur/1e6 AS duration_ms FROM target a JOIN slice k ON k.category='kernel' AND k.track_id=a.track_id AND k.ts>=a.ts AND k.ts+k.dur<=a.ts+a.dur ORDER BY a.ts,k.ts",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"annotation_id\": 587,\n    \"duration_ms\": 2.649898,\n    \"kernel_id\": 588,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 12.051477\n  },\n  {\n    \"annotation_id\": 21566,\n    \"duration_ms\": 4.214319,\n    \"kernel_id\": 21567,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 410.614947\n  },\n  {\n    \"annotation_id\": 21959,\n    \"duration_ms\": 2.825162,\n    \"kernel_id\": 21960,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 437.422915\n  },\n  {\n    \"annotation_id\": 43276,\n    \"duration_ms\": 3.941326,\n    \"kernel_id\": 43277,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 833.058342\n  },\n  {\n    \"annotation_id\": 43593,\n    \"duration_ms\": 2.809418,\n    \"kernel_id\": 43594,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 860.293768\n  },\n  {\n    \"annotation_id\": 64911,\n    \"duration_ms\": 4.047823,\n    \"kernel_id\": 64912,\n    \"name\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"start_ms\": 1254.921607\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "sql": "WITH target AS (SELECT * FROM slice WHERE id IN (563,21938,43572,20266,41839,63503,21468,43129,64775))\nSELECT a.id,a.name,(a.ts-3762433098211544)/1e6 AS host_start_ms,k.id AS kernel_id,k.name AS kernel,(k.ts-3762433098211544)/1e6 AS kernel_start_ms,k.dur/1e6 AS kernel_ms\nFROM target a JOIN descendant_slice(a.id) l ON l.category IN ('cuda_runtime','cuda_driver') AND l.name IN ('cudaLaunchKernel','cuLaunchKernel','cuLaunchKernelEx')\nJOIN slice k ON k.category='kernel' AND EXTRACT_ARG(k.arg_set_id,'args.correlation')=EXTRACT_ARG(l.arg_set_id,'args.correlation') ORDER BY a.ts,k.ts",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[\n  {\n    \"host_start_ms\": 11.828731,\n    \"id\": 563,\n    \"kernel\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)\",\n    \"kernel_id\": 569,\n    \"kernel_ms\": 0.14944,\n    \"kernel_start_ms\": 11.900373,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 11.828731,\n    \"id\": 563,\n    \"kernel\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"kernel_id\": 588,\n    \"kernel_ms\": 2.649898,\n    \"kernel_start_ms\": 12.051477,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 399.688026,\n    \"id\": 20266,\n    \"kernel\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"kernel_id\": 21567,\n    \"kernel_ms\": 4.214319,\n    \"kernel_start_ms\": 410.614947,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 409.530889,\n    \"id\": 21468,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 21829,\n    \"kernel_ms\": 0.307809,\n    \"kernel_start_ms\": 429.786504,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 409.530889,\n    \"id\": 21468,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 21830,\n    \"kernel_ms\": 0.315169,\n    \"kernel_start_ms\": 430.097417,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 409.530889,\n    \"id\": 21468,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 21831,\n    \"kernel_ms\": 0.314593,\n    \"kernel_start_ms\": 430.41537,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 409.530889,\n    \"id\": 21468,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 21832,\n    \"kernel_ms\": 0.183393,\n    \"kernel_start_ms\": 430.731979,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 437.236457,\n    \"id\": 21938,\n    \"kernel\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)\",\n    \"kernel_id\": 21944,\n    \"kernel_ms\": 0.128705,\n    \"kernel_start_ms\": 437.293122,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 437.236457,\n    \"id\": 21938,\n    \"kernel\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"kernel_id\": 21960,\n    \"kernel_ms\": 2.825162,\n    \"kernel_start_ms\": 437.422915,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 818.231163,\n    \"id\": 41839,\n    \"kernel\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"kernel_id\": 43277,\n    \"kernel_ms\": 3.941326,\n    \"kernel_start_ms\": 833.058342,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 827.928624,\n    \"id\": 43129,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 43461,\n    \"kernel_ms\": 0.314209,\n    \"kernel_start_ms\": 852.382059,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 827.928624,\n    \"id\": 43129,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 43462,\n    \"kernel_ms\": 0.310849,\n    \"kernel_start_ms\": 852.698348,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 827.928624,\n    \"id\": 43129,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 43463,\n    \"kernel_ms\": 0.314369,\n    \"kernel_start_ms\": 853.012046,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 827.928624,\n    \"id\": 43129,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 43464,\n    \"kernel_ms\": 0.183104,\n    \"kernel_start_ms\": 853.329039,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 860.106594,\n    \"id\": 43572,\n    \"kernel\": \"void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)\",\n    \"kernel_id\": 43578,\n    \"kernel_ms\": 0.129152,\n    \"kernel_start_ms\": 860.162919,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 860.106594,\n    \"id\": 43572,\n    \"kernel\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"kernel_id\": 43594,\n    \"kernel_ms\": 2.809418,\n    \"kernel_start_ms\": 860.293768,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 1240.081938,\n    \"id\": 63503,\n    \"kernel\": \"ncclDevKernel_AllGather_RING_LL(ncclDevKernelArgsStorage<4096ul>)\",\n    \"kernel_id\": 64912,\n    \"kernel_ms\": 4.047823,\n    \"kernel_start_ms\": 1254.921607,\n    \"name\": \"GFSDP::all_gather (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 1249.81241,\n    \"id\": 64775,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 65098,\n    \"kernel_ms\": 0.312705,\n    \"kernel_start_ms\": 1274.17838,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 1249.81241,\n    \"id\": 64775,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 65099,\n    \"kernel_ms\": 0.313921,\n    \"kernel_start_ms\": 1274.493805,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 1249.81241,\n    \"id\": 64775,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 65100,\n    \"kernel_ms\": 0.314401,\n    \"kernel_start_ms\": 1274.810606,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  },\n  {\n    \"host_start_ms\": 1249.81241,\n    \"id\": 64775,\n    \"kernel\": \"void at::native::(anonymous namespace)::multi_tensor_apply_kernel<at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16> >(at::native::(anonymous namespace)::TensorListMetadata<2>, at::native::(anonymous namespace)::CopyFunctor<float, c10::BFloat16, 2, 1, 1>, at::native::Copy<float, c10::BFloat16>)\",\n    \"kernel_id\": 65101,\n    \"kernel_ms\": 0.183233,\n    \"kernel_start_ms\": 1275.127471,\n    \"name\": \"FSDP::post_backward_accumulate (tok_embeddings)\"\n  }\n]"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "checks": [
+    "New MCP Perfetto results confirm embedding host-to-GPU attribution, all-gather durations, main-stream overlap and full-gradient packing kernels.",
+    "MTP and first-layer split readiness/reduction queries retained in their separate focused evidence files."
+  ]
+}
