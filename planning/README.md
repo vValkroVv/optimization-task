@@ -4,6 +4,46 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+## Active assignment: combined four improvements
+
+Authorized 14 November 2026 and complete. The baseline/candidate pair and
+combined diagnostic used task source HEAD
+`6c6cd9c0e41a0a5d3d00e1e252b3c120052d3507`, logical epoch 102,400, seed 2048,
+and the unchanged [crop workload](../docs/baseline.md). The candidate enabled
+prefetch 32, BF16 expert-weight reuse, explicit routing metadata, and stable
+cap-zero CE. GPU input preparation fusion and Linear+CE were excluded. No new
+allocation or installation was used.
+
+Finite acceptance:
+
+- [x] Reconcile existing implementations and numerical/lifecycle evidence once;
+  integrate only necessary activation plumbing and affected checks.
+- [x] Resolve the independent integration/runtime-cost review and scoped lint.
+- [x] Verify the existing eight-H100 route, actual child arguments, resolved
+  configuration, unchanged model contract, and compiler-cache policy.
+- [x] Complete one baseline and one combined candidate, each 140 updates with
+  warmup 1–40 and measurement 41–140; timing counters/profiling off and no epoch
+  rollover.
+- [x] Complete one diagnostic: 21 updates, warmup 20, update-21 traces on
+  ranks 0/1 capped at three microbatches; all ranks completed 32 microbatches
+  and the optimizer.
+- [x] Verify combined queue, BF16, routing, CE and FP8 trace observables; record
+  complete import coverage and unavailable exact event-wait attribution.
+- [x] Produce the [report](../runs/combined-four/report.md), [compact results](../runs/combined-four/results.json),
+  exact protocol/source identities, full per-rank cadence, lifecycle receipts,
+  trace analysis, and retained failure record.
+
+The [report](../runs/combined-four/report.md) owns the provisional fixed-window
+result and limits. It is one sequential A/B with continuing cadence settling;
+there is no A/A estimate or repeat. It establishes neither steady-state/general
+speedup nor convergence, exact continuation, or production-scale behavior. The
+first detached launcher and later incomplete `baseline-002` MDS lock failure
+remain excluded. All actual run groups exited, source bindings were restored,
+and the four-feature trace gate passed within its explicit timing/attribution
+limits. No further run, repeat, individual-feature comparison, or optimization
+campaign is authorized. The owner handles final review and publication under
+the existing user authorization.
+
 ## Active assignment: BF16 expert-weight reuse
 
 Completed, 14 November 2026. The anchor is retained for existing links. The

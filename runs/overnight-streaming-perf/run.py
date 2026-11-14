@@ -118,6 +118,7 @@ result = {
         "streaming": {"version": distribution("mosaicml-streaming"), "path": origin("streaming")},
         "transformers": {"version": transformers.__version__, "path": transformers.__file__},
         "tokenizers": {"version": tokenizers.__version__, "path": tokenizers.__file__},
+        "triton": {"version": distribution("triton"), "path": origin("triton")},
         "deep_gemm": {
             "version": distribution("deep-gemm"),
             "build_version": getattr(deep_gemm, "__build_version__", None),
@@ -261,6 +262,11 @@ def validate_args(args: argparse.Namespace) -> None:
             raise ValueError("profile-update requires steps == profile-update")
     if args.timeout_seconds <= 0:
         raise ValueError("timeout-seconds must be positive")
+    if args.compiler_cache_root is not None and (
+        not args.compiler_cache_root.is_absolute()
+        or ".." in args.compiler_cache_root.parts
+    ):
+        raise ValueError("--compiler-cache-root must be absolute and must not contain ..")
     if args.bf16_cache_counters:
         if not args.gfsdp_reuse_bf16_expert_weights:
             raise ValueError("bf16-cache-counters requires --gfsdp-reuse-bf16-expert-weights")
@@ -290,6 +296,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="enable per-group cache counters on a diagnostic profile run only",
     )
     parser.add_argument("--output-root", type=Path, default=RAW_ROOT)
+    parser.add_argument(
+        "--compiler-cache-root",
+        type=Path,
+        default=None,
+        help="reuse the compiler cache of a completed task attempt",
+    )
     parser.add_argument(
         "--capture-microbatches",
         action="store_true",
@@ -331,16 +343,176 @@ def _data_root(root: Path) -> Path:
     return local
 
 
-def _make_run_dirs(run_id: str, output_root: Path | None = None) -> dict[str, Path]:
+def _task_owned_path(path: Path, label: str) -> Path:
+    """Resolve an absolute task path while rejecting traversal and symlinks."""
+    if not path.is_absolute() or ".." in path.parts:
+        raise RuntimeError(f"{label} must be an absolute task-owned path without ..: {path}")
+    task_root = TASK_ROOT.resolve()
+    try:
+        relative = path.relative_to(task_root)
+    except ValueError as exc:
+        raise RuntimeError(f"{label} must remain inside the task root: {path}") from exc
+    current = task_root
+    if current.is_symlink():
+        raise RuntimeError(f"{label} must not traverse symlinks: {path}")
+    for component in relative.parts:
+        current = current / component
+        if current.is_symlink():
+            raise RuntimeError(f"{label} must not traverse symlinks: {path}")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise RuntimeError(
+            f"{label} does not exist or cannot be resolved: {path}"
+        ) from exc
+    try:
+        resolved.relative_to(task_root)
+    except ValueError as exc:
+        raise RuntimeError(f"{label} must remain inside the task root: {path}") from exc
+    return resolved
+
+
+def _validate_completed_compiler_cache_root(cache_root: Path) -> Path:
+    cache_root = _task_owned_path(cache_root, "compiler cache root")
+    relative = cache_root.relative_to(TASK_ROOT.resolve())
+    if (
+        len(relative.parts) != 6
+        or relative.parts[0] != "runs"
+        or relative.parts[2:4] != ("artifacts", "raw")
+        or relative.parts[5] != "cache"
+    ):
+        raise RuntimeError(
+            "compiler cache root must be runs/<task>/artifacts/raw/<attempt>/cache"
+        )
+    if not cache_root.is_dir():
+        raise RuntimeError(f"compiler cache root is not a directory: {cache_root}")
+    ignored = _git(
+        TASK_ROOT,
+        "check-ignore",
+        "-q",
+        "--",
+        str(relative),
+        check=False,
+    )
+    if ignored.returncode != 0:
+        raise RuntimeError(f"compiler cache root is not Git-ignored: {cache_root}")
+
+    attempt = cache_root.parent
+    required_files = {
+        "status": attempt / "status.txt",
+        "completion": attempt / "completion.json",
+        "process": attempt / "process.json",
+        "metadata": attempt / "metadata.json",
+    }
+    for label, path in required_files.items():
+        required_files[label] = _task_owned_path(path, f"producer {label}")
+        if not required_files[label].is_file():
+            raise RuntimeError(f"compiler cache producer lacks {label}: {path}")
+    if required_files["status"].read_text(encoding="utf-8").strip() != "PASS":
+        raise RuntimeError("compiler cache producer is not marked PASS")
+    completion = _load_json(required_files["completion"])
+    if completion.get("status") != "PASS":
+        raise RuntimeError("compiler cache producer completion is not PASS")
+    process = _load_json(required_files["process"])
+    if process.get("process_group_stopped") is not True:
+        raise RuntimeError("compiler cache producer process group is still active")
+    process_group_id = process.get("process_group_id")
+    if (
+        not isinstance(process_group_id, int)
+        or isinstance(process_group_id, bool)
+        or process_group_id <= 0
+    ):
+        raise RuntimeError("compiler cache producer metadata lacks a valid process group id")
+    if _group_exists(process_group_id):
+        raise RuntimeError("compiler cache producer process group is still active")
+
+    backend_paths = (
+        cache_root / "torchinductor",
+        cache_root / "triton",
+        cache_root / "deep_gemm",
+        cache_root / "hybridep",
+        cache_root / "deep_gemm" / "rank-cache",
+        *(cache_root / "triton" / f"rank_{rank}" for rank in range(8)),
+    )
+    for path in backend_paths:
+        resolved = _task_owned_path(path, "compiler cache backend path")
+        if not resolved.is_dir():
+            raise RuntimeError(f"compiler cache layout is incomplete: {resolved}")
+    return cache_root
+
+
+def _assert_runtime_compatible(
+    producer: Any, current: Any, field: str = "runtime"
+) -> None:
+    if isinstance(producer, dict):
+        if not isinstance(current, dict):
+            raise RuntimeError(f"compiler cache producer runtime differs at {field}")
+        for key, value in producer.items():
+            if key not in current:
+                raise RuntimeError(f"compiler cache producer runtime lacks current field {field}.{key}")
+            _assert_runtime_compatible(value, current[key], f"{field}.{key}")
+    elif producer != current:
+        raise RuntimeError(f"compiler cache producer runtime differs at {field}")
+
+
+def _validate_compiler_cache_reuse(
+    paths: dict[str, Path],
+    runtime: dict[str, Any],
+    canonical_experiment_sha256: str,
+) -> dict[str, str | None]:
+    cache_root = paths["cache"].resolve()
+    if cache_root == (paths["attempt"] / "cache").resolve():
+        return {
+            "root": str(cache_root),
+            "policy": "fresh",
+            "producer_run_id": None,
+        }
+
+    producer_attempt = cache_root.parent
+    producer_metadata = _load_json(producer_attempt / "metadata.json")
+    producer_runtime = producer_metadata.get("runtime")
+    if not isinstance(producer_runtime, dict) or not producer_runtime:
+        raise RuntimeError("compiler cache producer metadata lacks a runtime fingerprint")
+    _assert_runtime_compatible(producer_runtime, runtime)
+    config_hashes = producer_metadata.get("config_hashes_before")
+    if not isinstance(config_hashes, dict) or (
+        config_hashes.get("canonical_experiment_sha256")
+        != canonical_experiment_sha256
+    ):
+        raise RuntimeError("compiler cache producer canonical experiment config differs")
+    producer_run_id = producer_metadata.get("run_id")
+    if not isinstance(producer_run_id, str) or not producer_run_id:
+        raise RuntimeError("compiler cache producer metadata lacks run_id")
+    return {
+        "root": str(cache_root),
+        "policy": "reuse",
+        "producer_run_id": producer_run_id,
+    }
+
+
+def _make_run_dirs(
+    run_id: str,
+    output_root: Path | None = None,
+    compiler_cache_root: Path | None = None,
+) -> dict[str, Path]:
     raw_root = _inside(TASK_ROOT, output_root or RAW_ROOT, "raw artifact root")
     if raw_root.name != "raw" or raw_root.parent.name != "artifacts":
         raise RuntimeError("output-root must be a task artifacts/raw directory")
-    ignored = subprocess.run(
-        ["git", "-C", str(TASK_ROOT), "check-ignore", "-q", "--", str(raw_root.relative_to(TASK_ROOT))],
+    ignored = _git(
+        TASK_ROOT,
+        "check-ignore",
+        "-q",
+        "--",
+        str(raw_root.relative_to(TASK_ROOT)),
         check=False,
     )
     if ignored.returncode != 0:
         raise RuntimeError(f"task raw artifact path is not Git-ignored: {raw_root}")
+    selected_cache_root = (
+        None
+        if compiler_cache_root is None
+        else _validate_completed_compiler_cache_root(compiler_cache_root)
+    )
     raw_root.mkdir(parents=True, exist_ok=True)
     attempt = raw_root / run_id
     attempt.mkdir(mode=0o755, exist_ok=False)
@@ -352,7 +524,7 @@ def _make_run_dirs(run_id: str, output_root: Path | None = None) -> dict[str, Pa
         "config": attempt / "config",
         "native": attempt / "native",
         "measurement": attempt / "measurement",
-        "cache": attempt / "cache",
+        "cache": selected_cache_root or (attempt / "cache"),
         "shared_hf_cache": (raw_root / "shared-cache/huggingface"
                             if raw_root != RAW_ROOT.resolve() else SHARED_HF_CACHE),
     }
@@ -360,19 +532,23 @@ def _make_run_dirs(run_id: str, output_root: Path | None = None) -> dict[str, Pa
         _inside(TASK_ROOT, path, key)
         if key == "shared_hf_cache":
             path.mkdir(parents=True, exist_ok=True)
+        elif key == "cache" and selected_cache_root is not None:
+            continue
         elif key != "attempt":
             path.mkdir(parents=True, exist_ok=False)
     if paths["shared_hf_cache"].is_symlink():
         raise RuntimeError("persistent Hugging Face cache must not be a symlink")
     for name in ("torchinductor", "triton", "deep_gemm", "hybridep"):
         cache = paths["cache"] / name
-        cache.mkdir(exist_ok=False)
+        if selected_cache_root is None:
+            cache.mkdir(exist_ok=False)
         paths[f"cache_{name}"] = cache
-        if name == "triton":
+        if name == "triton" and selected_cache_root is None:
             for rank in range(8):
                 (cache / f"rank_{rank}").mkdir(exist_ok=False)
     rank_cache = paths["cache_deep_gemm"] / "rank-cache"
-    rank_cache.mkdir(exist_ok=False)
+    if selected_cache_root is None:
+        rank_cache.mkdir(exist_ok=False)
     paths["cache_deep_gemm_ranks"] = rank_cache
     return paths
 
@@ -698,6 +874,13 @@ def _training_overrides(args: argparse.Namespace, paths: dict[str, Path]) -> lis
 
 def _run_environment(paths: dict[str, Path]) -> dict[str, str]:
     env = os.environ.copy()
+    if paths["cache"].resolve() != (paths["attempt"] / "cache").resolve():
+        force_disable = env.get("TORCHINDUCTOR_FORCE_DISABLE_CACHES", "").strip().lower()
+        if force_disable not in {"", "0", "false", "no", "off"}:
+            raise RuntimeError(
+                "compiler cache reuse is incompatible with "
+                "TORCHINDUCTOR_FORCE_DISABLE_CACHES"
+            )
     env["PYTHONPATH"] = os.pathsep.join((str(GIFT_ROOT), str(HELPER_DIR)))
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["HF_HOME"] = str(paths["shared_hf_cache"].resolve())
@@ -713,6 +896,7 @@ def _run_environment(paths: dict[str, Path]) -> dict[str, str]:
         paths["cache_deep_gemm_ranks"].resolve()
     )
     env["HYBRID_EP_CACHE_DIR"] = str(paths["cache_hybridep"].resolve())
+    env["TASK_COMPILER_CACHE_ROOT"] = str(paths["cache"].resolve())
     env["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
     env["TORCHINDUCTOR_CUDAGRAPHS"] = "0"
     env["TORCHINDUCTOR_MIX_ORDER_REDUCTION"] = "0"
@@ -950,7 +1134,12 @@ def main(argv: list[str] | None = None) -> int:
         for required in (BASE_CONFIG, DATA_FRAGMENT, TOKENIZER / "tokenizer.json"):
             if not required.is_file():
                 raise RuntimeError(f"required task input is missing: {required}")
-        paths = _make_run_dirs(args.run_id, args.output_root)
+        if args.compiler_cache_root is None:
+            paths = _make_run_dirs(args.run_id, args.output_root)
+        else:
+            paths = _make_run_dirs(
+                args.run_id, args.output_root, args.compiler_cache_root
+            )
         mds_root = _data_root(TASK_ROOT)
         filesystem = _filesystem_status(paths, mds_root)
         tmp_dir, tmp_capacity = _make_task_tmpdir()
@@ -967,6 +1156,11 @@ def main(argv: list[str] | None = None) -> int:
         config_before = _config_hashes()
         config_before["generated_experiment_sha256"] = sha256_file(experiment_config)
         runtime = _runtime_preflight(env, paths)
+        compiler_cache = _validate_compiler_cache_reuse(
+            paths,
+            runtime,
+            config_before["canonical_experiment_sha256"],
+        )
 
         metadata = {
             "run_id": args.run_id,
@@ -1007,8 +1201,13 @@ def main(argv: list[str] | None = None) -> int:
             "checkpointing": "disabled",
             "validation": "disabled",
             "memory_snapshots": "disabled",
-            "compiler_cache_policy": "fresh task-owned TorchInductor, Triton, DeepGEMM shared-kernel and rank-cache directories per run",
-            "triton_cache_policy": "distinct per-global-rank directories under the task-owned NFS attempt cache; isolates rank writers but does not establish the cause of or immunity to ESTALE",
+            "compiler_cache_policy": compiler_cache["policy"],
+            "compiler_cache_root": compiler_cache["root"],
+            "compiler_cache_producer_run_id": compiler_cache["producer_run_id"],
+            "triton_cache_policy": (
+                "distinct per-global-rank directories under the selected task-owned compiler cache root; "
+                "isolates rank writers but does not establish the cause of or immunity to ESTALE"
+            ),
             "triton_cache_rank_directories": {
                 str(rank): str(
                     (paths["cache_triton"] / f"rank_{rank}").resolve()

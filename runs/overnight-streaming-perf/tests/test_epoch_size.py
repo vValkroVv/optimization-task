@@ -272,7 +272,11 @@ def test_run_metadata_records_requested_options(
     )
     monkeypatch.setattr(runner, "_run_environment", lambda _paths: {})
     monkeypatch.setattr(runner, "source_snapshot", lambda _root: dict(source))
-    monkeypatch.setattr(runner, "_config_hashes", lambda: {"config": "same"})
+    monkeypatch.setattr(
+        runner,
+        "_config_hashes",
+        lambda: {"config": "same", "canonical_experiment_sha256": "same"},
+    )
     monkeypatch.setattr(runner, "_runtime_preflight", lambda _env, _paths: {})
     monkeypatch.setattr(runner, "_launch", lambda *_args: (1, False, 123, False, True))
     monkeypatch.setattr(runner, "_write_new_text", lambda *_args: None)

@@ -4,6 +4,36 @@ Updated: 14 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
 
+## Combined four improvements: complete with provisional performance evidence
+
+The authorized baseline `combined-four-baseline-003`, combined candidate, and
+21-update diagnostic passed on eight H100 ranks. Both timing runs completed
+140 updates with 40 warmup and a 100-update measurement window. The candidate
+measured **156,094.27 global physical input tokens/s** versus **149,386.56**,
+a provisional **+4.49% fixed-window difference**; elapsed fell 4.30%, allocated
+peak by 1.80 GiB, and reserved peak by 2.18 GiB. Cadence continued settling
+through the measurement window; one sequential pair has no A/A noise estimate
+or repeat, so steady-state/general speedup is not established.
+
+The diagnostic traces verify all four mechanisms: seven BF16 casts and zero
+singleton copies per traced rank, 39 routing kernels/rank, 12 stable-CE forward
+and backward kernels/rank, and unchanged FP8 quantization. Full combined trace
+imports have 9,445/9,445 events per rank with no errors or ambiguous links.
+Exact device waits and a full-update critical path remain unavailable because
+the profiler omits event/stream handles; the capture covers only three of 32
+microbatches. The historical control differs in source, job, and epoch, so trace
+comparisons establish mechanism only.
+
+The [report](../runs/combined-four/report.md), [compact results](../runs/combined-four/results.json),
+[protocol](../runs/combined-four/protocol.json), [full cadence series](../runs/combined-four/update-series.json),
+and [trace analysis](../runs/combined-four/trace-analysis.md) own values, identities,
+receipts, mechanism findings, and limits. The first detached launch and later
+`baseline-002` MDS lock failure are preserved and excluded. After all groups
+exited, candidate core patches were reversed and canonical hashes matched the
+baseline; no default was promoted. All task processes stopped and scratch was
+removed. Performance evidence is provisional and does not establish production
+validation, convergence, continuation, or general speedup.
+
 ## BF16 expert-weight reuse: integrated, verified, default off
 
 The [completed assignment](../planning/README.md#active-assignment-bf16-expert-weight-reuse)
