@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare and verify the G1 full-length MDS data contract on CPU."""
+"""Prepare and verify the task-local real-data MDS stream on CPU."""
 
 from __future__ import annotations
 
@@ -413,7 +413,7 @@ def yaml_fragment() -> str:
 '''
 
 
-def prepare() -> None:
+def prepare_legacy_fixture() -> None:
     if not MDS_ROOT.resolve().is_relative_to(RAW_DIR.resolve()):
         raise AssertionError(f"MDS output is outside campaign raw: {MDS_ROOT}")
     if MDS_ROOT.exists():
@@ -932,19 +932,68 @@ def check_pass(pass_name: str) -> None:
     dist.destroy_process_group()
 
 
+def _run_production_data_helper(name: str, argv: list[str]) -> None:
+    helper_dir = ROOT / "runs/production-data-abcd"
+    helper_path = helper_dir / name
+    if not helper_path.is_file():
+        raise FileNotFoundError(f"Production-data helper does not exist: {helper_path}")
+    sys.path.insert(0, str(helper_dir))
+    try:
+        spec = importlib.util.spec_from_file_location(
+            f"production_data_{helper_path.stem}", helper_path
+        )
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"Cannot load production-data helper: {helper_path}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.main(argv)
+    finally:
+        if sys.path and sys.path[0] == str(helper_dir):
+            sys.path.pop(0)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("prepare", help="pack the new 896-row MDS dataset")
-    check_parser = subparsers.add_parser("check", help="check the 8-rank loader contract")
-    check_parser.add_argument("--pass-name", required=True, choices=("pass1", "pass2"))
+    subparsers.add_parser(
+        "prepare", help="prepare the bounded real-data MDS stream for the comparison"
+    )
+    check_parser = subparsers.add_parser(
+        "check", help="compare one fresh eight-rank CPU/Gloo open at depths 0 and 32"
+    )
+    check_parser.add_argument("--batches", type=int, default=672)
+    check_parser.add_argument("--tag", default="full")
+    subparsers.add_parser(
+        "prepare-legacy-fixture",
+        help="reproduce the preserved historical 896-row fixture only",
+    )
+    legacy_check_parser = subparsers.add_parser(
+        "check-legacy-fixture",
+        help="reproduce the preserved historical fixture loader checks only",
+    )
+    legacy_check_parser.add_argument(
+        "--pass-name", required=True, choices=("pass1", "pass2")
+    )
     args = parser.parse_args()
     if args.command == "prepare":
-        if dist.is_initialized():
+        if dist.is_initialized() or int(os.environ.get("WORLD_SIZE", "1")) != 1:
             raise RuntimeError("prepare must run as one process, not under torchrun")
-        check_import_identity()
-        prepare()
+        _run_production_data_helper("prepare_data.py", ["prepare"])
     elif args.command == "check":
+        if dist.is_initialized() or int(os.environ.get("WORLD_SIZE", "1")) != 1:
+            raise RuntimeError("check launches its own CPU ranks and must not run under torchrun")
+        _run_production_data_helper(
+            "verify_data.py",
+            ["run", "--batches", str(args.batches), "--tag", args.tag],
+        )
+    elif args.command == "prepare-legacy-fixture":
+        if dist.is_initialized() or int(os.environ.get("WORLD_SIZE", "1")) != 1:
+            raise RuntimeError(
+                "legacy fixture preparation must run as one process, not under torchrun"
+            )
+        check_import_identity()
+        prepare_legacy_fixture()
+    elif args.command == "check-legacy-fixture":
         check_pass(args.pass_name)
 
 

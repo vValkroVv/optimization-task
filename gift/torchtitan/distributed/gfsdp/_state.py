@@ -76,6 +76,7 @@ class GFSDPState(_State):
         # ``None`` shard order means fall back to ``named_modules()`` traversal.
         self._shard_order: "list[GFSDPState] | None" = None
         self._own_grad_buffer: bool = False
+        self._buffer_region_child: GFSDPState | None = None
         self._allow_no_grad_reduce: bool = False
 
     # Define a separate init since `__init__` is called in the contract
@@ -233,6 +234,113 @@ class GFSDPState(_State):
             for fsdp_param_group in state._fsdp_param_groups
         ]
 
+        region_children = {}
+        for state in ordered_states:
+            if (child := state._buffer_region_child) is None:
+                continue
+            if len(state._fsdp_param_groups) != 1 or len(child._fsdp_param_groups) != 1:
+                raise ValueError(
+                    "Shared buffer regions require one parameter group per unit"
+                )
+            parent_group = state._fsdp_param_groups[0]
+            child_group = child._fsdp_param_groups[0]
+            if (
+                parent_group.mesh_info is not child_group.mesh_info
+                and parent_group.mesh_info != child_group.mesh_info
+            ) or (
+                parent_group.mp_policy != child_group.mp_policy
+                or parent_group.orig_dtype != child_group.orig_dtype
+                or parent_group._shard_alignment != child_group._shard_alignment
+                or parent_group.requires_grad != child_group.requires_grad
+            ):
+                raise ValueError(
+                    "Shared buffer regions require matching mesh and precision"
+                )
+            region_children[parent_group] = child_group
+        if region_children and (
+            yccl_handle is not None
+            or process_group_to_yccl_handle
+            or param_group_to_data_buffer_ctx_idx is not None
+            or param_group_to_grad_buffer_ctx_idx is not None
+            or data_buffer_ctx_idx_to_yccl_handle is not None
+            or grad_buffer_ctx_idx_to_yccl_handle is not None
+        ):
+            raise ValueError(
+                "Shared buffer regions do not support custom buffer maps or YCCL"
+            )
+        child_groups = set(region_children.values())
+        # Deal the original units, so splitting cannot change alternating slots.
+        param_groups = [group for group in param_groups if group not in child_groups]
+
+        def buffer_sizes(group: GFSDPParamGroup, *, grad: bool) -> dict:
+            itemsize = (
+                group.reduce_dtype or group.param_dtype or group.orig_dtype
+            ).itemsize
+            return {
+                dtype: numel
+                * (
+                    itemsize
+                    if grad
+                    else (dtype or group.param_dtype or group.orig_dtype).itemsize
+                )
+                for dtype, numel in group.padded_unsharded_param_numel.items()
+            }
+
+        def original_buffer_sizes(group: GFSDPParamGroup, *, grad: bool) -> dict:
+            if group not in region_children:
+                return buffer_sizes(group, grad=grad)
+            child = region_children[group]
+            divider = group.mesh_info.shard_mesh_size * group._shard_alignment
+            sizes = {}
+            for dtype in (
+                group.padded_unsharded_param_numel.keys()
+                | child.padded_unsharded_param_numel.keys()
+            ):
+                numel = sum(group._unsharded_param_numels.get(dtype, ())) + sum(
+                    child._unsharded_param_numels.get(dtype, ())
+                )
+                padded = (numel + divider - 1) // divider * divider
+                sizes[dtype] = (
+                    padded
+                    * (
+                        (group.reduce_dtype or group.param_dtype or group.orig_dtype)
+                        if grad
+                        else (dtype or group.param_dtype or group.orig_dtype)
+                    ).itemsize
+                )
+            return sizes
+
+        def partition(
+            group: GFSDPParamGroup, ctx: GFSDPBufferContext, *, grad: bool
+        ) -> None:
+            if group not in region_children:
+                return
+            child = region_children[group]
+            parent_sizes, child_sizes = (
+                buffer_sizes(group, grad=grad),
+                buffer_sizes(child, grad=grad),
+            )
+            for dtype in parent_sizes.keys() | child_sizes.keys():
+                if (
+                    parent_sizes.get(dtype, 0) + child_sizes.get(dtype, 0)
+                    > ctx.buffers[dtype].numel()
+                ):
+                    raise ValueError(
+                        "Split buffer regions exceed the original allocation budget"
+                    )
+            attr = "grad_buffer_ctx" if grad else "data_buffer_ctx"
+            setattr(
+                group, attr, ctx.region(parent_sizes, dict.fromkeys(parent_sizes, 0))
+            )
+            setattr(
+                child,
+                attr,
+                ctx.region(
+                    child_sizes,
+                    {dtype: parent_sizes.get(dtype, 0) for dtype in child_sizes},
+                ),
+            )
+
         no_reshard_after_forward = all(
             not param_group.reshard_after_forward for param_group in param_groups
         )
@@ -240,7 +348,9 @@ class GFSDPState(_State):
             get_buffer_ctx2ctx_using_param_groups_map(
                 param_groups,
                 "data_buffer_ctx",
-                None if no_reshard_after_forward else 2,
+                None
+                if no_reshard_after_forward or param_group_to_data_buffer_ctx_idx
+                else 2,
                 yccl_handle,
                 process_group_to_yccl_handle,
                 param_group_to_data_buffer_ctx_idx,
@@ -290,16 +400,13 @@ class GFSDPState(_State):
             all_gather_dtypes = {
                 dtype
                 for param_group in ctx_using_param_groups
-                for dtype in param_group.padded_unsharded_param_numel
+                for dtype in original_buffer_sizes(param_group, grad=False)
             }
             default_handle = data_buffer_ctx2yccl_handle[data_buffer_ctx]
             data_buffer_ctx.lazy_init(
                 {
                     dtype: max(
-                        param_group.padded_unsharded_param_numel.get(dtype, 0)
-                        * (
-                            dtype or param_group.param_dtype or param_group.orig_dtype
-                        ).itemsize
+                        original_buffer_sizes(param_group, grad=False).get(dtype, 0)
                         for param_group in ctx_using_param_groups
                     )
                     for dtype in all_gather_dtypes
@@ -309,11 +416,16 @@ class GFSDPState(_State):
             )
             for param_group in ctx_using_param_groups:
                 param_group.data_buffer_ctx = data_buffer_ctx
+                partition(param_group, data_buffer_ctx, grad=False)
             if self._auto_reshard_after_forward:
                 # Do not reshard the last module across modules using the same data buffer
                 # after forward since for training the parameters would be
                 # freed and all-gathered immediately
                 ctx_using_param_groups[-1].post_forward_mesh_info = None
+                if (
+                    child := region_children.get(ctx_using_param_groups[-1])
+                ) is not None:
+                    child.post_forward_mesh_info = None
         for (
             grad_buffer_ctx,
             ctx_using_param_groups,
@@ -321,18 +433,13 @@ class GFSDPState(_State):
             all_gather_dtypes = {
                 dtype
                 for param_group in ctx_using_param_groups
-                for dtype in param_group.padded_unsharded_param_numel
+                for dtype in original_buffer_sizes(param_group, grad=True)
             }
             default_handle = grad_buffer_ctx2yccl_handle[grad_buffer_ctx]
             grad_buffer_ctx.lazy_init(
                 {
                     dtype: max(
-                        param_group.padded_unsharded_param_numel.get(dtype, 0)
-                        * (
-                            param_group.reduce_dtype
-                            or param_group.param_dtype
-                            or param_group.orig_dtype
-                        ).itemsize
+                        original_buffer_sizes(param_group, grad=True).get(dtype, 0)
                         for param_group in ctx_using_param_groups
                     )
                     for dtype in all_gather_dtypes
@@ -342,6 +449,7 @@ class GFSDPState(_State):
             )
             for param_group in ctx_using_param_groups:
                 param_group.grad_buffer_ctx = grad_buffer_ctx
+                partition(param_group, grad_buffer_ctx, grad=True)
 
     def validate_shared_state(self) -> None:
         data_buffer_ctx2ctx_using_param_groups: dict[
@@ -437,18 +545,33 @@ class GFSDPState(_State):
                 if state not in state2modules_to_run_forward:
                     state2modules_to_run_forward[state] = set(state._modules)
                     for param_group in state._fsdp_param_groups:
-                        if (
-                            data_buffer_ctx := param_group.data_buffer_ctx
-                        ) in data_buffer_ctx2module_prefix:
+                        data_buffer_ctx = param_group.data_buffer_ctx
+                        conflicting = next(
+                            (
+                                ctx
+                                for ctx in data_buffer_ctx2module_prefix
+                                if data_buffer_ctx.overlaps(ctx)
+                            ),
+                            None,
+                        )
+                        if conflicting is not None:
                             raise RuntimeError(
-                                f"Param groups of {prefix} and {data_buffer_ctx2module_prefix[data_buffer_ctx]} share a"
+                                f"Param groups of {prefix} and {data_buffer_ctx2module_prefix[conflicting]} share a"
                                 " data buffer, so they can't be unsharded at the same time."
                             )
                         data_buffer_ctx2module_prefix[data_buffer_ctx] = prefix
                         if (grad_buffer_ctx := param_group.grad_buffer_ctx) is not None:
-                            if grad_buffer_ctx in grad_buffer_ctx2module_prefix:
+                            conflicting = next(
+                                (
+                                    ctx
+                                    for ctx in grad_buffer_ctx2module_prefix
+                                    if grad_buffer_ctx.overlaps(ctx)
+                                ),
+                                None,
+                            )
+                            if conflicting is not None:
                                 raise RuntimeError(
-                                    f"Param groups of {prefix} and {grad_buffer_ctx2module_prefix[grad_buffer_ctx]} share a"
+                                    f"Param groups of {prefix} and {grad_buffer_ctx2module_prefix[conflicting]} share a"
                                     " grad buffer, so they can't be unsharded at the same time."
                                 )
                             grad_buffer_ctx2module_prefix[grad_buffer_ctx] = prefix

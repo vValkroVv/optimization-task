@@ -1,0 +1,96 @@
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+row_owner_checks rank=0 backend=gloo mesh_device=cpu cuda_initialized=False
+row_owner_checks rank=1 backend=gloo mesh_device=cpu cuda_initialized=False
+W1114 20:44:04.839000 228198 torch/multiprocessing/spawn.py:165] Terminating process 228227 via signal SIGTERM
+F.
+=================================== FAILURES ===================================
+_________________ test_cpu_gloo_routing_accumulation_and_state _________________
+gift/tests/unit_tests/test_row_owner_embedding.py:470: in test_cpu_gloo_routing_accumulation_and_state
+    mp.spawn(_worker, args=(2, str(tmp_path)), nprocs=2, join=True)
+        tmp_path   = PosixPath('/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-134/test_cpu_gloo_routing_accumula0')
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/spawn.py:340: in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method="spawn")
+        args       = (2, '/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-134/test_cpu_gloo_routing_accumula0')
+        daemon     = False
+        fn         = <function _worker at 0x70d8987b72e0>
+        join       = True
+        nprocs     = 2
+        start_method = 'spawn'
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/spawn.py:296: in start_processes
+    while not context.join():
+        args       = (2, '/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-134/test_cpu_gloo_routing_accumula0')
+        context    = <torch.multiprocessing.spawn.ProcessContext object at 0x70d899307080>
+        daemon     = False
+        error_files = ['/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytorch-errorfile-314cckbo.pickle', '/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytorch-errorfile-vo57owim.pickle']
+        fn         = <function _worker at 0x70d8987b72e0>
+        i          = 1
+        idx        = 1
+        join       = True
+        mp         = <multiprocessing.context.SpawnContext object at 0x70d8a0dd16d0>
+        nprocs     = 2
+        process    = <SpawnProcess name='SpawnProcess-2' pid=228228 parent=228198 stopped exitcode=1>
+        processes  = [<SpawnProcess name='SpawnProcess-1' pid=228227 parent=228198 stopped exitcode=-SIGTERM>, <SpawnProcess name='SpawnProcess-2' pid=228228 parent=228198 stopped exitcode=1>]
+        start_method = 'spawn'
+        start_parallel = False
+        start_process = <function start_processes.<locals>.start_process at 0x70d8987b7b00>
+        tf_name    = '/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytorch-errorfile-vo57owim.pickle'
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/spawn.py:211: in join
+    raise ProcessRaisedException(msg, error_index, failed_process.pid)
+E   torch.multiprocessing.spawn.ProcessRaisedException: 
+E   
+E   -- Process 1 terminated with the following error:
+E   Traceback (most recent call last):
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/row_owner_embedding.py", line 401, in backward
+E       torch.autograd.graph.get_gradient_edge(owner.weight).node
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/graph.py", line 235, in get_gradient_edge
+E       grad_fn = _get_grad_fn_or_grad_acc(tensor)
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/graph.py", line 202, in _get_grad_fn_or_grad_acc
+E       node = t.view_as(t).grad_fn.next_functions[0][0]  # type: ignore[union-attr]
+E              ^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 670, in __torch_dispatch__
+E       raise NotImplementedError(
+E   NotImplementedError: RaggedShardDTensor dispatch for aten.view.default is not implemented yet.
+E   
+E   The above exception was the direct cause of the following exception:
+E   
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/spawn.py", line 87, in _wrap
+E       fn(i, *args)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_row_owner_embedding.py", line 461, in _worker
+E       _routing_checks(mesh)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_row_owner_embedding.py", line 162, in _routing_checks
+E       torch.autograd.backward(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/__init__.py", line 395, in backward
+E       _engine_run_backward(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/graph.py", line 1072, in _engine_run_backward
+E       return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+E              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/function.py", line 366, in apply
+E       return user_fn(self, *args)
+E              ^^^^^^^^^^^^^^^^^^^^
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/function.py", line 684, in wrapper
+E       outputs = fn(ctx, *args, **kwargs)
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/row_owner_embedding.py", line 404, in backward
+E       raise RuntimeError(
+E   RuntimeError: row-owner embeddings require .backward() accumulation; autograd.grad is unsupported
+        error_index = 1
+        failed_process = <SpawnProcess name='SpawnProcess-2' pid=228228 parent=228198 stopped exitcode=1>
+        fh         = <_io.BufferedReader name='/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytorch-errorfile-vo57owim.pickle'>
+        grace_period = None
+        index      = 1
+        msg        = '\n\n-- Process 1 terminated with the following error:\nTraceback (most recent call last):\n  File "/workspace-SR008.n...ise RuntimeError(\nRuntimeError: row-owner embeddings require .backward() accumulation; autograd.grad is unsupported\n'
+        original_trace = 'Traceback (most recent call last):\n  File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distrib...ise RuntimeError(\nRuntimeError: row-owner embeddings require .backward() accumulation; autograd.grad is unsupported\n'
+        process    = <SpawnProcess name='SpawnProcess-2' pid=228228 parent=228198 stopped exitcode=1>
+        ready      = [12]
+        self       = <torch.multiprocessing.spawn.ProcessContext object at 0x70d899307080>
+        sentinel   = 12
+        timeout    = None
+=========================== short test summary info ============================
+FAILED gift/tests/unit_tests/test_row_owner_embedding.py::test_cpu_gloo_routing_accumulation_and_state
+1 failed, 1 passed, 1 warning in 7.63s

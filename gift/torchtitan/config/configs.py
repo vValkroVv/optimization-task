@@ -151,6 +151,15 @@ class ParallelismConfig:
     writing and `record_bf16_weight_write()` after the write completes.
     """
 
+    gfsdp_split_layer0_ffn: bool = False
+    """Give layers.0's dense w1/w2/w3 FFN its own compiled GFSDP boundary."""
+
+    gfsdp_split_mtp_ffn: bool = False
+    """Give MTP layer 0's dense w1/w2/w3 FFN its own compiled GFSDP boundary."""
+
+    gfsdp_row_owner_embeddings: bool = False
+    """Route input embedding rows to dense GFSDP owners instead of sharding the full table."""
+
     fsdp_reshard_after_forward: Literal["default", "always", "never"] = "default"
     """
     `reshard_after_forward` specifies the policy for applying `reshard_after_forward`

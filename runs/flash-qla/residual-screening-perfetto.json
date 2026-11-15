@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "analysis_date": "2026-11-15",
+  "purpose": "Residual cost screening after the selected combined-four plus FlashQLA external_gate recipe; chat analysis, no implementation or performance experiment.",
+  "scope": {
+    "update": 21,
+    "microbatches": "first three of 32",
+    "ranks": [
+      0,
+      1
+    ],
+    "latest_recipe": "V2 depth32 + BF16 expert reuse + routing metadata kernel + stable cap-zero CE + FlashQLA external_gate",
+    "excluded_in_progress": [
+      "MTP GFSDP split",
+      "early-layer/layer1 GFSDP work",
+      "row-owner input embeddings"
+    ],
+    "units": "milliseconds",
+    "timing": "Kernel duration sums per rank; overlapping families are not additive elapsed time or removable delay.",
+    "latest_selected_span_ms": {
+      "rank0": 1233.485,
+      "rank1": 1232.961
+    },
+    "latest_selected_idle_ms": {
+      "rank0": 38.987,
+      "rank1": 35.176
+    }
+  },
+  "evidence": {
+    "historical_v2": "runs/v2-prefetch-baseline/v2-candidate-screening-perfetto.json",
+    "accepted_component_analysis": "runs/flash-qla/trace-results.json",
+    "trace_directory": "runs/flash-qla/artifacts/raw/trace-analysis",
+    "trace_files": [
+      "combined-rank0.perfetto.json.gz",
+      "external-rank0.perfetto.json.gz",
+      "external-rank1.perfetto.json.gz"
+    ],
+    "mcp_status": "All three normalized traces loaded successfully; raw slice/flow/args schema inspected; queries executed through Perfetto MCP."
+  },
+  "observed_kernel_ms": [
+    {
+      "trace": "combined-rank0",
+      "head_gemm": 206.409,
+      "expert_gemm": 169.232,
+      "ep": 150.311,
+      "nccl_ag": 110.557,
+      "nccl_rs": 107.942,
+      "nccl_ar": 13.896,
+      "gradient_foreach_copy": 37.524
+    },
+    {
+      "trace": "external-rank0",
+      "head_gemm": 209.184,
+      "expert_gemm": 169.594,
+      "ep": 150.368,
+      "nccl_ag": 103.796,
+      "nccl_rs": 99.186,
+      "nccl_ar": 15.228,
+      "gradient_foreach_copy": 37.033
+    },
+    {
+      "trace": "external-rank1",
+      "head_gemm": 201.23,
+      "expert_gemm": 136.456,
+      "ep": 180.872,
+      "nccl_ag": 82.702,
+      "nccl_rs": 133.413,
+      "nccl_ar": 21.229,
+      "gradient_foreach_copy": 38.124
+    }
+  ],
+  "exact_latest_rank0_owners": {
+    "expert_group_bf16_gradient_to_fp32_pack": {
+      "kernels": 63,
+      "ms": 13.569
+    },
+    "expert_group_fp32_add": {
+      "kernels": 14,
+      "ms": 17.073
+    },
+    "head_forward_gemm": {
+      "kernels": 6,
+      "ms": 73.052
+    },
+    "head_backward_gemm": {
+      "kernels": 12,
+      "ms": 136.132
+    },
+    "head_gemm_note": "All 18 eager head GEMMs remain in selected three-F/B scope; launch ancestry is aten::linear or MmBackward0.",
+    "gradient_note": "CopyFunctor<float,BFloat16> here packs BF16 parameter gradients into FP32 reduction input; it is not a weight downcast."
+  },
+  "reused_gdn_ms": {
+    "external_rank0_whole_3f_b": 31.422,
+    "external_rank1_whole_3f_b": 30.946,
+    "external_rank0_vjp_forward": 3.775
+  },
+  "findings": [
+    "Rank0 has 33.138 ms more expert GEMM work than rank1; rank1 has 30.504 ms longer EP kernels. This warrants checking work volume and peer waits, but does not prove routing imbalance or saved step time; ranks2-7 and synchronized arrival data are absent.",
+    "Inspect a degree1 expert backward path that accumulates BF16 parameter gradients directly into persistent FP32 gradients with existing copy/add operators; current intermediate pack plus accumulation costs are not wholly removable.",
+    "Capacity collectives and predicate remain after routing metadata fusion. Narrow SAC reuse is an existing unresolved candidate; collective payload reduction alone does not remove peer arrival waits.",
+    "Head GEMMs remain about 201-209 ms; the previously rejected fused Linear+CE port is not re-proposed.",
+    "Latest captures omit the other29 microbatches and optimizer. Historical full-update evidence exists separately and must not be called a current full-update measurement."
+  ],
+  "selected_scope_sql": "SELECT CASE WHEN name GLOB '*hybrid_ep*' THEN 'EP' WHEN name GLOB '*deep_gemm*impl*' THEN 'expert_FP8_GEMM' WHEN name GLOB '*nvjet*' AND EXISTS(SELECT 1 FROM ancestor_slice(host_id) a WHERE a.name='aten::linear' OR a.name='MmBackward0') THEN 'eager_head_GEMM' WHEN name GLOB '*CopyFunctor<float*BFloat16*' THEN 'gradient_foreach_copy' ELSE 'other' END family,count(*) n,round(sum(dur)/1e6,3) ms FROM residual_selected WHERE category='kernel' GROUP BY family;",
+  "source_references": [
+    "gift/torchtitan/distributed/gfsdp/_param_group.py:974",
+    "gift/torchtitan/distributed/gfsdp/_collectives.py:108",
+    "gift/torchtitan/distributed/gfsdp/_collectives.py:200",
+    "gift/torchtitan/models/common/moe/dispatch/capacity.py",
+    "runs/flash-qla/timing-drift.md"
+  ],
+  "limits": [
+    "No GPU experiment or source/configuration change.",
+    "No causal speedup, current full-update critical path or all-rank load balance established.",
+    "Float add accounting is restricted to the identified expert post_backward_reduce owner; other additions are not included in the expert budget."
+  ]
+}

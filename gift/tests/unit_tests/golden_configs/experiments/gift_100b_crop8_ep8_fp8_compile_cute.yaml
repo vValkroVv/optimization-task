@@ -1047,7 +1047,7 @@ trainer:
       batching_method: random
       cache_limit: null
       enable_syntax_aware_fim: false
-      epoch_size: null
+      epoch_size: 102400
       fim_rates:
         inline_fim: 0.0
         multiline_fim: 0.0
@@ -1070,8 +1070,8 @@ trainer:
         download_timeout: null
         fim_rates: null
         keep_zip: null
-        local: ../runs/overnight-streaming-perf/artifacts/raw/mds4096
-        name: c4_perf896
+        local: ../runs/production-data-abcd/artifacts/raw/data-001
+        name: gigasets_4domain
         proportion: null
         remote: null
         repeat: null
@@ -1108,7 +1108,7 @@ trainer:
     sparse_deep_gemm_num_sms: 116
     sparse_fused_swiglu_quant: true
     sparse_use_grouped_gemm: true
-  hf_assets_path: ./tests/assets/tokenizer
+  hf_assets_path: /home/jovyan/shares/SR008.nfs1/models_templates/dclm-7b-128k_digit_tokenizer_FIM
   loss:
     __type__: loss:mtp
     loss_weights:
@@ -1158,6 +1158,10 @@ trainer:
     fsdp_reshard_after_forward: default
     full_dtensor: false
     gfsdp_match_fsdp2_init: true
+    gfsdp_reuse_bf16_expert_weights: false
+    gfsdp_row_owner_embeddings: false
+    gfsdp_split_layer0_ffn: false
+    gfsdp_split_mtp_ffn: false
     module_fqns_per_model_part: null
     pipeline_parallel_balancing: layer_count
     pipeline_parallel_degree: 1

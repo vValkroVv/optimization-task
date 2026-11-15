@@ -19,6 +19,7 @@ from torchtitan.tools.utils import TORCH_DTYPE_MAP
 from torchtitan.distributed import ParallelDims
 from torchtitan.distributed.activation_checkpoint import apply_ac
 from torchtitan.distributed.compile import apply_compile
+from torchtitan.distributed.ffn_overlap import enable_ffn_overlap
 from torchtitan.distributed.context_parallel import apply_cp_to_forward
 from torchtitan.distributed.fsdp import apply_fsdp
 from torchtitan.distributed.tensor_parallel import maybe_enable_async_tp
@@ -31,6 +32,41 @@ from torchtitan.distributed.gfsdp import (
 from torchtitan.models.gift_moe import GiftMoEModel
 from torchtitan.tools.logging import logger
 from torchtitan.models.common.moe import reserve_hybridep_tokens
+
+
+def _has_tied_embedding_weights(model: nn.Module) -> bool:
+    embedding = getattr(model, "tok_embeddings", None)
+    head = getattr(model, "lm_head", None)
+    return getattr(model, "enable_weight_tying", False) or (
+        embedding is not None
+        and head is not None
+        and embedding.weight is head.weight
+    )
+
+
+def _validate_row_owner_request(
+    model: GiftMoEModel,
+    *,
+    parallel_dims: ParallelDims,
+    training: TrainingConfig,
+    parallelism: ParallelismConfig,
+) -> None:
+    if not parallelism.gfsdp_row_owner_embeddings:
+        return
+    if parallelism.fsdp_backend != "gfsdp2":
+        raise ValueError(
+            "gfsdp_row_owner_embeddings requires fsdp_backend='gfsdp2'"
+        )
+    if (parallel_dims.tp, parallel_dims.pp, parallel_dims.cp) != (1, 1, 1):
+        raise ValueError("gfsdp_row_owner_embeddings currently requires TP/PP/CP1")
+    if parallel_dims.dp_replicate != 1:
+        raise ValueError("gfsdp_row_owner_embeddings does not support HSDP replicas")
+    if training.enable_cpu_offload:
+        raise ValueError("gfsdp_row_owner_embeddings does not support CPU offload")
+    if _has_tied_embedding_weights(model):
+        raise ValueError("gfsdp_row_owner_embeddings requires untied input weights")
+    if model.tok_embeddings is None:
+        raise ValueError("gfsdp_row_owner_embeddings requires tok_embeddings")
 
 
 def parallelize_gift_moe(
@@ -50,6 +86,13 @@ def parallelize_gift_moe(
 
     if parallelism.full_dtensor:
         raise NotImplementedError("full_dtensor is not supported yet.")
+
+    _validate_row_owner_request(
+        model,
+        parallel_dims=parallel_dims,
+        training=training,
+        parallelism=parallelism,
+    )
 
     # CP: wrap inner attention forward BEFORE parallelize() so CP logic
     # runs inside the local_map boundary on local tensors.
@@ -71,6 +114,22 @@ def parallelize_gift_moe(
     model_compile_enabled = (
         compile_config.enable and "model" in compile_config.components
     )
+
+    split_ffn = parallelism.gfsdp_split_layer0_ffn or parallelism.gfsdp_split_mtp_ffn
+    if split_ffn:
+        if parallelism.fsdp_backend != "gfsdp2":
+            raise ValueError("GFSDP FFN overlap requires fsdp_backend='gfsdp2'")
+        if parallel_dims.tp > 1 or parallel_dims.pp > 1 or parallel_dims.cp > 1:
+            raise ValueError("GFSDP FFN overlap currently requires TP/PP/CP1")
+        if parallelism.gfsdp_split_layer0_ffn:
+            if "0" not in model.layers:
+                raise ValueError("gfsdp_split_layer0_ffn requires layers.0")
+            enable_ffn_overlap(model.layers["0"])
+        if parallelism.gfsdp_split_mtp_ffn:
+            mtp = getattr(model, "mtp", None)
+            if mtp is None or "0" not in mtp.layers:
+                raise ValueError("gfsdp_split_mtp_ffn requires mtp.layers.0")
+            enable_ffn_overlap(mtp.layers["0"])
 
     if ac_config.mode != "none":
         apply_ac(
@@ -115,6 +174,7 @@ def parallelize_gift_moe(
             reuse_bf16_expert_weights=(
                 parallelism.gfsdp_reuse_bf16_expert_weights
             ),
+            row_owner_embeddings=parallelism.gfsdp_row_owner_embeddings,
             **fsdp_kwargs,
         )
     elif parallelism.fsdp_backend == "fsdp2":
@@ -149,6 +209,7 @@ def apply_gfsdp(
     edp_mesh: DeviceMesh | None = None,
     enable_symm_mem: bool = False,
     reuse_bf16_expert_weights: bool = False,
+    row_owner_embeddings: bool = False,
 ):
     """
     Apply data parallelism (via GFSDP2) to the model.
@@ -161,24 +222,64 @@ def apply_gfsdp(
     if enable_symm_mem:
         raise ValueError("GFSDP does not support FSDP symmetric memory yet")
 
+    row_owner = None
+    if row_owner_embeddings:
+        if dp_mesh.ndim != 1:
+            raise ValueError(
+                "gfsdp_row_owner_embeddings requires one dense GFSDP shard axis "
+                "without HSDP replicas"
+            )
+        if model.tok_embeddings is None:
+            raise ValueError("gfsdp_row_owner_embeddings requires tok_embeddings")
+        if _has_tied_embedding_weights(model):
+            raise ValueError(
+                "gfsdp_row_owner_embeddings requires untied input weights"
+            )
+        from torchtitan.distributed.gfsdp.row_owner_embedding import (
+            RowOwnerEmbedding,
+        )
+
+        row_owner = RowOwnerEmbedding.from_embedding(model.tok_embeddings, dp_mesh)
+        model.tok_embeddings = row_owner
+
     mp_policy = GMixedPrecisionPolicy(
         param_dtype=param_dtype,
         reduce_dtype=reduce_dtype,
         cast_forward_inputs=False,
     )
     fsdp_config: dict[str, Any] = {"mesh": dp_mesh, "mp_policy": mp_policy}
+    if row_owner is not None:
+        # The same final Parameter identity must be absent from every nested
+        # unit and the root, not just from the former embedding wrapper.
+        fsdp_config["ignored_params"] = {row_owner.weight}
 
     reshard_after_forward = get_fsdp_reshard_after_forward_policy(
         reshard_after_forward_policy, pp_enabled
     )
     cache_requested_groups = 0
 
-    def shard_block_unit(unit: nn.Module, block: nn.Module) -> None:
+    def shard_block_unit(unit: nn.Module, block: nn.Module, fqn: str) -> None:
         nonlocal cache_requested_groups
         if not block.moe_enabled:
-            g_fully_shard(
+            split = getattr(unit, "_ffn_overlap_regions", None) is not None
+            if split:
+                # Wrap the original w1/w2/w3 owner before excluding it from
+                # the remainder parent. No parameter or FQN is replaced.
+                g_fully_shard(
+                    block.feed_forward,
+                    **fsdp_config,
+                    reshard_after_forward=reshard_after_forward,
+                )
+            parent = g_fully_shard(
                 unit, **fsdp_config, reshard_after_forward=reshard_after_forward
             )
+            if split:
+                parent.set_buffer_region_child(block.feed_forward)
+                ffn_fqn = f"{fqn}.{'block.' if unit is not block else ''}feed_forward"
+                logger.info(
+                    f"GFSDP FFN overlap active: {ffn_fqn} (w1/w2/w3 together); "
+                    "FFN/remainder use disjoint regions of existing data/grad slots"
+                )
             return
         assert hasattr(block, "moe")
 
@@ -212,15 +313,15 @@ def apply_gfsdp(
     if getattr(model, "enable_weight_tying", False):
         raise ValueError("gfsdp2 does not support weight tying")
 
-    if model.tok_embeddings is not None:
+    if model.tok_embeddings is not None and row_owner is None:
         g_fully_shard(
             model.tok_embeddings,
             **fsdp_config,
             reshard_after_forward=reshard_after_forward,
         )
 
-    for transformer_block in model.layers.values():
-        shard_block_unit(transformer_block, transformer_block)
+    for name, transformer_block in model.layers.items():
+        shard_block_unit(transformer_block, transformer_block, f"layers.{name}")
 
     norm, lm_head = model.norm, model.lm_head
     head: GFSDPModule | None = None
@@ -238,8 +339,8 @@ def apply_gfsdp(
 
     mtp = getattr(model, "mtp", None)
     if mtp is not None:
-        for mtp_layer in mtp.layers.values():
-            shard_block_unit(mtp_layer, mtp_layer.block)
+        for name, mtp_layer in mtp.layers.items():
+            shard_block_unit(mtp_layer, mtp_layer.block, f"mtp.layers.{name}")
 
     # No ``reshard_after_forward`` on purpose: ``None`` turns on the root's
     # automatic mode, which governs every unit.
@@ -269,7 +370,7 @@ def apply_gfsdp(
         if isinstance(module, GFSDPModule):
             module.set_gradient_divide_factor(1.0)
 
-    chain = [
+    units = [
         module
         for module in (
             model.tok_embeddings,
@@ -281,9 +382,20 @@ def apply_gfsdp(
         if isinstance(module, GFSDPModule)
     ]
 
+    def entered_units(unit: GFSDPModule) -> list[GFSDPModule]:
+        if getattr(unit, "_ffn_overlap_regions", None) is None:
+            return [unit]
+        block = getattr(unit, "block", unit)
+        return [unit, block.feed_forward]
+
+    chain = [entered for unit in units for entered in entered_units(unit)]
+
     # Data buffers are dealt along this order; without it two units adjacent in
     # forward can share one and zero-3 dies on step 1.
     root.set_shard_order(chain)
+
+    if row_owner is not None:
+        row_owner.attach_comm_context(root)
 
     # D2H syncs in the expert path interfere with the implicit prefetch.
     if ep_degree == 1:
@@ -297,7 +409,10 @@ def apply_gfsdp(
     for source, target in zip(chain, chain[1:]):
         _link(source, target, "forward")
 
-    # Backward walks the same chain in reverse.
-    reverse = list(reversed(chain))
+    # A nested parent enters backward on the suffix gradient, before its FFN.
+    # Reverse top-level units, retaining parent-before-child within each one.
+    reverse = [
+        entered for unit in reversed(units) for entered in entered_units(unit)
+    ]
     for source, target in zip(reverse, reverse[1:]):
         _link(source, target, "backward")

@@ -4,6 +4,145 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+## Global priority: rebaseline all runs on real data
+
+Owner instruction, 15 November 2026. The
+[global input requirement](../docs/baseline.md#global-requirement-real-data-and-production-tokenizer)
+supersedes the old test-tokenizer fixture across all campaigns. The requested
+four-variant cumulative rerun and three affected component comparisons are
+complete; historical per-feature experiments retain their original input scope.
+
+- [x] Locate the named production 100B tokenizer and a diverse real corpus;
+  record their identities and packing rules.
+- [x] Align canonical configuration, active runners and preparation; verify
+  actual loaded token IDs, diversity and embedding-owner distributions.
+- [x] Measure baseline, four fixes, FlashQLA and the three new fixes cumulatively,
+  with matched new-data component timings and rank-0/1 diagnostics.
+- [x] Preserve historical evidence and reconcile current speed and memory
+  conclusions in the [campaign report](../runs/production-data-abcd/report.md).
+
+Future measurements must keep the corrected input contract. Reuse accepted
+correctness/lifecycle evidence and do not reopen the accepted MTP/FP8 A/A work.
+This completed entry launches no further experiment.
+
+## Completed assignment: production-data cumulative A/B/C/D rerun
+
+Completed 15 November 2026.
+
+Authorized by the 15 November 2026 goal attachment. Correct the shared input
+baseline using the verified production 100B tokenizer and existing real diverse
+corpus, then refresh the three component timings and run exactly the cumulative
+A/B/C/D comparison with matching bounded diagnostics. Preserve the completed
+implementation, workload, contributor edits and historical evidence. Use only
+the existing owner-confirmed eight-H100 allocation; no allocation, installation,
+download, commit or push. Do not reopen accepted MTP/FP8 A/A work.
+
+The [single campaign report](../runs/production-data-abcd/report.md#scope-and-finite-acceptance)
+owns the finite checklist, variant matrix, commands, results and remaining gates.
+Real-data input acceptance is complete: `data-002` is prepared, the native
+CPU/Gloo loader passes at depths 0 and 32 across all eight ranks, and the actual
+base-runner readiness check passes. The [preparation receipt](../runs/production-data-abcd/data-002.json),
+[loader receipt](../runs/production-data-abcd/data-002-loader-summary.json) and
+[readiness receipt](../runs/production-data-abcd/input-readiness.json) hold the
+details. `data-001` remains excluded as a failed partial. This does not establish
+GPU behavior. The input gate and six component refresh processes passed, and all
+four serial A/B/C/D timing runs are complete. Their fixed-order ratios are
+provisional; the report records the timer, activation, memory and cadence scope.
+All eight timing/diagnostic rows completed without failure, source/config
+identities matched, and the GPU lease is closed. MCP analysis is complete, with
+parser and coverage limits recorded in the report. No default recipe or feature
+setting was promoted. The owner subsequently authorized consolidating the local
+and server copies, keeping four original rank-0 traces in ignored `artifacts/`,
+and committing/pushing the completed implementation, documentation and compact
+evidence. This publication request authorizes no additional GPU run. The
+completed assignments below remain historical.
+
+<a id="active-assignment-ffn-overlap-and-row-owner-embeddings"></a>
+## Completed assignment: FFN overlap and row-owner embeddings
+
+Completed 14 November 2026.
+
+Authorized by the 14 November 2026 goal attachment. Starting checkout is clean
+`main` at `2ada87125e433e1f76c4cb2bfad244b641a78a93`. Implementation is limited
+to this task's `gift/` and task-owned tests, runners and evidence. The current
+[final baseline](../docs/baseline.md#current-final-task-baseline) remains the
+control, including all four accepted improvements and FlashQLA `external_gate`.
+Independent controls default off. The initial native protocol is 10 warmup plus
+10 measured complete updates with accumulation 32; LR schedule stays 65000/2000.
+The owner subsequently limited remaining numerical verification to embeddings
+and accepted the investigated MTP/FP8 A/A variability. Further MTP/layer-0 A/A
+investigations are stopped and their results do not block this campaign.
+The owner confirmed the current eight-H100 allocation and authorized the goal's
+specified GPU work after the initial read-only reconciliation; historical
+campaigns grant no new permission. No allocation, installation,
+shared-environment change, original-checkout write or publication is authorized.
+
+Finite acceptance, in order where dependencies apply:
+
+- [x] Reconcile current source, recorded runtime and existing research once;
+  inspect the current `external_gate` trace with MCP Perfetto and record the
+  integration/precision boundaries, collective ordering and expected costs.
+- [x] Integrate separate opt-in MTP and `layers.0` FFN groups, each containing
+  w1/w2/w3 together with callable, compile and GFSDP boundaries; preserve SAC,
+  FQNs, input gradients, precision and state semantics. The owner's subsequent
+  buffer requirement supersedes private parent contexts: use aligned contiguous
+  non-overlapping regions of existing weight/gradient storage, preserve the
+  alternating weight slots and original allocation budget, and track each
+  region's ownership/completion. Add no GPU storage, pool growth or duplicate
+  staging tensors. Component receipts show unchanged unique pool bytes and
+  measured peaks; pending-reader tests and the all-rank component trace cover
+  their stated scopes. The combined native initialized pool/peak and allocation
+  lifetime pass in B; see the [native memory receipt](../runs/ffn-row-owner/native-memory-results.md).
+- [x] Integrate complete row-owner lookup and backward with requester/owner
+  deduplication, native source-local BF16 rounding, FP32 owner SUM and dense
+  accumulated gradients; remove the embedding from all GFSDP wrappers and
+  integrate clipping, dense AdamW, EMA and checkpoint continuation. The owner's
+  subsequent memory requirement supersedes independent embedding intermediates:
+  borrow existing GFSDP storage without pool growth or a separate workspace,
+  protect reuse with events, retain backward routing state safely and keep one
+  persistent FP32 owner gradient across first/later/reset accumulation. The
+  full-shape fixture includes native coalescing scratch and routing metadata;
+  its matched-cache peak is below baseline. The full native initialized pool
+  and common-baseline memory cap also pass in the integrated native receipt.
+- [x] Close embedding-specific output/gradient, invalid/empty/skew traffic,
+  trunk+MTP derivative, accumulation-32, optimizer, clipping, EMA and state
+  checks; retain failed/skipped checks. Component outputs/gradients and the
+  listed traffic/state cases pass; the all-three native update also passes with
+  compiled/SAC ordering and the measured allocation lifetime.
+- [x] Measure the actual eight-H100/NCCL embedding stages and complete paths,
+  plus affected FFN blocks/schedules, with per-rank latency, traffic and memory;
+  publish the component result table before native timing. The six-case owner
+  table and both FFN component tables are published; these isolated
+  measurements do not establish combined training performance.
+- [x] Complete one all-three-change native optimizer update with all 32
+  microbatches on eight ranks under the accepted four fixes plus FlashQLA
+  `external_gate`, SAC and model/loss compilation. Record initialized per-dtype
+  pool capacities and actual full-model peak; source-derived pool arithmetic is
+  not a substitute. The [native memory receipt](../runs/ffn-row-owner/native-memory-results.md)
+  records the passing eight-rank update, pool and peak comparison.
+- [x] Run matched native A/B 10+10 measurements with accepted baseline A and
+  exactly all three new changes in B; report full series, physical/valid TPS,
+  elapsed time, memory and cadence uncertainty. The [campaign report](../runs/ffn-row-owner/report.md#final-verdict)
+  links the primary performance result and its JSON, with canonical A/B
+  summaries, process metadata and per-rank full-step series; the bounded native
+  trace confirms activation. One sequential pair measured a provisional
+  +1.27% fixed-window physical-TPS difference with roughly 3% within-window
+  cadence drift, so no general or causal gain is claimed.
+- [x] Use bounded diagnostics (at most three complete microbatches per traced
+  rank) and MCP Perfetto to establish early reductions and removal of embedding
+  table collectives; reconcile final source/costs and give per-change and
+  combined verdicts with explicit remaining production gates. The
+  [native trace report](../runs/ffn-row-owner/native-trace-results.md) confirms
+  the mechanism on 12 FFN rank/microbatch cases, the once-per-microbatch routed
+  owner path, and absence of embedding-table GFSDP collectives. It retains the
+  unchanged `lm_head` collectives and event-wait causality limits; coverage is
+  three of 32 microbatches on ranks 0/1 and excludes optimizer device work.
+
+The single [campaign evidence area](../runs/ffn-row-owner/report.md) records
+source identities, commands, design decisions, measurements, failures and
+remaining limits. All finite assignment items are complete. No defaults are
+promoted and no commit or publication follows this assignment.
+
 ## Completed assignment: FlashQLA gate variants
 
 Completed 14 November 2026. The block comparison (18 reports), all three native

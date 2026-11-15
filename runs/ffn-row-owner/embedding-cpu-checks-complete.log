@@ -1,0 +1,180 @@
+F
+=================================== FAILURES ===================================
+_________________ test_cpu_gloo_routing_accumulation_and_state _________________
+
+tmp_path = PosixPath('/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-131/test_cpu_gloo_routing_accumula0')
+
+    def test_cpu_gloo_routing_accumulation_and_state(tmp_path):
+>       mp.spawn(_worker, args=(2, str(tmp_path)), nprocs=2, join=True)
+
+tmp_path   = PosixPath('/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-131/test_cpu_gloo_routing_accumula0')
+
+tests/unit_tests/test_row_owner_embedding.py:396: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/spawn.py:340: in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method="spawn")
+        args       = (2, '/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-131/test_cpu_gloo_routing_accumula0')
+        daemon     = False
+        fn         = <function _worker at 0x7247da8c2160>
+        join       = True
+        nprocs     = 2
+        start_method = 'spawn'
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/spawn.py:296: in start_processes
+    while not context.join():
+        args       = (2, '/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytest-of-user/pytest-131/test_cpu_gloo_routing_accumula0')
+        context    = <torch.multiprocessing.spawn.ProcessContext object at 0x7247da8cc230>
+        daemon     = False
+        error_files = ['/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytorch-errorfile-1jfgcqdk.pickle', '/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytorch-errorfile-c_q2wei8.pickle']
+        fn         = <function _worker at 0x7247da8c2160>
+        i          = 1
+        idx        = 1
+        join       = True
+        mp         = <multiprocessing.context.SpawnContext object at 0x7249ffaad550>
+        nprocs     = 2
+        process    = <SpawnProcess name='SpawnProcess-2' pid=217745 parent=217519 stopped exitcode=1>
+        processes  = [<SpawnProcess name='SpawnProcess-1' pid=217744 parent=217519 stopped exitcode=1>, <SpawnProcess name='SpawnProcess-2' pid=217745 parent=217519 stopped exitcode=1>]
+        start_method = 'spawn'
+        start_parallel = False
+        start_process = <function start_processes.<locals>.start_process at 0x7247da8c28e0>
+        tf_name    = '/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytorch-errorfile-c_q2wei8.pickle'
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <torch.multiprocessing.spawn.ProcessContext object at 0x7247da8cc230>
+timeout = None, grace_period = None
+
+    def join(self, timeout: float | None = None, grace_period: float | None = None):
+        r"""Join one or more processes within spawn context.
+    
+        Attempt to join one or more processes in this spawn context.
+        If one of them exited with a non-zero exit status, this function
+        kills the remaining processes (optionally with a grace period)
+        and raises an exception with the cause of the first process exiting.
+    
+        Returns ``True`` if all processes have been joined successfully,
+        ``False`` if there are more processes that need to be joined.
+    
+        Args:
+            timeout (float): Wait this long (in seconds) before giving up on waiting.
+            grace_period (float): When any processes fail, wait this long (in seconds)
+                for others to shutdown gracefully before terminating them. If they
+                still don't exit, wait another grace period before killing them.
+        """
+        # Ensure this function can be called even when we're done.
+        if len(self.sentinels) == 0:
+            return True
+    
+        # Wait for any process to fail or all of them to succeed.
+        ready = multiprocessing.connection.wait(
+            self.sentinels.keys(),
+            timeout=timeout,
+        )
+    
+        error_index = None
+        for sentinel in ready:
+            index = self.sentinels.pop(sentinel)
+            process = self.processes[index]
+            process.join()
+            if process.exitcode != 0:
+                error_index = index
+                break
+    
+        # Return if there was no error.
+        if error_index is None:
+            # Return whether or not all processes have been joined.
+            return len(self.sentinels) == 0
+        # An error occurred. Clean-up all processes before returning.
+        # First, allow a grace period for processes to shutdown themselves.
+        if grace_period is not None:
+            self._join_procs_with_timeout(grace_period)
+        # Then, terminate processes that are still alive. Try SIGTERM first.
+        for process in self.processes:
+            if process.is_alive():
+                log.warning("Terminating process %s via signal SIGTERM", process.pid)
+                process.terminate()
+    
+        # Try SIGKILL if the process isn't going down after another grace_period.
+        # The reason is related to python signal handling is limited
+        # to main thread and if that is in c/c++ land and stuck it won't
+        # handle it. We have seen processes getting stuck not handling
+        # SIGTERM for the above reason.
+        self._join_procs_with_timeout(30 if grace_period is None else grace_period)
+        for process in self.processes:
+            if process.is_alive():
+                log.warning(
+                    "Unable to shutdown process %s via SIGTERM , forcefully exiting via SIGKILL",
+                    process.pid,
+                )
+                process.kill()
+            process.join()
+    
+        # The file will only be created if the process crashed.
+        failed_process = self.processes[error_index]
+        if not os.access(self.error_files[error_index], os.R_OK):
+            exitcode = self.processes[error_index].exitcode
+            if exitcode < 0:
+                try:
+                    name = signal.Signals(-exitcode).name
+                except ValueError:
+                    name = f"<Unknown signal {-exitcode}>"
+                raise ProcessExitedException(
+                    f"process {error_index:d} terminated with signal {name}",
+                    error_index=error_index,
+                    error_pid=failed_process.pid,
+                    exit_code=exitcode,
+                    signal_name=name,
+                )
+            else:
+                raise ProcessExitedException(
+                    f"process {error_index:d} terminated with exit code {exitcode:d}",
+                    error_index=error_index,
+                    error_pid=failed_process.pid,
+                    exit_code=exitcode,
+                )
+    
+        with open(self.error_files[error_index], "rb") as fh:
+            original_trace = pickle.load(fh)
+        msg = f"\n\n-- Process {error_index:d} terminated with the following error:\n"
+        msg += original_trace
+>       raise ProcessRaisedException(msg, error_index, failed_process.pid)
+E       torch.multiprocessing.spawn.ProcessRaisedException: 
+E       
+E       -- Process 1 terminated with the following error:
+E       Traceback (most recent call last):
+E         File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/spawn.py", line 87, in _wrap
+E           fn(i, *args)
+E         File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_row_owner_embedding.py", line 390, in _worker
+E           _state_checks(mesh, directory)
+E         File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_row_owner_embedding.py", line 324, in _state_checks
+E           torch.testing.assert_close(
+E         File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_comparison.py", line 1689, in assert_close
+E           raise error_metas[0].to_error(msg)
+E       AssertionError: Tensor-likes are not equal!
+E       
+E       Mismatched elements: 24 / 24 (100.0%)
+E       Greatest absolute difference: 1.109375 at index (0, 3)
+E       Greatest relative difference: 1.1171875 at index (0, 3)
+
+error_index = 1
+failed_process = <SpawnProcess name='SpawnProcess-2' pid=217745 parent=217519 stopped exitcode=1>
+fh         = <_io.BufferedReader name='/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/pytorch-errorfile-c_q2wei8.pickle'>
+grace_period = None
+index      = 1
+msg        = '\n\n-- Process 1 terminated with the following error:\nTraceback (most recent call last):\n  File "/opt/torchtitan-ve...0%)\nGreatest absolute difference: 1.109375 at index (0, 3)\nGreatest relative difference: 1.1171875 at index (0, 3)\n'
+original_trace = 'Traceback (most recent call last):\n  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/s...0%)\nGreatest absolute difference: 1.109375 at index (0, 3)\nGreatest relative difference: 1.1171875 at index (0, 3)\n'
+process    = <SpawnProcess name='SpawnProcess-2' pid=217745 parent=217519 stopped exitcode=1>
+ready      = [53]
+self       = <torch.multiprocessing.spawn.ProcessContext object at 0x7247da8cc230>
+sentinel   = 53
+timeout    = None
+
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/multiprocessing/spawn.py:211: ProcessRaisedException
+----------------------------- Captured stderr call -----------------------------
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+W1114 20:06:13.789000 217519 torch/multiprocessing/spawn.py:165] Terminating process 217744 via signal SIGTERM
+=========================== short test summary info ============================
+FAILED tests/unit_tests/test_row_owner_embedding.py::test_cpu_gloo_routing_accumulation_and_state
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 1 warning in 9.87s

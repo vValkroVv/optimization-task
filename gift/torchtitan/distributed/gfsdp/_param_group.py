@@ -36,6 +36,75 @@ class GFSDPBufferContext:
 
     def __init__(self, buffer_type: BufferType):
         self._buffer_type = buffer_type
+        self._storage_ctx = self
+        self._regions: list[GFSDPBufferContext] = [self]
+
+    def overlaps(self, other: "GFSDPBufferContext") -> bool:
+        if self._storage_ctx is not other._storage_ctx:
+            return False
+        return any(
+            max(start, other._ranges[dtype][0]) < min(end, other._ranges[dtype][1])
+            for dtype, (start, end) in self._ranges.items()
+            if dtype in other._ranges
+        )
+
+    def overlapping_contexts(self) -> list["GFSDPBufferContext"]:
+        return [ctx for ctx in self._storage_ctx._regions if self.overlaps(ctx)]
+
+    def conflicting_owner(self, owner: "GFSDPParamGroup") -> "GFSDPParamGroup | None":
+        return next(
+            (
+                ctx.owner
+                for ctx in self.overlapping_contexts()
+                if ctx.owner is not None and ctx.owner is not owner
+            ),
+            None,
+        )
+
+    def wait_for_release(self, stream: torch.Stream) -> None:
+        # Keep other regions' events: a later reader may use another stream.
+        for ctx in self.overlapping_contexts():
+            if ctx.release_event is not None:
+                stream.wait_event(ctx.release_event)
+
+    @contextlib.contextmanager
+    def borrow(self, stream: torch.Stream | None) -> Iterator[dict]:
+        """Temporarily use existing bytes after all overlapping users finish.
+
+        A borrower must not retain a view beyond this context. Stream events
+        protect pending collective readers as well as subsequent GFSDP writes.
+        """
+        if any(ctx.owner is not None for ctx in self.overlapping_contexts()):
+            raise RuntimeError("Cannot borrow a GFSDP buffer with a live owner")
+        if stream is not None:
+            self.wait_for_release(stream)
+        self.owner = self
+        try:
+            yield self.buffers
+        finally:
+            self.release_event = stream.record_event() if stream is not None else None
+            self.owner = None
+
+    def region(
+        self,
+        sizes: dict[torch.dtype | None, int],
+        offsets: dict[torch.dtype | None, int],
+    ) -> "GFSDPBufferContext":
+        region = GFSDPBufferContext(self._buffer_type)
+        region._storage_ctx = self._storage_ctx
+        region.buffers = {
+            dtype: self.buffers[dtype].narrow(0, offsets[dtype], size)
+            for dtype, size in sizes.items()
+        }
+        region._ranges = {
+            dtype: (offsets[dtype], offsets[dtype] + size)
+            for dtype, size in sizes.items()
+        }
+        region.yccl_handles = {dtype: self.yccl_handles[dtype] for dtype in sizes}
+        region.owner = None
+        region.release_event = None
+        self._storage_ctx._regions.append(region)
+        return region
 
     def lazy_init(
         self,
@@ -67,8 +136,9 @@ class GFSDPBufferContext:
             ).view(torch.uint8)
             for dtype, size_in_bytes in sizes_by_dtype.items()
         }
-        self.owner: GFSDPParamGroup | None = None
+        self.owner: GFSDPParamGroup | GFSDPBufferContext | None = None
         self.release_event: torch.Event | None = None
+        self._ranges = {dtype: (0, size) for dtype, size in sizes_by_dtype.items()}
 
 
 class GFSDPCommContext:
@@ -138,6 +208,7 @@ class GFSDPParamGroup:
         self.device = device
         self.device_handle = _get_device_handle(device.type)
         self.mp_policy = mp_policy
+        self._shard_alignment = shard_alignment
         self._training_state = TrainingState.IDLE
         # Group's sharded state always matches its parameters' sharded states
         self._sharded_state = ShardedState.SHARDED
@@ -487,11 +558,11 @@ class GFSDPParamGroup:
         assert reduce_scatter_input is not None
         padded_sharded_param_grad = self._padded_sharded_param_grad[all_gather_dtype]
         assert padded_sharded_param_grad is not None
-        self._reduce_scatter_output[all_gather_dtype] = (
-            reduce_scatter_output
-        ) = reduce_scatter_input.chunk(
-            self._reduce_scatter_process_group.size()
-        )[self._reduce_scatter_process_group.rank()]
+        self._reduce_scatter_output[all_gather_dtype] = reduce_scatter_output = (
+            reduce_scatter_input.chunk(self._reduce_scatter_process_group.size())[
+                self._reduce_scatter_process_group.rank()
+            ]
+        )
         for fsdp_param, param_reduce_scatter_output in zip(
             fsdp_params,
             reduce_scatter_output[
@@ -809,15 +880,12 @@ class GFSDPParamGroup:
             all_gather_stream = self.comm_ctx.get_all_gather_stream(
                 async_op, self._training_state
             )
-            if (
-                owner := (data_buffer_ctx := self.data_buffer_ctx).owner
-            ) is not None and owner is not self:
+            data_buffer_ctx = self.data_buffer_ctx
+            if (owner := data_buffer_ctx.conflicting_owner(self)) is not None:
                 raise RuntimeError(
                     f"{self} tried to acquire its data buffer, but it is in use by {owner}."
                 )
-            if (release_event := data_buffer_ctx.release_event) is not None:
-                all_gather_stream.wait_event(release_event)
-                data_buffer_ctx.release_event = None
+            data_buffer_ctx.wait_for_release(all_gather_stream)
             data_buffer_ctx.owner = self
             for (
                 all_gather_dtype,
@@ -828,8 +896,7 @@ class GFSDPParamGroup:
                     refresh_cache = (
                         self._bf16_cache_prepared_generation
                         != self._bf16_cache_generation
-                        or all_gather_dtype
-                        not in self._all_gather_input_set_dtypes
+                        or all_gather_dtype not in self._all_gather_input_set_dtypes
                     )
                     if refresh_cache:
                         for event in (
@@ -857,9 +924,7 @@ class GFSDPParamGroup:
                     self.data_buffer_ctx.yccl_handles.get(all_gather_dtype),
                 )
                 if self._bf16_cache_enabled and refresh_cache:
-                    self._bf16_cache_prepared_generation = (
-                        self._bf16_cache_generation
-                    )
+                    self._bf16_cache_prepared_generation = self._bf16_cache_generation
                     self._bf16_cache_ready_event = (
                         self._all_gather_result.all_gather_event
                     )
@@ -938,13 +1003,11 @@ class GFSDPParamGroup:
         logger.debug("%s", self._with_fqn("GFSDP::post_backward"))
         self._training_state = TrainingState.POST_BACKWARD
         if (grad_buffer_ctx := self.grad_buffer_ctx) is not None:
-            if (owner := grad_buffer_ctx.owner) is not None and owner is not self:
+            if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
                 raise RuntimeError(
                     f"{self} tried to acquire its gradient buffer, but it is in use by {owner}."
                 )
-            if (release_event := grad_buffer_ctx.release_event) is not None:
-                self.device_handle.current_stream().wait_event(release_event)
-                grad_buffer_ctx.release_event = None
+            grad_buffer_ctx.wait_for_release(self.device_handle.current_stream())
             grad_buffer_ctx.owner = self
         with record_function(self._with_fqn("FSDP::post_backward_accumulate")):
             fsdp_params_with_grad_and_no_accumulated_grad: list[GFSDPParam] = []
@@ -1083,10 +1146,11 @@ class GFSDPParamGroup:
     def _wait_for_post_backward(self) -> None:
         if self._post_reduce_event is not None:
             self.device_handle.current_stream().wait_event(self._post_reduce_event)
-            self._post_reduce_event = None
             assert self.grad_buffer_ctx is not None
             assert self.grad_buffer_ctx.owner is None
-            self.grad_buffer_ctx.release_event = None
+            if self.grad_buffer_ctx.release_event is self._post_reduce_event:
+                self.grad_buffer_ctx.release_event = None
+            self._post_reduce_event = None
 
     def _backward_prefetch(self) -> None:
         if not self._post_forward_indices:
@@ -1117,7 +1181,12 @@ class GFSDPParamGroup:
 
         # A prefetch into a buffer someone else holds is skipped, not fatal: the
         # unit is all-gathered when it is entered instead.
-        owner = target_fsdp_param_group.data_buffer_ctx.owner
+        ctx = target_fsdp_param_group.data_buffer_ctx
+        owner = (
+            ctx.conflicting_owner(target_fsdp_param_group)
+            if isinstance(ctx, GFSDPBufferContext)
+            else ctx.owner
+        )
         if owner is not None and owner is not target_fsdp_param_group:
             logger.debug(
                 "%s",

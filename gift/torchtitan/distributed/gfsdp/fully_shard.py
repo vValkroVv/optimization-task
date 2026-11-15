@@ -136,9 +136,7 @@ def fully_shard(
             group_params,
             modules,
             group_mesh_info,
-            _get_post_forward_mesh_info(
-                reshard_after_forward_value, group_mesh_info
-            ),
+            _get_post_forward_mesh_info(reshard_after_forward_value, group_mesh_info),
             device,
             mp_policy,
             shard_alignment,
@@ -350,6 +348,24 @@ class GFSDPModule(FSDPModule):
             )
         state._own_grad_buffer = True
 
+    def set_buffer_region_child(self, child: "GFSDPModule") -> None:
+        """Partition this unit's existing buffers with a nested GFSDP child.
+
+        Both units retain independent ownership and completion events. No
+        storage is added; the original unsplit unit determines slot sizing.
+        """
+        state = self._get_fsdp_state()
+        child_state = child._get_fsdp_state()
+        if child is self or child not in cast("nn.Module", self).modules():
+            raise ValueError("Shared buffer child must be nested in the parent unit")
+        if state._buffer_region_child is not None:
+            raise ValueError("A buffer region child is already configured")
+        if state._is_root is not None or child_state._is_root is not None:
+            raise RuntimeError(
+                "set_buffer_region_child must be called before the first forward"
+            )
+        state._buffer_region_child = child_state
+
     def set_shard_order(self, modules: "list[GFSDPModule]") -> None:
         """Declare the order forward enters these units, for buffer dealing.
 
@@ -481,9 +497,7 @@ class GFSDPModule(FSDPModule):
     def lazy_init(self) -> None:
         self._get_fsdp_state()._lazy_init()
 
-    def set_bf16_cache_debug(
-        self, enabled: bool, recurse: bool = True
-    ) -> None:
+    def set_bf16_cache_debug(self, enabled: bool, recurse: bool = True) -> None:
         """Enable or disable per-group cache counters before or during training."""
         for param_group in _iter_fsdp_param_groups(cast("nn.Module", self), recurse):
             if enabled:
@@ -493,13 +507,10 @@ class GFSDPModule(FSDPModule):
                 param_group._bf16_cache_invalidations = 0
             param_group._bf16_cache_debug = enabled
 
-    def bf16_cache_stats(
-        self, recurse: bool = True
-    ) -> tuple[dict[str, Any], ...]:
+    def bf16_cache_stats(self, recurse: bool = True) -> tuple[dict[str, Any], ...]:
         """Return per-group cache counters without reading device values."""
         module_fqns = {
-            module: module_fqn
-            for module_fqn, module in self.named_modules()
+            module: module_fqn for module_fqn, module in self.named_modules()
         }
         stats = []
         for param_group in _iter_fsdp_param_groups(cast("nn.Module", self), recurse):
@@ -594,8 +605,7 @@ class GFSDPModule(FSDPModule):
         if writer_stream is not None:
             # The replacement event must retain the prior readers' dependency.
             for buffer_ctx in buffer_contexts:
-                if buffer_ctx.release_event is not None:
-                    writer_stream.wait_event(buffer_ctx.release_event)
+                buffer_ctx.wait_for_release(writer_stream)
         for fsdp_param_group in state._fsdp_param_groups:
             fsdp_param_group.invalidate_bf16_weight_cache()
             # Fallback gather inputs also become stale when masters change.

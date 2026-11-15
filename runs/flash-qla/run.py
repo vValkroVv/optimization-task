@@ -18,12 +18,18 @@ BASE_RUNNER_PATH = TASK_ROOT / "runs/overnight-streaming-perf/run.py"
 BRIDGE_MEASURE_PATH = BRIDGE_DIR / "measure.py"
 DEFAULT_OUTPUT_ROOT = BRIDGE_DIR / "artifacts/raw"
 BACKENDS = ("fla", "external_gate", "fused_gate")
+ROUTING_METADATA = ("original", "fused")
+CROSS_ENTROPY = ("original", "stable")
+DEFAULT_ROUTING_METADATA = "fused"
+DEFAULT_CROSS_ENTROPY = "stable"
 
 ENV_BACKEND = "TASK_FLASHQLA_BACKEND"
 ENV_CAPTURE_MODE = "TASK_FLASHQLA_CAPTURE_MODE"
 ENV_CAPTURE_DIR = "TASK_FLASHQLA_CAPTURE_DIR"
 ENV_TILELANG_ROOT = "TASK_FLASHQLA_TILELANG_ROOT"
 ENV_SOURCE_IDENTITY = "TASK_FLASHQLA_SOURCE_IDENTITY"
+ENV_ROUTING_METADATA = "TASK_FLASHQLA_ROUTING_METADATA"
+ENV_CROSS_ENTROPY = "TASK_FLASHQLA_CROSS_ENTROPY"
 
 
 def _load_module(path: Path, module_name: str) -> Any:
@@ -64,6 +70,18 @@ def _parse_bridge_args(argv: list[str] | None = None) -> tuple[argparse.Namespac
         type=Path,
         metavar="PATH",
         help="capture native FLA VJP fixtures into this fresh run-owned directory",
+    )
+    parser.add_argument(
+        "--routing-metadata",
+        choices=ROUTING_METADATA,
+        default=DEFAULT_ROUTING_METADATA,
+        help="routing metadata implementation (default: fused)",
+    )
+    parser.add_argument(
+        "--cross-entropy",
+        choices=CROSS_ENTROPY,
+        default=DEFAULT_CROSS_ENTROPY,
+        help="cross-entropy implementation (default: stable)",
     )
     args, forwarded = parser.parse_known_args(argv)
     if args.capture_fixtures is not None and args.gdn_backend != "fla":
@@ -197,6 +215,8 @@ def _build_environment_hook(
     *,
     backend: str,
     capture_fixtures: Path | None,
+    routing_metadata: str = DEFAULT_ROUTING_METADATA,
+    cross_entropy: str = DEFAULT_CROSS_ENTROPY,
 ) -> Callable[[dict[str, Path]], dict[str, str]]:
     original = base._run_environment
 
@@ -208,6 +228,9 @@ def _build_environment_hook(
             ENV_CAPTURE_DIR,
             ENV_TILELANG_ROOT,
             ENV_SOURCE_IDENTITY,
+            ENV_ROUTING_METADATA,
+            ENV_CROSS_ENTROPY,
+            "TASK_COMPILER_CACHE_ROOT",
             "TILELANG_CACHE_DIR",
             "TILELANG_TMP_DIR",
         ):
@@ -229,15 +252,40 @@ def _build_environment_hook(
         )
         env[ENV_BACKEND] = backend
         env[ENV_CAPTURE_MODE] = "fixtures" if capture_fixtures is not None else "disabled"
+        env[ENV_ROUTING_METADATA] = routing_metadata
+        env[ENV_CROSS_ENTROPY] = cross_entropy
 
         attempt = Path(paths["attempt"]).resolve()
-        tilelang_root = attempt / "cache" / "tilelang"
-        tilelang_root.mkdir(parents=True, exist_ok=False)
-        (tilelang_root / "tmp").mkdir()
+        cache_path = Path(paths["cache"])
+        if not cache_path.is_absolute() or ".." in cache_path.parts:
+            raise RuntimeError("compiler cache root must be an absolute task path")
+        if cache_path.is_symlink() or not cache_path.is_dir():
+            raise RuntimeError(f"compiler cache root is missing or unsafe: {cache_path}")
+        cache_root = cache_path.resolve()
+        try:
+            cache_root.relative_to(Path(base.TASK_ROOT).resolve())
+        except ValueError as exc:
+            raise RuntimeError(
+                f"compiler cache root must remain inside the task: {cache_root}"
+            ) from exc
+        fresh_cache_root = (attempt / "cache").resolve()
+        cache_reuse = cache_root != fresh_cache_root
+        tilelang_root = cache_root / "tilelang"
+        env["TASK_COMPILER_CACHE_ROOT"] = str(cache_root)
+
+        def ensure_cache_directory(path: Path) -> None:
+            if path.is_symlink():
+                raise RuntimeError(f"TileLang cache directory must not be a symlink: {path}")
+            path.mkdir(exist_ok=cache_reuse)
+            if path.is_symlink() or not path.is_dir():
+                raise RuntimeError(f"TileLang cache directory is missing or unsafe: {path}")
+
+        ensure_cache_directory(tilelang_root)
+        ensure_cache_directory(tilelang_root / "tmp")
         for rank in range(8):
             rank_root = tilelang_root / f"rank_{rank}"
-            rank_root.mkdir()
-            (rank_root / "tmp").mkdir()
+            ensure_cache_directory(rank_root)
+            ensure_cache_directory(rank_root / "tmp")
 
         env[ENV_TILELANG_ROOT] = str(tilelang_root)
         env["TILELANG_CACHE_DIR"] = str(tilelang_root)
@@ -257,6 +305,8 @@ def _build_environment_hook(
             "schema_version": 1,
             "run_id": attempt.name,
             "backend_variant": backend,
+            "routing_metadata": routing_metadata,
+            "cross_entropy": cross_entropy,
             "capture_mode": env[ENV_CAPTURE_MODE],
             "capture_fixture_dir": None if capture_dir is None else str(capture_dir),
             "capture_timing_disposition": (
@@ -265,6 +315,8 @@ def _build_environment_hook(
                 else None
             ),
             "source_identity": source_identity,
+            "compiler_cache_root": str(cache_root),
+            "tilelang_cache_policy": "reuse" if cache_reuse else "fresh",
             "tilelang_cache_root": str(tilelang_root),
             "tilelang_tmp_root": str(tilelang_root / "tmp"),
             "tilelang_rank_directories": {
@@ -330,6 +382,8 @@ def main(argv: list[str] | None = None) -> int:
         base,
         backend=bridge_args.gdn_backend,
         capture_fixtures=bridge_args.capture_fixtures,
+        routing_metadata=bridge_args.routing_metadata,
+        cross_entropy=bridge_args.cross_entropy,
     )
     base._command = _build_command_hook(base)
     base._config_hashes = _build_config_hashes_hook(base)

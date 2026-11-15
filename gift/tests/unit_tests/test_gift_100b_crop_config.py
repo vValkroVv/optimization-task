@@ -96,7 +96,10 @@ assert c.callbacks['ema'].start_step == 10000 and c.callbacks['ema'].decay == .9
 assert set(c.callbacks) == {'ema'}
 assert not c.checkpoint.enable and not c.profiler.enable_profiling
 assert not c.profiler.enable_memory_snapshot and not c.training.enable_cpu_offload
-assert c.dataloader.dataset.streams[0].local.endswith('/artifacts/raw/mds4096')
+assert c.hf_assets_path == '/home/jovyan/shares/SR008.nfs1/models_templates/dclm-7b-128k_digit_tokenizer_FIM'
+assert c.dataloader.dataset.epoch_size == 102400
+assert c.dataloader.dataset.streams[0].name == 'gigasets_4domain'
+assert c.dataloader.dataset.streams[0].local.endswith('/runs/production-data-abcd/artifacts/raw/data-002')
 print('crop config verified')
 """)
     assert result.stdout.strip() == "crop config verified"

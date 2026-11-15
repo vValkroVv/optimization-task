@@ -1,0 +1,29 @@
+{
+  "cost_review": "CPU diagnostic tooling only; no training-source/config/runner mutation or instrumentation added by this verifier. Row hashing, position validation, ID census, raw records and Gloo setup are outside GPU measurements. Depth32 diagnostics retain native configured prefetch lifetime; both arms stop all owned workers and destroy process groups.",
+  "failed_checks": [],
+  "lint": {
+    "command": "/opt/torchtitan-venv/bin/ruff check --select F821,F811,F841 --no-cache runs/production-data-abcd/verify_data.py runs/production-data-abcd/tests/test_verify_data.py",
+    "result": "All checks passed"
+  },
+  "runtime_gate": "data-002-loader-summary.json",
+  "scope_limit": "CPU/Gloo data behavior only; no GPU/NCCL/training/performance claim",
+  "status": "PASS",
+  "tests": {
+    "command": "CUDA_VISIBLE_DEVICES='' PYTHONPATH=gift /opt/torchtitan-venv/bin/python3.12 -m unittest discover -s runs/production-data-abcd/tests -p test_verify_data.py",
+    "coverage": [
+      "owner raw/unique census",
+      "token bounds rejection",
+      "prepared/consumed duplicate row rejection",
+      "global eight-rank update aggregation",
+      "fresh order includes labels/positions",
+      "actual native TextPretrainCollator and deliberate label/position corruption rejection"
+    ],
+    "failed": 0,
+    "passed": 6,
+    "skipped": 0
+  },
+  "tool_files": {
+    "runs/production-data-abcd/tests/test_verify_data.py": "1962863b31b4156ae9252329e49048777f20907560fb6f7510cb16db5af8f6e6",
+    "runs/production-data-abcd/verify_data.py": "36995035ddafc0c4ec5f246d5e4856759676dd2dafd7d3a60e18694b1759f908"
+  }
+}

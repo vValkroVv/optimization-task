@@ -1,0 +1,2697 @@
+{
+  "task": "full-shape embedding output and local-gradient regression",
+  "summary": {
+    "verdict": "pass",
+    "all_outputs_exactly_equal": true,
+    "all_gradient_checks_exactly_equal": true,
+    "nonfinite_elements_across_checks": 0,
+    "equal_cold_cache_policy": {
+      "baseline_reserved_range_bytes": [
+        7952400384,
+        7952400384
+      ],
+      "owner_reserved_range_bytes": [
+        5851054080,
+        5851054080
+      ],
+      "owner_each_rank_at_or_below_baseline_reserved_budget": true,
+      "matched_rank_reserved_delta_owner_minus_baseline_bytes": [
+        -2101346304,
+        -2101346304,
+        -2101346304,
+        -2101346304,
+        -2101346304,
+        -2101346304,
+        -2101346304,
+        -2101346304
+      ]
+    },
+    "gradient_difference_policy": "No tolerance is imposed. Any finite nonzero gradient difference is reported as unresolved; the implementation preserves BF16 source-local coalescing but changes the cross-source FP32 sum order."
+  },
+  "reproduction_command": "PYTHONPATH=gift /opt/torchtitan-venv/bin/torchrun --standalone --nproc-per-node=8 runs/ffn-row-owner/embedding_numeric.py --execute --fixture /workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096/train --seed 2048 --output /workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/embedding-numeric-results.json",
+  "worker_argv": [
+    "runs/ffn-row-owner/embedding_numeric.py",
+    "--execute",
+    "--fixture",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096/train",
+    "--seed",
+    "2048",
+    "--output",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/embedding-numeric-results.json"
+  ],
+  "resolved_config": {
+    "case": "fixture",
+    "variants_in_order": [
+      "baseline",
+      "owner"
+    ],
+    "warmup_calls": 0,
+    "backward_calls_per_variant": [
+      "first",
+      "accumulated second",
+      "after grad=None"
+    ],
+    "output_consumers": 2,
+    "output_upstream": "rank-local seeded BF16 tensors; native scaled /32 and MTP scaled *0.3, then BF16 combined",
+    "output_dtype": "bfloat16",
+    "parameter_and_gradient_dtype": "float32",
+    "gradient_comparison": "exact, chunked; no universal tolerance"
+  },
+  "shape": {
+    "vocabulary": 128256,
+    "width": 4096,
+    "batch": 2,
+    "sequence": 4096
+  },
+  "topology": "eight H100 ranks, one CUDA/NCCL dense shard group",
+  "seed": 2048,
+  "fixture": {
+    "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/mds4096/train",
+    "index_sha256": "7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2",
+    "rows_per_rank": 2
+  },
+  "runtime": {
+    "python": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
+    "torch": "2.15.0.dev20260822+cu130",
+    "cuda": "13.0",
+    "nccl": [
+      2,
+      30,
+      7
+    ]
+  },
+  "source": {
+    "repository_revision": "2ada87125e433e1f76c4cb2bfad244b641a78a93",
+    "components_sha256": "5a1a129b3c1d4fe239f66d93f664436aefade87e2fc09e98df70f5904f43b07b",
+    "owner_source_sha256": "f3a01c6cf99b981db7b4ef66866fe46259af84e9d2c21e2044e9ae18ff1696fd",
+    "numeric_script_sha256": "6f15ea7b230c0e794d0b3a15414cc99824a0bb4ccc95dcf0f61225caaa07afc0",
+    "training_source_status": " M gift/docs/fsdp.md\n M gift/tests/unit_tests/golden_configs/experiments/cuda_graph_campaign_continuation.yaml\n M gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_flex_attn.yaml\n M gift/tests/unit_tests/golden_configs/experiments/deepseek_v3_debug_hybridep.yaml\n M gift/tests/unit_tests/golden_configs/experiments/flux_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/ft_llama3_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_3_5_700b.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_mds.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_3_5_debug_varlen.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_4_700b.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_4_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_dense_fp8_compile_non_blocking.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_hsdp.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_pp.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_3b_hybridep_fp8_compile_tp.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_fp8.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_deepep_token_drop_fp8.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_frozen.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_fp8_compile.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_hybridep_token_drop_branchless.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_mds.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_debug_monitored.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gift_moe_streaming_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/gpt_oss_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_flex_attn.yaml\n M gift/tests/unit_tests/golden_configs/experiments/graph_deepseek_v3_debug_hybridep.yaml\n M gift/tests/unit_tests/golden_configs/experiments/graph_llama3_8b.yaml\n M gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/graph_llama3_debug_flex_attn.yaml\n M gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/graph_qwen3_moe_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/llama3_8b.yaml\n M gift/tests/unit_tests/golden_configs/experiments/llama3_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/llama3_debug_ce_loss.yaml\n M gift/tests/unit_tests/golden_configs/experiments/llama3_debug_flex_attn.yaml\n M gift/tests/unit_tests/golden_configs/experiments/llama3_debug_float8.yaml\n M gift/tests/unit_tests/golden_configs/experiments/llama3_debug_varlen_attn.yaml\n M gift/tests/unit_tests/golden_configs/experiments/llama4_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/llama4_debug_fp8.yaml\n M gift/tests/unit_tests/golden_configs/experiments/qwen3_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_fused_qkv.yaml\n M gift/tests/unit_tests/golden_configs/experiments/qwen3_debug_param_groups.yaml\n M gift/tests/unit_tests/golden_configs/experiments/qwen3_moe_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/qwen3_vl_moe_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b.yaml\n M gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_0_6b_batch_invariant.yaml\n M gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_14b.yaml\n M gift/tests/unit_tests/golden_configs/experiments/rl_grpo_qwen3_1_7b.yaml\n M gift/tests/unit_tests/golden_configs/experiments/sft_llama3_debug.yaml\n M gift/tests/unit_tests/golden_configs/experiments/sft_qwen3_8b_math.yaml\n M gift/torchtitan/config/configs.py\n M gift/torchtitan/distributed/activation_checkpoint.py\n M gift/torchtitan/distributed/backends/gfsdp2.py\n M gift/torchtitan/distributed/compile.py\n M gift/torchtitan/distributed/gfsdp/_dcp.py\n M gift/torchtitan/distributed/gfsdp/_param_group.py\n M gift/torchtitan/distributed/gfsdp/_state.py\n M gift/torchtitan/distributed/gfsdp/fully_shard.py\n M gift/torchtitan/models/common/decoder_blocks/mtp.py\n M gift/torchtitan/models/common/decoder_blocks/transformer_block.py\n M gift/torchtitan/models/gift_moe/_base/parallelize.py\n?? gift/tests/unit_tests/test_ffn_overlap.py\n?? gift/tests/unit_tests/test_gfsdp_ffn_overlap.py\n?? gift/tests/unit_tests/test_gfsdp_row_owner_integration.py\n?? gift/tests/unit_tests/test_row_owner_embedding.py\n?? gift/torchtitan/distributed/ffn_overlap.py\n?? gift/torchtitan/distributed/gfsdp/row_owner_embedding.py\n",
+    "training_source_diff_sha256": "3db7d1e26d435ca2e54400e113481a5cbf6dc79d044b2bdc1a9a1b11e37ae55b"
+  },
+  "historical_fixture_memory_context": {
+    "source": "previous matched component fixture pair, supplied by coordinator",
+    "allocated_peak_bytes": {
+      "baseline": 8950373888,
+      "owner": 5667090944
+    },
+    "reserved_bytes": {
+      "baseline": 16290676736,
+      "owner": 18610126848
+    },
+    "interpretation": "The earlier higher owner reserved count is retained setup-cache evidence; this check records both constructor and equal sync/gc/empty_cache pre-call counters."
+  },
+  "ranks": [
+    {
+      "rank": 0,
+      "gpu": "NVIDIA H100 80GB HBM3",
+      "input_fixture_rows": [
+        0,
+        1
+      ],
+      "variants": {
+        "baseline": {
+          "variant": "baseline",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "ecc1f57139ecbd5fd65c3a4fb8b76f101a7d30e2871807cefff18a18aa72bb62",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "8b8790d87a7238f40d3c21b934e52aa9a117b0b8ce6657e2cc32cce26a54efd3",
+              "mtp_scaled_bf16_sha256": "c2876f7ffdeb64fed1a4de3b9f0624561840f694bf0d1f6fd272c901f7dc1842",
+              "combined_bf16_sha256": "28db77f4804466dcf2626687222e85efd10b1dbf0f79937479f852a1def3a726",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2048,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": null
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 7952400384
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 7952400384
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 9003073536
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        },
+        "owner": {
+          "variant": "owner",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "ecc1f57139ecbd5fd65c3a4fb8b76f101a7d30e2871807cefff18a18aa72bb62",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "8b8790d87a7238f40d3c21b934e52aa9a117b0b8ce6657e2cc32cce26a54efd3",
+              "mtp_scaled_bf16_sha256": "c2876f7ffdeb64fed1a4de3b9f0624561840f694bf0d1f6fd272c901f7dc1842",
+              "combined_bf16_sha256": "28db77f4804466dcf2626687222e85efd10b1dbf0f79937479f852a1def3a726",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2048,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": true
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 5851054080
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 5851054080
+              },
+              "peak": {
+                "allocated_bytes": 5519053824,
+                "reserved_bytes": 7384072192
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 4401201152,
+              "reserved_bytes": 7384072192
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "peak": {
+                "allocated_bytes": 5781722112,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 7648313344
+              },
+              "peak": {
+                "allocated_bytes": 5519053824,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "rank": 1,
+      "gpu": "NVIDIA H100 80GB HBM3",
+      "input_fixture_rows": [
+        2,
+        3
+      ],
+      "variants": {
+        "baseline": {
+          "variant": "baseline",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "b8edaa8c014e4a839ffbf121d8884c9de701d6f96c527d2be98b3bab30df1236",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "88f64e440947a9cb11e21d21d56be679723234e7a865052cb1a55ef3a9426dde",
+              "mtp_scaled_bf16_sha256": "0b86e93bf93848d420596593bf77ac6e7530b63af56cb1fb8dac2683b78d8c47",
+              "combined_bf16_sha256": "eff87ac6a1ced2705d8da2f3f7ac83319664e4e923f0c6cbf854ad8438b1fb44",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2049,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": null
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 7952400384
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 7952400384
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 9003073536
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        },
+        "owner": {
+          "variant": "owner",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "b8edaa8c014e4a839ffbf121d8884c9de701d6f96c527d2be98b3bab30df1236",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "88f64e440947a9cb11e21d21d56be679723234e7a865052cb1a55ef3a9426dde",
+              "mtp_scaled_bf16_sha256": "0b86e93bf93848d420596593bf77ac6e7530b63af56cb1fb8dac2683b78d8c47",
+              "combined_bf16_sha256": "eff87ac6a1ced2705d8da2f3f7ac83319664e4e923f0c6cbf854ad8438b1fb44",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2049,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": true
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 5851054080
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 5851054080
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7384072192
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 4401201152,
+              "reserved_bytes": 7384072192
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "peak": {
+                "allocated_bytes": 5781716992,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 7648313344
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "rank": 2,
+      "gpu": "NVIDIA H100 80GB HBM3",
+      "input_fixture_rows": [
+        4,
+        5
+      ],
+      "variants": {
+        "baseline": {
+          "variant": "baseline",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "4f3aacf047ef64cc794289de99865278cca9c2df52894245f9957b1734192af0",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "7a1baa55d3786870d75373c0236d903d72b5c155f94fa6d5c011d536eec539a5",
+              "mtp_scaled_bf16_sha256": "5e09038f42bd66c3e963a10581238da7dafd5ca47232e7b57e32f7130bd28ed1",
+              "combined_bf16_sha256": "e7922e52363a6f6fe9361a3150323320b77f6395270d55c151cb937f18a2f614",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2050,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": null
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 7952400384
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 7952400384
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 9003073536
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        },
+        "owner": {
+          "variant": "owner",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "4f3aacf047ef64cc794289de99865278cca9c2df52894245f9957b1734192af0",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "7a1baa55d3786870d75373c0236d903d72b5c155f94fa6d5c011d536eec539a5",
+              "mtp_scaled_bf16_sha256": "5e09038f42bd66c3e963a10581238da7dafd5ca47232e7b57e32f7130bd28ed1",
+              "combined_bf16_sha256": "e7922e52363a6f6fe9361a3150323320b77f6395270d55c151cb937f18a2f614",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2050,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": true
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 5851054080
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 5851054080
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7384072192
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 4401201152,
+              "reserved_bytes": 7384072192
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "peak": {
+                "allocated_bytes": 5781716992,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 7648313344
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "rank": 3,
+      "gpu": "NVIDIA H100 80GB HBM3",
+      "input_fixture_rows": [
+        6,
+        7
+      ],
+      "variants": {
+        "baseline": {
+          "variant": "baseline",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "c395d27fb0b1ac88d0d90e449d0bf242ee9272aa0cd7d9f05990046b4270f4d2",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "b292a3759c2d0b82667ef190aad50e14dca822226c930c0c82cb076ac8a1f464",
+              "mtp_scaled_bf16_sha256": "4f74c6e677a63864c5e3d4c7c10ce81338ca601eb786b295e5483a2bf68de9fc",
+              "combined_bf16_sha256": "44a5c6720b9e020cfc9b533e5459409601ddcca57d95a86ba6c2bec3674f41ce",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2051,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": null
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 7952400384
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 7952400384
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 9003073536
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        },
+        "owner": {
+          "variant": "owner",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "c395d27fb0b1ac88d0d90e449d0bf242ee9272aa0cd7d9f05990046b4270f4d2",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "b292a3759c2d0b82667ef190aad50e14dca822226c930c0c82cb076ac8a1f464",
+              "mtp_scaled_bf16_sha256": "4f74c6e677a63864c5e3d4c7c10ce81338ca601eb786b295e5483a2bf68de9fc",
+              "combined_bf16_sha256": "44a5c6720b9e020cfc9b533e5459409601ddcca57d95a86ba6c2bec3674f41ce",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2051,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": true
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 5851054080
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 5851054080
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7384072192
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 4401201152,
+              "reserved_bytes": 7384072192
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "peak": {
+                "allocated_bytes": 5781716992,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 7648313344
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "rank": 4,
+      "gpu": "NVIDIA H100 80GB HBM3",
+      "input_fixture_rows": [
+        8,
+        9
+      ],
+      "variants": {
+        "baseline": {
+          "variant": "baseline",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "1eeddad4671eb2f5e2b381be0b80947f649857d80f91b8c877e33145353ced71",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "b2b270a227417c71c1acead8ef4205af77cc6be8d3d932541e20834b61c85a2d",
+              "mtp_scaled_bf16_sha256": "482d4ab574cfd860c91425c8c83c7167c3c361d87903907ffdaa00d8a3b96789",
+              "combined_bf16_sha256": "f9b398d205d68a35324d507395f7ecd2ca172ea732744aaa6d18c43feb4c6bce",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2052,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": null
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 7952400384
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 7952400384
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 9003073536
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        },
+        "owner": {
+          "variant": "owner",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "1eeddad4671eb2f5e2b381be0b80947f649857d80f91b8c877e33145353ced71",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "b2b270a227417c71c1acead8ef4205af77cc6be8d3d932541e20834b61c85a2d",
+              "mtp_scaled_bf16_sha256": "482d4ab574cfd860c91425c8c83c7167c3c361d87903907ffdaa00d8a3b96789",
+              "combined_bf16_sha256": "f9b398d205d68a35324d507395f7ecd2ca172ea732744aaa6d18c43feb4c6bce",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2052,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": true
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 5851054080
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 5851054080
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7384072192
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 4401201152,
+              "reserved_bytes": 7384072192
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "peak": {
+                "allocated_bytes": 5781716992,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 7648313344
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "rank": 5,
+      "gpu": "NVIDIA H100 80GB HBM3",
+      "input_fixture_rows": [
+        10,
+        11
+      ],
+      "variants": {
+        "baseline": {
+          "variant": "baseline",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "4665efaa075a35946fdbb9529b7297c620c5834d37c824e8750577e8efe1267a",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "f8927536f6d787e9b8ee7c3b7beee6760c005e6f6e5fa68e79a4f8b38ef17388",
+              "mtp_scaled_bf16_sha256": "67748d96b69c626eab5d37fa0550fc0ffd31d9aace2e13a0fb4b5925a9a3bb6f",
+              "combined_bf16_sha256": "039547d77a4a26267ed9eeba1dd36ef4c3b534033c0561ef3cc39603efe59e4d",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2053,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": null
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 7952400384
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 7952400384
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 9003073536
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        },
+        "owner": {
+          "variant": "owner",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "4665efaa075a35946fdbb9529b7297c620c5834d37c824e8750577e8efe1267a",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "f8927536f6d787e9b8ee7c3b7beee6760c005e6f6e5fa68e79a4f8b38ef17388",
+              "mtp_scaled_bf16_sha256": "67748d96b69c626eab5d37fa0550fc0ffd31d9aace2e13a0fb4b5925a9a3bb6f",
+              "combined_bf16_sha256": "039547d77a4a26267ed9eeba1dd36ef4c3b534033c0561ef3cc39603efe59e4d",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2053,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": true
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 5851054080
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 5851054080
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7384072192
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 4401201152,
+              "reserved_bytes": 7384072192
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "peak": {
+                "allocated_bytes": 5781716992,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 7648313344
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "rank": 6,
+      "gpu": "NVIDIA H100 80GB HBM3",
+      "input_fixture_rows": [
+        12,
+        13
+      ],
+      "variants": {
+        "baseline": {
+          "variant": "baseline",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "a3a22ceade04367fd9ed9e760cdb774b44f29b74af054f6e8553f5e3dbedab06",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "d3103a11b3874a8c40a7e72f4c8412162f57cad17014c145e4b3041f7df82aa7",
+              "mtp_scaled_bf16_sha256": "4c4f49e108f24e805ba9195509c002a68aba4c7115e8c7487681c9fc8a05e0ff",
+              "combined_bf16_sha256": "29fefe382d5026f7b40e1f526acd981f6379cc6223ff19f0e294205a393fc9f3",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2054,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": null
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 7952400384
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 7952400384
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 9003073536
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        },
+        "owner": {
+          "variant": "owner",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "a3a22ceade04367fd9ed9e760cdb774b44f29b74af054f6e8553f5e3dbedab06",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "d3103a11b3874a8c40a7e72f4c8412162f57cad17014c145e4b3041f7df82aa7",
+              "mtp_scaled_bf16_sha256": "4c4f49e108f24e805ba9195509c002a68aba4c7115e8c7487681c9fc8a05e0ff",
+              "combined_bf16_sha256": "29fefe382d5026f7b40e1f526acd981f6379cc6223ff19f0e294205a393fc9f3",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2054,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": true
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 5851054080
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 5851054080
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7384072192
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 4401201152,
+              "reserved_bytes": 7384072192
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "peak": {
+                "allocated_bytes": 5781716992,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 7648313344
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "rank": 7,
+      "gpu": "NVIDIA H100 80GB HBM3",
+      "input_fixture_rows": [
+        14,
+        15
+      ],
+      "variants": {
+        "baseline": {
+          "variant": "baseline",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "91edba87a5a1a840ae714d32db0d6fc3bb4357b5903089a8d86f8e579fda4f8e",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "19087345dc2d0af5608d62532441e17a5856d3c2046fb248fc84cca7f3b11900",
+              "mtp_scaled_bf16_sha256": "f6c8530d4c7f75b0c194982bfc90b352aafcd37119a4a25e6135677b4fff62dd",
+              "combined_bf16_sha256": "961b32d337dc1d723d5f019b815d8ec1c69b99f7158d91240667a26f34cc74a0",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2055,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": null
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 7952400384
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 7952400384
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 7684554752,
+              "reserved_bytes": 9003073536
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              },
+              "peak": {
+                "allocated_bytes": 8950373888,
+                "reserved_bytes": 9003073536
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 7684554752,
+                "reserved_bytes": 9003073536
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        },
+        "owner": {
+          "variant": "owner",
+          "input": {
+            "shape": [
+              2,
+              4096
+            ],
+            "dtype": "torch.int64",
+            "sha256_int64": "91edba87a5a1a840ae714d32db0d6fc3bb4357b5903089a8d86f8e579fda4f8e",
+            "shared_output_upstream": {
+              "native_scaled_bf16_sha256": "19087345dc2d0af5608d62532441e17a5856d3c2046fb248fc84cca7f3b11900",
+              "mtp_scaled_bf16_sha256": "f6c8530d4c7f75b0c194982bfc90b352aafcd37119a4a25e6135677b4fff62dd",
+              "combined_bf16_sha256": "961b32d337dc1d723d5f019b815d8ec1c69b99f7158d91240667a26f34cc74a0",
+              "shape": [
+                2,
+                4096,
+                4096
+              ],
+              "dtype": "torch.bfloat16",
+              "seed": 2055,
+              "combination": "BF16 native/32 plus BF16 MTP*0.3, rounded to BF16 before embedding backward"
+            }
+          },
+          "gradient_storage": {
+            "local_shape": [
+              65667072
+            ],
+            "dtype": "torch.float32",
+            "persistent_local_gradient_bytes": 262668288,
+            "head_gradient_storage_bytes": 2101346304,
+            "owner_scratch_aliases_private_lm_head": true
+          },
+          "memory": {
+            "before_setup": {
+              "allocated_bytes": 67174400,
+              "reserved_bytes": 69206016
+            },
+            "after_setup_before_cleanup": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 16357785600
+            },
+            "after_sync_gc_empty_cache_before_first_call": {
+              "allocated_bytes": 4138532864,
+              "reserved_bytes": 5851054080
+            },
+            "first_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 5851054080
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7384072192
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "gradient_allocation_precedes_warmed_peak": true
+            },
+            "persistent_gradient_before_warmed_call": {
+              "allocated_bytes": 4401201152,
+              "reserved_bytes": 7384072192
+            },
+            "warmed_accumulated_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7384072192
+              },
+              "peak": {
+                "allocated_bytes": 5781716992,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            },
+            "set_none_reset_complete_forward_backward": {
+              "start": {
+                "allocated_bytes": 4138532864,
+                "reserved_bytes": 7648313344
+              },
+              "peak": {
+                "allocated_bytes": 5519048704,
+                "reserved_bytes": 7648313344
+              },
+              "after_backward_and_output_release": {
+                "allocated_bytes": 4401201152,
+                "reserved_bytes": 7648313344
+              }
+            }
+          },
+          "checks": {
+            "first_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "first_gradient_vs_baseline": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_gradient_vs_two_baseline_first_gradients": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "accumulated_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_gradient_vs_baseline_first_gradient": {
+              "elements": 65667072,
+              "finite_elements": 65667072,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            },
+            "set_none_output_vs_baseline": {
+              "elements": 33554432,
+              "finite_elements": 33554432,
+              "nonfinite_elements": 0,
+              "unequal_elements": 0,
+              "max_abs": 0.0,
+              "rms": 0.0,
+              "relative_l2": 0.0,
+              "exact_equal": true
+            }
+          }
+        }
+      }
+    }
+  ],
+  "prior_attempts": [
+    {
+      "attempt": 1,
+      "exit_code": 1,
+      "phase": "all-rank measurements and gather completed; rank-zero Markdown formatting failed",
+      "error": "_memory_range received a duplicated memory path prefix and raised KeyError('memory')",
+      "log": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/embedding-numeric-launch.log"
+    }
+  ],
+  "report_repair": {
+    "mode": "Markdown regenerated offline from the persisted all-rank JSON",
+    "gpu_rerun": false,
+    "formatter_script_sha256": "b676d846c503b26e3d3146533c0450880a682c510f01d6592c48d8ff42f96cc0",
+    "rank_records_changed": false,
+    "note": "source.numeric_script_sha256 identifies the script used for the completed numeric run; this formatter hash identifies the reporting fix."
+  }
+}

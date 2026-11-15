@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-15",
+  "purpose": "Read-only FP8 parameter-gather screening against the current selected recipe.",
+  "source_revision": "2ada87125e433e1f76c4cb2bfad244b641a78a93",
+  "scope": {
+    "trace": "runs/flash-qla/artifacts/raw/trace-analysis/external-rank0.perfetto.json.gz",
+    "rank": 0,
+    "update": 21,
+    "microbatches": "first three of 32",
+    "optimizer_in_capture": false,
+    "selected_device_span_ms": 1233.485,
+    "mesh": "EP8, dense FSDP8, EFSdp1, PP/TP/CP1",
+    "method": "Perfetto MCP SQL on canonical normalized trace; count and duration aggregate GPU all-gather kernels."
+  },
+  "observations": {
+    "dtype": "BFloat16",
+    "group_size": 8,
+    "device_collectives": 69,
+    "kernel_duration_sum_ms": 103.796,
+    "groups": [
+      {
+        "output_elements": 525336576,
+        "input_elements": 65667072,
+        "count": 9,
+        "kernel_ms": 29.594
+      },
+      {
+        "output_elements": 234271232,
+        "input_elements": 29283904,
+        "count": 6,
+        "kernel_ms": 36.744
+      },
+      {
+        "output_elements": 202424512,
+        "input_elements": 25303064,
+        "count": 6,
+        "kernel_ms": 8.36
+      },
+      {
+        "output_elements": 87343296,
+        "input_elements": 10917912,
+        "count": 30,
+        "kernel_ms": 21.499
+      },
+      {
+        "output_elements": 85230080,
+        "input_elements": 10653760,
+        "count": 12,
+        "kernel_ms": 7.278
+      },
+      {
+        "output_elements": 135168,
+        "input_elements": 16896,
+        "count": 6,
+        "kernel_ms": 0.321
+      }
+    ],
+    "gathered_full_output_bytes_sum": 21984148992,
+    "head_and_embedding_matching_shape": {
+      "parameters_per_matrix": 525336576,
+      "collective_count": 9,
+      "full_output_bytes_sum": 9456058368,
+      "share_of_all_full_output_bytes": 0.4301307442667463
+    },
+    "native_fp8_expert_network_target_in_this_mesh": false
+  },
+  "derived_screen": {
+    "basis": "Largest 525336576-element buffers match the separate embedding and output-head matrices, both outside selected FP8 modules. Every observed gather has group size 8. This is a gathered-output byte-volume comparison, not a measured link traffic counter.",
+    "eligible_fp8_byte_saving_upper_fraction": 0.2849346278666269,
+    "limits": "Very generous upper screen: assumes all remaining weight data can halve; ignores BF16 parameters inside mixed buckets, scales, padding, extra collectives and conversion costs. Does not imply a kernel- or step-time reduction."
+  },
+  "dense_vendor_quantization": {
+    "forward_nt": {
+      "kernels": 288,
+      "kernel_ms": 6.287
+    },
+    "backward_t": {
+      "kernels": 144,
+      "kernel_ms": 2.948
+    },
+    "sum_ms": 9.235,
+    "limits": "Only named standalone vendor weight-quantization kernels. Excludes fused/compiler kernels and expert quantization, and is not an elapsed-time savings estimate."
+  },
+  "query": "SELECT EXTRACT_ARG(arg_set_id,'args.dtype') dtype,EXTRACT_ARG(arg_set_id,'args.In msg nelems') input_elements,EXTRACT_ARG(arg_set_id,'args.Out msg nelems') output_elements,count(*) n,round(sum(dur)/1e6,3) kernel_ms FROM slice WHERE category='kernel' AND EXTRACT_ARG(arg_set_id,'args.Collective name')='_allgather_base' GROUP BY 1,2,3 ORDER BY output_elements DESC",
+  "limits": [
+    "Source/config/runner bytes unchanged; no GPU experiments or benchmark were run.",
+    "Host work and synchronization cost for a proposed implementation are unavailable.",
+    "Kernel lifetimes may include peer waits and overlap compute; no all-gather critical-path saving is established.",
+    "Embedding/MTP/layer1 GFSDP changes in progress are not present in this capture.",
+    "Exact dense vendor quantization implementation is unavailable locally at the pinned CudaCherry revision; operand parity for moved/transposed quantization is open."
+  ]
+}

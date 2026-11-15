@@ -1,0 +1,892 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-15",
+  "purpose": "Bounded latest Capacity/SAC screening after accepted routing metadata fusion; Perfetto MCP, no implementation or run.",
+  "scope": {
+    "update": 21,
+    "microbatches": "first three of 32; matched three forward/backward pairs",
+    "ranks": [
+      0,
+      1
+    ],
+    "units": "milliseconds unless ns suffix",
+    "trace_paths": [
+      "/Users/valerii.kropotin/sber-pretrain/optimization-task/runs/flash-qla/artifacts/raw/trace-analysis/external-rank0.perfetto.json.gz",
+      "/Users/valerii.kropotin/sber-pretrain/optimization-task/runs/flash-qla/artifacts/raw/trace-analysis/external-rank1.perfetto.json.gz"
+    ],
+    "selected_device_span_ms": [
+      1233.4848442382813,
+      1232.9609750976563
+    ],
+    "scope_source": "trace-results.json captures.external-rank{0,1}.integrated_3mb; capacity and routing launches classified by flow -> host -> compiled forward/backward ancestors"
+  },
+  "methods": [
+    "Capacity kernels require Collective name=allreduce, dtype=Long, In msg nelems=128, eight ranks0..7 (1024-byte input/output); allreduce kernels with other payloads excluded.",
+    "Phase uses launch host CompiledFunctionBackward ancestry; otherwise CompiledFunction forward.",
+    "Conditional waits require cudaStreamSynchronize descendant of exact torchtitan::conditional_capacity_mask, not temporal proximity.",
+    "All-GPU busy intervals union kernel, memcpy and memset on every stream. Completely idle is sync duration minus intersection with that union.",
+    "All39 capacity launches matched one following conditional in the same compiled graph. No CUDA event handles exist here to assign all preceding stream work to capacity."
+  ],
+  "results": [
+    {
+      "rank": 0,
+      "phases": [
+        {
+          "phase": "forward",
+          "capacity_count": 21,
+          "capacity_kernel_ms": 3.0349440000000003,
+          "capacity_other_gpu_work_overlap_ms": 0,
+          "conditional_count": 21,
+          "conditional_cpu_ms": 57.549502999999994,
+          "item_count": 21,
+          "sync_count": 21,
+          "sync_cpu_ms": 55.97266700000001,
+          "sync_gpu_busy_intersection_ms": 54.246445,
+          "sync_completely_gpu_idle_ms": 1.726222000000007,
+          "routing": {
+            "category": "kernel",
+            "ms": 0.133117,
+            "n": 21,
+            "name": "_routing_metadata_kernel",
+            "phase": "forward"
+          }
+        },
+        {
+          "phase": "backward_recompute",
+          "capacity_count": 18,
+          "capacity_kernel_ms": 12.127334999999999,
+          "capacity_other_gpu_work_overlap_ms": 0,
+          "conditional_count": 21,
+          "conditional_cpu_ms": 562.2487369999999,
+          "item_count": 21,
+          "sync_count": 21,
+          "sync_cpu_ms": 560.528495,
+          "sync_gpu_busy_intersection_ms": 556.084196,
+          "sync_completely_gpu_idle_ms": 4.444299000000001,
+          "routing": {
+            "category": "kernel",
+            "ms": 0.115234,
+            "n": 18,
+            "name": "_routing_metadata_kernel",
+            "phase": "backward_recompute"
+          }
+        }
+      ],
+      "conditional_launched_device": [
+        {
+          "category": "gpu_memcpy",
+          "ms": 0.048031,
+          "n": 21,
+          "name": "Memcpy DtoH (Device -> Pinned)",
+          "phase": "backward_recompute"
+        },
+        {
+          "category": "gpu_memcpy",
+          "ms": 0.047523,
+          "n": 21,
+          "name": "Memcpy DtoH (Device -> Pinned)",
+          "phase": "forward"
+        },
+        {
+          "category": "gpu_memcpy",
+          "ms": 0.027551,
+          "n": 21,
+          "name": "Memcpy DtoD (Device -> Device)",
+          "phase": "backward_recompute"
+        },
+        {
+          "category": "gpu_memcpy",
+          "ms": 0.025634,
+          "n": 21,
+          "name": "Memcpy DtoD (Device -> Device)",
+          "phase": "forward"
+        }
+      ],
+      "capacity_association_count": 39,
+      "capacity_sync_intersection_ms": 15.146246999999999,
+      "recompute_screening": {
+        "capacity_kernel_lifetime_ms": 12.127334999999999,
+        "predicate_sync_completely_idle_ms": 4.444299000000001,
+        "combined_existing_exposed_intervals_ms": 16.571634,
+        "note": "Disjoint current intervals; a generous candidate exposure screen for removing recomputed capacity+predicate, not a gain forecast. Existing preceding compute and mandatory forward decisions are retained."
+      },
+      "capacity_events": [
+        {
+          "id": 1357,
+          "host_id": 1285,
+          "ts_ns": 3823105906667446,
+          "dur_ns": 29696,
+          "seq": 30910,
+          "phase": "forward"
+        },
+        {
+          "id": 1963,
+          "host_id": 1907,
+          "ts_ns": 3823105915510236,
+          "dur_ns": 2220129,
+          "seq": 30912,
+          "phase": "forward"
+        },
+        {
+          "id": 2572,
+          "host_id": 2501,
+          "ts_ns": 3823105927746628,
+          "dur_ns": 20320,
+          "seq": 30914,
+          "phase": "forward"
+        },
+        {
+          "id": 3173,
+          "host_id": 3111,
+          "ts_ns": 3823105936790602,
+          "dur_ns": 25184,
+          "seq": 30916,
+          "phase": "forward"
+        },
+        {
+          "id": 3768,
+          "host_id": 3709,
+          "ts_ns": 3823105947082321,
+          "dur_ns": 19744,
+          "seq": 30918,
+          "phase": "forward"
+        },
+        {
+          "id": 4392,
+          "host_id": 4321,
+          "ts_ns": 3823105956637752,
+          "dur_ns": 88544,
+          "seq": 30920,
+          "phase": "forward"
+        },
+        {
+          "id": 5085,
+          "host_id": 5016,
+          "ts_ns": 3823105967048415,
+          "dur_ns": 16096,
+          "seq": 30922,
+          "phase": "forward"
+        },
+        {
+          "id": 8859,
+          "host_id": 8479,
+          "ts_ns": 3823106097028504,
+          "dur_ns": 226464,
+          "seq": 30932,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 10281,
+          "host_id": 10146,
+          "ts_ns": 3823106126116076,
+          "dur_ns": 1295937,
+          "seq": 30935,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 13359,
+          "host_id": 13288,
+          "ts_ns": 3823106177575311,
+          "dur_ns": 603584,
+          "seq": 30940,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 14956,
+          "host_id": 14808,
+          "ts_ns": 3823106204753634,
+          "dur_ns": 1395104,
+          "seq": 30943,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 16396,
+          "host_id": 16258,
+          "ts_ns": 3823106231272596,
+          "dur_ns": 716288,
+          "seq": 30946,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 17978,
+          "host_id": 17854,
+          "ts_ns": 3823106257560422,
+          "dur_ns": 15616,
+          "seq": 30949,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 21585,
+          "host_id": 21509,
+          "ts_ns": 3823106318091407,
+          "dur_ns": 15584,
+          "seq": 30958,
+          "phase": "forward"
+        },
+        {
+          "id": 22160,
+          "host_id": 22158,
+          "ts_ns": 3823106330821944,
+          "dur_ns": 16032,
+          "seq": 30960,
+          "phase": "forward"
+        },
+        {
+          "id": 22781,
+          "host_id": 22732,
+          "ts_ns": 3823106340566527,
+          "dur_ns": 15488,
+          "seq": 30962,
+          "phase": "forward"
+        },
+        {
+          "id": 23375,
+          "host_id": 23314,
+          "ts_ns": 3823106349048676,
+          "dur_ns": 15136,
+          "seq": 30964,
+          "phase": "forward"
+        },
+        {
+          "id": 23963,
+          "host_id": 23884,
+          "ts_ns": 3823106358152683,
+          "dur_ns": 15199,
+          "seq": 30966,
+          "phase": "forward"
+        },
+        {
+          "id": 24669,
+          "host_id": 24594,
+          "ts_ns": 3823106367071505,
+          "dur_ns": 88096,
+          "seq": 30968,
+          "phase": "forward"
+        },
+        {
+          "id": 25259,
+          "host_id": 25164,
+          "ts_ns": 3823106377215960,
+          "dur_ns": 26528,
+          "seq": 30970,
+          "phase": "forward"
+        },
+        {
+          "id": 29131,
+          "host_id": 28734,
+          "ts_ns": 3823106506254480,
+          "dur_ns": 17856,
+          "seq": 30980,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 30585,
+          "host_id": 30401,
+          "ts_ns": 3823106535864484,
+          "dur_ns": 1343425,
+          "seq": 30983,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 33729,
+          "host_id": 33657,
+          "ts_ns": 3823106588049096,
+          "dur_ns": 801664,
+          "seq": 30988,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 35379,
+          "host_id": 35202,
+          "ts_ns": 3823106616137499,
+          "dur_ns": 1236065,
+          "seq": 30991,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 36834,
+          "host_id": 36697,
+          "ts_ns": 3823106643034413,
+          "dur_ns": 780449,
+          "seq": 30994,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 38515,
+          "host_id": 38321,
+          "ts_ns": 3823106670000640,
+          "dur_ns": 16096,
+          "seq": 30997,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 42163,
+          "host_id": 42086,
+          "ts_ns": 3823106731246218,
+          "dur_ns": 185568,
+          "seq": 31006,
+          "phase": "forward"
+        },
+        {
+          "id": 42757,
+          "host_id": 42696,
+          "ts_ns": 3823106739598224,
+          "dur_ns": 33216,
+          "seq": 31008,
+          "phase": "forward"
+        },
+        {
+          "id": 43359,
+          "host_id": 43277,
+          "ts_ns": 3823106748852278,
+          "dur_ns": 31040,
+          "seq": 31010,
+          "phase": "forward"
+        },
+        {
+          "id": 43954,
+          "host_id": 43883,
+          "ts_ns": 3823106757269788,
+          "dur_ns": 33952,
+          "seq": 31012,
+          "phase": "forward"
+        },
+        {
+          "id": 44635,
+          "host_id": 44556,
+          "ts_ns": 3823106766314274,
+          "dur_ns": 26432,
+          "seq": 31014,
+          "phase": "forward"
+        },
+        {
+          "id": 45253,
+          "host_id": 45178,
+          "ts_ns": 3823106775158760,
+          "dur_ns": 98208,
+          "seq": 31016,
+          "phase": "forward"
+        },
+        {
+          "id": 45843,
+          "host_id": 45748,
+          "ts_ns": 3823106785345231,
+          "dur_ns": 14752,
+          "seq": 31018,
+          "phase": "forward"
+        },
+        {
+          "id": 49725,
+          "host_id": 49308,
+          "ts_ns": 3823106915566120,
+          "dur_ns": 16448,
+          "seq": 31028,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 51179,
+          "host_id": 50995,
+          "ts_ns": 3823106944739260,
+          "dur_ns": 1166369,
+          "seq": 31031,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 54323,
+          "host_id": 54251,
+          "ts_ns": 3823106996581695,
+          "dur_ns": 731489,
+          "seq": 31036,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 55973,
+          "host_id": 55804,
+          "ts_ns": 3823107024272146,
+          "dur_ns": 1184417,
+          "seq": 31039,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 57428,
+          "host_id": 57288,
+          "ts_ns": 3823107051085829,
+          "dur_ns": 563840,
+          "seq": 31042,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 59103,
+          "host_id": 59010,
+          "ts_ns": 3823107077588983,
+          "dur_ns": 16224,
+          "seq": 31045,
+          "phase": "backward_recompute"
+        }
+      ]
+    },
+    {
+      "rank": 1,
+      "phases": [
+        {
+          "phase": "forward",
+          "capacity_count": 21,
+          "capacity_kernel_ms": 5.772658999999999,
+          "capacity_other_gpu_work_overlap_ms": 0,
+          "conditional_count": 21,
+          "conditional_cpu_ms": 56.69998299999999,
+          "item_count": 21,
+          "sync_count": 21,
+          "sync_cpu_ms": 55.063632999999996,
+          "sync_gpu_busy_intersection_ms": 53.479075,
+          "sync_completely_gpu_idle_ms": 1.5845579999999941,
+          "routing": {
+            "category": "kernel",
+            "ms": 0.133823,
+            "n": 21,
+            "name": "_routing_metadata_kernel",
+            "phase": "forward"
+          }
+        },
+        {
+          "phase": "backward_recompute",
+          "capacity_count": 18,
+          "capacity_kernel_ms": 15.446130999999998,
+          "capacity_other_gpu_work_overlap_ms": 0,
+          "conditional_count": 21,
+          "conditional_cpu_ms": 569.653006,
+          "item_count": 21,
+          "sync_count": 21,
+          "sync_cpu_ms": 568.040916,
+          "sync_gpu_busy_intersection_ms": 563.907441,
+          "sync_completely_gpu_idle_ms": 4.1334750000000895,
+          "routing": {
+            "category": "kernel",
+            "ms": 0.114656,
+            "n": 18,
+            "name": "_routing_metadata_kernel",
+            "phase": "backward_recompute"
+          }
+        }
+      ],
+      "conditional_launched_device": [
+        {
+          "category": "gpu_memcpy",
+          "ms": 0.04736,
+          "n": 21,
+          "name": "Memcpy DtoH (Device -> Pinned)",
+          "phase": "backward_recompute"
+        },
+        {
+          "category": "gpu_memcpy",
+          "ms": 0.04698,
+          "n": 21,
+          "name": "Memcpy DtoH (Device -> Pinned)",
+          "phase": "forward"
+        },
+        {
+          "category": "gpu_memcpy",
+          "ms": 0.031037,
+          "n": 21,
+          "name": "Memcpy DtoD (Device -> Device)",
+          "phase": "backward_recompute"
+        },
+        {
+          "category": "gpu_memcpy",
+          "ms": 0.02557,
+          "n": 21,
+          "name": "Memcpy DtoD (Device -> Device)",
+          "phase": "forward"
+        }
+      ],
+      "capacity_association_count": 39,
+      "capacity_sync_intersection_ms": 21.202949999999994,
+      "recompute_screening": {
+        "capacity_kernel_lifetime_ms": 15.446130999999998,
+        "predicate_sync_completely_idle_ms": 4.1334750000000895,
+        "combined_existing_exposed_intervals_ms": 19.579606000000087,
+        "note": "Disjoint current intervals; a generous candidate exposure screen for removing recomputed capacity+predicate, not a gain forecast. Existing preceding compute and mandatory forward decisions are retained."
+      },
+      "capacity_events": [
+        {
+          "id": 1357,
+          "host_id": 1308,
+          "ts_ns": 3823105906639362,
+          "dur_ns": 57185,
+          "seq": 30910,
+          "phase": "forward"
+        },
+        {
+          "id": 1940,
+          "host_id": 1937,
+          "ts_ns": 3823105917714246,
+          "dur_ns": 15840,
+          "seq": 30912,
+          "phase": "forward"
+        },
+        {
+          "id": 2567,
+          "host_id": 2497,
+          "ts_ns": 3823105927737959,
+          "dur_ns": 28928,
+          "seq": 30914,
+          "phase": "forward"
+        },
+        {
+          "id": 3168,
+          "host_id": 3107,
+          "ts_ns": 3823105936783332,
+          "dur_ns": 32256,
+          "seq": 30916,
+          "phase": "forward"
+        },
+        {
+          "id": 3763,
+          "host_id": 3703,
+          "ts_ns": 3823105947087397,
+          "dur_ns": 14656,
+          "seq": 30918,
+          "phase": "forward"
+        },
+        {
+          "id": 4487,
+          "host_id": 4447,
+          "ts_ns": 3823105956607588,
+          "dur_ns": 118304,
+          "seq": 30920,
+          "phase": "forward"
+        },
+        {
+          "id": 5077,
+          "host_id": 5008,
+          "ts_ns": 3823105967049669,
+          "dur_ns": 14784,
+          "seq": 30922,
+          "phase": "forward"
+        },
+        {
+          "id": 8856,
+          "host_id": 8473,
+          "ts_ns": 3823106096927561,
+          "dur_ns": 327201,
+          "seq": 30932,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 10275,
+          "host_id": 10129,
+          "ts_ns": 3823106126164583,
+          "dur_ns": 1247429,
+          "seq": 30935,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 13354,
+          "host_id": 13284,
+          "ts_ns": 3823106177279949,
+          "dur_ns": 898627,
+          "seq": 30940,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 14951,
+          "host_id": 14792,
+          "ts_ns": 3823106204635333,
+          "dur_ns": 1513317,
+          "seq": 30943,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 16389,
+          "host_id": 16222,
+          "ts_ns": 3823106231250171,
+          "dur_ns": 738722,
+          "seq": 30946,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 18035,
+          "host_id": 17840,
+          "ts_ns": 3823106257283151,
+          "dur_ns": 292737,
+          "seq": 30949,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 21567,
+          "host_id": 21496,
+          "ts_ns": 3823106317888563,
+          "dur_ns": 218112,
+          "seq": 30958,
+          "phase": "forward"
+        },
+        {
+          "id": 22161,
+          "host_id": 22100,
+          "ts_ns": 3823106326263566,
+          "dur_ns": 4574383,
+          "seq": 30960,
+          "phase": "forward"
+        },
+        {
+          "id": 22778,
+          "host_id": 22707,
+          "ts_ns": 3823106340536700,
+          "dur_ns": 44704,
+          "seq": 30962,
+          "phase": "forward"
+        },
+        {
+          "id": 23372,
+          "host_id": 23311,
+          "ts_ns": 3823106349042391,
+          "dur_ns": 20928,
+          "seq": 30964,
+          "phase": "forward"
+        },
+        {
+          "id": 24053,
+          "host_id": 23982,
+          "ts_ns": 3823106358108629,
+          "dur_ns": 59008,
+          "seq": 30966,
+          "phase": "forward"
+        },
+        {
+          "id": 24670,
+          "host_id": 24600,
+          "ts_ns": 3823106367018929,
+          "dur_ns": 140513,
+          "seq": 30968,
+          "phase": "forward"
+        },
+        {
+          "id": 25260,
+          "host_id": 25165,
+          "ts_ns": 3823106377186450,
+          "dur_ns": 56257,
+          "seq": 30970,
+          "phase": "forward"
+        },
+        {
+          "id": 29142,
+          "host_id": 28735,
+          "ts_ns": 3823106505963058,
+          "dur_ns": 308577,
+          "seq": 30980,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 30599,
+          "host_id": 30412,
+          "ts_ns": 3823106535914803,
+          "dur_ns": 1292836,
+          "seq": 30983,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 33743,
+          "host_id": 33671,
+          "ts_ns": 3823106587870651,
+          "dur_ns": 980003,
+          "seq": 30988,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 35375,
+          "host_id": 35213,
+          "ts_ns": 3823106615903445,
+          "dur_ns": 1470405,
+          "seq": 30991,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 36853,
+          "host_id": 36713,
+          "ts_ns": 3823106642753452,
+          "dur_ns": 1061060,
+          "seq": 30994,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 38531,
+          "host_id": 38388,
+          "ts_ns": 3823106669584707,
+          "dur_ns": 431457,
+          "seq": 30997,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 42174,
+          "host_id": 42097,
+          "ts_ns": 3823106731312554,
+          "dur_ns": 118465,
+          "seq": 31006,
+          "phase": "forward"
+        },
+        {
+          "id": 42768,
+          "host_id": 42707,
+          "ts_ns": 3823106739609605,
+          "dur_ns": 21024,
+          "seq": 31008,
+          "phase": "forward"
+        },
+        {
+          "id": 43370,
+          "host_id": 43290,
+          "ts_ns": 3823106748840515,
+          "dur_ns": 42656,
+          "seq": 31010,
+          "phase": "forward"
+        },
+        {
+          "id": 44053,
+          "host_id": 43893,
+          "ts_ns": 3823106757277790,
+          "dur_ns": 25664,
+          "seq": 31012,
+          "phase": "forward"
+        },
+        {
+          "id": 44641,
+          "host_id": 44562,
+          "ts_ns": 3823106766306715,
+          "dur_ns": 33600,
+          "seq": 31014,
+          "phase": "forward"
+        },
+        {
+          "id": 45259,
+          "host_id": 45184,
+          "ts_ns": 3823106775141016,
+          "dur_ns": 116000,
+          "seq": 31016,
+          "phase": "forward"
+        },
+        {
+          "id": 45849,
+          "host_id": 45754,
+          "ts_ns": 3823106785340697,
+          "dur_ns": 19392,
+          "seq": 31018,
+          "phase": "forward"
+        },
+        {
+          "id": 49736,
+          "host_id": 49309,
+          "ts_ns": 3823106915396637,
+          "dur_ns": 185825,
+          "seq": 31028,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 51193,
+          "host_id": 51006,
+          "ts_ns": 3823106944721244,
+          "dur_ns": 1184323,
+          "seq": 31031,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 54337,
+          "host_id": 54265,
+          "ts_ns": 3823106996356546,
+          "dur_ns": 956259,
+          "seq": 31036,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 55969,
+          "host_id": 55807,
+          "ts_ns": 3823107024100572,
+          "dur_ns": 1355973,
+          "seq": 31039,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 57444,
+          "host_id": 57292,
+          "ts_ns": 3823107050836434,
+          "dur_ns": 813187,
+          "seq": 31042,
+          "phase": "backward_recompute"
+        },
+        {
+          "id": 59119,
+          "host_id": 59021,
+          "ts_ns": 3823107077216328,
+          "dur_ns": 388193,
+          "seq": 31045,
+          "phase": "backward_recompute"
+        }
+      ]
+    }
+  ],
+  "queries": {
+    "capacity": "INCLUDE PERFETTO MODULE slices.with_context;\nSELECT k.id,k.ts,k.dur,h.id host_id,h.ts host_ts,\nEXTRACT_ARG(k.arg_set_id,'args.Seq') seq,\nEXTRACT_ARG(k.arg_set_id,'args.Process Group Ranks') ranks,\n(SELECT group_concat(a.name,'|') FROM ancestor_slice(h.id) a) ancestors\nFROM slice k JOIN flow f ON f.slice_in=k.id JOIN slice h ON h.id=f.slice_out\nWHERE k.category='kernel' AND EXTRACT_ARG(k.arg_set_id,'args.Collective name')='allreduce' AND EXTRACT_ARG(k.arg_set_id,'args.In msg nelems')=128 AND EXTRACT_ARG(k.arg_set_id,'args.dtype')='Long' ORDER BY k.ts;",
+    "conditional": "SELECT c.id,c.ts,c.dur,\nCASE WHEN EXISTS(SELECT 1 FROM ancestor_slice(c.id) a WHERE a.name='CompiledFunctionBackward') THEN 'backward_recompute' ELSE 'forward' END phase,\n(SELECT count(*) FROM descendant_slice(c.id) a WHERE a.name='aten::item') item_count,\n(SELECT sum(a.dur) FROM descendant_slice(c.id) a WHERE a.name='cudaStreamSynchronize') sync_ns,\n(SELECT count(*) FROM descendant_slice(c.id) a WHERE a.name='cudaStreamSynchronize') sync_count,\n(SELECT group_concat(a.name,'|') FROM descendant_slice(c.id) a WHERE a.category='cpu_op') child_ops\nFROM slice c WHERE c.name='torchtitan::conditional_capacity_mask';",
+    "sync": "SELECT s.id,s.ts,s.dur,c.id conditional_id,CASE WHEN EXISTS(SELECT 1 FROM ancestor_slice(c.id) a WHERE a.name='CompiledFunctionBackward') THEN 'backward_recompute' ELSE 'forward' END phase FROM slice s JOIN slice c ON c.name='torchtitan::conditional_capacity_mask' WHERE s.name='cudaStreamSynchronize' AND EXISTS(SELECT 1 FROM ancestor_slice(s.id) a WHERE a.id=c.id);",
+    "selection": "SELECT k.category,k.name,count(*) n,sum(k.dur)/1e6 ms,\nCASE WHEN EXISTS(SELECT 1 FROM ancestor_slice(h.id) a WHERE a.name='CompiledFunctionBackward') THEN 'backward_recompute' ELSE 'forward' END phase\nFROM slice k JOIN flow f ON f.slice_in=k.id JOIN slice h ON h.id=f.slice_out\nWHERE EXISTS(SELECT 1 FROM ancestor_slice(h.id) a WHERE a.name='torchtitan::conditional_capacity_mask')\nGROUP BY k.category,k.name,phase ORDER BY ms DESC;",
+    "busy_overlap": "WITH ordered AS (SELECT ts,ts+dur e,max(ts+dur) OVER(ORDER BY ts,ts+dur ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev FROM slice WHERE category IN ('kernel','gpu_memcpy','gpu_memset')), flags AS (SELECT *,CASE WHEN prev IS NULL OR ts>prev THEN 1 ELSE 0 END f FROM ordered), groups AS (SELECT *,sum(f) OVER(ORDER BY ts,e) g FROM flags), busy AS (SELECT min(ts) ts,max(e) e FROM groups GROUP BY g), waits AS (SELECT s.id,s.ts,s.dur,c.id conditional_id,CASE WHEN EXISTS(SELECT 1 FROM ancestor_slice(c.id) a WHERE a.name='CompiledFunctionBackward') THEN 'backward_recompute' ELSE 'forward' END phase FROM slice s JOIN slice c ON c.name='torchtitan::conditional_capacity_mask' WHERE s.name='cudaStreamSynchronize' AND EXISTS(SELECT 1 FROM ancestor_slice(s.id) a WHERE a.id=c.id)) SELECT w.phase,count(DISTINCT w.id) n, sum(max(0,min(w.ts+w.dur,b.e)-max(w.ts,b.ts)))/1e6 busy_intersection_ms FROM waits w LEFT JOIN busy b ON b.ts<w.ts+w.dur AND b.e>w.ts GROUP BY w.phase;",
+    "capacity_other_work": "WITH caps AS (SELECT * FROM slice WHERE category='kernel' AND EXTRACT_ARG(arg_set_id,'args.Collective name')='allreduce' AND EXTRACT_ARG(arg_set_id,'args.In msg nelems')=128 AND EXTRACT_ARG(arg_set_id,'args.dtype')='Long') SELECT count(DISTINCT c.id) n,sum(max(0,min(c.ts+c.dur,k.ts+k.dur)-max(c.ts,k.ts)))/1e6 other_work_overlap_sum_ms FROM caps c LEFT JOIN slice k ON k.category IN ('kernel','gpu_memcpy','gpu_memset') AND k.id!=c.id AND k.ts<c.ts+c.dur AND k.ts+k.dur>c.ts;",
+    "association": "WITH caps AS (SELECT k.*,h.id host_id FROM slice k JOIN flow f ON f.slice_in=k.id JOIN slice h ON h.id=f.slice_out WHERE k.category='kernel' AND EXTRACT_ARG(k.arg_set_id,'args.Collective name')='allreduce' AND EXTRACT_ARG(k.arg_set_id,'args.In msg nelems')=128 AND EXTRACT_ARG(k.arg_set_id,'args.dtype')='Long'),graphs AS (SELECT c.id cap_id,c.ts,c.dur,c.host_id,a.id graph_id FROM caps c JOIN ancestor_slice(c.host_id) a WHERE a.name GLOB '## Call CompiledFxGraph*') SELECT g.cap_id,g.graph_id,c.id conditional_id, s.id sync_id, max(0,min(g.ts+g.dur,s.ts+s.dur)-max(g.ts,s.ts))/1e6 cap_within_sync_ms FROM graphs g JOIN slice c ON c.name='torchtitan::conditional_capacity_mask' AND c.ts>(SELECT ts FROM slice WHERE id=g.host_id) AND EXISTS(SELECT 1 FROM ancestor_slice(c.id) a WHERE a.id=g.graph_id) JOIN descendant_slice(c.id) s ON s.name='cudaStreamSynchronize';",
+    "routing": "SELECT k.category,k.name,CASE WHEN EXISTS(SELECT 1 FROM ancestor_slice(h.id) a WHERE a.name='CompiledFunctionBackward') THEN 'backward_recompute' ELSE 'forward' END phase,count(*) n,sum(k.dur)/1e6 ms FROM slice k JOIN flow f ON f.slice_in=k.id JOIN slice h ON h.id=f.slice_out WHERE k.name='_routing_metadata_kernel' GROUP BY k.category,k.name,phase;"
+  },
+  "limits": [
+    "No latest cross-rank clock calibration provenance was established. Rank-local durations are comparable descriptions, but arrival skew/straggler identity is unknown; no timestamp subtraction between ranks is reported.",
+    "All42 conditional owners have item/local-scalar, clone/copy and zero launched kernels; this is the no-drop observed path. Dropping-selection kernel cost is not measured by this capture.",
+    "Most conditional CPU duration overlaps existing GPU work. CPU duration cannot be claimed as removable GPU or elapsed time.",
+    "Capacity kernel lifetimes include possible peer waits; ranks2..7 and NCCL protocol progress are absent.",
+    "Screening budgets are current interval work/exposure only, not measured saved step time, a critical-path proof, or safe whole-update extrapolation.",
+    "No source/config edits, GPU, remote access, dependency installation or benchmark."
+  ],
+  "historical_reuse": [
+    "runs/bf16-expert-cache/capacity-window-budget.json",
+    "runs/bf16-expert-cache/capacity-optimization-screening.json",
+    "runs/bf16-expert-cache/capacity-crossrank-wait.json"
+  ],
+  "query_limit_handling": "Two attempts to return all disjoint device-union intervals exceeded MCP5000-row cap. Replaced with aggregate union/intersection query; successful final aggregate used below.",
+  "source_context": {
+    "inspected_task_revision": "2ada87125e433e1f76c4cb2bfad244b641a78a93",
+    "scope": "Source explanation of the selected policy; per-layer ancestry was not reconstructed in this trace analysis.",
+    "sac_policy": "Seven main MoE layers; layer5 saves experts_up+comm; other six replay capacity communication. The conditional mask op is uncategorized and prefers recomputation on all seven.",
+    "count_explanation": {
+      "forward_collectives": "7*3=21",
+      "recomputed_collectives": "6*3=18",
+      "conditional_predicates": "(7+7)*3=42"
+    },
+    "mask_payload": {
+      "shape": [
+        8192,
+        8
+      ],
+      "dtype": "bool",
+      "bytes_per_layer": 65536,
+      "bytes_for_seven_layers": 458752,
+      "lifetime": "One microbatch forward/backward; accumulation32 does not imply32 simultaneously live mask sets. Net extra peak memory is unmeasured."
+    },
+    "references": [
+      "gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml:104",
+      "gift/torchtitan/distributed/activation_checkpoint.py:85",
+      "gift/torchtitan/distributed/activation_checkpoint.py:187",
+      "gift/torchtitan/models/common/moe/dispatch/capacity.py:99",
+      "gift/torchtitan/models/common/moe/dispatch/base.py:57"
+    ]
+  },
+  "next_candidate": {
+    "status": "Proposed only; no implementation, tests or performance comparison executed.",
+    "mechanism": "Targeted SAC MUST_SAVE boundary around complete nondifferentiable capacity selection: histogram, group all-reduce, predicate and existing conditional selection. Return compact keep mask; apply to recomputed differentiable scores outside the boundary.",
+    "constraints": [
+      "Preserve original route-ID ordering and mask alignment, score gradients, quotas and stable tie ordering.",
+      "Save per checkpoint invocation; do not use a shared last-mask cache.",
+      "Preserve collective participation/order, including empty sources; opaque compiler boundary requires distributed validation.",
+      "Retain the owner-selected conditional forward variant; do not enable broad comm saving or silently bypass capacity."
+    ],
+    "target_counts_for_three_microbatches": {
+      "capacity_collectives": 21,
+      "conditional_predicate_evaluations": 21
+    },
+    "limits": "Target counts are acceptance goals, not observed results. Existing exposed intervals do not establish saved elapsed time; waits may move to subsequent EP collectives."
+  }
+}

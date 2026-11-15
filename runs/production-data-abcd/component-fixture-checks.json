@@ -1,0 +1,76 @@
+{
+  "scope": "Historical CPU-stage scope for task-owned component fixture capture/replay checks; this receipt itself performed no production-source writes or GPU work.",
+  "acceptance": [
+    "Explicit one-update accumulation32 capture, disabled by default",
+    "First full native layer0/MTP boundary inputs and output upstream plus native IDs",
+    "Strict per-rank hashed fixtures and paired canonical initialized component replay",
+    "No tokenizer CLI fallback",
+    "Focused CPU checks, scoped lint and whitespace review"
+  ],
+  "checks": [
+    {
+      "command": "CUDA_VISIBLE_DEVICES='' python -m pytest -q runs/production-data-abcd/tests/test_component_fixtures.py runs/ffn-row-owner/tests/test_ffn_components.py -k 'not native_meta_crop'",
+      "result": "13 passed, 2 deselected before adding checkpoint/varlen cases"
+    },
+    {
+      "command": "CUDA_VISIBLE_DEVICES='' python -m pytest -q runs/production-data-abcd/tests/test_component_fixtures.py runs/overnight-streaming-perf/tests/test_measure.py runs/ffn-row-owner/tests/test_ffn_components.py -k 'not native_meta_crop'",
+      "result": "64 passed, 6 failed, 2 deselected; six path guard failures from default pytest directory outside task root"
+    },
+    {
+      "command": "CUDA_VISIBLE_DEVICES='' python -m pytest -q --basetemp=runs/production-data-abcd/artifacts/test-tmp ...",
+      "result": "1 passed, 12 setup errors; basetemp parent did not exist; replaced with established existing raw artifact area"
+    },
+    {
+      "command": "CUDA_VISIBLE_DEVICES='' python -m pytest -q --basetemp=runs/overnight-streaming-perf/artifacts/raw/pytest-abcd-component-capture runs/production-data-abcd/tests/test_component_fixtures.py runs/overnight-streaming-perf/tests/test_measure.py -k 'capture_replay or missing_duplicate or unsupported_masks or run_dirs_keep_preflight or measure_main_routes_rank_cache or measure_main_rejects_out_of_attempt or measure_rank_cache_routing'",
+      "result": "13 passed, 49 deselected; includes eager/compiled fullgraph with/without nonreentrant checkpoint, restored wrappers and all six prior path guard cases"
+    },
+    {
+      "command": "CUDA_VISIBLE_DEVICES='' python -m pytest -q runs/production-data-abcd/tests/test_component_fixtures.py -k varlen_mask",
+      "result": "1 passed, 7 deselected; exact int32 VarlenMetadata mask offsets/types roundtrip"
+    },
+    {
+      "command": "python -m ruff check --select F821,F811,F841 --no-cache <changed Python files>",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "remaining_gates": [
+    {
+      "gate": "Actual all-rank native binding and workload validation",
+      "status": "RESOLVED",
+      "evidence": "runs/production-data-abcd/artifacts/raw/native-abcd-orchestration/native-campaign-results.json",
+      "result": "The final native campaign completed all four timing and four diagnostic runs across all eight ranks; actual variant bindings and full workloads passed."
+    },
+    {
+      "gate": "Actual compiled FP8/SAC acquisition and component timing",
+      "status": "RESOLVED",
+      "evidence": "runs/production-data-abcd/component-results.json",
+      "result": "The one-update eight-rank native acquisition and all six compiled component timing processes passed."
+    }
+  ],
+  "runtime_cost_review": {
+    "disabled": "One environment lookup at Trainer.train entry; no per-microbatch capture branch, wrapper, hook, tensor copy, allocation or communication installed",
+    "enabled": "First FB only: five native boundary tensor CPU clones plus IDs/metadata; approximately320MiB/rank if all B2S4096D4096 tensors are BF16, no dtype conversion. D2H synchronization/serialization/hash costs excluded from every timing/profile process. Restores wrappers and hooks before remaining accumulation calls.",
+    "replay": "Fixture IO, validation/hash and H2D before timing. Native precision, SAC, compiler, GFSDP topology and existing shared buffers retained; no new pools/workspaces or optimizer export. Component weights are paired canonical harness initialization, not captured full-model state."
+  },
+  "research": [
+    "https://docs.pytorch.org/docs/stable/generated/torch.Tensor.register_hook.html",
+    "https://docs.pytorch.org/docs/main/user_guide/torch_compiler/torch.compiler_nn_module.html"
+  ],
+  "decision": "Wrap already materialized _compiled_call_impl outside fullgraph __call__ for compiled layer0 and forward for uncompiled MTP parent; use output tensor gradient hooks returning None. Module CPU-copy hooks inside fullgraph could break tracing.",
+  "historical_cpu_stage_limits": [
+    {
+      "field": "scope",
+      "statement": "Task-owned diagnostic native component capture and hashed replay; no production-source writes or GPU work",
+      "label": "Historical CPU-fixture scope for this receipt; later native/component evidence resolves the GPU-stage gate."
+    },
+    {
+      "field": "previous remaining_gates entry",
+      "statement": "Actual eight-rank compiled FP8/SAC C acquisition and component timing execution is the active serialized GPU stage; CPU fixture checks, both native meta-component tests (2 passed, 8 deselected), and the independent source/runtime-cost review pass, but no GPU component behavior is established",
+      "label": "Historical CPU-stage limit, not current campaign status."
+    }
+  ]
+}

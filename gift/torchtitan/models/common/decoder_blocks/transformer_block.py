@@ -90,6 +90,25 @@ class ResidualTransformerBlock(TransformerBlock):
         positions: torch.Tensor | None = None,
         token_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        regions = getattr(self, "_ffn_overlap_regions", None)
+        prefix = self._forward_ffn_prefix if regions is None else regions[0]
+        suffix = self._forward_ffn_suffix if regions is None else regions[2]
+        x, ffn_in = prefix(x, rope_cache, attention_masks, positions, token_mask)
+        ffn_out = (
+            self.moe(ffn_in, token_mask)
+            if self.moe_enabled
+            else self.feed_forward(ffn_in)
+        )
+        return suffix(x, ffn_out)
+
+    def _forward_ffn_prefix(
+        self,
+        x: torch.Tensor,
+        rope_cache: torch.Tensor,
+        attention_masks: AttentionMasksType | None = None,
+        positions: torch.Tensor | None = None,
+        token_mask: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         attn_out = self.attention(
             self.attention_norm(x), rope_cache, attention_masks, positions
         )
@@ -99,12 +118,11 @@ class ResidualTransformerBlock(TransformerBlock):
             attn_out = self.attn_residual_scale(attn_out)
         x = x + attn_out
 
-        ffn_in = self.ffn_norm(x)
-        ffn_out = (
-            self.moe(ffn_in, token_mask)
-            if self.moe_enabled
-            else self.feed_forward(ffn_in)
-        )
+        return x, self.ffn_norm(x)
+
+    def _forward_ffn_suffix(
+        self, x: torch.Tensor, ffn_out: torch.Tensor
+    ) -> torch.Tensor:
         if self.post_ffn_norm is not None:
             ffn_out = self.post_ffn_norm(ffn_out)
         if self.ffn_residual_scale is not None:

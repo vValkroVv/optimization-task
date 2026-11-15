@@ -28,6 +28,7 @@ from torchtitan.distributed.gfsdp import (
     reduce_flat_segments,
 )
 from torchtitan.distributed.gfsdp._dcp import _lazy_init_gfsdp_roots
+from torchtitan.distributed.gfsdp.row_owner_embedding import iter_row_owner_embeddings
 from torchtitan.protocols.checkpoint_adapter import CheckpointAdapter
 from torchtitan.protocols.module import Module
 from torchtitan.protocols.sharding_backend import ShardStats
@@ -141,6 +142,8 @@ class BackendBufferStore:
         self.use_ema = True
         for part in model_parts:
             part.setup_ema_buffer()
+        for owner in iter_row_owner_embeddings(model_parts):
+            owner.setup_ema()
         self.seed()
 
     @property
@@ -152,14 +155,20 @@ class BackendBufferStore:
         del only
         for part in self.model_parts:
             part.update_ema_buffer_after_load(force_update=True)
+        for owner in iter_row_owner_embeddings(self.model_parts):
+            owner.seed_ema()
 
     def update(self, alpha: float) -> None:
         for part in self.model_parts:
             part.update_ema_params(alpha)
+        for owner in iter_row_owner_embeddings(self.model_parts):
+            owner.update_ema(alpha)
 
     def swap(self) -> None:
         for part in self.model_parts:
             part.swap_ema_and_weights()
+        for owner in iter_row_owner_embeddings(self.model_parts):
+            owner.swap_ema()
 
     def after_load(self) -> Collection[str]:
         return ()

@@ -10,6 +10,7 @@
 import fnmatch
 from functools import partial
 import os
+from types import MethodType
 
 import torch
 import torch._functorch.config
@@ -19,6 +20,7 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     checkpoint_wrapper as ptd_checkpoint_wrapper,
 )
 from torch.utils.checkpoint import (
+    checkpoint,
     CheckpointPolicy,
     create_selective_checkpoint_contexts,
 )
@@ -232,6 +234,24 @@ def _apply_op_sac(
     # Collect weight shapes to force-recompute, stored as mm RHS shape
     # (in_f, out_f). For aten.linear we transpose args[1].shape at lookup
     # time to match, since linear's weight is (out_f, in_f).
+    mm_recompute_shapes = _mm_recompute_shapes(module, ac_config, base_fqn)
+
+    return ptd_checkpoint_wrapper(
+        module,
+        context_fn=partial(
+            _sac_context_fn,
+            tuple(sorted(save)),
+            tuple(sorted(mm_recompute_shapes)),
+        ),
+        preserve_rng_state=ac_config.preserve_rng_state,
+        determinism_check=ac_config.determinism_check,
+        early_stop=ac_config.early_stop,
+        debug=ac_config.debug,
+        **checkpoint_kwargs,
+    )
+
+
+def _mm_recompute_shapes(module, ac_config, base_fqn):
     mm_recompute_shapes = set()
     mm_recompute_fqns = ac_config.per_op_sac_force_recompute_mm_shapes_by_fqns
 
@@ -248,18 +268,46 @@ def _apply_op_sac(
             out_f, in_f = submod.weight.shape
             mm_recompute_shapes.add((in_f, out_f))
 
-    return ptd_checkpoint_wrapper(
-        module,
-        context_fn=partial(
-            _sac_context_fn,
-            tuple(sorted(save)),
-            tuple(sorted(mm_recompute_shapes)),
-        ),
+    return mm_recompute_shapes
+
+
+def _apply_ac_to_ffn_regions(module, ac_config, *, mode, base_fqn):
+    """Checkpoint inside each compile boundary without registering wrappers."""
+    kwargs = dict(
+        use_reentrant=False,
         preserve_rng_state=ac_config.preserve_rng_state,
         determinism_check=ac_config.determinism_check,
         early_stop=ac_config.early_stop,
         debug=ac_config.debug,
-        **checkpoint_kwargs,
+    )
+    if mode == "full":
+        if not ac_config.preserve_rng_state and any(
+            getattr(child, "_debug_force_load_balance", False)
+            for child in module.modules()
+        ):
+            raise ValueError("Forced random routing requires preserve_rng_state=True")
+    else:
+        save = _save_categories_for_mode(mode, ac_config)
+        if "mm_half" in save:
+            raise ValueError(
+                "FFN overlap does not support mm_half: its ordinal policy spans "
+                "the original whole-block operation sequence"
+            )
+        kwargs["context_fn"] = partial(
+            _sac_context_fn,
+            tuple(sorted(save)),
+            tuple(sorted(_mm_recompute_shapes(module, ac_config, base_fqn))),
+        )
+
+    for region in module._ffn_overlap_regions:
+        region._ffn_region_forward = region.forward
+        region._ffn_checkpoint_kwargs = kwargs
+        region.forward = MethodType(_checkpointed_region_forward, region)
+
+
+def _checkpointed_region_forward(self, *args, **kwargs):
+    return checkpoint(
+        self._ffn_region_forward, *args, **self._ffn_checkpoint_kwargs, **kwargs
     )
 
 
@@ -372,6 +420,11 @@ def apply_ac(
             mode = resolve_ac_mode(segment.fqn, ac_config)
             modes[segment.fqn] = mode
             if mode == "none":
+                continue
+            if getattr(segment.module, "_ffn_overlap_regions", None) is not None:
+                _apply_ac_to_ffn_regions(
+                    segment.module, ac_config, mode=mode, base_fqn=segment.fqn
+                )
                 continue
             segment.rebind(
                 _apply_ac_to_block(

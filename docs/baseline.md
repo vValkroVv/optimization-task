@@ -1,6 +1,54 @@
 # Agreed 100B-dev crop baseline
 
-**State:** This is the accepted default workload contract. Its canonical task-local YAML is [gift_100b_crop8_ep8_fp8_compile_cute.yaml](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml), with the model preset [100b_crop8.yaml](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml). The full-length MDS configuration is now selected after its eight-H100 smoke passed. Every rank completed ten updates and 320 microbatches, including monitoring. The [campaign report](../runs/overnight-streaming-perf/report.md) owns MDS evidence and performance gates; the [historical HF smoke](../runs/100b-crop8-ep8-smoke/report.md) remains unchanged.
+**State:** This is the accepted default workload contract. Its canonical task-local YAML is [gift_100b_crop8_ep8_fp8_compile_cute.yaml](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml), with the model preset [100b_crop8.yaml](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml). The 15 November rerun replaces the input baseline with real diverse data and the production tokenizer described below. Its [campaign report](../runs/production-data-abcd/report.md) owns current acceptance and measurements. The previous [MDS smoke](../runs/overnight-streaming-perf/report.md) and [HF smoke](../runs/100b-crop8-ep8-smoke/report.md) remain historical evidence for their original inputs.
+
+## Global requirement: real data and production tokenizer
+
+**Owner decision, 15 November 2026:** replace the test-tokenizer fixture with
+real, diverse data encoded by the correct production tokenizer, and remeasure
+all optimization results on that input baseline. This applies across the task:
+training runs, profiling, native comparisons and data-dependent component
+benchmarks, including the FFN/embedding campaign and earlier V2, BF16
+cache, fusion, combined-four and FlashQLA comparisons.
+
+The historical preparation and runner selected `gift/tests/assets/tokenizer`: 2009 IDs
+and no BPE merges. The 896-row C4 fixture contains only 94 distinct input IDs;
+its B2/S4096 rank microbatches have a median of 74. The model still has 128256
+embedding rows. These inputs do not supply the token diversity needed for the
+requested performance evaluation. A real-text corpus name or a full-size model
+vocabulary does not establish correct tokenization.
+
+The source production 100B preset selects
+`/mnt/nfs/07-share/models_templates/dclm-7b-128k_digit_tokenizer_FIM`
+(`gift_3_5_100b_pretrain_2t_tokens`, donor revision `ec47fb8e40a9a1e55d3c18dfa704ca104ae773af`).
+Use the corresponding verified assets on the execution host; matching only
+the vocabulary size does not establish tokenizer identity. The checked-in
+crop YAML, active runner and MDS preparation must agree on the selected
+tokenizer and newly encoded data. The completed
+[production-data campaign](../runs/production-data-abcd/report.md) verifies this
+replacement and measures the four requested cumulative variants plus the three
+affected components. The old hard-coded tokenizer CLI override is removed.
+
+Before measurement, record dataset/tokenizer identities and hashes, actual
+input-ID bounds, unique-ID counts and owner request distributions on
+representative rank microbatches, and sequence/packing/padding rules. Inspect
+the actual resolved configuration and loaded batches. Preserve the selected
+model, precision, SAC, compile, MTP, EMA, optimizer and accumulation settings.
+
+Preserve previous raw runs and reports as historical evidence for their exact
+inputs. Recompute timing, TPS, peak-memory comparisons and applicable trace
+budgets with fresh matched controls on the corrected input baseline; do not
+compare new candidates with old-fixture controls. Keep the agreed initial
+10-warmup + 10-measured full-update protocol unless the active assignment
+explicitly selects another duration. Existing implementation selections and
+applicable correctness/lifecycle evidence remain in force; this does not reopen
+the accepted MTP/FP8 A/A investigation. Synthetic edge cases can still test
+correctness, but cannot replace the real-data performance measurements.
+
+The [work plan](../planning/README.md#global-priority-rebaseline-all-runs-on-real-data)
+records completion of the requested cumulative rerun. Any future comparison
+must use this input contract; this requirement does not itself launch
+additional compute.
 
 ## Current final task baseline
 
@@ -16,15 +64,18 @@ validation.
 | Existing accepted V2 | CPU materialized-batch prefetch depth 32. This is the already accepted V2 setting, reused as part of the combined recipe rather than an additional fifth change. |
 | Three combined-four additions beyond V2 | BF16 expert-weight reuse; the explicit routing-metadata kernel using `indices_to_map`; and stable cap-zero cross-entropy through the existing `CrossEntropyLoss` and `ChunkedCELoss` path. GPU input-preparation fusion and fused Linear+CE remain excluded. |
 | GDN backend | Select `external_gate` explicitly with `runs/flash-qla/run.py --gdn-backend external_gate`. The choice is recipe-scoped; the generic backend default remains separate. |
-| Measurement recipe | Logical epoch size 102,400; 140 optimizer updates, with 1–40 as measurement warmup and 41–140 as the 100-update window. Preserve the training LR schedule at 65,000 total updates and 2,000 LR-warmup updates. The 40-update measurement warmup is separate from LR warmup. |
+| Current measurement recipe | Logical epoch size 102,400; 20 optimizer updates, with 1–10 as measurement warmup and 11–20 measured. Preserve the training LR schedule at 65,000 total updates and 2,000 LR-warmup updates. The 15 November goal selects this window for all A/B/C/D timing runs. |
 
-The actual supported invocation and per-run values are retained in the
+The historical FlashQLA invocation and per-run values are retained in the
 [FlashQLA native plan](../runs/flash-qla/native-plan.json). It selects the
 backend with `--gdn-backend external_gate` and records `--steps 140
 --warmup 40 --window 100 --num-prefetch-batches 32 --epoch-size 102400
 --gfsdp-reuse-bf16-expert-weights`. The plan also records the operational
 compiler-cache path used by those runs; cache reuse is not an additional model
-change. Keep the run ID and task-owned cache path appropriate to each new run.
+change. Those 140-update old-fixture values do not override the current rerun.
+Its [command plan](../runs/production-data-abcd/campaign-plan.json) uses fresh
+separate timing caches and a corresponding completed timing cache for each
+diagnostic.
 
 The combined-four pair measured 149,386.56 versus 156,094.27 global physical
 input tokens/s, a provisional +4.49% fixed-window difference from one sequential
@@ -105,17 +156,68 @@ The hypothetical production target is 512 GPUs with PP4 and EP32, with dense FSD
 
 ## Smoke and runtime status
 
-### Selected MDS fixture
+### Selected production tokenizer and real-data inputs
 
-The canonical loader is `streaming_text` over 896 full 4096-token uint32 rows
+The canonical tokenizer is
+`/home/jovyan/shares/SR008.nfs1/models_templates/dclm-7b-128k_digit_tokenizer_FIM`,
+the execution-host location of the named production 100B asset. The supplied
+donor reference is `ec47fb8e40a9a1e55d3c18dfa704ca104ae773af` and historical asset
+spelling is `/mnt/nfs/07-share/models_templates/dclm-7b-128k_digit_tokenizer_FIM`.
+Current tokenizer file identities and actual loaded behavior belong to the
+[new campaign](../runs/production-data-abcd/report.md#execution-route-and-input-discovery).
+The completed [data receipt](../runs/production-data-abcd/data-002.json) records
+the hashes of all three tokenizer files, vocabulary and special-token IDs, and
+the native wrapper behavior.
+Do not substitute the bundled tokenizer or another 128k tokenizer.
+
+The `streaming_text` input targets 102400 distinct full 4096-token uint32 rows,
+prepared from existing GigaSets 5.3.1 English reference text, Russian web,
+mathematics and Python code. Each domain contributes 25600 rows in a deterministic
+row round-robin stream. This is an identified diverse comparison mixture, not a
+claim of the production mixture. Canonical local path is
+`../runs/production-data-abcd/artifacts/raw/data-002` relative to `gift/`, with
+split `train`; the runner fragment selects the same resolved path.
+
+Keep two persistent workers, no pinning, null prefetch factor, shuffle/FIM off,
+one canonical node, original partitioning, drop-last and infinite iteration.
+Logical epoch and physical row count are both 102400, avoiding oversampling.
+Documents are encoded with the native wrapper's BOS/EOS behavior, concatenated
+and split into nonoverlapping full rows. Main labels shift within each row,
+ignore its final position and retain 4095 valid targets. The native trainer uses
+causal per-row positions without EOS document isolation; loader EOS-reset
+positions are not the effective model positions for this crop.
+
+Preparation and CPU/Gloo actual-loader acceptance are complete. The
+[loader receipt](../runs/production-data-abcd/data-002-loader-summary.json)
+passes both prefetch depths (0 and 32) on all eight ranks, with 672 batches per
+rank, identical opening order, and exact loaded inputs, labels and loader
+positions. Across the 21-update census, each arm covers 10752 unique global
+rows and 44029440 valid main targets; the receipt owns bounds, per-rank
+uniqueness and owner-skew details. The base runner's actual
+`_verify_ready_inputs(TASK_ROOT)` check passes, as recorded in
+[input-readiness.json](../runs/production-data-abcd/input-readiness.json).
+These receipts establish CPU/Gloo input acceptance, not GPU training behavior.
+Native component acquisition and all four serial A/B/C/D
+timing runs are complete; their single fixed-order performance ratios remain
+provisional. All eight timing/diagnostic rows completed without failure; the
+source/config guard passed, and the final check found the GPUs idle. MCP Perfetto analysis and
+report integration are complete. The [campaign report](../runs/production-data-abcd/report.md)
+owns its results, parser limitations and execution identities.
+`data-001` is a failed partial and remains excluded. Historical fixture smokes
+and performance values do not establish acceptance for these new inputs.
+
+<a id="selected-mds-fixture"></a>
+### Historical MDS fixture
+
+The previous canonical loader was `streaming_text` over 896 full 4096-token uint32 rows
 prepared from the bundled C4 corpus and tokenizer. It uses two persistent workers,
 no pinning, null prefetch factor, shuffle/FIM off, one canonical node, original
 partitioning, drop-last and infinite iteration. The canonical relative path
 `../runs/overnight-streaming-perf/artifacts/raw/mds4096` assumes the normal
 `gift/` training working directory. The [data receipt](../runs/overnight-streaming-perf/mds-data.json)
 records the callable packing recipe, identities, hashes and all-rank loader checks.
-This repeated local fixture supports a controlled performance study, not a
-production data mixture or quality evaluation.
+This repeated low-diversity fixture and its 2009-ID tokenizer are excluded from
+the current rerun. Its results cannot serve as controls for new-data candidates.
 
 CPU materialized-batch prefetch retains the loader API and canonical control
 default `num_prefetch_batches: 0`. On 13 November 2026 the owner accepted the

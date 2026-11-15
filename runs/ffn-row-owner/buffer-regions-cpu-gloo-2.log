@@ -1,0 +1,176 @@
+Fs                                                                       [100%]
+=================================== FAILURES ===================================
+_ TestGFSDPFFNOverlap.test_baseline_checkpoint_loads_split_layout_and_continues _
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:912: in wrapper
+    self._join_processes(fn)
+        fn         = <bound method TestGFSDPFFNOverlap.test_baseline_checkpoint_loads_split_layout_and_continues of <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_baseline_checkpoint_loads_split_layout_and_continues>>
+        self       = <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_baseline_checkpoint_loads_split_layout_and_continues>
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1182: in _join_processes
+    self._check_return_codes(fn, elapsed_time)
+        active_children = []
+        elapsed    = 6.104172706604004
+        elapsed_time = 6.204369306564331
+        fn         = <bound method TestGFSDPFFNOverlap.test_baseline_checkpoint_loads_split_layout_and_continues of <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_baseline_checkpoint_loads_split_layout_and_continues>>
+        i          = 0
+        p          = <SpawnProcess name='process 0' pid=225006 parent=224978 stopped exitcode=10>
+        pipe       = <multiprocessing.connection.Connection object at 0x705d9c75ff50>
+        self       = <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_baseline_checkpoint_loads_split_layout_and_continues>
+        start_time = 1794688023.0739787
+        subprocess_error = True
+        timeout    = 300
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1222: in _check_return_codes
+    raise RuntimeError(error)
+E   RuntimeError: Process 0 exited with error code 10 and exception:
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E       getattr(self, test_name)()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E       fn()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E       method(*args, **kwargs)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E       raise e
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E       func(self, *args, **kwargs)  # type: ignore[misc]
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 214, in test_baseline_checkpoint_loads_split_layout_and_continues
+E       self._update(baseline, baseline_optimizer)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 200, in _update
+E       loss.backward()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_tensor.py", line 623, in backward
+E       torch.autograd.backward(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/__init__.py", line 395, in backward
+E       _engine_run_backward(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/graph.py", line 1072, in _engine_run_backward
+E       return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+E              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation: [CPUBFloat16Type [64]] is at version 8; expected version 4 instead. Hint: enable anomaly detection to find the operation that failed to compute its gradient, with torch.autograd.set_detect_anomaly(True, check_nan=False).
+E   
+E   To execute this test, run the following from the base repo dir:
+E       python test_gfsdp_ffn_overlap.py TestGFSDPFFNOverlap.test_baseline_checkpoint_loads_split_layout_and_continues
+E   
+E   This message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0
+E   
+E   Process 1 exited with error code 10 and exception:
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E       getattr(self, test_name)()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E       fn()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E       method(*args, **kwargs)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E       raise e
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E       func(self, *args, **kwargs)  # type: ignore[misc]
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 214, in test_baseline_checkpoint_loads_split_layout_and_continues
+E       self._update(baseline, baseline_optimizer)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 200, in _update
+E       loss.backward()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_tensor.py", line 623, in backward
+E       torch.autograd.backward(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/__init__.py", line 395, in backward
+E       _engine_run_backward(
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/graph.py", line 1072, in _engine_run_backward
+E       return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+E              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation: [CPUBFloat16Type [64]] is at version 8; expected version 4 instead. Hint: enable anomaly detection to find the operation that failed to compute its gradient, with torch.autograd.set_detect_anomaly(True, check_nan=False).
+E   
+E   To execute this test, run the following from the base repo dir:
+E       python test_gfsdp_ffn_overlap.py TestGFSDPFFNOverlap.test_baseline_checkpoint_loads_split_layout_and_continues
+E   
+E   This message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0
+        elapsed_time = 6.204369306564331
+        error      = 'Process 0 exited with error code 10 and exception:\nTraceback (most recent call last):\n  File "/opt/torchtitan-venv/...int_loads_split_layout_and_continues\n\nThis message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0\n\n'
+        error_message = 'Traceback (most recent call last):\n  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal...point_loads_split_layout_and_continues\n\nThis message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0\n'
+        errored_processes = [(0, <SpawnProcess name='process 0' pid=225006 parent=224978 stopped exitcode=10>), (1, <SpawnProcess name='process 1' pid=225007 parent=224978 stopped exitcode=10>)]
+        first_process = <SpawnProcess name='process 0' pid=225006 parent=224978 stopped exitcode=10>
+        fn         = <bound method TestGFSDPFFNOverlap.test_baseline_checkpoint_loads_split_layout_and_continues of <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_baseline_checkpoint_loads_split_layout_and_continues>>
+        i          = 1
+        process    = <SpawnProcess name='process 1' pid=225007 parent=224978 stopped exitcode=10>
+        self       = <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_baseline_checkpoint_loads_split_layout_and_continues>
+----------------------------- Captured stdout call -----------------------------
+Process 0 terminated with exit code 10, terminating remaining processes.
+----------------------------- Captured stderr call -----------------------------
+I1114 20:27:03.072000 224978 torch/testing/_internal/common_distributed.py:991] Started process 0 with pid 225006
+I1114 20:27:03.073000 224978 torch/testing/_internal/common_distributed.py:991] Started process 1 with pid 225007
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+W1114 20:27:05.580000 225006 torch/utils/cpp_extension.py:183] No CUDA runtime is found, using CUDA_HOME='/usr/local/cuda'
+W1114 20:27:05.595000 225007 torch/utils/cpp_extension.py:183] No CUDA runtime is found, using CUDA_HOME='/usr/local/cuda'
+[rank0]:W1114 20:27:07.436000 225006 torch/_logging/_internal.py:1394] [0/0] 
+[rank0]:W1114 20:27:07.436000 225006 torch/_logging/_internal.py:1394] [0/0] Detected that context_fn is passed to torch.utils.checkpoint under torch.compile.
+[rank0]:W1114 20:27:07.436000 225006 torch/_logging/_internal.py:1394] [0/0] Please make sure the checkpointed region does not contain in-place ops (e.g. torch.relu_).
+[rank0]:W1114 20:27:07.436000 225006 torch/_logging/_internal.py:1394] [0/0] 
+[rank1]:W1114 20:27:07.454000 225007 torch/_logging/_internal.py:1394] [0/0] 
+[rank1]:W1114 20:27:07.454000 225007 torch/_logging/_internal.py:1394] [0/0] Detected that context_fn is passed to torch.utils.checkpoint under torch.compile.
+[rank1]:W1114 20:27:07.454000 225007 torch/_logging/_internal.py:1394] [0/0] Please make sure the checkpointed region does not contain in-place ops (e.g. torch.relu_).
+[rank1]:W1114 20:27:07.454000 225007 torch/_logging/_internal.py:1394] [0/0] 
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077] Caught exception: 
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     getattr(self, test_name)()
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     fn()
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     method(*args, **kwargs)
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     raise e
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     func(self, *args, **kwargs)  # type: ignore[misc]
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 214, in test_baseline_checkpoint_loads_split_layout_and_continues
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     self._update(baseline, baseline_optimizer)
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 200, in _update
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     loss.backward()
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_tensor.py", line 623, in backward
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     torch.autograd.backward(
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/__init__.py", line 395, in backward
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     _engine_run_backward(
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/graph.py", line 1072, in _engine_run_backward
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077] RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation: [CPUBFloat16Type [64]] is at version 8; expected version 4 instead. Hint: enable anomaly detection to find the operation that failed to compute its gradient, with torch.autograd.set_detect_anomaly(True, check_nan=False).
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077] 
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077] To execute this test, run the following from the base repo dir:
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]     python test_gfsdp_ffn_overlap.py TestGFSDPFFNOverlap.test_baseline_checkpoint_loads_split_layout_and_continues
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077] 
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077] This message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0
+E1114 20:27:08.331000 225007 torch/testing/_internal/common_distributed.py:1077]  exiting process 1 with exit code: 10
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077] Caught exception: 
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     getattr(self, test_name)()
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     fn()
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     method(*args, **kwargs)
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     raise e
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     func(self, *args, **kwargs)  # type: ignore[misc]
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 214, in test_baseline_checkpoint_loads_split_layout_and_continues
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     self._update(baseline, baseline_optimizer)
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 200, in _update
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     loss.backward()
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/_tensor.py", line 623, in backward
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     torch.autograd.backward(
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/__init__.py", line 395, in backward
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     _engine_run_backward(
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/autograd/graph.py", line 1072, in _engine_run_backward
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077] RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation: [CPUBFloat16Type [64]] is at version 8; expected version 4 instead. Hint: enable anomaly detection to find the operation that failed to compute its gradient, with torch.autograd.set_detect_anomaly(True, check_nan=False).
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077] 
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077] To execute this test, run the following from the base repo dir:
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]     python test_gfsdp_ffn_overlap.py TestGFSDPFFNOverlap.test_baseline_checkpoint_loads_split_layout_and_continues
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077] 
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077] This message can be suppressed by setting PYTORCH_PRINT_REPRO_ON_FAILURE=0
+E1114 20:27:08.331000 225006 torch/testing/_internal/common_distributed.py:1077]  exiting process 0 with exit code: 10
+=========================== short test summary info ============================
+FAILED gift/tests/unit_tests/test_gfsdp_ffn_overlap.py::TestGFSDPFFNOverlap::test_baseline_checkpoint_loads_split_layout_and_continues
+1 failed, 1 skipped, 1 warning in 15.25s

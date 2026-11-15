@@ -61,6 +61,11 @@ Verify actual resolved configuration and activation, not only requested settings
 CPU checks do not establish GPU/NCCL behavior; a smoke does not establish speed,
 convergence, long-run stability or continuation. Retain failed/skipped checks.
 
+All training, profiling and performance campaigns must follow the
+[global real-data/tokenizer requirement](docs/baseline.md#global-requirement-real-data-and-production-tokenizer).
+The old test-tokenizer fixture is historical; all performance comparisons need
+remeasurement on the corrected input baseline, including component benchmarks.
+
 Review affected correctness and runtime costs before a training change and once
 against its final implementation: computation, memory, synchronization, copies,
 communication, compilation, lifetime and scale, including inherited active code.

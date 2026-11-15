@@ -587,6 +587,68 @@ def _parser_records() -> tuple[list[dict], dict]:
     return records, metadata
 
 
+def _inventory_parser_records(
+    *, steps: int = 1, warmup: int = 0, window: int = 1
+) -> tuple[list[dict], dict]:
+    records, metadata = _parser_records()
+    metadata.update(
+        steps=steps,
+        warmup_updates=warmup,
+        window_updates=window,
+        monitor_interval=0,
+        gfsdp_buffer_inventory=True,
+    )
+    metadata.pop("deep_gemm_compilation_guard")
+    for record in records:
+        record.update(expected_steps=steps, completed_steps=steps)
+        record.pop("compiler_guard")
+        measurement = record["measurement"]
+        measurement.pop("compilation_observer")
+        measurement.update(
+            warmup_updates=warmup,
+            window_updates=window,
+            monitoring_updates=[],
+            physical_input_tokens_local=(
+                window * parse_results.LOCAL_PHYSICAL_TOKENS_PER_UPDATE
+            ),
+            supervised_tokens_global=(
+                window * parse_results.GLOBAL_SUPERVISED_TOKENS_PER_UPDATE
+            ),
+        )
+    return records, metadata
+
+
+def test_parser_accepts_only_explicit_one_update_inventory_diagnostic() -> None:
+    records, metadata = _inventory_parser_records()
+
+    summary = parse_results.summarize_records(records, metadata)
+
+    assert summary["status"] == "complete", summary["errors"]
+    assert summary["mode"] == "gfsdp_buffer_inventory"
+    assert summary["diagnostic_scope"]["steady_state_throughput_reported"] is False
+    assert "first update" in summary["diagnostic_scope"]["timing_scope"]
+    assert "tokens" not in summary
+    assert "diagnostic_window" in summary
+
+
+@pytest.mark.parametrize(
+    ("inventory_flag", "steps", "warmup", "window"),
+    [(False, 1, 0, 1), (True, 2, 0, 2), ("true", 1, 0, 1)],
+)
+def test_parser_rejects_unflagged_or_malformed_zero_warmup_diagnostics(
+    inventory_flag: object, steps: int, warmup: int, window: int
+) -> None:
+    records, metadata = _inventory_parser_records(
+        steps=steps, warmup=warmup, window=window
+    )
+    metadata["gfsdp_buffer_inventory"] = inventory_flag
+
+    summary = parse_results.summarize_records(records, metadata)
+
+    assert summary["status"] == "incomplete"
+    assert any("positive warmup" in error for error in summary["errors"])
+
+
 def test_parser_requires_stable_rank_boundaries_but_keeps_coverage_partial() -> None:
     records, metadata = _parser_records()
 

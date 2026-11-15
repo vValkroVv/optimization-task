@@ -57,14 +57,44 @@ class MTPBlock(Block):
         positions: torch.Tensor | None = None,
         token_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        regions = getattr(self, "_ffn_overlap_regions", None)
+        if regions is not None:
+            h, ffn_in = regions[0](
+                prev_hidden, token_emb, rope_cache, attention_masks, positions, token_mask
+            )
+            return regions[2](h, self.block.feed_forward(ffn_in))
+        h = self._project_inputs(prev_hidden, token_emb)
+        h = self.block(h, rope_cache, attention_masks, positions, token_mask)
+        return self.final_norm(h)
+
+    def _project_inputs(
+        self, prev_hidden: torch.Tensor, token_emb: torch.Tensor
+    ) -> torch.Tensor:
         # Concat order [hidden, embedding]; the state-dict adapter
         # assumes this column layout for ``input_proj``.
         proj_in = torch.cat(
             [self.hidden_norm(prev_hidden), self.token_norm(token_emb)], dim=-1
         )
-        h = self.input_proj(proj_in)
-        h = self.block(h, rope_cache, attention_masks, positions, token_mask)
-        return self.final_norm(h)
+        return self.input_proj(proj_in)
+
+    def _forward_ffn_prefix(
+        self,
+        prev_hidden: torch.Tensor,
+        token_emb: torch.Tensor,
+        rope_cache: torch.Tensor,
+        attention_masks: AttentionMasksType | None = None,
+        positions: torch.Tensor | None = None,
+        token_mask: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return self.block._forward_ffn_prefix(
+            self._project_inputs(prev_hidden, token_emb),
+            rope_cache, attention_masks, positions, token_mask,
+        )
+
+    def _forward_ffn_suffix(
+        self, h: torch.Tensor, ffn_out: torch.Tensor
+    ) -> torch.Tensor:
+        return self.final_norm(self.block._forward_ffn_suffix(h, ffn_out))
 
 
 class MTP(Module):

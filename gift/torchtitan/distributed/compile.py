@@ -97,14 +97,21 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
     for segment in segments:
         if not segment.is_block:
             continue
-        if segment.fqn in excluded_fqns:
-            segment.module.compile(
-                backend=compile_config.backend,
-                fullgraph=True,
-                options={"triton.cudagraphs": False},
+        regions = getattr(segment.module, "_ffn_overlap_regions", None)
+        for region in regions if regions is not None else (segment.module,):
+            if segment.fqn in excluded_fqns:
+                region.compile(
+                    backend=compile_config.backend,
+                    fullgraph=True,
+                    options={"triton.cudagraphs": False},
+                )
+            else:
+                region.compile(backend=compile_config.backend, fullgraph=True)
+        if regions is not None:
+            logger.info(
+                f"FFN overlap compute regions active: {segment.fqn} "
+                "(compiled prefix/FFN/suffix; eager parent)"
             )
-        else:
-            segment.module.compile(backend=compile_config.backend, fullgraph=True)
         compiled[segment.group] = compiled.get(segment.group, 0) + 1
 
     if not compiled:
@@ -140,6 +147,7 @@ class EagerWindow:
 
     def __init__(self, model_parts: Iterable[nn.Module], *, owner: str) -> None:
         self._owner = owner
+        model_parts = tuple(model_parts)
         # Taken once, while the slots are still filled: inside an open window
         # a compiled block is indistinguishable from a plain one.
         self._blocks = [
@@ -148,6 +156,16 @@ class EagerWindow:
             for module in part.modules()
             if getattr(module, "_compiled_call_impl", None) is not None
         ]
+        # Prefix/suffix callables deliberately do not register the same model
+        # parameters again, so they are absent from modules().
+        seen = {id(module) for module, _ in self._blocks}
+        for part in model_parts:
+            for module in part.modules():
+                for region in getattr(module, "_ffn_overlap_regions", ()):
+                    compiled = getattr(region, "_compiled_call_impl", None)
+                    if compiled is not None and id(region) not in seen:
+                        self._blocks.append((region, compiled))
+                        seen.add(id(region))
 
     def __len__(self) -> int:
         return len(self._blocks)

@@ -43,6 +43,7 @@ from ._tensor import (
 )
 
 from .fully_shard import _iter_fsdp_param_groups, GFSDPModule
+from .row_owner_embedding import iter_row_owner_embeddings, RowOwnerEmbedding
 
 logger = logging.getLogger("gfsdp")
 
@@ -57,7 +58,8 @@ def param_shapes_key(rank: int | None = None) -> str:
     return f"{PARAM_SHAPES}.{rank}"
 
 
-_ManagedBinding: TypeAlias = tuple[GFSDPParam, torch.Tensor]
+_ManagedParam: TypeAlias = GFSDPParam | RowOwnerEmbedding
+_ManagedBinding: TypeAlias = tuple[_ManagedParam, torch.Tensor]
 
 
 _AC_WRAPPER_SEGMENT = "_checkpoint_wrapped_module"
@@ -306,9 +308,9 @@ class GFSDPCheckpointAdapter:
                 state_dict[fqn] = value
         return state_dict
 
-    def _get_param_data_map(self, *, ema: bool) -> dict[GFSDPParam, torch.Tensor]:
+    def _get_param_data_map(self, *, ema: bool) -> dict[_ManagedParam, torch.Tensor]:
         """Build map GFSDPParam: local_data"""
-        param_data: dict[GFSDPParam, torch.Tensor] = {}
+        param_data: dict[_ManagedParam, torch.Tensor] = {}
         param_groups = (
             _iter_ema_param_groups(self._model_parts)
             if ema
@@ -329,6 +331,9 @@ class GFSDPCheckpointAdapter:
             )
             for fsdp_param, local_data in group_data:
                 param_data[fsdp_param] = local_data
+        for owner in iter_row_owner_embeddings(self._model_parts):
+            if not ema or owner._ema_weight is not None:
+                param_data[owner] = owner.checkpoint_tensor(ema=ema)._local_tensor
         return param_data
 
     def _manage_fqns_to_params(
@@ -340,13 +345,16 @@ class GFSDPCheckpointAdapter:
         """Map ordinary FQNs, including aliases, to managed buffer slices."""
 
         param_data = self._get_param_data_map(ema=ema)
-        registered_param_to_fsdp_param: dict[int, GFSDPParam] = {}
+        registered_param_to_fsdp_param: dict[int, _ManagedParam] = {}
         for fsdp_param in param_data:
+            if isinstance(fsdp_param, RowOwnerEmbedding):
+                registered_param_to_fsdp_param[id(fsdp_param.weight)] = fsdp_param
+                continue
             registered_param_to_fsdp_param[id(fsdp_param.sharded_param)] = fsdp_param
             registered_param_to_fsdp_param[id(fsdp_param.unsharded_param)] = fsdp_param
 
         bindings: dict[str, _ManagedBinding] = {}
-        matched_params: set[GFSDPParam] = set()
+        matched_params: set[_ManagedParam] = set()
         for model in self._model_parts:
             for fqn, param in model.named_parameters(remove_duplicate=False):
                 fsdp_param = registered_param_to_fsdp_param.get(id(param))
@@ -374,10 +382,14 @@ class GFSDPCheckpointAdapter:
 
     @staticmethod
     def _make_checkpoint_view(
-        fsdp_param: GFSDPParam, local_data: torch.Tensor
+        fsdp_param: _ManagedParam, local_data: torch.Tensor
     ) -> _FlatCheckpointTensor:
         """Create a flat DCP view over an explicit GFSDP slice."""
-        model_view = fsdp_param.to_sharded_dtensor(local_data)
+        model_view = (
+            RaggedShardDTensor(local_data, fsdp_param.weight._spec, requires_grad=False)
+            if isinstance(fsdp_param, RowOwnerEmbedding)
+            else fsdp_param.to_sharded_dtensor(local_data)
+        )
         return _FlatCheckpointTensor.from_ragged_shard(model_view)
 
     def _build_managed_state_dict(
@@ -453,6 +465,9 @@ class GFSDPCheckpointAdapter:
         ordinary_state_dict = self._build_ordinary_state_dict()
         ema_bindings = self._manage_fqns_to_params(ordinary_state_dict, ema=True)
         gap_params = {ema_bindings[fqn][0] for fqn in fqns}
+        for owner in iter_row_owner_embeddings(self._model_parts):
+            if owner in gap_params:
+                owner.seed_ema()
         for param_group in _iter_ema_param_groups(self._model_parts):
             if gap_params.intersection(param_group.fsdp_params):
                 param_group.initialize_ema_from_main()
@@ -592,7 +607,7 @@ def _lazy_init_gfsdp_roots(model_parts: Iterable[nn.Module]) -> None:
 
 def _canonical_load_fqns(bindings: Mapping[str, _ManagedBinding]) -> frozenset[str]:
     """Select one deterministic FQN for every tied parameter backing."""
-    fqns_by_param: dict[GFSDPParam, list[str]] = defaultdict(list)
+    fqns_by_param: dict[_ManagedParam, list[str]] = defaultdict(list)
     for fqn in bindings:
         fqns_by_param[bindings[fqn][0]].append(fqn)
     return frozenset(min(param_fqns) for param_fqns in fqns_by_param.values())

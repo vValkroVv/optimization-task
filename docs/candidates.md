@@ -173,6 +173,32 @@ explain the adaptation. The [experiment report](../runs/bf16-expert-cache/report
 owns verification, measurements and limitations; this mechanism does not imply
 a training speedup or production PP4/EP32 support.
 
+## FFN overlap and row-owner embeddings
+
+The completed [campaign](../planning/README.md#active-assignment-ffn-overlap-and-row-owner-embeddings)
+isolates the MTP and `layers.0` w1/w2/w3 groups in disjoint views of existing
+GFSDP storage, then routes embedding rows to owners while retaining native
+BF16 source coalescing and ordinary autograd's owned FP32 Ragged gradient.
+Source pointers are [FFN orchestration](../gift/torchtitan/distributed/ffn_overlap.py),
+[GFSDP pool layout](../gift/torchtitan/distributed/gfsdp/_state.py),
+[row-owner lookup](../gift/torchtitan/distributed/gfsdp/row_owner_embedding.py),
+and [embedding selection](../gift/torchtitan/models/gift_moe/_base/parallelize.py).
+
+The [campaign report](../runs/ffn-row-owner/report.md) owns the integrated
+verdict; the eight-rank combined update, initialized-pool accounting,
+common-baseline memory cap and bounded native trace pass. The matched native
+10+10 pair records a provisional +1.27% fixed-window difference with about 3%
+within-window cadence drift, not a general training gain. The [native
+performance report](../runs/ffn-row-owner/native-performance-results.md) and
+[native trace report](../runs/ffn-row-owner/native-trace-results.md) own the
+results and attribution limits. The three controls remain default-off; this
+pair did not establish a general training gain.
+[FFN component results](../runs/ffn-row-owner/ffn-component-results.md),
+[device overlap](../runs/ffn-row-owner/ffn-component-perfetto.md), and
+[owner component results](../runs/ffn-row-owner/embedding-component-results.md)
+own their measured scopes. These isolated pairs establish component behavior,
+not a whole-training speedup or production readiness.
+
 ## How to use this collection
 
 Start with a concrete bottleneck in the default crop. Select one mechanism,

@@ -23,6 +23,16 @@ PEAK_STAT_KEYS = (
     "active_bytes.all.peak",
     "reserved_bytes.all.peak",
 )
+ALLOCATOR_CURRENT_PEAK_KEYS = (
+    "allocated_bytes.all.current",
+    "allocated_bytes.all.peak",
+    "active_bytes.all.current",
+    "active_bytes.all.peak",
+    "reserved_bytes.all.current",
+    "reserved_bytes.all.peak",
+    "num_alloc_retries",
+    "num_ooms",
+)
 ALLOCATOR_COUNTER_KEYS = ("num_alloc_retries", "num_ooms")
 BF16_CACHE_STAT_FIELDS = (
     "fqn",
@@ -177,6 +187,150 @@ def host_memory_snapshot() -> dict[str, Any]:
             "scope": "self and live descendants, including DataLoader/compiler workers; RSS sum can double-count shared pages; VmHWM is process-lifetime, not window peak"}
 
 
+def _load_gfsdp_inventory_helper() -> Any:
+    helper_path = TASK_ROOT / "runs/ffn-row-owner/ffn_components.py"
+    if not helper_path.is_file():
+        raise RuntimeError(f"GFSDP inventory helper is missing: {helper_path}")
+    module_name = "_native_gfsdp_inventory_helper"
+    module = sys.modules.get(module_name)
+    if module is not None:
+        return module
+
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(module_name, helper_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load GFSDP inventory helper from {helper_path}")
+    module = importlib.util.module_from_spec(spec)
+    original_sys_path = list(sys.path)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(module_name, None)
+        raise
+    finally:
+        sys.path[:] = original_sys_path
+    return module
+
+
+def _gfsdp_context_inventory(context: Any, *, kind: str) -> dict[str, Any] | None:
+    if context is None:
+        return None
+    buffers = getattr(context, "buffers", None)
+    if not isinstance(buffers, dict):
+        raise RuntimeError(f"initialized GFSDP {kind} context has no buffer mapping")
+    context_type = getattr(context, "_buffer_type", None)
+    rows = []
+    for dtype, tensor in buffers.items():
+        storage = tensor.untyped_storage()
+        rows.append(
+            {
+                "dtype_key": None if dtype is None else str(dtype),
+                "tensor_dtype": str(tensor.dtype),
+                "storage": str(storage.data_ptr()),
+                "storage_bytes": int(storage.nbytes()),
+                "offset_bytes": int(tensor.storage_offset() * tensor.element_size()),
+                "view_bytes": int(tensor.numel() * tensor.element_size()),
+            }
+        )
+    return {
+        "kind": kind,
+        "context_identity": int(id(context)),
+        "buffer_type": getattr(context_type, "name", None),
+        "buffers": rows,
+    }
+
+
+def gfsdp_buffer_inventory(model_parts: Any) -> dict[str, Any]:
+    """Read initialized GFSDP buffer storage and group requirements without tensor work."""
+    helper = _load_gfsdp_inventory_helper()
+    parts = list(model_parts) if isinstance(model_parts, (list, tuple)) else [model_parts]
+    views: list[dict[str, Any]] = []
+    groups: list[dict[str, Any]] = []
+
+    for part_index, model in enumerate(parts):
+        inventory = helper.buffer_inventory(model)
+        for row in inventory["views"]:
+            views.append({**row, "model_part": part_index})
+
+        for name, module in model.named_modules():
+            state_getter = getattr(module, "_get_fsdp_state", None)
+            if not callable(state_getter):
+                continue
+            state = state_getter()
+            for group_index, group in enumerate(state._fsdp_param_groups):
+                reduce_dtype = group.reduce_dtype or group.param_dtype or group.orig_dtype
+                requirements = []
+                for dtype, padded_numel in group.padded_unsharded_param_numel.items():
+                    data_dtype = dtype or group.param_dtype or group.orig_dtype
+                    requirements.append(
+                        {
+                            "all_gather_dtype": None if dtype is None else str(dtype),
+                            "padded_unsharded_param_numel": int(padded_numel),
+                            "data_dtype": str(data_dtype),
+                            "data_required_bytes": int(padded_numel * data_dtype.itemsize),
+                            "grad_dtype": str(reduce_dtype),
+                            "grad_required_bytes": (
+                                int(padded_numel * reduce_dtype.itemsize)
+                                if group.grad_buffer_ctx is not None
+                                else None
+                            ),
+                        }
+                    )
+                private_grad = bool(state._own_grad_buffer)
+                groups.append(
+                    {
+                        "model_part": part_index,
+                        "fqn": helper.canonical(name),
+                        "group_index": group_index,
+                        "ownership": "private" if private_grad else "ordinary",
+                        "requires_grad": bool(group.requires_grad),
+                        "orig_dtype": str(group.orig_dtype),
+                        "param_dtype": (
+                            None if group.param_dtype is None else str(group.param_dtype)
+                        ),
+                        "reduce_dtype": (
+                            None if group.reduce_dtype is None else str(group.reduce_dtype)
+                        ),
+                        "padded_dtype_requirements": requirements,
+                        "data_context": _gfsdp_context_inventory(
+                            group.data_buffer_ctx, kind="data"
+                        ),
+                        "grad_context": _gfsdp_context_inventory(
+                            group.grad_buffer_ctx,
+                            kind="private_grad" if private_grad else "ordinary_grad",
+                        ),
+                    }
+                )
+
+    if not groups or not views:
+        raise RuntimeError("GFSDP buffer inventory found no initialized parameter groups")
+
+    storage_dtypes: dict[tuple[str, int], set[str]] = {}
+    for view in views:
+        key = (str(view["storage"]), int(view["storage_bytes"]))
+        storage_dtypes.setdefault(key, set()).add(str(view["dtype"]))
+    storages = [
+        {
+            "storage": pointer,
+            "storage_bytes": storage_bytes,
+            "dtypes": sorted(dtypes),
+        }
+        for (pointer, storage_bytes), dtypes in sorted(storage_dtypes.items())
+    ]
+    return {
+        "scope": (
+            "per-rank initialized native GFSDP data and gradient contexts; "
+            "storage bytes deduplicated by pointer and backing size"
+        ),
+        "unique_storage_bytes": sum(row["storage_bytes"] for row in storages),
+        "storages": storages,
+        "views": views,
+        "groups": groups,
+    }
+
+
 class WindowMeasurement:
     """Collect one local rank's full-update window and lightweight cadence data."""
 
@@ -271,6 +425,7 @@ class WindowMeasurement:
         self._host_memory_end: dict[str, Any] | None = None
         self._failure_reason: str | None = None
         self._written = False
+        self.gfsdp_buffer_inventory_recorded = False
         self._bf16_cache_snapshots: list[dict[str, Any]] = []
         if self.bf16_cache_counters:
             if not self.gfsdp_reuse_bf16_expert_weights:
@@ -800,7 +955,7 @@ class NativeAdapter:
         self.window_options = {
             name: value
             for name, value in options.items()
-            if name != "compiler_guard_identity"
+            if name not in {"compiler_guard_identity", "gfsdp_buffer_inventory"}
         }
         self._compiler_guard_previous_value: str | None = None
         self._compiler_guard_activated = False
@@ -851,6 +1006,31 @@ class NativeAdapter:
     def _replace(self, owner: Any, name: str, value: Any) -> None:
         self._originals.append((owner, name, getattr(owner, name)))
         setattr(owner, name, value)
+
+    def _record_gfsdp_buffer_inventory(
+        self, active: WindowMeasurement, trainer: Any
+    ) -> None:
+        inventory = gfsdp_buffer_inventory(trainer.model_parts)
+        stats = self.memory_stats()
+        allocator_stats = {
+            key: int(stats[key]) if key in stats else None
+            for key in ALLOCATOR_CURRENT_PEAK_KEYS
+        }
+        record = {
+            "schema_version": 1,
+            "run_id": active.run_id,
+            "rank": active.rank,
+            "world_size": active.world_size,
+            "capture_stage": "after_first_native_train_step_return",
+            "cuda_synchronized": False,
+            "allocator_stats": allocator_stats,
+            "gfsdp": inventory,
+        }
+        path = active.output_dir / f"gfsdp-buffer-inventory-rank-{active.rank:02d}.json"
+        with path.open("x", encoding="utf-8") as handle:
+            json.dump(record, handle, sort_keys=True, indent=2)
+            handle.write("\n")
+        active.gfsdp_buffer_inventory_recorded = True
 
     def __enter__(self) -> "NativeAdapter":
         profile_update = self.options.get("profile_update")
@@ -903,7 +1083,26 @@ class NativeAdapter:
             )
             succeeded = False
             try:
-                result = original_train(trainer, *args, **kwargs)
+                if (
+                    self.active.window_updates
+                    and self.active.warmup_updates == 0
+                ):
+                    self.active._start_window()
+                fixture_dir = os.environ.get("ABCD_COMPONENT_FIXTURE_DIR", "")
+                if fixture_dir:
+                    # Acquisition is separate from every timing/profile process.
+                    if self.active.window_updates or profile_update is not None:
+                        raise RuntimeError("component fixtures require timing/profile windows disabled")
+                    import importlib.util
+
+                    path = TASK_ROOT / "runs/production-data-abcd/component_fixtures.py"
+                    spec = importlib.util.spec_from_file_location("abcd_component_fixtures", path)
+                    fixture_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(fixture_module)
+                    with fixture_module.NativeCapture(trainer, fixture_dir, rank, world_size):
+                        result = original_train(trainer, *args, **kwargs)
+                else:
+                    result = original_train(trainer, *args, **kwargs)
                 self.active.capture_after_train()
                 succeeded = True
             except BaseException as exc:
@@ -1095,6 +1294,25 @@ class NativeAdapter:
                 "build_torch_profiler",
                 tracked_build_torch_profiler,
             )
+        elif self.options.get("gfsdp_buffer_inventory", False):
+            original_train_step = self.trainer_class.train_step
+
+            def tracked_inventory_train_step(
+                trainer: Any, *args: Any, **kwargs: Any
+            ) -> Any:
+                result = original_train_step(trainer, *args, **kwargs)
+                active = self.active
+                if (
+                    active is not None
+                    and trainer is active.trainer
+                    and not active.gfsdp_buffer_inventory_recorded
+                ):
+                    self._record_gfsdp_buffer_inventory(active, trainer)
+                return result
+
+            self._replace(
+                self.trainer_class, "train_step", tracked_inventory_train_step
+            )
 
         if self.options["window_updates"]:
             original_interval_metrics = self.metrics_class.interval_metrics
@@ -1147,6 +1365,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--observe-compiler-cache", action="store_true")
     parser.add_argument("--capture-microbatches", action="store_true")
     parser.add_argument("--bf16-cache-counters", action="store_true")
+    parser.add_argument("--gfsdp-buffer-inventory", action="store_true")
     parser.add_argument("--profile-update", type=int)
     parser.add_argument("--profile-microbatches", type=int, default=0)
     args = parser.parse_args(helper_argv)
@@ -1165,7 +1384,16 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     args.gfsdp_reuse_bf16_expert_weights = cache_values == ["true"]
     if args.window < 0 or args.warmup < 0 or args.steps <= 0:
         parser.error("steps must be positive; warmup and window must be nonnegative")
-    if args.window and (args.warmup <= 0 or args.steps != args.warmup + args.window):
+    if args.gfsdp_buffer_inventory and (
+        args.steps != 1 or args.warmup != 0 or args.window != 1
+    ):
+        parser.error(
+            "gfsdp-buffer-inventory requires --steps 1 --warmup 0 --window 1"
+        )
+    if args.window and (
+        (args.warmup <= 0 and not args.gfsdp_buffer_inventory)
+        or args.steps != args.warmup + args.window
+    ):
         parser.error("measured runs require warmup>0 and steps == warmup + window")
     if not args.window and args.warmup and args.profile_update is None:
         parser.error("warmup must be zero when measurement window is disabled")
@@ -1376,6 +1604,7 @@ def main(argv: list[str] | None = None) -> None:
         "capture_microbatches": args.capture_microbatches,
         "gfsdp_reuse_bf16_expert_weights": args.gfsdp_reuse_bf16_expert_weights,
         "bf16_cache_counters": args.bf16_cache_counters,
+        "gfsdp_buffer_inventory": args.gfsdp_buffer_inventory,
         "profile_update": args.profile_update,
         "profile_microbatches": args.profile_microbatches,
     }

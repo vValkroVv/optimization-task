@@ -13,6 +13,7 @@ from copy import deepcopy
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -1223,6 +1224,9 @@ def test_profile_update_defaults_validation_cli_decode_and_resolved_config(
         "parallelism.gfsdp_reuse_bf16_expert_weights": (
             args.gfsdp_reuse_bf16_expert_weights
         ),
+        "parallelism.gfsdp_split_mtp_ffn": False,
+        "parallelism.gfsdp_split_layer0_ffn": False,
+        "parallelism.gfsdp_row_owner_embeddings": False,
         "parallelism.pipeline_parallel_degree": 1,
         "parallelism.tensor_parallel_degree": 1,
         "parallelism.context_parallel_degree": 1,
@@ -1887,3 +1891,214 @@ def test_profile_parser_rejects_incomplete_trace_receipts(
     summary = parse_results.summarize_run(tmp_path)
     assert summary["status"] == "incomplete"
     assert summary["errors"]
+
+
+def test_gfsdp_inventory_runs_after_first_train_step_without_cuda_init(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("WORLD_SIZE", "8")
+    events: list[str] = []
+    bf16 = type("FakeDType", (), {"itemsize": 2, "__str__": lambda self: "torch.bfloat16"})()
+    fp32 = type("FakeDType", (), {"itemsize": 4, "__str__": lambda self: "torch.float32"})()
+
+    class FakeStorage:
+        def __init__(self, pointer: int, nbytes: int) -> None:
+            self.pointer = pointer
+            self.bytes = nbytes
+
+        def data_ptr(self) -> int:
+            return self.pointer
+
+        def nbytes(self) -> int:
+            return self.bytes
+
+    class FakeTensor:
+        def __init__(
+            self, pointer: int, storage_bytes: int, offset: int, size: int
+        ) -> None:
+            self._storage = FakeStorage(pointer, storage_bytes)
+            self._offset = offset
+            self._size = size
+            self.dtype = "torch.uint8"
+
+        def untyped_storage(self) -> FakeStorage:
+            return self._storage
+
+        def storage_offset(self) -> int:
+            return self._offset
+
+        def element_size(self) -> int:
+            return 1
+
+        def numel(self) -> int:
+            return self._size
+
+    class FakeContext:
+        def __init__(self, buffer_type: str, buffers: dict[Any, FakeTensor]) -> None:
+            self._buffer_type = SimpleNamespace(name=buffer_type)
+            self.buffers = buffers
+
+    def make_group(data_pointer: int, grad_pointer: int, *, private: bool) -> Any:
+        data = FakeContext(
+            "ALL_GATHER",
+            {
+                None: FakeTensor(data_pointer, 128, 0, 64),
+                bf16: FakeTensor(data_pointer, 128, 64, 64),
+            },
+        )
+        grad = FakeContext(
+            "REDUCE_SCATTER",
+            {
+                None: FakeTensor(grad_pointer, 64, 0, 32),
+                bf16: FakeTensor(grad_pointer, 64, 32, 32),
+            },
+        )
+        group = SimpleNamespace(
+            data_buffer_ctx=data,
+            grad_buffer_ctx=grad,
+            padded_unsharded_param_numel={None: 4, bf16: 8},
+            reduce_dtype=fp32,
+            param_dtype=bf16,
+            orig_dtype=fp32,
+            requires_grad=True,
+        )
+        return SimpleNamespace(_fsdp_param_groups=[group], _own_grad_buffer=private)
+
+    class FakeModule:
+        def __init__(self, state: Any) -> None:
+            self.state = state
+
+        def _get_fsdp_state(self) -> Any:
+            return self.state
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.owner: Any = None
+            self.modules = [
+                ("ordinary", FakeModule(make_group(101, 202, private=False))),
+                ("private_head", FakeModule(make_group(303, 404, private=True))),
+            ]
+
+        def named_modules(self) -> list[tuple[str, Any]]:
+            return self.modules
+
+        def parameters(self) -> list[Any]:
+            return []
+
+    model = FakeModel()
+
+    def fake_buffer_inventory(received: Any) -> dict[str, Any]:
+        assert received is model
+        assert model.owner.step_returned is True
+        events.append("inventory")
+        return {
+            "views": [
+                {"fqn": "ordinary.data.none", "kind": "data", "dtype": "None", "storage": "101", "storage_bytes": 128, "offset_bytes": 0, "view_bytes": 64},
+                {"fqn": "ordinary.data.bf16", "kind": "data", "dtype": "torch.bfloat16", "storage": "101", "storage_bytes": 128, "offset_bytes": 64, "view_bytes": 64},
+                {"fqn": "ordinary.grad.none", "kind": "grad", "dtype": "None", "storage": "202", "storage_bytes": 64, "offset_bytes": 0, "view_bytes": 32},
+                {"fqn": "ordinary.grad.bf16", "kind": "grad", "dtype": "torch.bfloat16", "storage": "202", "storage_bytes": 64, "offset_bytes": 32, "view_bytes": 32},
+                {"fqn": "private_head.data", "kind": "data", "dtype": "None", "storage": "303", "storage_bytes": 64, "offset_bytes": 0, "view_bytes": 64},
+                {"fqn": "private_head.grad", "kind": "grad", "dtype": "None", "storage": "404", "storage_bytes": 32, "offset_bytes": 0, "view_bytes": 32},
+            ]
+        }
+
+    monkeypatch.setattr(
+        measure,
+        "_load_gfsdp_inventory_helper",
+        lambda: SimpleNamespace(
+            buffer_inventory=fake_buffer_inventory,
+            canonical=lambda name: name,
+        ),
+    )
+
+    class FakeTrainer:
+        def __init__(self) -> None:
+            self.step = 0
+            self.ntokens_seen = 0
+            self.model_parts = [model]
+            self.metrics_processor = SimpleNamespace(ntokens_since_last_log=0)
+            model.owner = self
+
+        def train(self) -> str:
+            assert self.train_step() is sentinel
+            assert self.train_step() is sentinel
+            FakeProfiler().step()
+            return "trained"
+
+        def train_step(self) -> object:
+            events.append("native_train_step")
+            self.step = 1
+            self.step_returned = True
+            return sentinel
+
+        def forward_backward_step(self) -> None:
+            pass
+
+    class FakeProfiler:
+        def step(self) -> None:
+            pass
+
+    class FakeMetrics:
+        def interval_metrics(self) -> None:
+            pass
+
+    sentinel = object()
+    measurement_dir = tmp_path / "measurement"
+    measurement_dir.mkdir()
+
+    def memory_stats() -> dict[str, int]:
+        events.append("allocator_stats")
+        return {
+            "allocated_bytes.all.current": 100,
+            "allocated_bytes.all.peak": 500,
+            "active_bytes.all.current": 80,
+            "active_bytes.all.peak": 450,
+            "reserved_bytes.all.current": 1000,
+            "reserved_bytes.all.peak": 1500,
+            "num_alloc_retries": 0,
+            "num_ooms": 0,
+        }
+
+    adapter = measure.NativeAdapter(
+        trainer_class=FakeTrainer,
+        profiler_class=FakeProfiler,
+        metrics_class=FakeMetrics,
+        metrics_module=SimpleNamespace(reset_peak_stats=lambda: None),
+        options={
+            "run_id": "inventory-test",
+            "output_dir": measurement_dir,
+            "expected_steps": 1,
+            "warmup_updates": 0,
+            "window_updates": 1,
+            "monitor_interval": 0,
+            "capture_microbatches": False,
+            "gfsdp_buffer_inventory": True,
+        },
+        cuda_synchronize=lambda: events.append("synchronize"),
+        memory_stats=memory_stats,
+    )
+
+    with adapter:
+        assert FakeTrainer().train() == "trained"
+
+    record_path = measurement_dir / "gfsdp-buffer-inventory-rank-00.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    assert events.index("native_train_step") < events.index("inventory")
+    assert events.count("inventory") == 1
+    assert record["capture_stage"] == "after_first_native_train_step_return"
+    assert record["cuda_synchronized"] is False
+    assert record["allocator_stats"]["allocated_bytes.all.current"] == 100
+    assert record["allocator_stats"]["reserved_bytes.all.peak"] == 1500
+    assert record["gfsdp"]["unique_storage_bytes"] == 288
+    assert len(record["gfsdp"]["storages"]) == 4
+    assert record["gfsdp"]["groups"][0]["ownership"] == "ordinary"
+    assert record["gfsdp"]["groups"][1]["ownership"] == "private"
+    assert record["gfsdp"]["groups"][0]["data_context"]["buffer_type"] == "ALL_GATHER"
+    assert record["gfsdp"]["groups"][0]["grad_context"]["kind"] == "ordinary_grad"
+    assert record["gfsdp"]["groups"][0]["padded_dtype_requirements"][0]["data_required_bytes"] == 8
+
+    import torch
+
+    assert not torch.cuda.is_initialized()

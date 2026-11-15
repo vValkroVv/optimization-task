@@ -1,0 +1,3056 @@
+{
+  "activation": {
+    "mcp_mechanism": "All 12 FFN rank/microbatch/component cases show one 513 MiB FP32 FFN ReduceScatter before parent ReduceScatter with 96.20\u201398.32% overlap of remaining parent compute; owner forward/backward executes once per microbatch, with one count AllGather and three routed SendRecv; no embedding-table GFSDP collectives; four natural head-buffer reuse boundaries have positive gaps in both directions.",
+    "mcp_mechanism_status": "PASS: observed native combined mechanism on ranks 0/1; causal event waits and full-update critical path unavailable",
+    "native_inventory_report": "runs/ffn-row-owner/native-memory-results.json",
+    "native_trace_report": "runs/ffn-row-owner/native-trace-results.md",
+    "remaining_mechanism_limit": "Exact event-wait causality and full-update critical path are unavailable.",
+    "resolved_flags": {
+      "A": {
+        "gfsdp_row_owner_embeddings": false,
+        "gfsdp_split_layer0_ffn": false,
+        "gfsdp_split_mtp_ffn": false
+      },
+      "B": {
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "diagnostic": {
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      }
+    },
+    "setup_info_markers": "Not present in runtime logs; activation is established by same-source all-eight-rank materialized inventory and actual profile execution."
+  },
+  "campaign": {
+    "baseline": "Accepted four-improvement recipe plus FlashQLA external_gate",
+    "candidate_additions": [
+      "gfsdp_split_mtp_ffn",
+      "gfsdp_split_layer0_ffn",
+      "gfsdp_row_owner_embeddings"
+    ],
+    "order": [
+      "A",
+      "B"
+    ],
+    "protocol": {
+      "A_and_B": "20 optimizer updates; 10 warmup then 10 measured; 32 microbatches/update.",
+      "diagnostic": "21 updates; 20 warmup; update 21 profiled on ranks 0 and 1, capped at 3 complete microbatches; all ranks executed 32 microbatches and optimizer.",
+      "fresh_initialization_each_run": true,
+      "logical_epoch_size": 102400,
+      "lr_horizon_updates": 65000,
+      "lr_warmup_updates": 2000,
+      "model_contract": "8-layer D4096 crop; microbatch 2, sequence 4096, global batch 512, accumulation 32; EP8/dense GFSDP8/expert FSDP1/TP-PP-CP1; FP8/BF16/FP32, model/loss compile, selective AC, MTP1, fused AdamW, EMA preserved.",
+      "performance_instrumentation": "Timed A/B profiling, detailed monitoring, validation, checkpoint saves, memory snapshots, and numerical capture off.",
+      "seed": 2048
+    }
+  },
+  "comparison": {
+    "cadence_note": "Both windows rise late; full 10-update series for all ranks is embedded in each summary. Compiler observer is disabled, so continued compilation inside the timed window is unverified.",
+    "memory_by_rank_and_retry_counters": {
+      "A": {
+        "allocator_counter_deltas_by_rank": {
+          "0": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "1": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "2": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "3": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "4": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "5": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "6": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "7": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          }
+        },
+        "by_rank": {
+          "0": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 72185075200,
+              "allocated_bytes.all.peak": 72185075200,
+              "reserved_bytes.all.peak": 72615985152
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 67.22759008407593,
+              "allocated_bytes.all.peak": 67.22759008407593,
+              "reserved_bytes.all.peak": 67.62890625
+            }
+          },
+          "1": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 71847909888,
+              "allocated_bytes.all.peak": 71847909888,
+              "reserved_bytes.all.peak": 72469184512
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 66.91358041763306,
+              "allocated_bytes.all.peak": 66.91358041763306,
+              "reserved_bytes.all.peak": 67.4921875
+            }
+          },
+          "2": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 72096852992,
+              "allocated_bytes.all.peak": 72096852992,
+              "reserved_bytes.all.peak": 72643248128
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 67.1454267501831,
+              "allocated_bytes.all.peak": 67.1454267501831,
+              "reserved_bytes.all.peak": 67.654296875
+            }
+          },
+          "3": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 72651992576,
+              "allocated_bytes.all.peak": 72651992576,
+              "reserved_bytes.all.peak": 73165438976
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 67.66244077682495,
+              "allocated_bytes.all.peak": 67.66244077682495,
+              "reserved_bytes.all.peak": 68.140625
+            }
+          },
+          "4": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 72099074560,
+              "allocated_bytes.all.peak": 72099074560,
+              "reserved_bytes.all.peak": 72708259840
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 67.14749574661255,
+              "allocated_bytes.all.peak": 67.14749574661255,
+              "reserved_bytes.all.peak": 67.71484375
+            }
+          },
+          "5": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 72222594048,
+              "allocated_bytes.all.peak": 72222594048,
+              "reserved_bytes.all.peak": 72802631680
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 67.2625322341919,
+              "allocated_bytes.all.peak": 67.2625322341919,
+              "reserved_bytes.all.peak": 67.802734375
+            }
+          },
+          "6": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 72042130432,
+              "allocated_bytes.all.peak": 72042130432,
+              "reserved_bytes.all.peak": 72517419008
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 67.09446239471436,
+              "allocated_bytes.all.peak": 67.09446239471436,
+              "reserved_bytes.all.peak": 67.537109375
+            }
+          },
+          "7": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 72173020160,
+              "allocated_bytes.all.peak": 72173020160,
+              "reserved_bytes.all.peak": 72676802560
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 67.21636295318604,
+              "allocated_bytes.all.peak": 67.21636295318604,
+              "reserved_bytes.all.peak": 67.685546875
+            }
+          }
+        },
+        "maximum_peak_bytes_across_ranks": {
+          "active_bytes.all.peak": 72651992576,
+          "allocated_bytes.all.peak": 72651992576,
+          "reserved_bytes.all.peak": 73165438976
+        },
+        "maximum_peak_gib_across_ranks": {
+          "active_bytes.all.peak": 67.66244077682495,
+          "allocated_bytes.all.peak": 67.66244077682495,
+          "reserved_bytes.all.peak": 68.140625
+        }
+      },
+      "B": {
+        "allocator_counter_deltas_by_rank": {
+          "0": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "1": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "2": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "3": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "4": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "5": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "6": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          },
+          "7": {
+            "num_alloc_retries": 0,
+            "num_ooms": 0
+          }
+        },
+        "by_rank": {
+          "0": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 70833351680,
+              "allocated_bytes.all.peak": 70833351680,
+              "reserved_bytes.all.peak": 72513224704
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 65.96869945526123,
+              "allocated_bytes.all.peak": 65.96869945526123,
+              "reserved_bytes.all.peak": 67.533203125
+            }
+          },
+          "1": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 70425985024,
+              "allocated_bytes.all.peak": 70425985024,
+              "reserved_bytes.all.peak": 72364326912
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 65.58930969238281,
+              "allocated_bytes.all.peak": 65.58930969238281,
+              "reserved_bytes.all.peak": 67.39453125
+            }
+          },
+          "2": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 70761487872,
+              "allocated_bytes.all.peak": 70761487872,
+              "reserved_bytes.all.peak": 72473378816
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 65.901771068573,
+              "allocated_bytes.all.peak": 65.901771068573,
+              "reserved_bytes.all.peak": 67.49609375
+            }
+          },
+          "3": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 70875208704,
+              "allocated_bytes.all.peak": 70875208704,
+              "reserved_bytes.all.peak": 72680996864
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 66.00768184661865,
+              "allocated_bytes.all.peak": 66.00768184661865,
+              "reserved_bytes.all.peak": 67.689453125
+            }
+          },
+          "4": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 70582061056,
+              "allocated_bytes.all.peak": 70582061056,
+              "reserved_bytes.all.peak": 72332869632
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 65.73466682434082,
+              "allocated_bytes.all.peak": 65.73466682434082,
+              "reserved_bytes.all.peak": 67.365234375
+            }
+          },
+          "5": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 70725000704,
+              "allocated_bytes.all.peak": 70725000704,
+              "reserved_bytes.all.peak": 72492253184
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 65.86778974533081,
+              "allocated_bytes.all.peak": 65.86778974533081,
+              "reserved_bytes.all.peak": 67.513671875
+            }
+          },
+          "6": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 70282128384,
+              "allocated_bytes.all.peak": 70282128384,
+              "reserved_bytes.all.peak": 72037171200
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 65.45533275604248,
+              "allocated_bytes.all.peak": 65.45533275604248,
+              "reserved_bytes.all.peak": 67.08984375
+            }
+          },
+          "7": {
+            "allocator_counter_deltas": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_end": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "allocator_counters_start": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "peak_bytes": {
+              "active_bytes.all.peak": 70538794496,
+              "allocated_bytes.all.peak": 70538794496,
+              "reserved_bytes.all.peak": 72228012032
+            },
+            "peak_gib": {
+              "active_bytes.all.peak": 65.69437170028687,
+              "allocated_bytes.all.peak": 65.69437170028687,
+              "reserved_bytes.all.peak": 67.267578125
+            }
+          }
+        },
+        "maximum_peak_bytes_across_ranks": {
+          "active_bytes.all.peak": 70875208704,
+          "allocated_bytes.all.peak": 70875208704,
+          "reserved_bytes.all.peak": 72680996864
+        },
+        "maximum_peak_gib_across_ranks": {
+          "active_bytes.all.peak": 66.00768184661865,
+          "allocated_bytes.all.peak": 66.00768184661865,
+          "reserved_bytes.all.peak": 67.689453125
+        }
+      }
+    },
+    "physical_tps_B_vs_A_percent": 1.267104903270222,
+    "physical_tps_global_A": 164737.6794637511,
+    "physical_tps_global_B": 166825.07867776987,
+    "rank0_host_cadence_measured_updates_11_20": [
+      {
+        "A_s": 12.606649737,
+        "B_s": 12.448897473,
+        "update": 11
+      },
+      {
+        "A_s": 12.601711426,
+        "B_s": 12.477361157,
+        "update": 12
+      },
+      {
+        "A_s": 12.609263049,
+        "B_s": 12.452206245,
+        "update": 13
+      },
+      {
+        "A_s": 12.719108208,
+        "B_s": 12.454920078,
+        "update": 14
+      },
+      {
+        "A_s": 12.647065165,
+        "B_s": 12.480053987,
+        "update": 15
+      },
+      {
+        "A_s": 12.695762381,
+        "B_s": 12.514449963,
+        "update": 16
+      },
+      {
+        "A_s": 12.735674233,
+        "B_s": 12.585807159,
+        "update": 17
+      },
+      {
+        "A_s": 12.797581481,
+        "B_s": 12.739849768,
+        "update": 18
+      },
+      {
+        "A_s": 12.872310439,
+        "B_s": 12.734334582,
+        "update": 19
+      },
+      {
+        "A_s": 13.016546237,
+        "B_s": 12.82098958,
+        "update": 20
+      }
+    ],
+    "resolved_config_difference": [
+      "gfsdp_split_mtp_ffn false\u2192true",
+      "gfsdp_split_layer0_ffn false\u2192true",
+      "gfsdp_row_owner_embeddings false\u2192true",
+      "run-specific dump_folder path"
+    ],
+    "valid_supervised_tps_B_vs_A_percent": 1.267104903270222,
+    "valid_supervised_tps_global_A": 164697.46030372576,
+    "valid_supervised_tps_global_B": 166784.3498987958,
+    "window_elapsed_A_s": 127.30250947,
+    "window_elapsed_B_s": 125.709636502
+  },
+  "diagnostic_traces": {
+    "compression_receipt": {
+      "all_lossless": true,
+      "compression": "gzip -n -1 (level 1; zero mtime; no source filename)",
+      "run_id": "ffn-row-owner-diagnostic-001",
+      "schema_version": 1,
+      "traces": {
+        "0": {
+          "canonical_gzip_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/native/profiling/traces/iteration_21/rank0_trace.json.gz",
+          "canonical_gzip_sha256": "213a6abc63b9d6afcec8902fa1f1264db81de3f6cdf08d61c51ea248382b130b",
+          "canonical_gzip_size_bytes": 2861530,
+          "coverage": {
+            "cpu_microbatch_markers": 3,
+            "cpu_train_step_markers": 1,
+            "gpu_microbatch_projection_count": 6,
+            "gpu_train_step_projection_count": 1,
+            "target_update": 21,
+            "warmup_updates": 20
+          },
+          "decompressed_sha256": "27415d3cdc02550fabc87438c8a580a75068d695db12adb49448547c94004704",
+          "decompressed_size_bytes": 27134579,
+          "lossless_verified": true,
+          "parser_coverage_status": "complete",
+          "raw_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/native/profiling/traces/iteration_21/rank0_trace.json",
+          "raw_sha256": "27415d3cdc02550fabc87438c8a580a75068d695db12adb49448547c94004704",
+          "raw_size_bytes": 27134579
+        },
+        "1": {
+          "canonical_gzip_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/native/profiling/traces/iteration_21/rank1_trace.json.gz",
+          "canonical_gzip_sha256": "d15dbcbf0b9a7980f4e36ca28f049e240291198e6925d4f4322187cf3881c779",
+          "canonical_gzip_size_bytes": 2835963,
+          "coverage": {
+            "cpu_microbatch_markers": 3,
+            "cpu_train_step_markers": 1,
+            "gpu_microbatch_projection_count": 6,
+            "gpu_train_step_projection_count": 1,
+            "target_update": 21,
+            "warmup_updates": 20
+          },
+          "decompressed_sha256": "55722f98b0d97ccbfcb7b831674c54b23c9ed953a003b4832fa64f1340bb355b",
+          "decompressed_size_bytes": 26844067,
+          "lossless_verified": true,
+          "parser_coverage_status": "complete",
+          "raw_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/native/profiling/traces/iteration_21/rank1_trace.json",
+          "raw_sha256": "55722f98b0d97ccbfcb7b831674c54b23c9ed953a003b4832fa64f1340bb355b",
+          "raw_size_bytes": 26844067
+        }
+      }
+    },
+    "compression_receipt_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/trace-verification-compression.json",
+    "summary_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/summary.json"
+  },
+  "failure_summary": "No native A/B or diagnostic run failed; each had exit code 0, all rank records complete, no training errors, no allocator retries/OOMs, and a stopped owned process group.",
+  "identity": {
+    "cache_producer_completion_sha256": "482c8b8242db419dc3e80754aeee6caf01febb4d3d3e411a1bb35a55e8c9196e",
+    "cache_producer_config_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+    "cache_producer_metadata_sha256": "2fbd66546e1dd5b84c8712e0acb2139bf168186ec64755a43c3b3114c80f9447",
+    "cache_producer_run_id": "combined-four-baseline-003",
+    "cache_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache",
+    "cache_tree_hash": "not computed; shared completed cache selected and validated by runner",
+    "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+    "dataset_index_path": "runs/overnight-streaming-perf/artifacts/raw/mds4096/train/index.json",
+    "dataset_index_sha256": "7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2",
+    "generated_experiment_sha256": "e6a89b9ad8a9b68dbf4f6bc49fff352f9a1386358c23f06c6074aa0ebac08b1a",
+    "mds_fragment_sha256": "d8d3eef799a660d94819e5317a23b38ab3554dc543941785b6bf0806a3b02d6d",
+    "raw_provenance_paths": {
+      "A_metadata": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/metadata.json",
+      "B_metadata": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/metadata.json",
+      "diagnostic_metadata": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/metadata.json",
+      "native_plan": "runs/ffn-row-owner/native-plan.json"
+    },
+    "runtime_preflight_sha256": "756b18c7bbee8133dc5b27579ce426b774ac4ba62173ce091a9554bdc1664d6f",
+    "runtime_versions": {
+      "cuda": "13.0",
+      "deep_ep": "1.2.1+1b8f467",
+      "deep_gemm": "2.3.0+f093a4c",
+      "gpus": "8 \u00d7 NVIDIA H100 80GB HBM3",
+      "host": "lm-mpi-job-23027817-4bfe-4730-926f-5c2de590b32b-mpimaster-0",
+      "nccl": "2.30.7",
+      "python": "3.12.3",
+      "torch": "2.15.0.dev20260822+cu130",
+      "triton": "3.8.0+git3f6e4113"
+    },
+    "source_revision": "2ada87125e433e1f76c4cb2bfad244b641a78a93",
+    "source_unchanged_during_each_run": true,
+    "tracked_and_untracked_source_manifest_sha256": "cd9102008dd19819b39c2ee9ce5820565b0d2a0e14783dfb33122691073c41b1"
+  },
+  "interpretation": "One fixed-order sequential A/B pair; B/A rate differences are descriptive and provisional, with no repeated control or causal/general speedup claim.",
+  "pre_native_memory_gate": {
+    "actual_pool_shrink_bytes_per_rank": 1746392064,
+    "caveat": "First-update candidate reserved highwater was 127,926,272 to 253,755,392 bytes (122 to 242 MiB) above matched A002. The separate warm comparison had rank 2 +60 MiB versus its own control. These are phase observations, not new caps/tolerances, and allocator cause is unproven.",
+    "evidence": "runs/ffn-row-owner/native-memory-results.json",
+    "status": "accepted by coordinator",
+    "two_update_full_loop_max_allocated_bytes_A_B": [
+      72195010048,
+      70708547072
+    ],
+    "two_update_full_loop_max_reserved_bytes_A_B": [
+      72764882944,
+      72364326912
+    ]
+  },
+  "retained_harness_history": [
+    "Default pytest temp root: 69 passed, 7 failed. One new resolved-config fixture had a dump_folder mismatch; existing task-path tests also rejected pytest temp paths outside the task root.",
+    "Retry with a nonexistent basetemp parent: 15 passed, 61 setup errors; fixed by creating the ignored task raw root.",
+    "Retry under runs/ffn-row-owner/artifacts/raw: 71 passed, 5 existing measure path-layout failures; moved basetemp under the overnight runner's accepted raw root."
+  ],
+  "runs": {
+    "A": {
+      "metadata_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/metadata.json",
+      "native_process": {
+        "child_exit_code": 0,
+        "orphaned_process_group": false,
+        "pid": 296032,
+        "process_group_id": 296032,
+        "process_group_stopped": true,
+        "timeout": false
+      },
+      "outer_argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/flash-qla/run.py",
+        "--gdn-backend",
+        "external_gate",
+        "--run-id",
+        "ffn-row-owner-ab-a-001",
+        "--steps",
+        "20",
+        "--warmup",
+        "10",
+        "--window",
+        "10",
+        "--num-prefetch-batches",
+        "32",
+        "--epoch-size",
+        "102400",
+        "--gfsdp-reuse-bf16-expert-weights",
+        "--output-root",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/artifacts/raw",
+        "--compiler-cache-root",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache"
+      ],
+      "process_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/process.json",
+      "rank_status": [
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-00.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 0,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-01.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 1,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-02.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 2,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-03.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 3,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-04.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 4,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-05.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 5,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-06.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 6,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-07.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 7,
+          "training_error": null,
+          "training_status": "complete"
+        }
+      ],
+      "raw_logs_directory": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/native/structured_logs/",
+      "requested_features": {
+        "gfsdp_row_owner_embeddings": false,
+        "gfsdp_split_layer0_ffn": false,
+        "gfsdp_split_mtp_ffn": false
+      },
+      "resolved_config_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "f8d40074ed5a50cbcb16233b53123ab4a53823f74db211e66f68b947e65a506f",
+      "run_id": "ffn-row-owner-ab-a-001",
+      "source_and_config_unchanged": true,
+      "source_final_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/source-final.json",
+      "source_manifest_sha256": "cd9102008dd19819b39c2ee9ce5820565b0d2a0e14783dfb33122691073c41b1",
+      "status": "PASS",
+      "summary": {
+        "errors": [],
+        "host_boundary_cadence": {
+          "by_rank": {
+            "0": {
+              "intervals": [
+                {
+                  "interval_s": 12.606649737,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.601711426,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.609263049,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.719108208,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.647065165,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.695762381,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.735674233,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.797581481,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.872310439,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 13.016546237,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 13.016546237,
+                "median_s": 12.7074352945,
+                "min_s": 12.601711426
+              }
+            },
+            "1": {
+              "intervals": [
+                {
+                  "interval_s": 12.606607097,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.602105967,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.608981368,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.719275092,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.646491881,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.69610936,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.735677356,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.797601523,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.872146266,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 13.016781111,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 13.016781111,
+                "median_s": 12.707692225999999,
+                "min_s": 12.602105967
+              }
+            },
+            "2": {
+              "intervals": [
+                {
+                  "interval_s": 12.606874091,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.601799407,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.609237841,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.719032202,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.646773945,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.697353019,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734389796,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.797853828,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.87173915,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 13.016829958,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 13.016829958,
+                "median_s": 12.7081926105,
+                "min_s": 12.601799407
+              }
+            },
+            "3": {
+              "intervals": [
+                {
+                  "interval_s": 12.60684418,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.601806472,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.609266976,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.719007458,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.646880673,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.695790571,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.735763484,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.797657379,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.872193461,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 13.016638826,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 13.016638826,
+                "median_s": 12.7073990145,
+                "min_s": 12.601806472
+              }
+            },
+            "4": {
+              "intervals": [
+                {
+                  "interval_s": 12.605986582,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.601806775,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.609257853,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.719019427,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.646890012,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.697133374,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734736945,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.79747912,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.872030856,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 13.016821664,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 13.016821664,
+                "median_s": 12.7080764005,
+                "min_s": 12.601806775
+              }
+            },
+            "5": {
+              "intervals": [
+                {
+                  "interval_s": 12.60676248,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.601681394,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.609610683,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.718605479,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.646872603,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.697434968,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734324265,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.797683457,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.871836754,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 13.016890845,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 13.016890845,
+                "median_s": 12.7080202235,
+                "min_s": 12.601681394
+              }
+            },
+            "6": {
+              "intervals": [
+                {
+                  "interval_s": 12.60689428,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.601817601,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.609317508,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.71910258,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.646605547,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.69573982,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.736259808,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.797408358,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.872023298,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 13.016780706,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 13.016780706,
+                "median_s": 12.707421199999999,
+                "min_s": 12.601817601
+              }
+            },
+            "7": {
+              "intervals": [
+                {
+                  "interval_s": 12.606713375,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.601862347,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.609408353,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.719267159,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.646481573,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.69575389,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.735986301,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.797740468,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.871953728,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 13.016780563,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 13.016780563,
+                "median_s": 12.7075105245,
+                "min_s": 12.601862347
+              }
+            }
+          },
+          "monitoring_steps": {
+            "max_s": null,
+            "median_s": null,
+            "min_s": null
+          },
+          "ordinary_steps": {
+            "max_s": 13.016890845,
+            "median_s": 12.7080202235,
+            "min_s": 12.601681394
+          },
+          "scope": "host interval between native Profiler.step returns; adapter does not synchronize each update, and the final interval includes the end-boundary drain"
+        },
+        "memory": {
+          "allocator_counter_deltas_by_rank": {
+            "0": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "1": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "2": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "3": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "4": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "5": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "6": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "7": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            }
+          },
+          "by_rank": {
+            "0": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 72185075200,
+                "allocated_bytes.all.peak": 72185075200,
+                "reserved_bytes.all.peak": 72615985152
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 67.22759008407593,
+                "allocated_bytes.all.peak": 67.22759008407593,
+                "reserved_bytes.all.peak": 67.62890625
+              }
+            },
+            "1": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 71847909888,
+                "allocated_bytes.all.peak": 71847909888,
+                "reserved_bytes.all.peak": 72469184512
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 66.91358041763306,
+                "allocated_bytes.all.peak": 66.91358041763306,
+                "reserved_bytes.all.peak": 67.4921875
+              }
+            },
+            "2": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 72096852992,
+                "allocated_bytes.all.peak": 72096852992,
+                "reserved_bytes.all.peak": 72643248128
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 67.1454267501831,
+                "allocated_bytes.all.peak": 67.1454267501831,
+                "reserved_bytes.all.peak": 67.654296875
+              }
+            },
+            "3": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 72651992576,
+                "allocated_bytes.all.peak": 72651992576,
+                "reserved_bytes.all.peak": 73165438976
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 67.66244077682495,
+                "allocated_bytes.all.peak": 67.66244077682495,
+                "reserved_bytes.all.peak": 68.140625
+              }
+            },
+            "4": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 72099074560,
+                "allocated_bytes.all.peak": 72099074560,
+                "reserved_bytes.all.peak": 72708259840
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 67.14749574661255,
+                "allocated_bytes.all.peak": 67.14749574661255,
+                "reserved_bytes.all.peak": 67.71484375
+              }
+            },
+            "5": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 72222594048,
+                "allocated_bytes.all.peak": 72222594048,
+                "reserved_bytes.all.peak": 72802631680
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 67.2625322341919,
+                "allocated_bytes.all.peak": 67.2625322341919,
+                "reserved_bytes.all.peak": 67.802734375
+              }
+            },
+            "6": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 72042130432,
+                "allocated_bytes.all.peak": 72042130432,
+                "reserved_bytes.all.peak": 72517419008
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 67.09446239471436,
+                "allocated_bytes.all.peak": 67.09446239471436,
+                "reserved_bytes.all.peak": 67.537109375
+              }
+            },
+            "7": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 72173020160,
+                "allocated_bytes.all.peak": 72173020160,
+                "reserved_bytes.all.peak": 72676802560
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 67.21636295318604,
+                "allocated_bytes.all.peak": 67.21636295318604,
+                "reserved_bytes.all.peak": 67.685546875
+              }
+            }
+          },
+          "maximum_peak_bytes_across_ranks": {
+            "active_bytes.all.peak": 72651992576,
+            "allocated_bytes.all.peak": 72651992576,
+            "reserved_bytes.all.peak": 73165438976
+          },
+          "maximum_peak_gib_across_ranks": {
+            "active_bytes.all.peak": 67.66244077682495,
+            "allocated_bytes.all.peak": 67.66244077682495,
+            "reserved_bytes.all.peak": 68.140625
+          }
+        },
+        "mode": "complete_window",
+        "profile_capture": null,
+        "status": "complete",
+        "tokens": {
+          "physical_input_tokens_global": 20971520,
+          "physical_input_tokens_per_gpu": 2621440.0,
+          "physical_input_tokens_per_second_global": 164737.6794637511,
+          "physical_input_tokens_per_second_per_gpu": 20592.209932968886,
+          "supervised_tokens_global": 20966400,
+          "supervised_tokens_per_gpu": 2620800.0,
+          "supervised_tokens_per_second_global": 164697.46030372576,
+          "supervised_tokens_per_second_per_gpu": 20587.18253796572
+        },
+        "training_steps": 20,
+        "window": {
+          "end_after_update": 20,
+          "end_skew_ns": 631114,
+          "end_skew_s": 0.000631114,
+          "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+          "max_local_elapsed_s": 127.301949506,
+          "min_local_elapsed_s": 127.301162608,
+          "monitor_interval": 0,
+          "monitoring_updates": [],
+          "per_rank": {
+            "0": {
+              "end_monotonic_ns": 2260543805435658,
+              "local_elapsed_s": 127.301672356,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260416503763302,
+              "supervised_tokens_global": 20966400
+            },
+            "1": {
+              "end_monotonic_ns": 2260543804950661,
+              "local_elapsed_s": 127.301777021,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260416503173640,
+              "supervised_tokens_global": 20966400
+            },
+            "2": {
+              "end_monotonic_ns": 2260543804809425,
+              "local_elapsed_s": 127.301883237,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260416502926188,
+              "supervised_tokens_global": 20966400
+            },
+            "3": {
+              "end_monotonic_ns": 2260543804804544,
+              "local_elapsed_s": 127.30184948,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260416502955064,
+              "supervised_tokens_global": 20966400
+            },
+            "4": {
+              "end_monotonic_ns": 2260543804939752,
+              "local_elapsed_s": 127.301162608,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260416503777144,
+              "supervised_tokens_global": 20966400
+            },
+            "5": {
+              "end_monotonic_ns": 2260543804848202,
+              "local_elapsed_s": 127.301702928,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260416503145274,
+              "supervised_tokens_global": 20966400
+            },
+            "6": {
+              "end_monotonic_ns": 2260543804881280,
+              "local_elapsed_s": 127.301949506,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260416502931774,
+              "supervised_tokens_global": 20966400
+            },
+            "7": {
+              "end_monotonic_ns": 2260543804934028,
+              "local_elapsed_s": 127.301947757,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260416502986271,
+              "supervised_tokens_global": 20966400
+            }
+          },
+          "primary_elapsed_s": 127.30250947,
+          "start_after_update": 10,
+          "start_skew_ns": 850956,
+          "start_skew_s": 0.000850956,
+          "updates": 10,
+          "warmup_updates": 10
+        }
+      },
+      "summary_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/summary.json",
+      "warmup_and_full_update_cadence_records": [
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-00.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-01.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-02.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-03.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-04.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-05.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-06.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-a-001/measurement/rank-07.json"
+      ]
+    },
+    "B": {
+      "metadata_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/metadata.json",
+      "native_process": {
+        "child_exit_code": 0,
+        "orphaned_process_group": false,
+        "pid": 300489,
+        "process_group_id": 300489,
+        "process_group_stopped": true,
+        "timeout": false
+      },
+      "outer_argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/flash-qla/run.py",
+        "--gdn-backend",
+        "external_gate",
+        "--run-id",
+        "ffn-row-owner-ab-b-001",
+        "--steps",
+        "20",
+        "--warmup",
+        "10",
+        "--window",
+        "10",
+        "--num-prefetch-batches",
+        "32",
+        "--epoch-size",
+        "102400",
+        "--gfsdp-reuse-bf16-expert-weights",
+        "--gfsdp-split-mtp-ffn",
+        "--gfsdp-split-layer0-ffn",
+        "--gfsdp-row-owner-embeddings",
+        "--output-root",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/artifacts/raw",
+        "--compiler-cache-root",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache"
+      ],
+      "process_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/process.json",
+      "rank_status": [
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-00.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 0,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-01.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 1,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-02.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 2,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-03.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 3,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-04.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 4,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-05.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 5,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-06.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 6,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 20,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-07.json",
+          "expected_steps": 20,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 20,
+          "rank": 7,
+          "training_error": null,
+          "training_status": "complete"
+        }
+      ],
+      "raw_logs_directory": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/native/structured_logs/",
+      "requested_features": {
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "resolved_config_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "96ac4154270084793aab557b0a889e0abf334181798f42799ccdefbd3c978ef3",
+      "run_id": "ffn-row-owner-ab-b-001",
+      "source_and_config_unchanged": true,
+      "source_final_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/source-final.json",
+      "source_manifest_sha256": "cd9102008dd19819b39c2ee9ce5820565b0d2a0e14783dfb33122691073c41b1",
+      "status": "PASS",
+      "summary": {
+        "errors": [],
+        "host_boundary_cadence": {
+          "by_rank": {
+            "0": {
+              "intervals": [
+                {
+                  "interval_s": 12.448897473,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.477361157,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.452206245,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.454920078,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.480053987,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.514449963,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.585807159,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.739849768,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734334582,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.82098958,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 12.82098958,
+                "median_s": 12.497251975000001,
+                "min_s": 12.448897473
+              }
+            },
+            "1": {
+              "intervals": [
+                {
+                  "interval_s": 12.4490093,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.477599895,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.451840288,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.454971072,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.480428018,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.51412859,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.585896373,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.739742059,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734540582,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.821120428,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 12.821120428,
+                "median_s": 12.497278304,
+                "min_s": 12.4490093
+              }
+            },
+            "2": {
+              "intervals": [
+                {
+                  "interval_s": 12.448079212,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.478133241,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.451484114,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.455436556,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.480179242,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.514275594,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.585828528,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.73943701,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734657655,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.82098593,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 12.82098593,
+                "median_s": 12.497227418000001,
+                "min_s": 12.448079212
+              }
+            },
+            "3": {
+              "intervals": [
+                {
+                  "interval_s": 12.448019307,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.477757665,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.451891586,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.454999152,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.480052503,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.514528342,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.585822841,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.739829654,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734527917,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.821034673,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 12.821034673,
+                "median_s": 12.4972904225,
+                "min_s": 12.448019307
+              }
+            },
+            "4": {
+              "intervals": [
+                {
+                  "interval_s": 12.448210704,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.477923986,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.451683117,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.455002843,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.479866293,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.514771519,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.585916147,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.739744442,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734534949,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.821144075,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 12.821144075,
+                "median_s": 12.497318906,
+                "min_s": 12.448210704
+              }
+            },
+            "5": {
+              "intervals": [
+                {
+                  "interval_s": 12.448618526,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.477558806,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.451891326,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.455223738,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.479933327,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.514552834,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.585727253,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.739658962,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.73453581,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.820960971,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 12.820960971,
+                "median_s": 12.497243080499999,
+                "min_s": 12.448618526
+              }
+            },
+            "6": {
+              "intervals": [
+                {
+                  "interval_s": 12.447754241,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.477612118,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.451985684,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.454975681,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.479810445,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.514548144,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.585974787,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.73980904,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734470974,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.821001093,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 12.821001093,
+                "median_s": 12.4971792945,
+                "min_s": 12.447754241
+              }
+            },
+            "7": {
+              "intervals": [
+                {
+                  "interval_s": 12.448306143,
+                  "monitoring_step": false,
+                  "step": 11,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.477573925,
+                  "monitoring_step": false,
+                  "step": 12,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.452057678,
+                  "monitoring_step": false,
+                  "step": 13,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.454859467,
+                  "monitoring_step": false,
+                  "step": 14,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.480007576,
+                  "monitoring_step": false,
+                  "step": 15,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.514929986,
+                  "monitoring_step": false,
+                  "step": 16,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.585581076,
+                  "monitoring_step": false,
+                  "step": 17,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.739999507,
+                  "monitoring_step": false,
+                  "step": 18,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.734274515,
+                  "monitoring_step": false,
+                  "step": 19,
+                  "window_boundary": null
+                },
+                {
+                  "interval_s": 12.821026107,
+                  "monitoring_step": false,
+                  "step": 20,
+                  "window_boundary": "end"
+                }
+              ],
+              "summary": {
+                "max_s": 12.821026107,
+                "median_s": 12.497468781,
+                "min_s": 12.448306143
+              }
+            }
+          },
+          "monitoring_steps": {
+            "max_s": null,
+            "median_s": null,
+            "min_s": null
+          },
+          "ordinary_steps": {
+            "max_s": 12.821144075,
+            "median_s": 12.497278304,
+            "min_s": 12.447754241
+          },
+          "scope": "host interval between native Profiler.step returns; adapter does not synchronize each update, and the final interval includes the end-boundary drain"
+        },
+        "memory": {
+          "allocator_counter_deltas_by_rank": {
+            "0": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "1": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "2": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "3": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "4": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "5": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "6": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            },
+            "7": {
+              "num_alloc_retries": 0,
+              "num_ooms": 0
+            }
+          },
+          "by_rank": {
+            "0": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 70833351680,
+                "allocated_bytes.all.peak": 70833351680,
+                "reserved_bytes.all.peak": 72513224704
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 65.96869945526123,
+                "allocated_bytes.all.peak": 65.96869945526123,
+                "reserved_bytes.all.peak": 67.533203125
+              }
+            },
+            "1": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 70425985024,
+                "allocated_bytes.all.peak": 70425985024,
+                "reserved_bytes.all.peak": 72364326912
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 65.58930969238281,
+                "allocated_bytes.all.peak": 65.58930969238281,
+                "reserved_bytes.all.peak": 67.39453125
+              }
+            },
+            "2": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 70761487872,
+                "allocated_bytes.all.peak": 70761487872,
+                "reserved_bytes.all.peak": 72473378816
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 65.901771068573,
+                "allocated_bytes.all.peak": 65.901771068573,
+                "reserved_bytes.all.peak": 67.49609375
+              }
+            },
+            "3": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 70875208704,
+                "allocated_bytes.all.peak": 70875208704,
+                "reserved_bytes.all.peak": 72680996864
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 66.00768184661865,
+                "allocated_bytes.all.peak": 66.00768184661865,
+                "reserved_bytes.all.peak": 67.689453125
+              }
+            },
+            "4": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 70582061056,
+                "allocated_bytes.all.peak": 70582061056,
+                "reserved_bytes.all.peak": 72332869632
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 65.73466682434082,
+                "allocated_bytes.all.peak": 65.73466682434082,
+                "reserved_bytes.all.peak": 67.365234375
+              }
+            },
+            "5": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 70725000704,
+                "allocated_bytes.all.peak": 70725000704,
+                "reserved_bytes.all.peak": 72492253184
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 65.86778974533081,
+                "allocated_bytes.all.peak": 65.86778974533081,
+                "reserved_bytes.all.peak": 67.513671875
+              }
+            },
+            "6": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 70282128384,
+                "allocated_bytes.all.peak": 70282128384,
+                "reserved_bytes.all.peak": 72037171200
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 65.45533275604248,
+                "allocated_bytes.all.peak": 65.45533275604248,
+                "reserved_bytes.all.peak": 67.08984375
+              }
+            },
+            "7": {
+              "allocator_counter_deltas": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_end": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "allocator_counters_start": {
+                "num_alloc_retries": 0,
+                "num_ooms": 0
+              },
+              "peak_bytes": {
+                "active_bytes.all.peak": 70538794496,
+                "allocated_bytes.all.peak": 70538794496,
+                "reserved_bytes.all.peak": 72228012032
+              },
+              "peak_gib": {
+                "active_bytes.all.peak": 65.69437170028687,
+                "allocated_bytes.all.peak": 65.69437170028687,
+                "reserved_bytes.all.peak": 67.267578125
+              }
+            }
+          },
+          "maximum_peak_bytes_across_ranks": {
+            "active_bytes.all.peak": 70875208704,
+            "allocated_bytes.all.peak": 70875208704,
+            "reserved_bytes.all.peak": 72680996864
+          },
+          "maximum_peak_gib_across_ranks": {
+            "active_bytes.all.peak": 66.00768184661865,
+            "allocated_bytes.all.peak": 66.00768184661865,
+            "reserved_bytes.all.peak": 67.689453125
+          }
+        },
+        "mode": "complete_window",
+        "profile_capture": null,
+        "status": "complete",
+        "tokens": {
+          "physical_input_tokens_global": 20971520,
+          "physical_input_tokens_per_gpu": 2621440.0,
+          "physical_input_tokens_per_second_global": 166825.07867776987,
+          "physical_input_tokens_per_second_per_gpu": 20853.134834721233,
+          "supervised_tokens_global": 20966400,
+          "supervised_tokens_per_gpu": 2620800.0,
+          "supervised_tokens_per_second_global": 166784.3498987958,
+          "supervised_tokens_per_second_per_gpu": 20848.043737349475
+        },
+        "training_steps": 20,
+        "window": {
+          "end_after_update": 20,
+          "end_skew_ns": 538739,
+          "end_skew_s": 0.000538739,
+          "global_envelope_convention": "max(rank end monotonic timestamp) - min(rank start timestamp)",
+          "max_local_elapsed_s": 125.709276605,
+          "min_local_elapsed_s": 125.707942207,
+          "monitor_interval": 0,
+          "monitoring_updates": [],
+          "per_rank": {
+            "0": {
+              "end_monotonic_ns": 2261107415808775,
+              "local_elapsed_s": 125.708869992,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260981706938783,
+              "supervised_tokens_global": 20966400
+            },
+            "1": {
+              "end_monotonic_ns": 2261107415448878,
+              "local_elapsed_s": 125.709276605,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260981706172273,
+              "supervised_tokens_global": 20966400
+            },
+            "2": {
+              "end_monotonic_ns": 2261107415554968,
+              "local_elapsed_s": 125.708497082,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260981707057886,
+              "supervised_tokens_global": 20966400
+            },
+            "3": {
+              "end_monotonic_ns": 2261107415360416,
+              "local_elapsed_s": 125.70846364,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260981706896776,
+              "supervised_tokens_global": 20966400
+            },
+            "4": {
+              "end_monotonic_ns": 2261107415495836,
+              "local_elapsed_s": 125.708798075,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260981706697761,
+              "supervised_tokens_global": 20966400
+            },
+            "5": {
+              "end_monotonic_ns": 2261107415270036,
+              "local_elapsed_s": 125.708661553,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260981706608483,
+              "supervised_tokens_global": 20966400
+            },
+            "6": {
+              "end_monotonic_ns": 2261107415437936,
+              "local_elapsed_s": 125.707942207,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260981707495729,
+              "supervised_tokens_global": 20966400
+            },
+            "7": {
+              "end_monotonic_ns": 2261107415456915,
+              "local_elapsed_s": 125.70861598,
+              "physical_input_tokens_local": 2621440,
+              "start_monotonic_ns": 2260981706840935,
+              "supervised_tokens_global": 20966400
+            }
+          },
+          "primary_elapsed_s": 125.709636502,
+          "start_after_update": 10,
+          "start_skew_ns": 1323456,
+          "start_skew_s": 0.001323456,
+          "updates": 10,
+          "warmup_updates": 10
+        }
+      },
+      "summary_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/summary.json",
+      "warmup_and_full_update_cadence_records": [
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-00.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-01.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-02.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-03.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-04.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-05.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-06.json",
+        "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-ab-b-001/measurement/rank-07.json"
+      ]
+    },
+    "diagnostic": {
+      "metadata_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/metadata.json",
+      "native_process": {
+        "child_exit_code": 0,
+        "orphaned_process_group": false,
+        "pid": 306147,
+        "process_group_id": 306147,
+        "process_group_stopped": true,
+        "timeout": false
+      },
+      "outer_argv": [
+        "/opt/torchtitan-venv/bin/python3.12",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/flash-qla/run.py",
+        "--gdn-backend",
+        "external_gate",
+        "--run-id",
+        "ffn-row-owner-diagnostic-001",
+        "--steps",
+        "21",
+        "--warmup",
+        "20",
+        "--window",
+        "0",
+        "--profile-update",
+        "21",
+        "--profile-microbatches",
+        "3",
+        "--num-prefetch-batches",
+        "32",
+        "--epoch-size",
+        "102400",
+        "--gfsdp-reuse-bf16-expert-weights",
+        "--gfsdp-split-mtp-ffn",
+        "--gfsdp-split-layer0-ffn",
+        "--gfsdp-row-owner-embeddings",
+        "--output-root",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/artifacts/raw",
+        "--compiler-cache-root",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache"
+      ],
+      "process_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/process.json",
+      "rank_status": [
+        {
+          "completed_steps": 21,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/measurement/rank-00.json",
+          "expected_steps": 21,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 21,
+          "rank": 0,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 21,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/measurement/rank-01.json",
+          "expected_steps": 21,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 21,
+          "rank": 1,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 21,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/measurement/rank-02.json",
+          "expected_steps": 21,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 21,
+          "rank": 2,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 21,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/measurement/rank-03.json",
+          "expected_steps": 21,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 21,
+          "rank": 3,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 21,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/measurement/rank-04.json",
+          "expected_steps": 21,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 21,
+          "rank": 4,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 21,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/measurement/rank-05.json",
+          "expected_steps": 21,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 21,
+          "rank": 5,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 21,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/measurement/rank-06.json",
+          "expected_steps": 21,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 21,
+          "rank": 6,
+          "training_error": null,
+          "training_status": "complete"
+        },
+        {
+          "completed_steps": 21,
+          "evidence": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/measurement/rank-07.json",
+          "expected_steps": 21,
+          "forward_backward_calls_per_update": 32,
+          "optimizer_updates": 21,
+          "rank": 7,
+          "training_error": null,
+          "training_status": "complete"
+        }
+      ],
+      "raw_logs_directory": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/native/structured_logs/",
+      "requested_features": {
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "resolved_config_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "d79fb4d9147cbbf6c411e207dedbaec927bc4f608d29620285fc4f3efe00350f",
+      "run_id": "ffn-row-owner-diagnostic-001",
+      "source_and_config_unchanged": true,
+      "source_final_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/source-final.json",
+      "source_manifest_sha256": "cd9102008dd19819b39c2ee9ce5820565b0d2a0e14783dfb33122691073c41b1",
+      "status": "PASS",
+      "summary": {
+        "errors": [],
+        "host_boundary_cadence": null,
+        "memory": null,
+        "mode": "profile_update",
+        "profile_capture": {
+          "call_counts_by_rank": {
+            "0": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": true,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "1": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": true,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "2": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "3": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "4": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "5": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "6": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            },
+            "7": {
+              "microbatch_calls": 32,
+              "native_profiler_build_calls": 1,
+              "native_profiler_created": false,
+              "optimizer_step_calls": 1,
+              "train_step_calls": 1
+            }
+          },
+          "native_hardcoded": {
+            "profile_memory": false,
+            "with_stack": false
+          },
+          "profile_ranks": [
+            0,
+            1
+          ],
+          "settings": {
+            "profiler.enable_memory_snapshot": false,
+            "profiler.enable_profiling": true,
+            "profiler.profile_freq": 2,
+            "profiler.profile_ranks": [
+              0,
+              1
+            ],
+            "profiler.profiler_active": 1,
+            "profiler.profiler_repeat": 1,
+            "profiler.profiler_skip_first": 19,
+            "profiler.profiler_skip_first_wait": 0,
+            "profiler.profiler_warmup": 1,
+            "profiler.record_shapes": false,
+            "profiler.save_traces_folder": "profiling/traces"
+          },
+          "target_update": 21,
+          "traces_by_rank": {
+            "0": {
+              "gpu_projection_counts": {
+                "task.profile_update.21.microbatch.rank0": 6,
+                "task.profile_update.21.train_step.rank0": 1
+              },
+              "marker_counts": {
+                "task.profile_update.21.microbatch.rank0": 3,
+                "task.profile_update.21.train_step.rank0": 1
+              },
+              "path": "native/profiling/traces/iteration_21/rank0_trace.json",
+              "sha256": "27415d3cdc02550fabc87438c8a580a75068d695db12adb49448547c94004704",
+              "size_bytes": 27134579
+            },
+            "1": {
+              "gpu_projection_counts": {
+                "task.profile_update.21.microbatch.rank1": 6,
+                "task.profile_update.21.train_step.rank1": 1
+              },
+              "marker_counts": {
+                "task.profile_update.21.microbatch.rank1": 3,
+                "task.profile_update.21.train_step.rank1": 1
+              },
+              "path": "native/profiling/traces/iteration_21/rank1_trace.json",
+              "sha256": "55722f98b0d97ccbfcb7b831674c54b23c9ed953a003b4832fa64f1340bb355b",
+              "size_bytes": 26844067
+            }
+          },
+          "warmup_updates": 20
+        },
+        "status": "complete",
+        "tokens": null,
+        "training_steps": 21,
+        "window": null
+      },
+      "summary_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-diagnostic-001/summary.json"
+    }
+  },
+  "schema_version": 1,
+  "status": "complete_native_pair_and_bounded_trace",
+  "stop_decision": "The authorized A/B and bounded diagnostic are complete. No repeat, fallback, source/config change, publication, or further experiment was performed."
+}

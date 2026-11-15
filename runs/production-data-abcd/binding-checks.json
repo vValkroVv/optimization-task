@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "scope": "FlashQLA bridge routing-metadata and cross-entropy selection controls",
+  "changed_files": [
+    "runs/flash-qla/run.py",
+    "runs/flash-qla/measure.py",
+    "runs/flash-qla/tests/test_native_bridge.py"
+  ],
+  "runtime": {
+    "python": "/opt/torchtitan-venv/bin/python3.12",
+    "torch": "2.15.0.dev20260822+cu130",
+    "gpu_work": "Historical CPU-stage scope: not run; CPU imports and loss construction only."
+  },
+  "checks": [
+    {
+      "name": "focused bridge tests",
+      "command": "/opt/torchtitan-venv/bin/python3.12 -m pytest -q runs/flash-qla/tests/test_native_bridge.py",
+      "result": "PASS: 22 passed in 1.40s"
+    },
+    {
+      "name": "scoped Ruff",
+      "command": "/opt/torchtitan-venv/bin/python3.12 -m ruff check --select F821,F811,F841 --no-cache runs/flash-qla/run.py runs/flash-qla/measure.py runs/flash-qla/tests/test_native_bridge.py",
+      "result": "PASS: All checks passed"
+    },
+    {
+      "name": "whitespace",
+      "command": "git diff --check -- runs/flash-qla/run.py runs/flash-qla/measure.py runs/flash-qla/tests/test_native_bridge.py",
+      "result": "PASS: no output"
+    },
+    {
+      "name": "actual pinned TorchTitan bindings",
+      "command": "PYTHONPATH=/workspace-SR008.nfs2/vkropotin/optimization-task/gift:/workspace-SR008.nfs2/vkropotin/optimization-task/runs/flash-qla /opt/torchtitan-venv/bin/python3.12 -c 'import measure; import torchtitan.components.loss as loss; import torchtitan.distributed.deepep.hybridep as hybridep; import torchtitan.distributed.deepep.routing as routing; import torchtitan.experiments.four_fusion.routing_metadata as fused; import torchtitan.experiments.four_fusion.stable_ce as stable; native_hybrid_route = hybridep.indices_to_map; native_stable_ce = stable.cross_entropy_loss; classes = (loss.CrossEntropyLoss, loss.ChunkedCELoss, loss.MTPLoss); initializers = tuple(cls.__init__ for cls in classes); cases = ((\"original\", \"original\"), (\"original\", \"stable\"), (\"fused\", \"original\"), (\"fused\", \"stable\"));\nfor route_choice, ce_choice in cases:\n    expected_route = routing.indices_to_map if route_choice == \"original\" else fused.indices_to_map\n    expected_ce = loss.cross_entropy_loss if ce_choice == \"original\" else native_stable_ce\n    with measure._bind_native_fusion_choices(route_choice, ce_choice) as receipt:\n        assert hybridep.indices_to_map is expected_route\n        made = (loss.CrossEntropyLoss.Config().build(), loss.ChunkedCELoss.Config(num_chunks=2).build(), loss.MTPLoss.Config(num_chunks=2, loss_weights=[0.3]).build())\n        assert all(measure._unwrap_compiled_callable(item.fn) is expected_ce for item in made)\n        assert len(receipt[\"constructed_loss_callables\"]) == 3\n    assert hybridep.indices_to_map is native_hybrid_route and stable.cross_entropy_loss is native_stable_ce\n    assert tuple(cls.__init__ for cls in classes) == initializers\nprint(\"4 actual native TorchTitan selection combinations passed; each constructed CE/MTP callable matched; bindings restored\")'",
+      "result": "PASS: all four independent combinations constructed CrossEntropyLoss, ChunkedCELoss and MTPLoss with the selected unwrapped callable; routing alias, CE alias and constructor methods were restored after every case",
+      "warnings": [
+        "pynvml deprecation warning during torch import",
+        "PyTorch opaque-type deprecation warnings during HybridEP import"
+      ]
+    }
+  ],
+  "resolved_failed_check": {
+    "command": "/opt/torchtitan-venv/bin/python3.12 -m pytest -q runs/flash-qla/tests/test_native_bridge.py",
+    "first_result": "FAIL: 1 failed, 21 passed; the compiled-callable test fixture exposed a function as a class attribute, so Python bound it as a method",
+    "resolution": "Moved the fixture callable to an instance attribute, reran the same command, and got 22 passed"
+  },
+  "remaining_gates": [
+    {
+      "gate": "Actual all-rank native binding and workload validation",
+      "status": "RESOLVED",
+      "evidence": "runs/production-data-abcd/artifacts/raw/native-abcd-orchestration/native-campaign-results.json",
+      "result": "The final native campaign completed all four timing and four diagnostic runs across all eight ranks; actual variant bindings and full workloads passed."
+    },
+    {
+      "gate": "Actual compiled FP8/SAC acquisition and component timing",
+      "status": "RESOLVED",
+      "evidence": "runs/production-data-abcd/component-results.json",
+      "result": "The one-update eight-rank native acquisition and all six compiled component timing processes passed."
+    }
+  ],
+  "historical_cpu_stage_limits": [
+    {
+      "field": "runtime.gpu_work",
+      "statement": "not run; CPU imports and loss construction only",
+      "label": "Historical CPU-stage limit for this bridge-check receipt; later native campaign evidence resolves the all-rank binding/workload gate."
+    },
+    {
+      "field": "previous remaining_gates entry",
+      "statement": "No GPU, distributed, training, or performance validation was authorized or run.",
+      "label": "Historical CPU-stage limit, not current campaign status."
+    }
+  ]
+}

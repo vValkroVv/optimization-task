@@ -384,6 +384,12 @@ def summarize_records(
     warmup = int(metadata.get("warmup_updates", 0))
     window = int(metadata.get("window_updates", 0))
     monitor_interval = int(metadata.get("monitor_interval", 0))
+    inventory_diagnostic = (
+        metadata.get("gfsdp_buffer_inventory") is True
+        and expected_steps == 1
+        and warmup == 0
+        and window == 1
+    )
 
     by_rank: dict[int, dict[str, Any]] = {}
     for record in records:
@@ -478,7 +484,7 @@ def summarize_records(
         }
         return summary
 
-    if window <= 0 or warmup <= 0:
+    if window <= 0 or (warmup <= 0 and not inventory_diagnostic):
         errors.append("measured windows require positive warmup and window lengths")
     if expected_steps != warmup + window:
         errors.append("measured run must stop at the end of its complete window")
@@ -746,6 +752,20 @@ def summarize_records(
         },
         "errors": errors,
     }
+    if inventory_diagnostic:
+        summary["mode"] = "gfsdp_buffer_inventory"
+        summary["diagnostic_scope"] = {
+            "timing_scope": (
+                "first update only; it may include first-use compilation/startup and "
+                "is not representative steady-state throughput"
+            ),
+            "steady_state_throughput_reported": False,
+        }
+        summary["diagnostic_window"] = summary.pop("window")
+        summary["diagnostic_host_boundary_cadence"] = summary.pop(
+            "host_boundary_cadence"
+        )
+        summary.pop("tokens")
     return summary
 
 

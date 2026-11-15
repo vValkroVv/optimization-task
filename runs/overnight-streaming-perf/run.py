@@ -22,16 +22,49 @@ from typing import Any
 TASK_ROOT = Path(__file__).resolve().parents[2]
 GIFT_ROOT = TASK_ROOT / "gift"
 HELPER_DIR = Path(__file__).resolve().parent
+PRODUCTION_DATA_DIR = TASK_ROOT / "runs/production-data-abcd"
+if str(PRODUCTION_DATA_DIR) not in sys.path:
+    sys.path.insert(0, str(PRODUCTION_DATA_DIR))
+
+from data_contract import (  # noqa: E402
+    DATA_RECEIPT,
+    DATASET_ID,
+    DATASET_ROOT,
+    LOADER_SUMMARY,
+    NUM_ROWS,
+    PREPARATION_STATUS,
+    ROW_MANIFEST,
+    TOKENIZER_DIR,
+    TOKENIZER_FILE_SHA256,
+)
+
 PYTHON = Path("/opt/torchtitan-venv/bin/python3.12")
 BASE_CONFIG = GIFT_ROOT / "configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml"
 DATA_FRAGMENT = HELPER_DIR / "mds-dataloader.yaml"
-TOKENIZER = GIFT_ROOT / "tests/assets/tokenizer"
+TOKENIZER = TOKENIZER_DIR
 RAW_ROOT = HELPER_DIR / "artifacts/raw"
 SHARED_HF_CACHE = RAW_ROOT / "shared-cache/huggingface"
 DEFAULT_TIMEOUT_SECONDS = 4 * 60 * 60
 MIN_TASK_TMP_FREE_BYTES = 512 * 1024 * 1024
 PROFILE_RANKS = [0, 1]
 TASK_TMPDIR_NAME_RE = re.compile(r"run-[a-z0-9_]{8}\Z")
+NATIVE_FEATURE_CONTROLS = (
+    (
+        "gfsdp_split_mtp_ffn",
+        "--gfsdp-split-mtp-ffn",
+        "split the MTP block into FFN and remainder GFSDP groups",
+    ),
+    (
+        "gfsdp_split_layer0_ffn",
+        "--gfsdp-split-layer0-ffn",
+        "split trunk layer 0 into FFN and remainder GFSDP groups",
+    ),
+    (
+        "gfsdp_row_owner_embeddings",
+        "--gfsdp-row-owner-embeddings",
+        "use row-owner routing for the input embedding table",
+    ),
+)
 
 EXPECTED = {
     "python": "3.12.3",
@@ -245,9 +278,22 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("steps must be positive")
     if args.epoch_size is not None and args.epoch_size <= 0:
         raise ValueError("epoch-size must be positive")
+    if args.epoch_size is not None and args.epoch_size > NUM_ROWS:
+        raise ValueError(
+            f"epoch-size cannot exceed the {NUM_ROWS} distinct prepared rows"
+        )
     if args.warmup < 0 or args.window < 0:
         raise ValueError("warmup and window must be nonnegative optimizer-update counts")
-    if args.window and (args.warmup <= 0 or args.steps != args.warmup + args.window):
+    if args.gfsdp_buffer_inventory and (
+        args.steps != 1 or args.warmup != 0 or args.window != 1
+    ):
+        raise ValueError(
+            "gfsdp-buffer-inventory requires --steps 1 --warmup 0 --window 1"
+        )
+    if args.window and (
+        (args.warmup <= 0 and not args.gfsdp_buffer_inventory)
+        or args.steps != args.warmup + args.window
+    ):
         raise ValueError("measured runs require warmup>0 and steps == warmup + window")
     if not args.window and args.warmup and args.profile_update is None:
         raise ValueError("warmup must be zero when window is disabled")
@@ -290,10 +336,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="set parallelism.gfsdp_reuse_bf16_expert_weights=true (default false)",
     )
+    for _, option, help_text in NATIVE_FEATURE_CONTROLS:
+        parser.add_argument(option, action="store_true", help=help_text)
     parser.add_argument(
         "--bf16-cache-counters",
         action="store_true",
         help="enable per-group cache counters on a diagnostic profile run only",
+    )
+    parser.add_argument(
+        "--gfsdp-buffer-inventory",
+        action="store_true",
+        help="record initialized GFSDP buffer metadata and allocator peaks for a one-update diagnostic",
     )
     parser.add_argument("--output-root", type=Path, default=RAW_ROOT)
     parser.add_argument(
@@ -328,6 +381,48 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return value
 
 
+def _configured_path(value: Any, *, base: Path, label: str) -> Path:
+    if not isinstance(value, str) or not value:
+        raise RuntimeError(f"{label} must be a nonempty path")
+    path = Path(value)
+    return (path if path.is_absolute() else base / path).resolve()
+
+
+def _canonical_input_paths() -> tuple[Path, Path]:
+    config = _load_yaml(BASE_CONFIG)
+    tokenizer_path = _configured_path(
+        config.get("hf_assets_path"), base=GIFT_ROOT, label="hf_assets_path"
+    )
+    if tokenizer_path != TOKENIZER_DIR.resolve():
+        raise RuntimeError(
+            f"canonical hf_assets_path resolves to {tokenizer_path}, "
+            f"expected the verified tokenizer {TOKENIZER_DIR.resolve()}"
+        )
+    try:
+        stream = config["dataloader"]["dataset"]["streams"][0]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError("canonical experiment lacks its real-data stream") from exc
+    if stream.get("name") != DATASET_ID or stream.get("split") != "train":
+        raise RuntimeError("canonical experiment does not select the prepared train stream")
+    dataset_path = _configured_path(
+        stream.get("local"), base=GIFT_ROOT, label="canonical dataset stream local"
+    )
+    if dataset_path != DATASET_ROOT.resolve():
+        raise RuntimeError(
+            f"canonical data stream resolves to {dataset_path}, "
+            f"expected {DATASET_ROOT.resolve()}"
+        )
+    if config.get("dataloader", {}).get("dataset", {}).get("epoch_size") != NUM_ROWS:
+        raise RuntimeError(f"logical data epoch must be exactly {NUM_ROWS} rows")
+    for filename, expected_hash in TOKENIZER_FILE_SHA256.items():
+        path = tokenizer_path / filename
+        if not path.is_file():
+            raise RuntimeError(f"canonical tokenizer file is missing: {path}")
+        if sha256_file(path) != expected_hash:
+            raise RuntimeError(f"canonical tokenizer file hash changed: {path}")
+    return tokenizer_path, dataset_path
+
+
 def _data_root(root: Path) -> Path:
     fragment = _load_yaml(DATA_FRAGMENT)
     try:
@@ -338,9 +433,88 @@ def _data_root(root: Path) -> Path:
     if not local.is_absolute():
         raise RuntimeError("MDS stream local path must be absolute")
     local = _inside(root, local, "MDS data path")
+    if stream.get("name") != DATASET_ID or stream.get("split") != "train":
+        raise RuntimeError("MDS fragment does not select the prepared train stream")
+    if local != DATASET_ROOT.resolve():
+        raise RuntimeError(f"MDS fragment points to unexpected data: {local}")
+    _, canonical_dataset_path = _canonical_input_paths()
+    if canonical_dataset_path != local:
+        raise RuntimeError("canonical YAML and MDS fragment select different datasets")
     if not local.is_dir():
         raise RuntimeError(f"MDS data directory does not exist: {local}")
+    if not (local / "train" / "index.json").is_file():
+        raise RuntimeError(f"prepared MDS index is missing: {local / 'train' / 'index.json'}")
     return local
+
+
+def _verify_ready_inputs(root: Path) -> dict[str, Any]:
+    tokenizer_path, _ = _canonical_input_paths()
+    data_root = _data_root(root)
+    required_files = (PREPARATION_STATUS, DATA_RECEIPT, ROW_MANIFEST, LOADER_SUMMARY)
+    missing = [str(path) for path in required_files if not path.is_file()]
+    if missing:
+        raise RuntimeError(
+            "real-data preparation and CPU loader verification are incomplete; "
+            f"missing {missing}"
+        )
+
+    preparation = json.loads(PREPARATION_STATUS.read_text(encoding="utf-8"))
+    receipt = json.loads(DATA_RECEIPT.read_text(encoding="utf-8"))
+    if preparation.get("status") != "prepared":
+        raise RuntimeError(
+            f"data preparation status is {preparation.get('status')!r}, not prepared"
+        )
+    if receipt.get("status") != "prepared" or receipt.get("dataset_id") != DATASET_ID:
+        raise RuntimeError("data receipt is incomplete or names a different dataset")
+    dataset = receipt.get("dataset", {})
+    if Path(dataset.get("root", "")).resolve() != data_root:
+        raise RuntimeError("data receipt path differs from the active stream path")
+    if dataset.get("rows") != NUM_ROWS or dataset.get("row_count") != NUM_ROWS:
+        raise RuntimeError(f"data receipt must contain exactly {NUM_ROWS} rows")
+    if dataset.get("row_manifest", {}).get("path") != str(ROW_MANIFEST):
+        raise RuntimeError("data receipt points to a different row manifest")
+    if sha256_file(ROW_MANIFEST) != dataset["row_manifest"].get("sha256"):
+        raise RuntimeError("prepared row manifest hash changed")
+
+    index_path = data_root / "train" / "index.json"
+    if sha256_file(index_path) != dataset.get("index_sha256"):
+        raise RuntimeError("prepared MDS index hash changed")
+    for item in dataset.get("files", []):
+        relative = Path(item["path"])
+        if relative.is_absolute() or ".." in relative.parts:
+            raise RuntimeError(f"data receipt contains an unsafe path: {relative}")
+        path = data_root / relative
+        if not path.is_file() or path.is_symlink() or path.stat().st_size != item["bytes"]:
+            raise RuntimeError(f"prepared MDS file is missing or changed: {path}")
+
+    loader = json.loads(LOADER_SUMMARY.read_text(encoding="utf-8"))
+    if loader.get("status") != "PASS":
+        raise RuntimeError(
+            f"CPU loader verification status is {loader.get('status')!r}, not PASS"
+        )
+    if loader.get("data_receipt_sha256") != sha256_file(DATA_RECEIPT):
+        raise RuntimeError("CPU loader receipt does not match the prepared data receipt")
+    if loader.get("row_manifest_sha256") != dataset["row_manifest"]["sha256"]:
+        raise RuntimeError("CPU loader receipt used a different row manifest")
+    if loader.get("batches_per_rank") != 672 or not loader.get(
+        "fresh_opening_exact_order_equal"
+    ):
+        raise RuntimeError("CPU loader receipt lacks both complete, order-matched passes")
+    if {item.get("depth") for item in loader.get("arms", [])} != {0, 32}:
+        raise RuntimeError("CPU loader receipt does not cover prefetch depths 0 and 32")
+    if loader.get("dataset", {}).get("dataset_sha256") != dataset.get("dataset_sha256"):
+        raise RuntimeError("CPU loader receipt does not match the prepared MDS dataset")
+    return {
+        "tokenizer_path": str(tokenizer_path),
+        "tokenizer_file_sha256": TOKENIZER_FILE_SHA256,
+        "dataset_root": str(data_root),
+        "data_receipt_sha256": sha256_file(DATA_RECEIPT),
+        "dataset_sha256": dataset["dataset_sha256"],
+        "mds_index_sha256": dataset["index_sha256"],
+        "row_manifest_sha256": dataset["row_manifest"]["sha256"],
+        "cpu_loader_receipt_sha256": sha256_file(LOADER_SUMMARY),
+        "cpu_loader_status": loader["status"],
+    }
 
 
 def _task_owned_path(path: Path, label: str) -> Path:
@@ -804,6 +978,13 @@ def _profile_config_values(args: argparse.Namespace) -> dict[str, Any]:
     return values
 
 
+def _native_feature_values(args: argparse.Namespace) -> dict[str, bool]:
+    return {
+        field: bool(getattr(args, field))
+        for field, _, _ in NATIVE_FEATURE_CONTROLS
+    }
+
+
 def _profile_capture_spec(args: argparse.Namespace) -> dict[str, Any] | None:
     if args.profile_update is None:
         return None
@@ -847,13 +1028,14 @@ def _training_overrides(args: argparse.Namespace, paths: dict[str, Path]) -> lis
         "false",
         "--dump_folder",
         str(paths["native"].resolve()),
-        "--hf_assets_path",
-        str(TOKENIZER.resolve()),
     ]
     if args.gfsdp_reuse_bf16_expert_weights:
         overrides.extend(
             ("--parallelism.gfsdp_reuse_bf16_expert_weights", "true")
         )
+    for field, _, _ in NATIVE_FEATURE_CONTROLS:
+        if getattr(args, field):
+            overrides.extend((f"--parallelism.{field}", "true"))
     if args.epoch_size is not None:
         overrides.extend(("--dataloader.dataset.epoch_size", str(args.epoch_size)))
     for dotted, value in _profile_config_values(args).items():
@@ -941,6 +1123,8 @@ def _command(args: argparse.Namespace, paths: dict[str, Path]) -> list[str]:
         helper_args.append("--capture-microbatches")
     if args.bf16_cache_counters:
         helper_args.append("--bf16-cache-counters")
+    if args.gfsdp_buffer_inventory:
+        helper_args.append("--gfsdp-buffer-inventory")
     if args.profile_microbatches:
         helper_args.extend(("--profile-microbatches", str(args.profile_microbatches)))
     if args.observe_compiler_cache:
@@ -1043,6 +1227,13 @@ def _config_hashes() -> dict[str, str]:
     hashes = {
         "canonical_experiment_sha256": sha256_file(BASE_CONFIG),
         "mds_fragment_sha256": sha256_file(DATA_FRAGMENT),
+        "tokenizer_json_sha256": sha256_file(TOKENIZER / "tokenizer.json"),
+        "tokenizer_config_sha256": sha256_file(TOKENIZER / "tokenizer_config.json"),
+        "special_tokens_map_sha256": sha256_file(TOKENIZER / "special_tokens_map.json"),
+        "data_receipt_sha256": sha256_file(DATA_RECEIPT),
+        "mds_index_sha256": sha256_file(DATASET_ROOT / "train" / "index.json"),
+        "row_manifest_sha256": sha256_file(ROW_MANIFEST),
+        "cpu_loader_receipt_sha256": sha256_file(LOADER_SUMMARY),
         "runner_sha256": sha256_file(HELPER_DIR / "run.py"),
         "measurement_adapter_sha256": sha256_file(HELPER_DIR / "measure.py"),
         "parser_sha256": sha256_file(HELPER_DIR / "parse_results.py"),
@@ -1051,12 +1242,8 @@ def _config_hashes() -> dict[str, str]:
     return hashes
 
 
-def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) -> str:
-    resolved_path = paths["native"] / "config/resolved_config.yaml"
-    if not resolved_path.is_file():
-        raise RuntimeError(f"native resolved config was not written: {resolved_path}")
-    resolved = _load_yaml(resolved_path)
-    required = {
+def _resolved_config_expectations(args: argparse.Namespace) -> dict[str, Any]:
+    expected: dict[str, Any] = {
         "dataloader.num_prefetch_batches": args.num_prefetch_batches,
         "training.steps": args.steps,
         "parallelism.gfsdp_reuse_bf16_expert_weights": (
@@ -1068,6 +1255,9 @@ def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) ->
         "lr_scheduler.total_steps": 65000,
         "lr_scheduler.warmup_steps": 2000,
         "debug.seed": 2048,
+        "dataloader.dataset.epoch_size": (
+            NUM_ROWS if args.epoch_size is None else args.epoch_size
+        ),
         "loss.num_chunks": 2,
         "metrics.log_freq": 1,
         "checkpoint.enable": False,
@@ -1081,10 +1271,22 @@ def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) ->
         "fp8.sparse_use_grouped_gemm": True,
         "fp8.deep_gemm_warmup_on_start": True,
     }
-    if args.epoch_size is not None:
-        required["dataloader.dataset.epoch_size"] = args.epoch_size
-    required.update(_profile_config_values(args))
-    for dotted, expected in required.items():
+    expected.update(
+        {
+            f"parallelism.{field}": enabled
+            for field, enabled in _native_feature_values(args).items()
+        }
+    )
+    expected.update(_profile_config_values(args))
+    return expected
+
+
+def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) -> str:
+    resolved_path = paths["native"] / "config/resolved_config.yaml"
+    if not resolved_path.is_file():
+        raise RuntimeError(f"native resolved config was not written: {resolved_path}")
+    resolved = _load_yaml(resolved_path)
+    for dotted, expected in _resolved_config_expectations(args).items():
         current: Any = resolved
         for component in dotted.split("."):
             if not isinstance(current, dict) or component not in current:
@@ -1104,7 +1306,18 @@ def _verify_resolved_config(paths: dict[str, Path], args: argparse.Namespace) ->
     if Path(resolved.get("dump_folder", "")).resolve() != paths["native"].resolve():
         raise RuntimeError("resolved dump_folder is outside this run's native output")
     if Path(resolved.get("hf_assets_path", "")).resolve() != TOKENIZER.resolve():
-        raise RuntimeError("resolved tokenizer path differs from the task-owned tokenizer")
+        raise RuntimeError("resolved tokenizer path differs from the verified canonical tokenizer")
+    try:
+        stream = resolved["dataloader"]["dataset"]["streams"][0]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError("resolved config lacks the prepared data stream") from exc
+    if stream.get("name") != DATASET_ID or stream.get("split") != "train":
+        raise RuntimeError("resolved config selected a different data stream")
+    resolved_data_root = _configured_path(
+        stream.get("local"), base=GIFT_ROOT, label="resolved data stream local"
+    )
+    if resolved_data_root != DATASET_ROOT.resolve():
+        raise RuntimeError("resolved config data path differs from the prepared dataset")
     return sha256_file(resolved_path)
 
 
@@ -1131,16 +1344,17 @@ def main(argv: list[str] | None = None) -> int:
         verify_task_root(TASK_ROOT)
         if Path(sys.executable).resolve() != PYTHON.resolve():
             raise RuntimeError(f"run.py must use {PYTHON}, got {sys.executable}")
-        for required in (BASE_CONFIG, DATA_FRAGMENT, TOKENIZER / "tokenizer.json"):
+        for required in (BASE_CONFIG, DATA_FRAGMENT):
             if not required.is_file():
                 raise RuntimeError(f"required task input is missing: {required}")
+        input_receipt = _verify_ready_inputs(TASK_ROOT)
+        mds_root = Path(input_receipt["dataset_root"])
         if args.compiler_cache_root is None:
             paths = _make_run_dirs(args.run_id, args.output_root)
         else:
             paths = _make_run_dirs(
                 args.run_id, args.output_root, args.compiler_cache_root
             )
-        mds_root = _data_root(TASK_ROOT)
         filesystem = _filesystem_status(paths, mds_root)
         tmp_dir, tmp_capacity = _make_task_tmpdir()
         paths["tmp_dir"] = tmp_dir
@@ -1174,7 +1388,9 @@ def main(argv: list[str] | None = None) -> int:
             "gfsdp_reuse_bf16_expert_weights": (
                 args.gfsdp_reuse_bf16_expert_weights
             ),
+            "requested_parallelism_features": _native_feature_values(args),
             "bf16_cache_counters": args.bf16_cache_counters,
+            "gfsdp_buffer_inventory": args.gfsdp_buffer_inventory,
             "num_prefetch_batches": args.num_prefetch_batches,
             "monitor_interval": 0,
             "detailed_monitoring": "disabled; callbacks omitted; ordinary two-chunk loss",
@@ -1184,6 +1400,7 @@ def main(argv: list[str] | None = None) -> int:
             "scheduler_warmup_steps": 2000,
             "seed": 2048,
             "mds_data_root": str(mds_root),
+            "input_data": input_receipt,
             "filesystem": filesystem,
             "task_tmpdir": {
                 "path": str(tmp_dir),

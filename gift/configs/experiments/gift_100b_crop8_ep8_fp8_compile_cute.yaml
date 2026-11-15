@@ -1,4 +1,5 @@
-# Eight-layer 100B development crop. Bundled C4/tokenizer are smoke data only.
+# Eight-layer 100B development crop using the task-local real-data mix and
+# verified 100B tokenizer for this comparison.
 # The architecture and 65k-step schedule retain the production widths/recipe.
 config_version: 1
 
@@ -29,14 +30,14 @@ loss:
   num_chunks: 2
   num_chunks_on_monitoring_steps: null
 
-hf_assets_path: ./tests/assets/tokenizer
+hf_assets_path: /home/jovyan/shares/SR008.nfs1/models_templates/dclm-7b-128k_digit_tokenizer_FIM
 
 dataloader:
   type: streaming_text
   dataset:
     streams:
-      - name: c4_perf896
-        local: ../runs/overnight-streaming-perf/artifacts/raw/mds4096
+      - name: gigasets_4domain
+        local: ../runs/production-data-abcd/artifacts/raw/data-002
         split: train
     fim_rates:
       vanilla_fim: 0.0
@@ -46,7 +47,7 @@ dataloader:
     enable_syntax_aware_fim: false
     shuffle: false
     num_canonical_nodes: 1
-    epoch_size: null
+    epoch_size: 102400
     partition_algo: orig
     legacy: true
   drop_last: true

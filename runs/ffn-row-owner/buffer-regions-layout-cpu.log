@@ -1,0 +1,132 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ TestGFSDPFFNOverlap.test_region_budget_and_collective_rank_layout _______
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:912: in wrapper
+    self._join_processes(fn)
+        fn         = <bound method TestGFSDPFFNOverlap.test_region_budget_and_collective_rank_layout of <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_region_budget_and_collective_rank_layout>>
+        self       = <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_region_budget_and_collective_rank_layout>
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1182: in _join_processes
+    self._check_return_codes(fn, elapsed_time)
+        active_children = []
+        elapsed    = 4.803324460983276
+        elapsed_time = 4.903519630432129
+        fn         = <bound method TestGFSDPFFNOverlap.test_region_budget_and_collective_rank_layout of <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_region_budget_and_collective_rank_layout>>
+        i          = 0
+        p          = <SpawnProcess name='process 0' pid=225749 parent=225710 stopped exitcode=10>
+        pipe       = <multiprocessing.connection.Connection object at 0x71fb33da0380>
+        self       = <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_region_budget_and_collective_rank_layout>
+        start_time = 1794688091.9053338
+        subprocess_error = True
+        timeout    = 300
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py:1222: in _check_return_codes
+    raise RuntimeError(error)
+E   RuntimeError: Process 0 exited with error code 10 and exception:
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E       getattr(self, test_name)()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E       fn()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E       method(*args, **kwargs)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E       raise e
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E       func(self, *args, **kwargs)  # type: ignore[misc]
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 128, in test_region_budget_and_collective_rank_layout
+E       _assert_region_layout(parent, ffn)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 109, in _assert_region_layout
+E       assert param.sharded_param.to_local().numel() == param.sharded_numel
+E              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 676, in to_local
+E       raise NotImplementedError
+E   NotImplementedError
+E   
+E   Process 1 exited with error code 10 and exception:
+E   Traceback (most recent call last):
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E       getattr(self, test_name)()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E       fn()
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E       method(*args, **kwargs)
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E       raise e
+E     File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E       func(self, *args, **kwargs)  # type: ignore[misc]
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 128, in test_region_budget_and_collective_rank_layout
+E       _assert_region_layout(parent, ffn)
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 109, in _assert_region_layout
+E       assert param.sharded_param.to_local().numel() == param.sharded_numel
+E              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 676, in to_local
+E       raise NotImplementedError
+E   NotImplementedError
+        elapsed_time = 4.903519630432129
+        error      = 'Process 0 exited with error code 10 and exception:\nTraceback (most recent call last):\n  File "/opt/torchtitan-venv/...orchtitan/distributed/gfsdp/_tensor.py", line 676, in to_local\n    raise NotImplementedError\nNotImplementedError\n\n'
+        error_message = 'Traceback (most recent call last):\n  File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal.../torchtitan/distributed/gfsdp/_tensor.py", line 676, in to_local\n    raise NotImplementedError\nNotImplementedError\n'
+        errored_processes = [(0, <SpawnProcess name='process 0' pid=225749 parent=225710 stopped exitcode=10>), (1, <SpawnProcess name='process 1' pid=225750 parent=225710 stopped exitcode=10>)]
+        first_process = <SpawnProcess name='process 0' pid=225749 parent=225710 stopped exitcode=10>
+        fn         = <bound method TestGFSDPFFNOverlap.test_region_budget_and_collective_rank_layout of <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_region_budget_and_collective_rank_layout>>
+        i          = 1
+        process    = <SpawnProcess name='process 1' pid=225750 parent=225710 stopped exitcode=10>
+        self       = <tests.unit_tests.test_gfsdp_ffn_overlap.TestGFSDPFFNOverlap testMethod=test_region_budget_and_collective_rank_layout>
+----------------------------- Captured stdout call -----------------------------
+Process 0 terminated with exit code 10, terminating remaining processes.
+----------------------------- Captured stderr call -----------------------------
+I1114 20:28:11.904000 225710 torch/testing/_internal/common_distributed.py:991] Started process 0 with pid 225749
+I1114 20:28:11.905000 225710 torch/testing/_internal/common_distributed.py:991] Started process 1 with pid 225750
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+W1114 20:28:14.441000 225749 torch/utils/cpp_extension.py:183] No CUDA runtime is found, using CUDA_HOME='/usr/local/cuda'
+W1114 20:28:14.456000 225750 torch/utils/cpp_extension.py:183] No CUDA runtime is found, using CUDA_HOME='/usr/local/cuda'
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077] Caught exception: 
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     getattr(self, test_name)()
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     fn()
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     method(*args, **kwargs)
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     raise e
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     func(self, *args, **kwargs)  # type: ignore[misc]
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 128, in test_region_budget_and_collective_rank_layout
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     _assert_region_layout(parent, ffn)
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 109, in _assert_region_layout
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     assert param.sharded_param.to_local().numel() == param.sharded_numel
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 676, in to_local
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]     raise NotImplementedError
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077] NotImplementedError
+E1114 20:28:15.999000 225750 torch/testing/_internal/common_distributed.py:1077]  exiting process 1 with exit code: 10
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077] Caught exception: 
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077] Traceback (most recent call last):
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 1067, in run_test
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     getattr(self, test_name)()
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_distributed.py", line 914, in wrapper
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     fn()
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/common_utils.py", line 3832, in wrapper
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     method(*args, **kwargs)
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 901, in wrapper
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     raise e
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]   File "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/testing/_internal/distributed/_tensor/common_dtensor.py", line 898, in wrapper
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     func(self, *args, **kwargs)  # type: ignore[misc]
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 128, in test_region_budget_and_collective_rank_layout
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     _assert_region_layout(parent, ffn)
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py", line 109, in _assert_region_layout
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     assert param.sharded_param.to_local().numel() == param.sharded_numel
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]   File "/workspace-SR008.nfs2/vkropotin/optimization-task/gift/torchtitan/distributed/gfsdp/_tensor.py", line 676, in to_local
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]     raise NotImplementedError
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077] NotImplementedError
+E1114 20:28:16.008000 225749 torch/testing/_internal/common_distributed.py:1077]  exiting process 0 with exit code: 10
+=========================== short test summary info ============================
+FAILED gift/tests/unit_tests/test_gfsdp_ffn_overlap.py::TestGFSDPFFNOverlap::test_region_budget_and_collective_rank_layout
+1 failed, 2 deselected, 1 warning in 8.25s

@@ -76,9 +76,12 @@ def _fake_paths(root: Path, run_id: str = "test-run") -> dict[str, Path]:
     attempt.mkdir(parents=True)
     measurement = attempt / "measurement"
     measurement.mkdir()
+    cache = attempt / "cache"
+    cache.mkdir()
     return {
         "attempt": attempt,
         "measurement": measurement,
+        "cache": cache,
     }
 
 
@@ -95,6 +98,54 @@ def _patch_bridge_paths(bridge_run: Any, tmp_path: Path) -> Path:
     bridge_run.BRIDGE_DIR = bridge_dir
     bridge_run.BRIDGE_MEASURE_PATH = measure_path
     return bridge_dir
+
+
+def _fake_native_modules() -> tuple[Any, Any, Any, Any, Any]:
+    def native_route(*args: Any) -> tuple[Any, ...]:
+        return args
+
+    def fused_route(*args: Any) -> tuple[Any, ...]:
+        return args
+
+    def native_ce(*args: Any) -> tuple[Any, ...]:
+        return args
+
+    def stable_ce_fn(*args: Any) -> tuple[Any, ...]:
+        return args
+
+    native_route.__module__ = "torchtitan.distributed.deepep.routing"
+    fused_route.__module__ = "torchtitan.experiments.four_fusion.routing_metadata"
+    native_ce.__module__ = "torchtitan.components.loss"
+    stable_ce_fn.__module__ = "torchtitan.experiments.four_fusion.stable_ce"
+    hybridep = SimpleNamespace(indices_to_map=native_route)
+    original_routing = SimpleNamespace(indices_to_map=native_route)
+    fused_routing = SimpleNamespace(indices_to_map=fused_route)
+    stable_ce = SimpleNamespace(cross_entropy_loss=stable_ce_fn)
+
+    class CrossEntropyLoss:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            self.fn = stable_ce.cross_entropy_loss
+
+    class ChunkedCELoss:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            self.fn = stable_ce.cross_entropy_loss
+
+    class MTPLoss(ChunkedCELoss):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+
+    CrossEntropyLoss.__module__ = "torchtitan.components.loss"
+    ChunkedCELoss.__module__ = "torchtitan.components.loss"
+    MTPLoss.__module__ = "torchtitan.components.loss"
+    loss_module = SimpleNamespace(
+        cross_entropy_loss=native_ce,
+        CrossEntropyLoss=CrossEntropyLoss,
+        ChunkedCELoss=ChunkedCELoss,
+        MTPLoss=MTPLoss,
+    )
+    return hybridep, original_routing, fused_routing, loss_module, stable_ce
 
 
 def test_runner_parser_forwards_existing_arguments_unchanged(bridge_run: Any) -> None:
@@ -116,7 +167,29 @@ def test_runner_parser_forwards_existing_arguments_unchanged(bridge_run: Any) ->
     )
     assert args.gdn_backend == "external_gate"
     assert args.capture_fixtures is None
+    assert args.routing_metadata == "fused"
+    assert args.cross_entropy == "stable"
     assert forwarded == native
+
+
+def test_runner_parser_selects_routing_and_cross_entropy_independently(
+    bridge_run: Any,
+) -> None:
+    args, forwarded = bridge_run._parse_bridge_args(
+        [
+            "--gdn-backend",
+            "external_gate",
+            "--routing-metadata",
+            "original",
+            "--cross-entropy",
+            "original",
+            "--run-id",
+            "native-fusion-control",
+        ]
+    )
+    assert args.routing_metadata == "original"
+    assert args.cross_entropy == "original"
+    assert forwarded == ["--run-id", "native-fusion-control"]
 
 
 def test_runner_parser_rejects_invalid_backend_and_non_fla_capture(bridge_run: Any) -> None:
@@ -219,6 +292,8 @@ def test_environment_hook_clears_stale_values_and_records_rank_cache_paths(
         ("TASK_FLASHQLA_CAPTURE_DIR", "/stale/fixtures"),
         ("TASK_FLASHQLA_TILELANG_ROOT", "/stale/cache"),
         ("TASK_FLASHQLA_SOURCE_IDENTITY", "{}"),
+        ("TASK_FLASHQLA_ROUTING_METADATA", "original"),
+        ("TASK_FLASHQLA_CROSS_ENTROPY", "original"),
         ("TILELANG_CACHE_DIR", "/shared/home/cache"),
         ("TILELANG_TMP_DIR", "/shared/home/cache/tmp"),
     ):
@@ -234,9 +309,12 @@ def test_environment_hook_clears_stale_values_and_records_rank_cache_paths(
     tilelang_root = attempt / "cache/tilelang"
     assert env["TASK_FLASHQLA_BACKEND"] == "fla"
     assert env["TASK_FLASHQLA_CAPTURE_MODE"] == "fixtures"
+    assert env["TASK_FLASHQLA_ROUTING_METADATA"] == "fused"
+    assert env["TASK_FLASHQLA_CROSS_ENTROPY"] == "stable"
     assert env["TASK_FLASHQLA_CAPTURE_DIR"] == str(capture_path)
     assert capture_path.is_dir()
     assert env["TASK_FLASHQLA_TILELANG_ROOT"] == str(tilelang_root)
+    assert env["TASK_COMPILER_CACHE_ROOT"] == str((attempt / "cache").resolve())
     assert env["TILELANG_CACHE_DIR"] == str(tilelang_root)
     assert env["TILELANG_TMP_DIR"] == str(tilelang_root / "tmp")
     pythonpath = env["PYTHONPATH"].split(os.pathsep)
@@ -251,7 +329,10 @@ def test_environment_hook_clears_stale_values_and_records_rank_cache_paths(
 
     receipt = json.loads((attempt / "flash-qla-bridge.json").read_text())
     assert receipt["backend_variant"] == "fla"
+    assert receipt["routing_metadata"] == "fused"
+    assert receipt["cross_entropy"] == "stable"
     assert receipt["capture_mode"] == "fixtures"
+    assert receipt["tilelang_cache_policy"] == "fresh"
     assert receipt["tilelang_rank_directories"]["7"]["cache"] == str(
         tilelang_root / "rank_7"
     )
@@ -271,10 +352,93 @@ def test_environment_hook_leaves_no_capture_override_for_full_training(
     )(paths)
     assert env["TASK_FLASHQLA_BACKEND"] == "fused_gate"
     assert env["TASK_FLASHQLA_CAPTURE_MODE"] == "disabled"
+    assert env["TASK_FLASHQLA_ROUTING_METADATA"] == "fused"
+    assert env["TASK_FLASHQLA_CROSS_ENTROPY"] == "stable"
     assert "TASK_FLASHQLA_CAPTURE_DIR" not in env
     assert "TILELANG_CACHE_DIR" in env
     assert "TILELANG_TMP_DIR" in env
     assert str(bridge_dir) in env["PYTHONPATH"].split(os.pathsep)
+
+
+def test_selection_arguments_roundtrip_to_each_rank_environment(
+    bridge_run: Any,
+    bridge_measure: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_bridge_paths(bridge_run, tmp_path)
+    base = _fake_base(tmp_path)
+    paths = _fake_paths(tmp_path, "native-fusion-control")
+    env = bridge_run._build_environment_hook(
+        base,
+        backend="external_gate",
+        capture_fixtures=None,
+        routing_metadata="original",
+        cross_entropy="original",
+    )(paths)
+
+    assert env["TASK_FLASHQLA_ROUTING_METADATA"] == "original"
+    assert env["TASK_FLASHQLA_CROSS_ENTROPY"] == "original"
+    receipt = json.loads((paths["attempt"] / "flash-qla-bridge.json").read_text())
+    assert receipt["routing_metadata"] == "original"
+    assert receipt["cross_entropy"] == "original"
+    for key in (
+        "TASK_FLASHQLA_BACKEND",
+        "TASK_FLASHQLA_CAPTURE_MODE",
+        "TASK_FLASHQLA_SOURCE_IDENTITY",
+        "TASK_FLASHQLA_ROUTING_METADATA",
+        "TASK_FLASHQLA_CROSS_ENTROPY",
+    ):
+        monkeypatch.setenv(key, env[key])
+    monkeypatch.delenv("TASK_FLASHQLA_CAPTURE_DIR", raising=False)
+    assert bridge_measure._bridge_configuration()[-2:] == ("original", "original")
+
+
+def test_environment_hook_reuses_existing_tilelang_cache_only_for_selected_root(
+    bridge_run: Any, tmp_path: Path
+) -> None:
+    _patch_bridge_paths(bridge_run, tmp_path)
+    base = _fake_base(tmp_path)
+    paths = _fake_paths(tmp_path, "reuse-tilelang")
+    selected_cache = tmp_path / "runs/overnight-streaming-perf/artifacts/raw/producer/cache"
+    selected_cache.mkdir(parents=True)
+    paths["cache"] = selected_cache
+    existing_root = selected_cache / "tilelang"
+    existing_root.mkdir()
+    (existing_root / "tmp").mkdir()
+    for rank in range(8):
+        rank_root = existing_root / f"rank_{rank}"
+        rank_root.mkdir()
+        (rank_root / "tmp").mkdir()
+
+    env = bridge_run._build_environment_hook(
+        base, backend="external_gate", capture_fixtures=None
+    )(paths)
+
+    receipt = json.loads((paths["attempt"] / "flash-qla-bridge.json").read_text())
+    assert env["TASK_COMPILER_CACHE_ROOT"] == str(selected_cache.resolve())
+    assert env["TASK_FLASHQLA_TILELANG_ROOT"] == str(existing_root)
+    assert receipt["tilelang_cache_policy"] == "reuse"
+    assert receipt["tilelang_cache_root"] == str(existing_root)
+
+
+def test_environment_hook_rejects_symlink_in_reused_tilelang_cache(
+    bridge_run: Any, tmp_path: Path
+) -> None:
+    _patch_bridge_paths(bridge_run, tmp_path)
+    base = _fake_base(tmp_path)
+    paths = _fake_paths(tmp_path, "reuse-tilelang-symlink")
+    selected_cache = tmp_path / "runs/overnight-streaming-perf/artifacts/raw/producer/cache"
+    selected_cache.mkdir(parents=True)
+    outside = tmp_path / "outside-tilelang"
+    outside.mkdir()
+    (selected_cache / "tilelang").symlink_to(outside, target_is_directory=True)
+    paths["cache"] = selected_cache
+
+    with pytest.raises(RuntimeError, match="must not be a symlink"):
+        bridge_run._build_environment_hook(
+            base, backend="external_gate", capture_fixtures=None
+        )(paths)
 
 
 def _measurement_attempt(root: Path, run_id: str, rank: int = 3) -> tuple[Path, Path]:
@@ -289,8 +453,13 @@ def _measurement_attempt(root: Path, run_id: str, rank: int = 3) -> tuple[Path, 
 
 
 def _set_rank_environment(monkeypatch: pytest.MonkeyPatch, values: dict[str, str]) -> None:
+    monkeypatch.setenv("TASK_FLASHQLA_ROUTING_METADATA", "fused")
+    monkeypatch.setenv("TASK_FLASHQLA_CROSS_ENTROPY", "stable")
     for key, value in values.items():
         monkeypatch.setenv(key, value)
+    tilelang_root = values.get("TASK_FLASHQLA_TILELANG_ROOT")
+    if tilelang_root is not None and "TASK_COMPILER_CACHE_ROOT" not in values:
+        monkeypatch.setenv("TASK_COMPILER_CACHE_ROOT", str(Path(tilelang_root).parent))
 
 
 def test_startup_sets_device_and_rank_cache_before_backend_import(
@@ -313,6 +482,10 @@ def test_startup_sets_device_and_rank_cache_before_backend_import(
             "TILELANG_CACHE_DIR": str(tilelang_root),
             "TILELANG_TMP_DIR": str(tilelang_root / "tmp"),
         },
+    )
+    native_modules = _fake_native_modules()
+    monkeypatch.setattr(
+        bridge_measure, "_load_native_modules", lambda: native_modules
     )
     events: list[str] = []
 
@@ -341,6 +514,8 @@ def test_startup_sets_device_and_rank_cache_before_backend_import(
     def native_main(argv: list[str], received_adapter: Any) -> str:
         assert argv == ["config.yaml", "--model.test=true"]
         assert received_adapter is adapter
+        native_modules[3].CrossEntropyLoss()
+        native_modules[3].MTPLoss()
         events.append("native_main")
         return "done"
 
@@ -367,6 +542,167 @@ def test_startup_sets_device_and_rank_cache_before_backend_import(
     assert receipt["cuda_device"] == 3
     assert receipt["installer_identity"] == {"variant": "external_gate"}
     assert receipt["tilelang_cache_dir"] == str(tilelang_root / "rank_3")
+    assert receipt["routing_metadata"] == "fused"
+    assert receipt["cross_entropy"] == "stable"
+    assert receipt["routing_metadata_callable"]["object_id"] == id(
+        native_modules[2].indices_to_map
+    )
+    assert receipt["cross_entropy_callable"]["object_id"] == id(
+        native_modules[4].cross_entropy_loss
+    )
+    assert receipt["native_main_completed"] is True
+    assert [item["class"].rsplit(".", maxsplit=1)[-1] for item in receipt[
+        "constructed_loss_callables"
+    ]] == ["CrossEntropyLoss", "MTPLoss"]
+    assert all(
+        item["callable"]["object_id"] == receipt["cross_entropy_callable"]["object_id"]
+        for item in receipt["constructed_loss_callables"]
+    )
+    assert native_modules[0].indices_to_map is native_modules[1].indices_to_map
+    assert native_modules[4].cross_entropy_loss.__module__ == (
+        "torchtitan.experiments.four_fusion.stable_ce"
+    )
+
+
+def test_configure_tilelang_cache_accepts_selected_reused_root(
+    bridge_measure: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bridge_measure, "TASK_ROOT", tmp_path)
+    _, measurement = _measurement_attempt(tmp_path, "selected-reuse", rank=4)
+    selected_cache = tmp_path / "runs/overnight-streaming-perf/artifacts/raw/producer/cache"
+    tilelang_root = selected_cache / "tilelang"
+    rank_root = tilelang_root / "rank_4"
+    (rank_root / "tmp").mkdir(parents=True)
+    monkeypatch.setenv("TASK_COMPILER_CACHE_ROOT", str(selected_cache))
+    monkeypatch.setenv("TASK_FLASHQLA_TILELANG_ROOT", str(tilelang_root))
+
+    cache_dir, tmp_dir = bridge_measure._configure_tilelang_cache(
+        SimpleNamespace(options={"output_dir": measurement}), 4
+    )
+
+    assert cache_dir == rank_root.resolve()
+    assert tmp_dir == (rank_root / "tmp").resolve()
+    assert os.environ["TILELANG_CACHE_DIR"] == str(rank_root.resolve())
+    assert os.environ["TILELANG_TMP_DIR"] == str((rank_root / "tmp").resolve())
+
+
+@pytest.mark.parametrize(
+    ("routing_metadata", "cross_entropy"),
+    [
+        ("original", "original"),
+        ("original", "stable"),
+        ("fused", "original"),
+        ("fused", "stable"),
+    ],
+)
+def test_native_fusion_bindings_use_selected_callable_and_restore(
+    bridge_measure: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    routing_metadata: str,
+    cross_entropy: str,
+) -> None:
+    native_modules = _fake_native_modules()
+    monkeypatch.setattr(
+        bridge_measure, "_load_native_modules", lambda: native_modules
+    )
+    hybridep, original_routing, fused_routing, loss_module, stable_ce = native_modules
+    original_hybrid_route = hybridep.indices_to_map
+    original_stable_ce = stable_ce.cross_entropy_loss
+    original_initializers = {
+        name: getattr(loss_module, name).__init__
+        for name in ("CrossEntropyLoss", "ChunkedCELoss")
+    }
+    expected_route = getattr(
+        original_routing if routing_metadata == "original" else fused_routing,
+        "indices_to_map",
+    )
+    expected_ce = (
+        loss_module.cross_entropy_loss
+        if cross_entropy == "original"
+        else original_stable_ce
+    )
+
+    with bridge_measure._bind_native_fusion_choices(
+        routing_metadata, cross_entropy
+    ) as selection:
+        assert hybridep.indices_to_map is expected_route
+        assert stable_ce.cross_entropy_loss is expected_ce
+        assert selection["routing_metadata"]["callable"]["object_id"] == id(
+            expected_route
+        )
+        assert selection["cross_entropy"]["callable"]["object_id"] == id(
+            expected_ce
+        )
+        assert len(selection["routing_metadata"]["callable"]["sha256"]) == 64
+        assert len(selection["cross_entropy"]["callable"]["sha256"]) == 64
+
+        loss_module.CrossEntropyLoss()
+        loss_module.ChunkedCELoss()
+        loss_module.MTPLoss()
+        assert len(selection["constructed_loss_callables"]) == 3
+        assert all(
+            item["callable"]["object_id"] == id(expected_ce)
+            for item in selection["constructed_loss_callables"]
+        )
+        assert selection["constructed_loss_callables"][-1]["class"].endswith(
+            ".MTPLoss"
+        )
+
+    assert hybridep.indices_to_map is original_hybrid_route
+    assert stable_ce.cross_entropy_loss is original_stable_ce
+    for name, initializer in original_initializers.items():
+        assert getattr(loss_module, name).__init__ is initializer
+
+
+def test_native_binding_unwraps_compiled_loss_callable(bridge_measure: Any) -> None:
+    selected = lambda: None
+
+    class CompiledCallable:
+        def __init__(self) -> None:
+            self._torchdynamo_orig_callable = selected
+
+        def __call__(self) -> None:
+            return None
+
+    assert bridge_measure._unwrap_compiled_callable(CompiledCallable()) is selected
+
+
+def test_native_binding_fails_fast_on_wrong_constructed_loss_callable(
+    bridge_measure: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    native_modules = _fake_native_modules()
+    monkeypatch.setattr(
+        bridge_measure, "_load_native_modules", lambda: native_modules
+    )
+    loss_module = native_modules[3]
+    original_init = loss_module.CrossEntropyLoss.__init__
+
+    def wrong_init(self: Any) -> None:
+        self.fn = loss_module.cross_entropy_loss
+
+    loss_module.CrossEntropyLoss.__init__ = wrong_init
+    try:
+        with bridge_measure._bind_native_fusion_choices("fused", "stable"):
+            with pytest.raises(RuntimeError, match="unexpected cross-entropy callable"):
+                loss_module.CrossEntropyLoss()
+    finally:
+        loss_module.CrossEntropyLoss.__init__ = original_init
+
+
+def test_configure_tilelang_cache_rejects_root_outside_task(
+    bridge_measure: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bridge_measure, "TASK_ROOT", tmp_path)
+    _, measurement = _measurement_attempt(tmp_path, "outside-root")
+    outside = tmp_path.parent / "outside-cache"
+    outside.mkdir()
+    monkeypatch.setenv("TASK_COMPILER_CACHE_ROOT", str(outside))
+    monkeypatch.setenv("TASK_FLASHQLA_TILELANG_ROOT", str(outside / "tilelang"))
+
+    with pytest.raises(RuntimeError, match="inside the task root"):
+        bridge_measure._configure_tilelang_cache(
+            SimpleNamespace(options={"output_dir": measurement}), 0
+        )
 
 
 def test_capture_rank1_accepts_directory_created_before_startup(
@@ -393,6 +729,10 @@ def test_capture_rank1_accepts_directory_created_before_startup(
             "TILELANG_CACHE_DIR": str(tilelang_root),
             "TILELANG_TMP_DIR": str(tilelang_root / "tmp"),
         },
+    )
+    native_modules = _fake_native_modules()
+    monkeypatch.setattr(
+        bridge_measure, "_load_native_modules", lambda: native_modules
     )
     events: list[Any] = []
 

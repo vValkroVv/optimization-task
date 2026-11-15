@@ -1,0 +1,70 @@
+...................F
+=================================== FAILURES ===================================
+__________ test_gfsdp2_refuses_model_parts_that_are_not_gfsdp_modules __________
+
+path = 'configs/presets/models/gift_moe/debugmodel.yaml'
+
+    def _read_yaml_file(path: str) -> dict[str, Any]:
+        """Read a UTF-8 YAML file; an empty document is ``{}``.
+    
+        Raises:
+            ConfigFileError: If the file cannot be read or parsed, or the root is
+                not a mapping of string keys.
+        """
+        try:
+>           with open(path, encoding="utf-8") as handle:
+E           FileNotFoundError: [Errno 2] No such file or directory: 'configs/presets/models/gift_moe/debugmodel.yaml'
+
+path       = 'configs/presets/models/gift_moe/debugmodel.yaml'
+
+gift/torchtitan/config/loader.py:300: FileNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+    def test_gfsdp2_refuses_model_parts_that_are_not_gfsdp_modules() -> None:
+        with pytest.raises(ValueError, match="not GFSDP modules"):
+            EMA.Config().build(
+                model_parts=[_Tiny()],
+                sharding_backend=build_sharding_backend(
+                    ParallelismConfig(fsdp_backend="gfsdp2"),
+                    decode(
+                        ModelSection,
+>                       load_raw_document(
+                            "configs/presets/models/gift_moe/debugmodel.yaml"
+                        ).data["model"],
+                    ).config,
+                ),
+            )
+
+
+gift/tests/unit_tests/test_ema_callback.py:161: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+gift/torchtitan/config/loader.py:463: in load_raw_document
+    entry_document = _read_yaml_file(path)
+        overrides  = ()
+        path       = 'configs/presets/models/gift_moe/debugmodel.yaml'
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = 'configs/presets/models/gift_moe/debugmodel.yaml'
+
+    def _read_yaml_file(path: str) -> dict[str, Any]:
+        """Read a UTF-8 YAML file; an empty document is ``{}``.
+    
+        Raises:
+            ConfigFileError: If the file cannot be read or parsed, or the root is
+                not a mapping of string keys.
+        """
+        try:
+            with open(path, encoding="utf-8") as handle:
+                file_data = yaml.load(handle, Loader=ConfigYAMLLoader)
+        except FileNotFoundError as exc:
+>           raise ConfigFileError(f"config file not found: {path}") from exc
+E           torchtitan.config.errors.ConfigFileError: config file not found: configs/presets/models/gift_moe/debugmodel.yaml
+
+path       = 'configs/presets/models/gift_moe/debugmodel.yaml'
+
+gift/torchtitan/config/loader.py:303: ConfigFileError
+=========================== short test summary info ============================
+FAILED gift/tests/unit_tests/test_ema_callback.py::test_gfsdp2_refuses_model_parts_that_are_not_gfsdp_modules
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 19 passed, 7 warnings in 10.94s

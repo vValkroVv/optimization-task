@@ -1,0 +1,1053 @@
+{
+  "acceptance": {
+    "all3_accumulation32_native_integration": "PASS",
+    "all8_one_update_and_inventory": "PASS",
+    "common_baseline_total_allocator_budget": "PASS; every candidate rank is below the baseline worst-rank allocated and reserved high-water",
+    "deduplicated_pool_budget": "PASS; no growth, unique bytes decrease by 1,746,392,064 B/rank",
+    "gpu_lease": "task groups stopped and lease returned after warm B; root reassigned it",
+    "ooms_or_retries": "zero on all ranks/runs",
+    "same_rank_reserved_comparison": "7/8 lower; rank 2 is +62,914,560 B (60 MiB), still under the common cap",
+    "steady_state_tps": "not measured or claimed"
+  },
+  "attempts": {
+    "A001": {
+      "exit_code": "1",
+      "failure": {
+        "error": "RuntimeError: MDS data path must remain inside the task root: /workspace-SR008.nfs2/vkropotin/opt-fq/runs/overnight-streaming-perf/artifacts/raw/mds4096",
+        "finished_at_utc": "2026-11-14T22:11:03.506611+00:00",
+        "pid": null,
+        "status": "FAIL",
+        "timed_out": false
+      },
+      "failure_path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-a-001/failure.json",
+      "failure_sha256": "171522722dc6a2e812f803703b4bca1b1223a33b542763764977e515d9ec716a",
+      "status": "FAIL"
+    },
+    "A002": {
+      "original_attempt_preserved": true,
+      "outer_runner_status": "FAIL because old result parser rejected warmup=0 after training completed",
+      "recovered_summary": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-a-002-summary-recovered.json",
+        "sha256": "934b1abdb316c43099dc5ba7f7bf6bdc7f1896c22ab2d5a6b2b1a24638d62744"
+      },
+      "scoped_parser_path": "runs/overnight-streaming-perf/parse_results.py",
+      "scoped_parser_sha256": "532e4faafc3aea66cb456da497dc680a50292862d0d7177f0c7601c9a41eed14",
+      "shutdown_warning": "launcher log has multiprocessing _remove_temp_dir OSError EBUSY for an NFS .nfs* file; runner cleanup receipt removed tmpdir, process group stopped/no orphan, no temp files left",
+      "training_child_exit_code": 0
+    }
+  },
+  "commands": {
+    "ffn-row-owner-memory-a-002": {
+      "command": "/opt/torchtitan-venv/bin/python3.12 /workspace-SR008.nfs2/vkropotin/optimization-task/runs/flash-qla/run.py --gdn-backend external_gate --run-id ffn-row-owner-memory-a-002 --steps 1 --warmup 0 --window 1 --num-prefetch-batches 32 --epoch-size 102400 --gfsdp-reuse-bf16-expert-weights --gfsdp-buffer-inventory --output-root /workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/artifacts/raw --compiler-cache-root /workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache",
+      "sha256": "4f38f27df24cb22b68c6fc48d296bc80be88819ed781bd14750e44d930c46e5e"
+    },
+    "ffn-row-owner-memory-b-001": {
+      "command": "/opt/torchtitan-venv/bin/python3.12 /workspace-SR008.nfs2/vkropotin/optimization-task/runs/flash-qla/run.py --gdn-backend external_gate --run-id ffn-row-owner-memory-b-001 --steps 1 --warmup 0 --window 1 --num-prefetch-batches 32 --epoch-size 102400 --gfsdp-reuse-bf16-expert-weights --gfsdp-split-mtp-ffn --gfsdp-split-layer0-ffn --gfsdp-row-owner-embeddings --gfsdp-buffer-inventory --output-root /workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/artifacts/raw --compiler-cache-root /workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache",
+      "sha256": "0966caef0919640dfb49a45d86c18896c45ef5a196f2dda57eeb41e1cf9f2e6b"
+    },
+    "ffn-row-owner-memory-warm-a-001": {
+      "command": "/opt/torchtitan-venv/bin/python3.12 /workspace-SR008.nfs2/vkropotin/optimization-task/runs/flash-qla/run.py --gdn-backend external_gate --run-id ffn-row-owner-memory-warm-a-001 --steps 2 --warmup 1 --window 1 --num-prefetch-batches 32 --epoch-size 102400 --gfsdp-reuse-bf16-expert-weights --output-root /workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/artifacts/raw --compiler-cache-root /workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache",
+      "sha256": "fba8d1455b62ee7aa129f870468d78984810a33658b4077aca4f5786f2475200"
+    },
+    "ffn-row-owner-memory-warm-b-001": {
+      "command": "/opt/torchtitan-venv/bin/python3.12 /workspace-SR008.nfs2/vkropotin/optimization-task/runs/flash-qla/run.py --gdn-backend external_gate --run-id ffn-row-owner-memory-warm-b-001 --steps 2 --warmup 1 --window 1 --num-prefetch-batches 32 --epoch-size 102400 --gfsdp-reuse-bf16-expert-weights --gfsdp-split-mtp-ffn --gfsdp-split-layer0-ffn --gfsdp-row-owner-embeddings --output-root /workspace-SR008.nfs2/vkropotin/optimization-task/runs/ffn-row-owner/artifacts/raw --compiler-cache-root /workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache",
+      "sha256": "d9d9ae9c717f4bb4ec02589be815fcbc6e8a85baf2e3b91f8d5e9f0b7ce5da8b"
+    }
+  },
+  "data_path": {
+    "byte_identity_audit": {
+      "files": 30,
+      "same_bytes": true,
+      "total_bytes": 14702684
+    },
+    "change": "path-only opt-fq prefix to task-local optimization-task root",
+    "fragment": "runs/overnight-streaming-perf/mds-dataloader.yaml",
+    "fragment_sha256": "d8d3eef799a660d94819e5317a23b38ab3554dc543941785b6bf0806a3b02d6d",
+    "index_sha256": "7cc8d53152c801450fdae44ba84c182eb8dcb9106d8bba9e3c3d69ebdaa8a8c2",
+    "resolved_train_root": "runs/overnight-streaming-perf/artifacts/raw/mds4096/train"
+  },
+  "date_utc": "2026-11-14",
+  "features": {
+    "A_flags_off": {
+      "gfsdp_row_owner_embeddings": false,
+      "gfsdp_split_layer0_ffn": false,
+      "gfsdp_split_mtp_ffn": false
+    },
+    "B_flags_on": {
+      "gfsdp_row_owner_embeddings": true,
+      "gfsdp_split_layer0_ffn": true,
+      "gfsdp_split_mtp_ffn": true
+    },
+    "candidate_activation_markers": {
+      "layer0_ffn": 8,
+      "mtp_ffn": 8,
+      "row_owner_embedding": 8
+    },
+    "unchanged_on_both": [
+      "BF16 expert reuse",
+      "FP8 grouped GEMM and DeepGEMM warmup",
+      "selective activation checkpointing",
+      "model and loss compile",
+      "MTP loss",
+      "optimizer, clipping, EMA, data ordering"
+    ]
+  },
+  "integrity": {
+    "canonical_experiment_sha256": "121a5f11a4b431cb632badc08f9ccf718fc4fd5640c68c9279be57921c012479",
+    "compiler_observer_sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a",
+    "mds_fragment_sha256": "d8d3eef799a660d94819e5317a23b38ab3554dc543941785b6bf0806a3b02d6d",
+    "measurement_adapter_sha256": "8b1dcd56b822d73e0be045f4ab71734a50e72320d04321ec946433566dd5f2d1",
+    "parser_sha256_A_before_fix": "15c63032c850d0f03bae80ac90fee680152237c4d03107ae98a739ff809efe29",
+    "parser_sha256_B_after_fix": "532e4faafc3aea66cb456da497dc680a50292862d0d7177f0c7601c9a41eed14",
+    "resolved_config_sha256": {
+      "A002_first_update": "0afe529806414d456637fa74edd1094083e2ec5c41888e9e724a59db94a3aeff",
+      "B001_first_update": "f7de8e53f201efc661022fc8b06777b7e9618580691fc2ca032553191c0740e5",
+      "warm_A": "82235630ac0e31c3e6d79c6ab446103ca8ddce21bee40de485e1e9908e3fb37a",
+      "warm_B": "081dc2eb015872ac6573987db0f9f1f1a05eab54f058390f14ce9a957447a98f"
+    },
+    "runner_sha256": "50d873d7394cb4907e1cb08a86582ec3e7ee0b278115fa50d03850661646bb2f",
+    "source_final_sha256": "b3c9c0f8178fbe04ee77e170192c9ebbf11a9b094ff80aa14a90ff4c15b40578",
+    "task_head": "2ada87125e433e1f76c4cb2bfad244b641a78a93",
+    "tracked_and_untracked_sha256": "cd9102008dd19819b39c2ee9ce5820565b0d2a0e14783dfb33122691073c41b1",
+    "tracked_tree_sha256": "5ce91928f221b15be1fe594c2c3b55c6c430d4877354039f3bfd3be4b5e1fabd"
+  },
+  "inventory": {
+    "B_existing_slot_regions": {
+      "contiguous_nonoverlap_all8": true,
+      "layer0_data_intervals": [
+        [
+          0,
+          135889280
+        ],
+        [
+          135889280,
+          404849024
+        ]
+      ],
+      "layer0_data_storage_bytes": 1050673152,
+      "layer0_grad_intervals": [
+        [
+          0,
+          271778560
+        ],
+        [
+          271778560,
+          809698048
+        ]
+      ],
+      "layer0_grad_storage_bytes": 937084928,
+      "mtp_data_intervals": [
+        [
+          0,
+          199582720
+        ],
+        [
+          199582720,
+          468542464
+        ]
+      ],
+      "mtp_data_storage_bytes": 468542464,
+      "mtp_grad_intervals": [
+        [
+          0,
+          399165440
+        ],
+        [
+          399165440,
+          937084928
+        ]
+      ],
+      "mtp_grad_storage_bytes": 937084928,
+      "regular_layer_slots_alternate_by_parity_all8": true
+    },
+    "dtype": "BF16 data / FP32 gradients",
+    "owner_output_scratch": {
+      "native_sort_cub_scratch_in_total_allocator_peaks": true,
+      "owned_output_bytes_per_rank": 262668288,
+      "scratch_borrows_private_lm_head_pool": true,
+      "separate_pool": false,
+      "supporting_record": "runs/ffn-row-owner/embedding-component-results.json",
+      "supporting_record_sha256": "a20a51f179e31af05a134b72d75c272e82321b4ca16f78ca812f505105d5d568"
+    },
+    "padded_requirements": {
+      "A_dense_max_elements": 525336576,
+      "B_MTP_split_sum_elements": [
+        99791360,
+        134479872
+      ],
+      "B_dense_max_elements": 234271232,
+      "expert_max_elements": 301989888,
+      "lm_head_private_grad_bytes": 2101346304
+    },
+    "pool_bytes": {
+      "A": {
+        "expert_bf16_data": [
+          603979776,
+          603979776
+        ],
+        "expert_fp32_grad": [
+          1207959552
+        ],
+        "lm_head_data_aliases_existing_slot": true,
+        "ordinary_dense_bf16_data": [
+          1050673152,
+          1050673152
+        ],
+        "ordinary_dense_fp32_grad": [
+          2101346304
+        ],
+        "private_lm_head_fp32_grad": [
+          2101346304
+        ]
+      },
+      "B": {
+        "expert_bf16_data": [
+          603979776,
+          603979776
+        ],
+        "expert_fp32_grad": [
+          1207959552
+        ],
+        "lm_head_data_aliases_existing_slot": true,
+        "ordinary_dense_bf16_data": [
+          1050673152,
+          468542464
+        ],
+        "ordinary_dense_fp32_grad": [
+          937084928
+        ],
+        "private_lm_head_fp32_grad": [
+          2101346304
+        ]
+      }
+    },
+    "reduction_per_rank": 1746392064,
+    "unique_bytes_A_per_rank": [
+      8719958016,
+      8719958016,
+      8719958016,
+      8719958016,
+      8719958016,
+      8719958016,
+      8719958016,
+      8719958016
+    ],
+    "unique_bytes_B_per_rank": [
+      6973565952,
+      6973565952,
+      6973565952,
+      6973565952,
+      6973565952,
+      6973565952,
+      6973565952,
+      6973565952
+    ]
+  },
+  "memory": {
+    "all8_common_budget_pass": true,
+    "allocator_cause_of_reserved_premium": "unproven",
+    "combined_by_rank": {
+      "0": {
+        "A": {
+          "allocated": 71949230080,
+          "reserved": 72427241472
+        },
+        "B": {
+          "allocated": 70578472448,
+          "reserved": 72303509504
+        },
+        "B_minus_A": {
+          "allocated": -1370757632,
+          "reserved": -123731968
+        }
+      },
+      "1": {
+        "A": {
+          "allocated": 72060826112,
+          "reserved": 72406269952
+        },
+        "B": {
+          "allocated": 70708547072,
+          "reserved": 72364326912
+        },
+        "B_minus_A": {
+          "allocated": -1352279040,
+          "reserved": -41943040
+        }
+      },
+      "2": {
+        "A": {
+          "allocated": 71877903360,
+          "reserved": 72200749056
+        },
+        "B": {
+          "allocated": 70479796736,
+          "reserved": 72263663616
+        },
+        "B_minus_A": {
+          "allocated": -1398106624,
+          "reserved": 62914560
+        }
+      },
+      "3": {
+        "A": {
+          "allocated": 72124427776,
+          "reserved": 72764882944
+        },
+        "B": {
+          "allocated": 70550977024,
+          "reserved": 72198651904
+        },
+        "B_minus_A": {
+          "allocated": -1573450752,
+          "reserved": -566231040
+        }
+      },
+      "4": {
+        "A": {
+          "allocated": 72195010048,
+          "reserved": 72645345280
+        },
+        "B": {
+          "allocated": 70477277184,
+          "reserved": 72207040512
+        },
+        "B_minus_A": {
+          "allocated": -1717732864,
+          "reserved": -438304768
+        }
+      },
+      "5": {
+        "A": {
+          "allocated": 72071354368,
+          "reserved": 72509030400
+        },
+        "B": {
+          "allocated": 70633229824,
+          "reserved": 72282537984
+        },
+        "B_minus_A": {
+          "allocated": -1438124544,
+          "reserved": -226492416
+        }
+      },
+      "6": {
+        "A": {
+          "allocated": 72170534912,
+          "reserved": 72517419008
+        },
+        "B": {
+          "allocated": 70448528384,
+          "reserved": 72037171200
+        },
+        "B_minus_A": {
+          "allocated": -1722006528,
+          "reserved": -480247808
+        }
+      },
+      "7": {
+        "A": {
+          "allocated": 72173265408,
+          "reserved": 72676802560
+        },
+        "B": {
+          "allocated": 70386661888,
+          "reserved": 71997325312
+        },
+        "B_minus_A": {
+          "allocated": -1786603520,
+          "reserved": -679477248
+        }
+      }
+    },
+    "common_allocated_pass_by_rank": {
+      "0": true,
+      "1": true,
+      "2": true,
+      "3": true,
+      "4": true,
+      "5": true,
+      "6": true,
+      "7": true
+    },
+    "common_budget_caps": {
+      "allocated": 72195010048,
+      "reserved": 72764882944
+    },
+    "common_reserved_pass_by_rank": {
+      "0": true,
+      "1": true,
+      "2": true,
+      "3": true,
+      "4": true,
+      "5": true,
+      "6": true,
+      "7": true
+    },
+    "first_update_by_rank": {
+      "0": {
+        "A": {
+          "allocated": 61164528640,
+          "ooms": 0,
+          "reserved": 61331210240,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 59286802432,
+          "ooms": 0,
+          "reserved": 61480108032,
+          "retries": 0
+        }
+      },
+      "1": {
+        "A": {
+          "allocated": 61164528640,
+          "ooms": 0,
+          "reserved": 61310238720,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 59286802432,
+          "ooms": 0,
+          "reserved": 61501079552,
+          "retries": 0
+        }
+      },
+      "2": {
+        "A": {
+          "allocated": 61164530688,
+          "ooms": 0,
+          "reserved": 61205381120,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 59286802432,
+          "ooms": 0,
+          "reserved": 61459136512,
+          "retries": 0
+        }
+      },
+      "3": {
+        "A": {
+          "allocated": 61164528640,
+          "ooms": 0,
+          "reserved": 61329113088,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 59286802432,
+          "ooms": 0,
+          "reserved": 61457039360,
+          "retries": 0
+        }
+      },
+      "4": {
+        "A": {
+          "allocated": 61164528640,
+          "ooms": 0,
+          "reserved": 61247324160,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 59286802432,
+          "ooms": 0,
+          "reserved": 61438164992,
+          "retries": 0
+        }
+      },
+      "5": {
+        "A": {
+          "allocated": 61164528640,
+          "ooms": 0,
+          "reserved": 61352181760,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 59286803456,
+          "ooms": 0,
+          "reserved": 61480108032,
+          "retries": 0
+        }
+      },
+      "6": {
+        "A": {
+          "allocated": 61164533760,
+          "ooms": 0,
+          "reserved": 61190701056,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 59286807552,
+          "ooms": 0,
+          "reserved": 61423484928,
+          "retries": 0
+        }
+      },
+      "7": {
+        "A": {
+          "allocated": 61164528640,
+          "ooms": 0,
+          "reserved": 61331210240,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 59286803456,
+          "ooms": 0,
+          "reserved": 61459136512,
+          "retries": 0
+        }
+      }
+    },
+    "first_update_reserved_premium_by_rank": {
+      "0": 148897792,
+      "1": 190840832,
+      "2": 253755392,
+      "3": 127926272,
+      "4": 190840832,
+      "5": 127926272,
+      "6": 232783872,
+      "7": 127926272
+    },
+    "global_max_bytes": {
+      "combined_A": {
+        "allocated": 72195010048,
+        "reserved": 72764882944
+      },
+      "combined_B": {
+        "allocated": 70708547072,
+        "reserved": 72364326912
+      },
+      "first_update_A": {
+        "allocated": 61164533760,
+        "reserved": 61352181760
+      },
+      "first_update_B": {
+        "allocated": 59286807552,
+        "reserved": 61501079552
+      },
+      "warm_step2_A": {
+        "allocated": 72195010048,
+        "reserved": 72764882944
+      },
+      "warm_step2_B": {
+        "allocated": 70708547072,
+        "reserved": 72364326912
+      }
+    },
+    "phase_scope": {
+      "combined": "per rank, max(first-update peak,warm update-2 peak)",
+      "first_update": "A002/B001: before train through first optimizer update; peak reset in MetricsProcessor.__init__ occurs before model-parallel/model initialization; window begins before Trainer.train; construction/model-init and compile/lazy-init high-water may be included.",
+      "source_refs": [
+        "gift/torchtitan/components/metrics.py:287-316",
+        "gift/torchtitan/trainer.py:742-759",
+        "gift/torchtitan/trainer.py:816-835"
+      ],
+      "warm_update_2": "warm A/B: update 2 after one warmup update, persistent Adam/optimizer state live; per-window peak reset excludes update-1 high-water, retained in combined max."
+    },
+    "same_rank_rank2_reserved_delta_bytes": 62914560,
+    "same_rank_reserved_pass": {
+      "0": true,
+      "1": true,
+      "2": false,
+      "3": true,
+      "4": true,
+      "5": true,
+      "6": true,
+      "7": true
+    },
+    "warm_step2_by_rank": {
+      "0": {
+        "A": {
+          "allocated": 71949230080,
+          "ooms": 0,
+          "reserved": 72427241472,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 70578472448,
+          "ooms": 0,
+          "reserved": 72303509504,
+          "retries": 0
+        }
+      },
+      "1": {
+        "A": {
+          "allocated": 72060826112,
+          "ooms": 0,
+          "reserved": 72406269952,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 70708547072,
+          "ooms": 0,
+          "reserved": 72364326912,
+          "retries": 0
+        }
+      },
+      "2": {
+        "A": {
+          "allocated": 71877903360,
+          "ooms": 0,
+          "reserved": 72200749056,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 70479796736,
+          "ooms": 0,
+          "reserved": 72263663616,
+          "retries": 0
+        }
+      },
+      "3": {
+        "A": {
+          "allocated": 72124427776,
+          "ooms": 0,
+          "reserved": 72764882944,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 70550977024,
+          "ooms": 0,
+          "reserved": 72198651904,
+          "retries": 0
+        }
+      },
+      "4": {
+        "A": {
+          "allocated": 72195010048,
+          "ooms": 0,
+          "reserved": 72645345280,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 70477277184,
+          "ooms": 0,
+          "reserved": 72207040512,
+          "retries": 0
+        }
+      },
+      "5": {
+        "A": {
+          "allocated": 72071354368,
+          "ooms": 0,
+          "reserved": 72509030400,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 70633229824,
+          "ooms": 0,
+          "reserved": 72282537984,
+          "retries": 0
+        }
+      },
+      "6": {
+        "A": {
+          "allocated": 72170534912,
+          "ooms": 0,
+          "reserved": 72517419008,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 70448528384,
+          "ooms": 0,
+          "reserved": 72037171200,
+          "retries": 0
+        }
+      },
+      "7": {
+        "A": {
+          "allocated": 72173265408,
+          "ooms": 0,
+          "reserved": 72676802560,
+          "retries": 0
+        },
+        "B": {
+          "allocated": 70386661888,
+          "ooms": 0,
+          "reserved": 71997325312,
+          "retries": 0
+        }
+      }
+    }
+  },
+  "rank_update_receipts": {
+    "first_update_baseline": {
+      "0": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "1": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "2": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "3": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "4": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "5": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "6": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "7": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      }
+    },
+    "first_update_candidate": {
+      "0": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "1": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "2": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "3": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "4": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "5": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "6": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "7": {
+        "completed_steps": 1,
+        "expected_steps": 1,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      }
+    },
+    "warm_baseline": {
+      "0": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "1": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "2": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "3": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "4": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "5": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "6": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "7": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      }
+    },
+    "warm_candidate": {
+      "0": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "1": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "2": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "3": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "4": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "5": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "6": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      },
+      "7": {
+        "completed_steps": 2,
+        "expected_steps": 2,
+        "measurement_status": "complete",
+        "physical_input_tokens_local": 262144,
+        "training_status": "complete"
+      }
+    }
+  },
+  "raw_runs": {
+    "A002_first_update": {
+      "completion": null,
+      "failure": {
+        "error": "RuntimeError: rank measurement records are incomplete: ['measured windows require positive warmup and window lengths']",
+        "finished_at_utc": "2026-11-14T22:19:58.111943+00:00",
+        "pid": 273692,
+        "status": "FAIL",
+        "timed_out": false
+      },
+      "failure_sha256": "b2d11014f3d8a6b3d177f33d6d552b358e704af62e325a4292b3094075d12791",
+      "inventory_manifest": {
+        "count": 8,
+        "sha256": "2e08d12412af74cb11fe2b5d6e7ee9eb24deb89f8664afed334ecf3a88d6424d"
+      },
+      "launcher_log_sha256": "85e3eaaa20bd9a1d9dad7a31dbb6593c50547b9a92872485439418f9c9734c03",
+      "metadata_sha256": "f8a6c1f9224b93b9ca57efdb65f35fbb4f3a5d38094a1be9446a4e2f1e6af398",
+      "original_summary_sha256": "a979ce458bd6ce14287325136816e0076bfea0679955f6cffb2af9b5d7e0ab24",
+      "rank_records_manifest": {
+        "count": 8,
+        "sha256": "618b8d302c4b4659cba8ee9eed668e176f935ae2c1038928b90c9f8e5c1ab4d1"
+      },
+      "raw_dir": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-a-002",
+      "resolved_config": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-a-002/native/config/resolved_config.yaml",
+        "sha256": "0afe529806414d456637fa74edd1094083e2ec5c41888e9e724a59db94a3aeff"
+      },
+      "stdout_logs_manifest": {
+        "count": 8,
+        "sha256": "d30063703b095acbfc487a28a27836d08232ddbd0b5ab85bd71433380a948fe3"
+      },
+      "summary": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-a-002-summary-recovered.json",
+        "sha256": "934b1abdb316c43099dc5ba7f7bf6bdc7f1896c22ab2d5a6b2b1a24638d62744"
+      }
+    },
+    "B001_first_update": {
+      "completion": {
+        "config_unchanged": true,
+        "finished_at_utc": "2026-11-14T22:32:12.831748+00:00",
+        "resolved_config_sha256": "f7de8e53f201efc661022fc8b06777b7e9618580691fc2ca032553191c0740e5",
+        "source_unchanged": true,
+        "status": "PASS",
+        "task_tmpdir": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-u1cd9ep8",
+        "task_tmpdir_removed": true
+      },
+      "inventory_manifest": {
+        "count": 8,
+        "sha256": "5106939856c3b2d8ee3a47d87a3af27a2e2850868ce94826358e47adac2235a0"
+      },
+      "launcher_log_sha256": "8dac3f799b2116d686f90492e4d7d88c87c1f3d35d062f324f8af51ade4ea673",
+      "metadata_sha256": "5a6e7e13d4b030ed306f0766e64447e5b3b89f0f8e77711b4c42e9c3e11b79ed",
+      "rank_records_manifest": {
+        "count": 8,
+        "sha256": "43c4cd8c0a973be22af72dd17eccf490297c067e3481bca2824f041a7307f910"
+      },
+      "raw_dir": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-b-001",
+      "resolved_config": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-b-001/native/config/resolved_config.yaml",
+        "sha256": "f7de8e53f201efc661022fc8b06777b7e9618580691fc2ca032553191c0740e5"
+      },
+      "stdout_logs_manifest": {
+        "count": 8,
+        "sha256": "8d9f8b4f17822810f0d28b82c01b233b40380aebfdab4b8bbb92c61b1a2d38a4"
+      },
+      "summary": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-b-001/summary.json",
+        "sha256": "2313a4ed6682dae81aabbfbfa4a14e30a09eb446813352c55fc7b0df4511df8e"
+      }
+    },
+    "warm_A": {
+      "completion": {
+        "config_unchanged": true,
+        "finished_at_utc": "2026-11-14T22:42:36.053658+00:00",
+        "resolved_config_sha256": "82235630ac0e31c3e6d79c6ab446103ca8ddce21bee40de485e1e9908e3fb37a",
+        "source_unchanged": true,
+        "status": "PASS",
+        "task_tmpdir": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-3923_wya",
+        "task_tmpdir_removed": true
+      },
+      "launcher_log_sha256": "a020a1c051c639d659b1f9262b28c6f7f6420170339903f3f6cf31955cb03000",
+      "metadata_sha256": "0d062d539230eac0d3c18cbd3cdaaeb1a10ff7c858d2db5ab054839829812357",
+      "rank_records_manifest": {
+        "count": 8,
+        "sha256": "f5dc0356586886683b9f5ad9731cd4414d6a1c9c59714bd369c5c8b171f73660"
+      },
+      "raw_dir": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-warm-a-001",
+      "resolved_config": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-warm-a-001/native/config/resolved_config.yaml",
+        "sha256": "82235630ac0e31c3e6d79c6ab446103ca8ddce21bee40de485e1e9908e3fb37a"
+      },
+      "stdout_logs_manifest": {
+        "count": 8,
+        "sha256": "e4d7b92de05125469fbee77dcdd1184f19c94fc99f9e514158a075cfa15c0e69"
+      },
+      "summary": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-warm-a-001/summary.json",
+        "sha256": "d24e8a8f007fa45772060b31479adcb46a3d5d2691583bad7fa314653d4499c0"
+      }
+    },
+    "warm_B": {
+      "completion": {
+        "config_unchanged": true,
+        "finished_at_utc": "2026-11-14T22:46:35.842874+00:00",
+        "resolved_config_sha256": "081dc2eb015872ac6573987db0f9f1f1a05eab54f058390f14ce9a957447a98f",
+        "source_unchanged": true,
+        "status": "PASS",
+        "task_tmpdir": "/workspace-SR008.nfs2/vkropotin/optimization-task/.tmp/run-r72olytd",
+        "task_tmpdir_removed": true
+      },
+      "launcher_log_sha256": "71ef7bce1de08e4bab414c35125ecee5c9e323f23540c41870e10782dbab90fa",
+      "metadata_sha256": "624f04622b35a51c2d04aa75991a47d80c7e679ee7a556bfad8a308a0e3f90e4",
+      "rank_records_manifest": {
+        "count": 8,
+        "sha256": "e25cfddbb59805fee5b28d79cbffd4153b3a885a3414c0f16c82fa56f9f8164a"
+      },
+      "raw_dir": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-warm-b-001",
+      "resolved_config": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-warm-b-001/native/config/resolved_config.yaml",
+        "sha256": "081dc2eb015872ac6573987db0f9f1f1a05eab54f058390f14ce9a957447a98f"
+      },
+      "stdout_logs_manifest": {
+        "count": 8,
+        "sha256": "4b5b498bf4c7958985e7fc8f436769033a308ff92e87ae95e28cd73bd1b69d09"
+      },
+      "summary": {
+        "path": "runs/ffn-row-owner/artifacts/raw/ffn-row-owner-memory-warm-b-001/summary.json",
+        "sha256": "ef6fd8ec108e6827331bd3186faf1bb0433eee2f58c64bfd7516f04a5ec1e3ef"
+      }
+    }
+  },
+  "scope": {
+    "allocator_scope": "allocated/reserved peaks cover all allocator-tracked GPU memory, including scratch/metadata and compile/lazy initialization; GFSDP inventory covers only GFSDP storages",
+    "batch": {
+      "derived_accumulation_microbatches": 32,
+      "dp_shard_degree": 8,
+      "global_batch": 512,
+      "local_batch": 2,
+      "physical_tokens_per_rank_update": 262144,
+      "seq_len": 4096
+    },
+    "cache_root": "runs/overnight-streaming-perf/artifacts/raw/combined-four-baseline-003/cache",
+    "hardware": "8 x H100"
+  },
+  "status": "PASS_WITH_PAIRED_RESERVED_CAVEAT",
+  "title": "Native GFSDP memory and integration results"
+}

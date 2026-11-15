@@ -58,6 +58,13 @@ def _write_resolved_fixture(
     values: dict[str, object] = {
         "dataloader.num_prefetch_batches": args.num_prefetch_batches,
         "dataloader.dataset.epoch_size": epoch_size,
+        "dataloader.dataset.streams": [
+            {
+                "name": runner.DATASET_ID,
+                "local": str(runner.DATASET_ROOT),
+                "split": "train",
+            }
+        ],
         "dataloader.type": "streaming_text",
         "training.steps": args.steps,
         "training.local_batch_size": 2,
@@ -76,6 +83,9 @@ def _write_resolved_fixture(
         "parallelism.gfsdp_reuse_bf16_expert_weights": (
             args.gfsdp_reuse_bf16_expert_weights
         ),
+        "parallelism.gfsdp_split_mtp_ffn": args.gfsdp_split_mtp_ffn,
+        "parallelism.gfsdp_split_layer0_ffn": args.gfsdp_split_layer0_ffn,
+        "parallelism.gfsdp_row_owner_embeddings": args.gfsdp_row_owner_embeddings,
         "parallelism.pipeline_parallel_degree": 1,
         "parallelism.tensor_parallel_degree": 1,
         "parallelism.context_parallel_degree": 1,
@@ -149,7 +159,7 @@ def test_epoch_size_cli_validation_and_existing_run_schedules() -> None:
     assert (diagnostic.profile_update, diagnostic.profile_microbatches) == (21, 3)
 
 
-def test_child_receives_native_epoch_override_and_default_stays_null(
+def test_child_receives_optional_epoch_override_and_default_uses_prepared_epoch(
     tmp_path: Path,
 ) -> None:
     selected = runner._parse_args(
@@ -184,7 +194,7 @@ def test_child_receives_native_epoch_override_and_default_stays_null(
     )
     assert default_helper.capture_microbatches is False
     assert "--capture-microbatches" not in default_native_args
-    assert default_resolved["dataloader"]["dataset"].get("epoch_size") is None
+    assert default_resolved["dataloader"]["dataset"].get("epoch_size") == runner.NUM_ROWS
 
 
 def test_resolved_config_checks_requested_epoch_size(tmp_path: Path) -> None:
@@ -266,6 +276,14 @@ def test_run_metadata_records_requested_options(
     monkeypatch.setattr(runner, "verify_task_root", lambda _root: None)
     monkeypatch.setattr(runner, "_make_run_dirs", lambda _run_id, _output=None: paths)
     monkeypatch.setattr(runner, "_data_root", lambda _root: tmp_path)
+    monkeypatch.setattr(
+        runner,
+        "_verify_ready_inputs",
+        lambda _root: {
+            "dataset_root": str(tmp_path),
+            "dataset_sha256": "dataset",
+        },
+    )
     monkeypatch.setattr(runner, "_filesystem_status", lambda _paths, _mds: {})
     monkeypatch.setattr(
         runner, "_make_task_tmpdir", lambda: (tmp_path / "task-tmp", {})

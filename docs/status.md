@@ -1,8 +1,59 @@
 # Current state
 
-Updated: 14 November 2026. This file owns the integrated project state;
+Updated: 15 November 2026. This file owns the integrated project state;
 [the plan](../planning/README.md) owns future priorities. Update this file when
 new evidence changes a conclusion, not after each diagnostic command.
+
+## Global data correction: current comparisons use the corrected inputs
+
+The [global input requirement](baseline.md#global-requirement-real-data-and-production-tokenizer)
+applies to every campaign. Historical test-tokenizer runs remain evidence for
+those inputs only. The completed production-data A/B/C/D rerun below supplies
+fresh matched controls, component measurements and diagnostics for the four
+requested cumulative variants; it does not isolate each of the four bundled
+fixes. Accepted implementation and MTP/FP8 A/A decisions are preserved.
+
+## Production-data cumulative A/B/C/D rerun: complete
+
+The 15 November goal authorizes the existing eight-H100 allocation for a fresh
+matched comparison on real diverse data encoded with the production 100B
+tokenizer. The [baseline](baseline.md#selected-production-tokenizer-and-real-data-inputs)
+owns current input defaults; the [single campaign report](../runs/production-data-abcd/report.md)
+owns the finite checklist, exact variants, commands, evidence and remaining gates.
+Historical fixture throughput is excluded as a control.
+
+The named production tokenizer and native wrapper are verified, and the completed
+`data-002` mixture contains 102400 distinct full rows, with 25600 from each of
+four GigaSets domains. The [preparation receipt](../runs/production-data-abcd/data-002.json)
+owns source files, hashes, tokenizer identities and packing details. The actual
+native CPU/Gloo loader check passes at prefetch depths 0 and 32 on all eight
+ranks; it verifies loaded rows, exact input/label/position order, bounds,
+uniqueness and owner skew. The base runner's actual
+`_verify_ready_inputs(TASK_ROOT)` check passes as recorded in
+[input-readiness.json](../runs/production-data-abcd/input-readiness.json). See
+the [loader receipt](../runs/production-data-abcd/data-002-loader-summary.json)
+for per-rank totals and distributions. `data-001` remains a failed partial and
+is excluded. These are CPU/input checks and do not establish training behavior.
+
+Independent source/runtime-cost review and both native component meta tests
+pass. The one-update native acquisition and all six component timing processes
+passed; [component evidence](../runs/production-data-abcd/component-results.json)
+records their scope and limitations. All four serial A/B/C/D timing runs
+completed, with +4.708781% B/A, +2.211793% C/B, +1.938239% D/C and +9.099118%
+D/A physical-TPS ratios in this single fixed-order pair. These are provisional
+observations, not repeatable or causal speedup claims. The [campaign report](../runs/production-data-abcd/report.md)
+and [performance summary](../runs/production-data-abcd/performance-summary.json)
+own the timer, full cadence series, memory, activation, component and uncertainty
+details. All eight timing/diagnostic rows are terminal with no failures; the
+source/config guard passed, child groups are gone and all eight GPUs are idle
+with the lease closed. The final campaign JSON is hashed in the report, and MCP
+Perfetto reconciliation is complete; its import limits and scoped findings are
+recorded there. The single fixed-order throughput differences remain
+provisional, with no baseline/default promotion. The completed implementation
+and accepted MTP/FP8 A/A decision are preserved. The owner subsequently
+authorized local/server synchronization, downloading the four original rank-0
+traces into ignored `artifacts/`, and committing/pushing the consolidated task.
+No additional training or installation follows from that publication request.
 
 ## Current final task baseline: owner-selected recipe
 
@@ -19,6 +70,63 @@ comparison remains confounded by about 10.4% within-window cadence drift. These
 measurements do not establish a general or causal throughput gain; the baseline
 selection is the owner's decision. Long-run convergence, checkpoint/resume, EMA
 updates, CP warmup, and production PP4/EP32 behavior remain unverified.
+
+## FFN overlap and row-owner embeddings: bounded campaign complete; A/B result provisional
+
+The [campaign report](../runs/ffn-row-owner/report.md) owns the integrated
+source identity, checks and evidence limits. The final standard-autograd owner
+source SHA256 is
+`f3a01c6cf99b981db7b4ef66866fe46259af84e9d2c21e2044e9ae18ff1696fd`.
+Backward returns an owned 262,668,288-byte FP32 `RaggedShardDTensor` local
+gradient to ordinary autograd; up to 704 MiB of scratch borrows the resident
+2004 MiB private `lm_head` bucket. Manual `.grad` mutation and engine/hook
+restrictions are removed, while native BF16 coalescing, FP32 owner SUM and
+normalization are preserved. Eight-rank NCCL checks cover routing/duplicates,
+accumulation/reset, hooks and `autograd.grad`, clipping, dense AdamW, EMA and
+flat-DCP next-update behavior. Full-shape lookup outputs and first/later/reset gradients match
+exactly. In the equal-cache full-shape check,
+the warmed accumulated owner peak was 5,781,722,112 allocated / 7,648,313,344
+reserved bytes, versus 8,950,373,888 / 9,003,073,536 for baseline. The six-case
+[owner component table](../runs/ffn-row-owner/embedding-component-results.md)
+owns timing scopes and allocator-history distinctions; its fixture F+B median
+was 2.554 ms versus 13.040 ms. This is component evidence, not native training
+throughput.
+
+The [FFN component table](../runs/ffn-row-owner/ffn-component-results.md)
+reports one isolated control/split pair per component: layer0 latency was
+23.58189→21.56324 ms (8.56% lower), MTP 31.41067→29.49934 ms (6.08% lower),
+with unchanged unique data/gradient pool bytes. The
+[MCP analysis](../runs/ffn-row-owner/ffn-component-perfetto.md) links device
+flows on all eight ranks and observes FFN reduce-scatter overlapping
+parent-backward compute in all 48 captured cases. It does not quantify a
+whole-training gain or prove which event handles each wait consumes. The owner
+accepted the measured MTP/FP8 A/A variability; it remains recorded but no
+further MTP/layer0 numerical investigation is a campaign gate.
+
+The [native memory receipt](../runs/ffn-row-owner/native-memory-results.md)
+closes the initialized-pool, common-baseline memory-cap and all-three
+32-microbatch native integration gates. Candidate B's unique per-rank GFSDP
+pool is 1,746,392,064 B smaller; all eight B ranks remain within the baseline
+worst-rank allocated/reserved cap, and the candidate's global combined peak is
+lower. The receipt retains the first-update reserved premium and the warm rank-2
+reserved increase of 60 MiB; neither changes the common-cap result. Its phase
+windows do not prove a constructor-inclusive full-lifecycle or long-run peak.
+
+The bounded [native trace](../runs/ffn-row-owner/native-trace-results.md)
+confirms all-three activation and the combined mechanisms: in 12 FFN
+rank/microbatch cases, the 513 MiB reduce-scatter precedes the parent reduction
+and overlaps 96.20–98.32% with remaining parent compute. It also confirms that
+embedding-table collectives are removed while the untied `lm_head` collectives
+remain. The trace covers three of 32 microbatches on two ranks and cannot prove
+exact event-wait causality or a full-update critical path. The completed [native
+performance report](../runs/ffn-row-owner/native-performance-results.md)
+records the all-eight-rank 10+10 A/B pair: global physical throughput was
+164,737.68→166,825.08 tokens/s (+1.27%), supervised throughput was
+164,697.46→166,784.35 tokens/s, and elapsed time was 127.303→125.710 s. The
+single serial pair has about 3% within-window cadence drift and no A/A noise
+estimate, so this provisional fixed-window difference does not establish a
+general or causal whole-training speedup. Production convergence and PP4/EP32
+behavior remain unverified.
 
 ## Timing drift in fixed-window runs
 

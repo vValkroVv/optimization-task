@@ -112,3 +112,96 @@ model.to_empty(device="cuda")
 model.init_weights() # or `model.apply(init_weights)`
 ```
 FSDP1 requires either `reset_parameters` or `param_init_fn` to materialize a module onto GPU immediately before sharding. To do this correctly without re-initializing any tensors requires care and can be unwieldy. However, FSDP2 allows materializing tensors onto GPU _after_ sharding (taking advantage of `DTensor` and a new `swap_tensors` path for `nn.Module._apply` methods).
+
+## GIFT GFSDP opt-in controls
+
+The three independent controls below default to `false` and are only applied by
+the GIFT MoE GFSDP2 path. The FFN controls require TP/PP/CP1. Row-owner
+embeddings also require no HSDP replicas, no CPU offload, untied weights, and a
+supported complete-row input table and lookup.
+
+| Parallelism option | Default | Behavior |
+| --- | --- | --- |
+| `gfsdp_split_layer0_ffn` | `false` | Give `layers.0.feed_forward` a separate compiled GFSDP boundary. |
+| `gfsdp_split_mtp_ffn` | `false` | Give `mtp.layers.0.block.feed_forward` a separate compiled GFSDP boundary. |
+| `gfsdp_row_owner_embeddings` | `false` | Exchange requested input-embedding rows with dense GFSDP owners. |
+
+For example, add the selected options to an existing experiment override:
+
+```yaml
+parallelism:
+  fsdp_backend: gfsdp2
+  gfsdp_split_layer0_ffn: true
+  gfsdp_split_mtp_ffn: true
+  gfsdp_row_owner_embeddings: true
+```
+
+Each FFN keeps `w1`, `w2` and `w3` together in its original module. Its eager
+parent calls separately compiled prefix, FFN and suffix regions. Activation
+checkpointing runs inside those regions with the original block's resolved
+policy and options. The ordinal `mm_half` SAC policy is incompatible with these
+boundaries and raises an explicit error. Model and loss compilation remain
+independent existing controls.
+
+The FFN remainder and its FFN child form separate compiled/GFSDP regions. The
+selected groups keep `w1`, `w2` and `w3` together; setup logs name both compute
+boundaries and actual GFSDP groups. The ordinal `mm_half` SAC policy is
+incompatible with these boundaries and raises an explicit error. Model and loss
+compilation remain enabled through their existing controls. FFN overlap is a
+schedule opportunity, not a measured speedup. Each selected parent and FFN use disjoint contiguous views per dtype in the
+original alternating all-gather slot and ordinary gradient slot. Allocation
+sizing uses the original unsplit unit; padding that exceeds that budget raises
+before compute. Reuse waits for every overlapping region's release event, so
+early FFN reduction can proceed alongside writes to the disjoint remainder.
+Allocator peaks and actual overlap require component measurements.
+
+With `gfsdp_row_owner_embeddings`, the registered FP32 parameter keeps the
+`tok_embeddings.weight` FQN and global table shape. On the accepted crop's
+eight dense owners, each shard contains 16,032 complete rows. Forward routes
+unique signed int64 token IDs to owners and restores their original order; the
+trunk and MTP reuse this one eager lookup. Backward uses native dense BF16
+embedding coalescing before lossless BF16 row transport, then widens each source
+contribution before FP32 owner summation. The owner returns that sum as an owned
+local FP32 gradient wrapped in the parameter's RaggedShard spec, so ordinary
+AccumulateGrad owns `.grad` accumulation. `torch.autograd.grad`, parameter
+gradient hooks, and post-accumulate hooks retain normal PyTorch behavior;
+higher-order differentiation remains unsupported. Dense FP32 accumulation,
+division factor one, global clipping, fused AdamW, EMA, and flat DCP restore
+remain in use. No full-table embedding gather or dense embedding reduce-scatter
+is issued, and no persistent BF16 row cache is kept.
+
+The current native backward path still materializes a full-vocabulary BF16
+gradient and native scratch: 1,002 MiB for the BF16 output at vocabulary
+128,256 by hidden size 4,096; the low-parallelism branch can additionally use a
+2,004 MiB FP32 temporary. The returned owner gradient is another 250.5 MiB per
+rank at this shape. It replaces the former dense-gradient suffix in borrowed
+scratch, reducing the maximum backward borrow from 954.5 to 704 MiB, but the
+owned output is allocated while the native BF16 gradient is still live; this is
+not evidence of a lower allocator peak. Per forward, dynamic unique counts use
+one count all-gather and explicit host read before variable-size request/value
+exchanges; later batches are not bounded by a first-batch capacity. Skewed
+traffic and any additional synchronization from dynamic `torch.unique` remain
+runtime costs to measure. Checkpoint/optimizer/EMA ownership is integrated
+through the existing GFSDP state adapter.
+
+The embedding remains eager before compiled/SAC blocks, while model and loss
+compilation and the selected SAC policy stay enabled. Unsupported modes fail
+explicitly: TP/PP/CP greater than one, HSDP replicas, CPU offload, tied input
+weights, padding/max-norm/frequency-scaled/sparse lookup, incomplete or padded
+owner rows, deferred/no-sync reduction, and higher-order differentiation. These
+controls preserve logical parameter names, precision, gradient division, and
+optimizer/EMA traversal. Flat shard offsets can change; use the GFSDP DCP
+adapter when restoring model, optimizer, and EMA state.
+
+Performance remains pending. The native scratch, dynamic host metadata,
+owner imbalance, and communication-stream costs require the authorized H100/
+NCCL component measurements; no speed claim follows from the CPU/Gloo checks.
+
+Focused tests are `tests/unit_tests/test_ffn_overlap.py`,
+`tests/unit_tests/test_gfsdp_ffn_overlap.py`,
+`tests/unit_tests/test_row_owner_embedding.py`, and
+`tests/unit_tests/test_gfsdp_row_owner_integration.py`. The FFN GFSDP test
+exercises 32 microbatches, fused AdamW, EMA, and baseline-to-split DCP
+continuation; row-owner tests cover routing/state and actual wrapper exclusion.
+CPU/Gloo checks do not validate H100 FP8 kernels or the production eight-rank
+schedule.
