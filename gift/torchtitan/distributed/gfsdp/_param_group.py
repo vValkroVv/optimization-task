@@ -248,6 +248,8 @@ class GFSDPParamGroup:
         # Holds the CUDA event that marks the end of the group's post-backward,
         # which should be waited on at the end of backward
         self._post_reduce_event: torch.Event | None = None
+        # Optional one-way transition set by the root after buffer dealing.
+        self._post_backward_prefetch_target: GFSDPParamGroup | None = None
 
         # The expert cache reuses the existing all-gather input. Its values
         # stay valid across microbatches until a supported weight writer bumps
@@ -1001,6 +1003,7 @@ class GFSDPParamGroup:
         # This method should be idempotent and safe to call even when this
         # FSDP parameter group was not used in backward (should be a no-op)
         logger.debug("%s", self._with_fqn("GFSDP::post_backward"))
+        was_in_backward = self._training_state == TrainingState.PRE_BACKWARD
         self._training_state = TrainingState.POST_BACKWARD
         if (grad_buffer_ctx := self.grad_buffer_ctx) is not None:
             if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
@@ -1091,6 +1094,7 @@ class GFSDPParamGroup:
 
         assert grad_buffer_ctx is not None
         logger.debug("%s", self._with_fqn("GFSDP::post_backward_reduce"))
+        reduce_scatter_enqueued = False
         with record_function(self._with_fqn("GFSDP::post_backward_reduce")):
             for (
                 all_gather_dtype,
@@ -1124,8 +1128,19 @@ class GFSDPParamGroup:
                         all_gather_dtype
                     ),
                 )
+                reduce_scatter_enqueued = True
         grad_buffer_ctx.release_event = self._post_reduce_event
         grad_buffer_ctx.owner = None
+
+        if (
+            was_in_backward
+            and reduce_scatter_enqueued
+            and self.reduce_grads
+            and self.reshard_after_backward
+            and self.data_buffer_ctx.owner is None
+            and self._post_backward_prefetch_target is not None
+        ):
+            self._prefetch_unshard(self._post_backward_prefetch_target, "backward")
 
     def finalize_backward(self) -> None:
         self._wait_for_post_backward()

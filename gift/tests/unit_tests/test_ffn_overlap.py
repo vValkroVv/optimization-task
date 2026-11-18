@@ -15,6 +15,7 @@ from torchtitan.distributed.activation_checkpoint import apply_ac
 from torchtitan.distributed.compile import apply_compile, EagerWindow
 from torchtitan.distributed.ffn_overlap import enable_ffn_overlap
 from torchtitan.distributed.gfsdp._param_group import GFSDPBufferContext
+from torchtitan.distributed.gfsdp._state import _alias_buffer_region
 from torchtitan.protocols.module import Module, ModuleDict
 from tests.unit_tests.test_mtp import _block_config, _module_config
 
@@ -203,10 +204,34 @@ def test_regions_alias_existing_storage_and_detect_all_overlaps():
     assert ffn.conflicting_owner(object()) is owner
 
 
+def test_nested_transition_alias_uses_absolute_storage_ranges_and_borrow_registry():
+    ctx = GFSDPBufferContext(GFSDPBufferContext.BufferType.ALL_GATHER)
+    ctx.lazy_init({None: 128}, torch.device("cpu"))
+    source = ctx.region({None: 96}, {None: 16})
+    source.buffers[None].copy_(torch.arange(96, dtype=torch.uint8))
+
+    target = _alias_buffer_region(source, {None: 64})
+
+    assert target._storage_ctx is ctx
+    assert target._ranges[None] == (16, 80)
+    assert target.buffers[None].storage_offset() == 16
+    torch.testing.assert_close(target.buffers[None], source.buffers[None][:64])
+    assert source.overlaps(target)
+
+    owner = object()
+    target.owner = owner
+    assert ctx.conflicting_owner(object()) is owner
+    with pytest.raises(RuntimeError, match="live owner"):
+        with ctx.borrow(None):
+            pass
+
+
 def test_flags_default_off_and_repeated_enable_rejected():
     config = ParallelismConfig()
     assert not config.gfsdp_split_mtp_ffn
     assert not config.gfsdp_split_layer0_ffn
+    assert not config.gfsdp_mtp_transition_prefetch
+    assert not config.gfsdp_row_owner_embedding_optimizations
     model = _model(False)
     enable_ffn_overlap(model.unit)
     with pytest.raises(ValueError, match="already configured"):
@@ -221,16 +246,27 @@ def test_ordinal_mm_half_policy_is_explicitly_rejected_for_split_regions():
 
 
 @pytest.mark.parametrize(
-    "split_layer0,split_mtp",
-    [(False, False), (True, False), (False, True), (True, True)],
+    "split_layer0,split_mtp,mtp_transition",
+    [
+        (False, False, False),
+        (True, False, False),
+        (False, True, False),
+        (True, True, False),
+        (False, True, True),
+    ],
 )
-def test_nested_wrapping_and_prefetch_entry_order(monkeypatch, split_layer0, split_mtp):
+def test_nested_wrapping_and_prefetch_entry_order(
+    monkeypatch, split_layer0, split_mtp, mtp_transition
+):
     import torchtitan.models.gift_moe._base.parallelize as parallelize
     from tests.unit_tests.test_mtp import _make_tiny_decoder
 
     class RecordedGFSDP:
         def set_buffer_region_child(self, child):
             self.buffer_region_child = child
+
+        def set_buffer_region_transition(self, **modules):
+            self.buffer_region_transition = modules
 
         def set_own_grad_buffer(self):
             self.private_grad = True
@@ -278,6 +314,7 @@ def test_nested_wrapping_and_prefetch_entry_order(monkeypatch, split_layer0, spl
         pp_enabled=False,
         ep_degree=2,
         edp_mesh=object(),
+        mtp_transition_prefetch=mtp_transition,
     )
     units = [
         model.tok_embeddings,
@@ -305,5 +342,20 @@ def test_nested_wrapping_and_prefetch_entry_order(monkeypatch, split_layer0, spl
     for source, target in zip(forward, forward[1:]):
         assert source.forward_prefetch == [target]
     for source, target in zip(backward, backward[1:]):
-        assert source.backward_prefetch == [target]
+        if source is model.lm_head and mtp_transition:
+            mtp_layer = model.mtp.layers["0"]
+            assert source.backward_prefetch == [
+                mtp_layer,
+                mtp_layer.block.feed_forward,
+            ]
+        else:
+            assert source.backward_prefetch == [target]
     assert all(unit.divide_factor == 1 for unit in sharded)
+    if mtp_transition:
+        mtp_layer = model.mtp.layers["0"]
+        assert model.buffer_region_transition == {
+            "source": mtp_layer.block.feed_forward,
+            "data_target": model.layers[list(model.layers.keys())[-1]],
+            "grad_target": model.norm,
+        }
+        assert mtp_layer.backward_prefetch == [mtp_layer.block.feed_forward]

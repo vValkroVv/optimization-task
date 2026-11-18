@@ -1,0 +1,41 @@
+{
+  "traces": {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Traces loaded successfully: 2\nLoaded traces: [{\"path\":\"/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/trace-analysis/d-rank0.lanes.json\",\"display\":\"/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/trace-analysis/d-rank0.lanes.json\",\"trace_id\":\"trace_8f865e542ea6c931\",\"summary\":{\"available\":true,\"capabilities\":[\"slices\"],\"duration_ms\":1204.773,\"end_ts\":3856524073850370,\"file_size_bytes\":20377312,\"process_count\":21,\"recommended_next_tools\":[\"list_tables\",\"list_table_structure\",\"list_processes\",\"execute_sql\"],\"redaction_policy\":{\"chrome_tool_string_cells\":true,\"env_var\":\"PERFETTO_MCP_REDACT_STRINGS_DEFAULT\",\"execute_sql_string_cells\":true,\"note\":\"execute_sql and Chrome dedicated-tool string cells may contain <redacted>; this is server-side policy, not a tool parameter.\"},\"start_ts\":3856522869077098,\"thread_count\":35,\"trace_profile\":\"generic\",\"trace_type\":\"json\"}},{\"path\":\"/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/trace-analysis/d-rank1.lanes.json\",\"display\":\"/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/trace-analysis/d-rank1.lanes.json\",\"trace_id\":\"trace_e86f2e1458c685ce\",\"summary\":{\"available\":true,\"capabilities\":[\"slices\"],\"duration_ms\":1206.074,\"end_ts\":3856524074660559,\"file_size_bytes\":20378375,\"process_count\":21,\"recommended_next_tools\":[\"list_tables\",\"list_table_structure\",\"list_processes\",\"execute_sql\"],\"redaction_policy\":{\"chrome_tool_string_cells\":true,\"env_var\":\"PERFETTO_MCP_REDACT_STRINGS_DEFAULT\",\"execute_sql_string_cells\":true,\"note\":\"execute_sql and Chrome dedicated-tool string cells may contain <redacted>; this is server-side policy, not a tool parameter.\"},\"start_ts\":3856522868586512,\"thread_count\":35,\"trace_profile\":\"generic\",\"trace_type\":\"json\"}}]\nRouting hint: pass the returned `trace_id` to analysis tools when comparing loaded traces."
+        }
+      ],
+      "isError": false
+    }
+  },
+  "sql": "SELECT 'category' kind, category name, COUNT(*) n, SUM(dur)/1e6 value FROM slice GROUP BY category UNION ALL SELECT 'import',name,value,0 FROM stats WHERE severity IN ('error','data_loss') AND value > 0;",
+  "results": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"columns\":[\"kind\",\"name\",\"n\",\"value\"],\"row_count\":11,\"returned_rows\":11,\"truncated\":false,\"row_count_known\":true,\"string_truncated\":false,\"redacted\":false,\"note\":\"row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.\",\"rows\":[[\"category\",null,2,0.0],[\"category\",\"Trace\",1,1173.98274],[\"category\",\"cpu_op\",37542,5951.776898],[\"category\",\"cuda_driver\",4117,20.211458],[\"category\",\"cuda_runtime\",12905,655.908322],[\"category\",\"gpu_memcpy\",202,6.594662],[\"category\",\"gpu_memset\",885,0.962079],[\"category\",\"gpu_user_annotation\",330,1506.468623],[\"category\",\"kernel\",8230,1244.479004],[\"category\",\"overhead\",3,1.832692],[\"category\",\"user_annotation\",1096,3549.725376]]}"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"columns\":[\"kind\",\"name\",\"n\",\"value\"],\"row_count\":11,\"returned_rows\":11,\"truncated\":false,\"row_count_known\":true,\"string_truncated\":false,\"redacted\":false,\"note\":\"row_count is exact post-SQL decoded rows when row_count_known=true; head/limit only trims returned tool rows, is capped at 5000, and does not rewrite SQL; full blob cells render as blob:hex:<hex>; truncated blobs keep the prefix and include remaining-byte count; non-finite floats render as float:NaN/float:Infinity.\",\"rows\":[[\"category\",null,2,0.0],[\"category\",\"Trace\",1,1174.284091],[\"category\",\"cpu_op\",37542,5958.694068],[\"category\",\"cuda_driver\",4117,18.580826],[\"category\",\"cuda_runtime\",12904,659.154509],[\"category\",\"gpu_memcpy\",202,6.56659],[\"category\",\"gpu_memset\",885,0.956564],[\"category\",\"gpu_user_annotation\",330,1489.653229],[\"category\",\"kernel\",8230,1226.77172],[\"category\",\"overhead\",3,2.023626],[\"category\",\"user_annotation\",1096,3549.783929]]}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ]
+}

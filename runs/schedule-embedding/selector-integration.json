@@ -1,0 +1,592 @@
+{
+  "actual_stage_receipt_hook_checked": [
+    {
+      "capture_stage": "after_trainer_init_before_first_optimizer_update",
+      "device_reads": 0,
+      "module_count": 0,
+      "resolved_stages": [],
+      "variant": "A"
+    },
+    {
+      "capture_stage": "after_trainer_init_before_first_optimizer_update",
+      "device_reads": 0,
+      "module_count": 0,
+      "resolved_stages": [],
+      "variant": "B"
+    },
+    {
+      "capture_stage": "after_trainer_init_before_first_optimizer_update",
+      "device_reads": 0,
+      "module_count": 0,
+      "resolved_stages": [],
+      "variant": "C"
+    },
+    {
+      "capture_stage": "after_trainer_init_before_first_optimizer_update",
+      "device_reads": 0,
+      "module_count": 1,
+      "resolved_stages": [
+        []
+      ],
+      "variant": "D0"
+    },
+    {
+      "capture_stage": "after_trainer_init_before_first_optimizer_update",
+      "device_reads": 0,
+      "module_count": 1,
+      "resolved_stages": [
+        []
+      ],
+      "variant": "S"
+    },
+    {
+      "capture_stage": "after_trainer_init_before_first_optimizer_update",
+      "device_reads": 0,
+      "module_count": 1,
+      "resolved_stages": [
+        [
+          "compact",
+          "owner_add",
+          "owner_lookup"
+        ]
+      ],
+      "variant": "SE"
+    },
+    {
+      "capture_stage": "after_trainer_init_before_first_optimizer_update",
+      "device_reads": 0,
+      "module_count": 1,
+      "resolved_stages": [
+        [
+          "compact",
+          "owner_add",
+          "owner_lookup",
+          "routing"
+        ]
+      ],
+      "variant": "SE-fused"
+    }
+  ],
+  "capacity_control": {
+    "current_capacity_sha256_after": "164af05bd72ceb0675f0d9f756ecf04926ced17430a58dd2e38bc160c514dfdc",
+    "current_capacity_sha256_before": "164af05bd72ceb0675f0d9f756ecf04926ced17430a58dd2e38bc160c514dfdc",
+    "original_snapshot_head_sha256": "2f034b072fdaf02ac844936366134fafcd5e815588ce750b0dc7dfcc50467120",
+    "original_snapshot_sha256": "2f034b072fdaf02ac844936366134fafcd5e815588ce750b0dc7dfcc50467120",
+    "result": [
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "constructor_hook_check": {
+    "actual_windowmeasurement_trainer_parameter": "KEYWORD_ONLY",
+    "hook_restored_after_constructor": "PASS for all seven variants in dry check",
+    "native_measure_call_uses_keyword_trainer": true,
+    "new_preserved_keyword_forwarding": "PASS for all seven variants in dry check",
+    "old_positional_forwarding": "REJECTED as expected"
+  },
+  "created_utc": "2026-11-15T15:08:07.671228+00:00",
+  "dry_check_command": "CUDA_VISIBLE_DEVICES='' /opt/torchtitan-venv/bin/python3.12 runs/schedule-embedding/campaign.py --dry-check",
+  "execution_command_after_launch_review_and_GO": [
+    "source /etc/profile.d/wm.sh",
+    "unset ABCD_COMPONENT_FIXTURE_DIR",
+    "unset CUDA_VISIBLE_DEVICES",
+    "/opt/torchtitan-venv/bin/python3.12 runs/schedule-embedding/campaign.py --execute --runs A-timing B-timing C-timing D0-timing S-timing SE-timing SE-fused-timing D0-diagnostic S-diagnostic SE-diagnostic SE-fused-diagnostic --round 3"
+  ],
+  "executor_diagnostic_gate_regression": {
+    "cases": [
+      "full campaign reaches all four diagnostics after seven timing passes",
+      "diagnostics-only accepts prior timing receipts with matching freeze",
+      "a failed timing run blocks all diagnostics while later timing runs continue"
+    ],
+    "command": "CUDA_VISIBLE_DEVICES=\"\" /opt/torchtitan-venv/bin/python3.12 -m pytest -q runs/schedule-embedding/test_campaign_diagnostic_gate.py",
+    "result": "PASS: 3 tests"
+  },
+  "gpu_execution_during_dry_check": "none",
+  "gpu_targeted_check": {
+    "command": "source /etc/profile.d/wm.sh; CUDA_VISIBLE_DEVICES=0 ROW_OWNER_CUDA_KERNEL_TESTS=1 /opt/torchtitan-venv/bin/python3.12 -m pytest -q tests/unit_tests/test_row_owner_embedding_kernels.py::test_routing_kernels_clamp_signed_limits_and_count_empty_intervals",
+    "coverage": [
+      "signed int64 extremes",
+      "empty IDs",
+      "duplicates and skew",
+      "N=8192",
+      "optimized metadata equals fallback metadata"
+    ],
+    "device": "GPU 0 NVIDIA H100 80GB; all eight GPUs were idle at preflight",
+    "result": "PASS",
+    "saved_d_cache_used": false,
+    "torchinductor_cache_root": "/workspace-SR008.nfs2/vkropotin/.sr008-gpu/.cache/torchinductor_user",
+    "triton_cache_root": "/workspace-SR008.nfs2/vkropotin/.triton/cache"
+  },
+  "launch_matrix_started": false,
+  "native_child_commands_checked": [
+    {
+      "argv_sha256": "e52aae85c229ef3d6ca3aa2851d5b8842e0176e10b6b4f3267ab082362b567cb",
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": false,
+        "gfsdp_row_owner_embedding_optimization_stages": null,
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": false,
+        "gfsdp_split_layer0_ffn": false,
+        "gfsdp_split_mtp_ffn": false
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "A-timing",
+      "resolved_stage_selector": null
+    },
+    {
+      "argv_sha256": "d0cb452b08f79411b7ddc01cbbea10893fc2a618b6bdfef9da3480672bc5bc67",
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": false,
+        "gfsdp_row_owner_embedding_optimization_stages": null,
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": false,
+        "gfsdp_split_layer0_ffn": false,
+        "gfsdp_split_mtp_ffn": false
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "B-timing",
+      "resolved_stage_selector": null
+    },
+    {
+      "argv_sha256": "2d436eb5e1d2b5f44defedb016a6587b46049fc0db2cff721689700108dd80fc",
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": false,
+        "gfsdp_row_owner_embedding_optimization_stages": null,
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": false,
+        "gfsdp_split_layer0_ffn": false,
+        "gfsdp_split_mtp_ffn": false
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "C-timing",
+      "resolved_stage_selector": null
+    },
+    {
+      "argv_sha256": "83220fed4cc65ed0a2c87fb78d4bf75100373522f009e43baa6f75e5a3793e09",
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": false,
+        "gfsdp_row_owner_embedding_optimization_stages": null,
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "D0-timing",
+      "resolved_stage_selector": null
+    },
+    {
+      "argv_sha256": "61d751d9a2a520d020433aeb2a0f8fb51046c837af0b9239f4c58db11198aa8c",
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": true,
+        "gfsdp_row_owner_embedding_optimization_stages": null,
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "S-timing",
+      "resolved_stage_selector": null
+    },
+    {
+      "argv_sha256": "84a4d446d017062adda0fece8ac77ea82f96ce851e2b436ebb48ee5d7097b632",
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": true,
+        "gfsdp_row_owner_embedding_optimization_stages": [
+          "compact",
+          "owner_add",
+          "owner_lookup"
+        ],
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "SE-timing",
+      "resolved_stage_selector": [
+        "compact",
+        "owner_add",
+        "owner_lookup"
+      ]
+    },
+    {
+      "argv_sha256": "5dd5e5931d5f4108eebe5446e37ef7053c95f748d49a03b78c5dc540fe8403da",
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": true,
+        "gfsdp_row_owner_embedding_optimization_stages": [
+          "compact",
+          "owner_add",
+          "owner_lookup",
+          "routing"
+        ],
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "SE-fused-timing",
+      "resolved_stage_selector": [
+        "compact",
+        "owner_add",
+        "owner_lookup",
+        "routing"
+      ]
+    },
+    {
+      "argv_sha256": "0c4c6154145c2183fd1846988246856d41cb90df88bb3a9ada6208eba5e569f1",
+      "cadence": [
+        21,
+        20,
+        0
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": false,
+        "gfsdp_row_owner_embedding_optimization_stages": null,
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "D0-diagnostic",
+      "resolved_stage_selector": null
+    },
+    {
+      "argv_sha256": "fd0161ae57c82def27644e7a5696a0ecb35a0e20a5583d0f0ba3a6433b676d72",
+      "cadence": [
+        21,
+        20,
+        0
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": true,
+        "gfsdp_row_owner_embedding_optimization_stages": null,
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "S-diagnostic",
+      "resolved_stage_selector": null
+    },
+    {
+      "argv_sha256": "1d58ec1f8f0688e84a51c04372760b181ac59360b7cc7f7539506bc054aef6c0",
+      "cadence": [
+        21,
+        20,
+        0
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": true,
+        "gfsdp_row_owner_embedding_optimization_stages": [
+          "compact",
+          "owner_add",
+          "owner_lookup"
+        ],
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "SE-diagnostic",
+      "resolved_stage_selector": [
+        "compact",
+        "owner_add",
+        "owner_lookup"
+      ]
+    },
+    {
+      "argv_sha256": "4aae073d7f5cf7828c3118a96ac8c1f683dd848605962ef3b42c34250eb2c66a",
+      "cadence": [
+        21,
+        20,
+        0
+      ],
+      "controls": {
+        "gfsdp_mtp_transition_prefetch": true,
+        "gfsdp_row_owner_embedding_optimization_stages": [
+          "compact",
+          "owner_add",
+          "owner_lookup",
+          "routing"
+        ],
+        "gfsdp_row_owner_embedding_optimizations": false,
+        "gfsdp_row_owner_embeddings": true,
+        "gfsdp_split_layer0_ffn": true,
+        "gfsdp_split_mtp_ffn": true
+      },
+      "measure_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/measure.py",
+      "name": "SE-fused-diagnostic",
+      "resolved_stage_selector": [
+        "compact",
+        "owner_add",
+        "owner_lookup",
+        "routing"
+      ]
+    }
+  ],
+  "new_receipts_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/schedule-embedding/artifacts/raw/campaign-140-receipts.jsonl",
+  "planned_run_ids_and_cadence": [
+    {
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "name": "A-timing",
+      "run_id": "schedule-embedding-a-timing-140-003"
+    },
+    {
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "name": "B-timing",
+      "run_id": "schedule-embedding-b-timing-140-003"
+    },
+    {
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "name": "C-timing",
+      "run_id": "schedule-embedding-c-timing-140-003"
+    },
+    {
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "name": "D0-timing",
+      "run_id": "schedule-embedding-d0-timing-140-003"
+    },
+    {
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "name": "S-timing",
+      "run_id": "schedule-embedding-s-timing-140-003"
+    },
+    {
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "name": "SE-timing",
+      "run_id": "schedule-embedding-se-timing-140-003"
+    },
+    {
+      "cadence": [
+        140,
+        40,
+        100
+      ],
+      "name": "SE-fused-timing",
+      "run_id": "schedule-embedding-se-fused-timing-140-003"
+    },
+    {
+      "cadence": [
+        21,
+        20,
+        0
+      ],
+      "name": "D0-diagnostic",
+      "run_id": "schedule-embedding-d0-diagnostic-140-003"
+    },
+    {
+      "cadence": [
+        21,
+        20,
+        0
+      ],
+      "name": "S-diagnostic",
+      "run_id": "schedule-embedding-s-diagnostic-140-003"
+    },
+    {
+      "cadence": [
+        21,
+        20,
+        0
+      ],
+      "name": "SE-diagnostic",
+      "run_id": "schedule-embedding-se-diagnostic-140-003"
+    },
+    {
+      "cadence": [
+        21,
+        20,
+        0
+      ],
+      "name": "SE-fused-diagnostic",
+      "run_id": "schedule-embedding-se-fused-diagnostic-140-003"
+    }
+  ],
+  "resolved_preflight_findings": [
+    {
+      "check": "stage-receipt hook dry check",
+      "initial_failure": "A shared DummyMeasurement class retained the patched initializer across variants.",
+      "resolution": "Each variant now gets a fresh constructor; the hook restores __init__ and the dry check asserts restoration."
+    },
+    {
+      "check": "stage-receipt constructor forwarding",
+      "initial_failure": "The actual base constructor requires keyword-only trainer; positional forwarding raises TypeError.",
+      "resolution": "The hook forwards original args and kwargs unchanged; keyword-only dry checks pass for all variants."
+    },
+    {
+      "check": "campaign source freeze",
+      "initial_failure": "The frozen capacity snapshot is task-untracked and cannot be read from Git HEAD.",
+      "resolution": "Git HEAD hashes measure.CAPACITY_RELATIVE_PATH; snapshot bytes are independently hashed and both match the pinned SHA."
+    },
+    {
+      "check": "diagnostic executor gate",
+      "initial_failure": "The gate compared the full completion set to the seven timing names, skipping diagnostics-only and later profiles.",
+      "resolution": "The executor tracks verified timing passes separately; three stubbed tests cover full, diagnostics-only, and failed-timing control flow."
+    },
+    {
+      "check": "campaign launch environment",
+      "initial_failure": "An empty CUDA_VISIBLE_DEVICES value would hide all devices in child processes.",
+      "resolution": "The exact execution command now unsets CUDA_VISIBLE_DEVICES after sourcing wm.sh."
+    },
+    {
+      "check": "targeted configuration test setup",
+      "initial_failure": "The synthetic native YAML omitted required config_version: 1.",
+      "resolution": "The fixture declares config_version: 1; all nine selector tests pass."
+    },
+    {
+      "check": "scoped ruff F checks",
+      "initial_failure": "The diagnostic-only timing receipt helper was missing during initial implementation.",
+      "resolution": "The helper is implemented and scoped F821/F811/F841 checks pass."
+    }
+  ],
+  "runner_main_variants_checked": [
+    "A",
+    "B",
+    "C",
+    "D0",
+    "S",
+    "SE",
+    "SE-fused"
+  ],
+  "saved_d_cache": {
+    "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/proddata-d-timing-001/cache",
+    "preflight_validation_read_only": true,
+    "producer_run_id": "proddata-d-timing-001",
+    "runtime_policy": "in-place reuse; may gain entries; same absolute path for all seven timing variants"
+  },
+  "schema_version": 1,
+  "se_and_fused_equal_outside_stage_selector": true,
+  "source_freeze": {
+    "base_config_hash_names": [
+      "canonical_experiment_sha256",
+      "compiler_observer_sha256",
+      "cpu_loader_receipt_sha256",
+      "data_receipt_sha256",
+      "mds_fragment_sha256",
+      "mds_index_sha256",
+      "measurement_adapter_sha256",
+      "parser_sha256",
+      "row_manifest_sha256",
+      "runner_sha256",
+      "special_tokens_map_sha256",
+      "tokenizer_config_sha256",
+      "tokenizer_json_sha256"
+    ],
+    "capacity_head_sha256": "2f034b072fdaf02ac844936366134fafcd5e815588ce750b0dc7dfcc50467120",
+    "capacity_snapshot_sha256": "2f034b072fdaf02ac844936366134fafcd5e815588ce750b0dc7dfcc50467120",
+    "executed_helper_hashes": {
+      "compiler_observer": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/compiler_stats.py",
+        "sha256": "c254a7de12eb1c4c10a32be49ce9b169d9fca47737d57053a676c685294d6e4a"
+      },
+      "historical_campaign_plan": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/campaign-plan.json",
+        "sha256": "5f74f450c08932ebb3804d32012da9746fa0be4a5959158c9f35658c66e72541"
+      },
+      "original_capacity_snapshot": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/capacity-group-allreduce/capacity.original.py",
+        "sha256": "2f034b072fdaf02ac844936366134fafcd5e815588ce750b0dc7dfcc50467120"
+      },
+      "overnight_measure": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/measure.py",
+        "sha256": "71e524a39b362082c464e25adaf3ea433e118ca808402e866317651544eaf8bf"
+      },
+      "overnight_parser": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/parse_results.py",
+        "sha256": "532e4faafc3aea66cb456da497dc680a50292862d0d7177f0c7601c9a41eed14"
+      },
+      "overnight_runner": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/run.py",
+        "sha256": "a1f67b42f92d4b18bd498b3f1744cda351c56d4f3270dfeedc02d573b01f9420"
+      },
+      "production_data_contract": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/data_contract.py",
+        "sha256": "e93c98a61fdb65af2ef49824e93044da34358125b2b1529894eab5f36c6ab1a2"
+      },
+      "streaming_filelock": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/overnight-streaming-perf/streaming_filelock.py",
+        "sha256": "b420102234f95ff904561f4bdc68f2b82e21547493e7c1d2dffbf814224ec703"
+      }
+    },
+    "flash_bridge_source_hash_names": [
+      "runs/flash-qla/capture.py",
+      "runs/flash-qla/measure.py",
+      "runs/flash-qla/run.py"
+    ],
+    "gift_source_snapshot_sha256": "78b1ed50515b7f43932c8cd3bc57fc46621d668faf20ea8373af0a0673bf0e3b",
+    "schedule_source_hash_names": [
+      "runs/schedule-embedding/campaign.py",
+      "runs/schedule-embedding/measure.py",
+      "runs/schedule-embedding/run.py"
+    ],
+    "sha256": "3b3244ae1e759111b8240af929715074b751c946881202a9ff95e9f3b9918ffd"
+  },
+  "status": "PASS"
+}

@@ -36,6 +36,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger("gfsdp")
 
 
+def _alias_buffer_region(
+    source: GFSDPBufferContext, sizes: dict[torch.dtype | None, int]
+) -> GFSDPBufferContext:
+    """Create a bounded alias using storage-root-relative byte offsets."""
+    offsets = {}
+    for dtype, size in sizes.items():
+        if dtype not in source.buffers:
+            raise ValueError(f"Buffer region does not contain dtype bucket {dtype}")
+        if size < 0 or size > source.buffers[dtype].numel():
+            raise ValueError(
+                f"Requested {size} bytes from a {source.buffers[dtype].numel()}-byte "
+                f"{dtype} buffer region"
+            )
+        # region() offsets are relative to _storage_ctx, even when the source
+        # view is nested. Keep this range inside the source's absolute interval.
+        offsets[dtype] = source._ranges[dtype][0]
+    return source._storage_ctx.region(sizes, offsets)
+
+
 class GFSDPStateContext:
     def __init__(self) -> None:
         """Initialize state shared by all GFSDP wrappers under one root."""
@@ -77,6 +96,9 @@ class GFSDPState(_State):
         self._shard_order: "list[GFSDPState] | None" = None
         self._own_grad_buffer: bool = False
         self._buffer_region_child: GFSDPState | None = None
+        self._buffer_region_transition: (
+            "tuple[GFSDPState, GFSDPState, GFSDPState] | None"
+        ) = None
         self._allow_no_grad_reduce: bool = False
 
     # Define a separate init since `__init__` is called in the contract
@@ -451,6 +473,142 @@ class GFSDPState(_State):
                 param_group.grad_buffer_ctx = grad_buffer_ctx
                 partition(param_group, grad_buffer_ctx, grad=True)
 
+        if self._buffer_region_transition is not None:
+            source_state, data_target_state, grad_target_state = (
+                self._buffer_region_transition
+            )
+            if any(
+                state not in ordered_states
+                for state in (source_state, data_target_state, grad_target_state)
+            ):
+                raise ValueError(
+                    "Buffer region transition modules must belong to the root state"
+                )
+            if len(source_state._fsdp_param_groups) != 1:
+                raise ValueError(
+                    "Buffer region transition source must have exactly one "
+                    "parameter group"
+                )
+            source_group = source_state._fsdp_param_groups[0]
+            source_process_group = source_group.mesh_info.shard_process_group
+
+            def matching_group(
+                state: GFSDPState, name: str
+            ) -> GFSDPParamGroup:
+                matches = [
+                    group
+                    for group in state._fsdp_param_groups
+                    if group.mesh_info.shard_process_group is source_process_group
+                ]
+                if len(matches) != 1:
+                    raise ValueError(
+                        f"Buffer region transition requires one {name} parameter "
+                        f"group on the source dense process group; got {len(matches)}"
+                    )
+                return matches[0]
+
+            data_target_group = matching_group(data_target_state, "data target")
+            grad_target_group = matching_group(grad_target_state, "gradient target")
+
+            def alias_target(
+                source_ctx: GFSDPBufferContext,
+                target_group: GFSDPParamGroup,
+                *,
+                grad: bool,
+            ) -> tuple[GFSDPBufferContext, dict[torch.dtype | None, int]]:
+                if (
+                    source_group.mesh_info.shard_mesh_size
+                    != target_group.mesh_info.shard_mesh_size
+                    or source_group.mesh_info.shard_mesh_rank
+                    != target_group.mesh_info.shard_mesh_rank
+                    or source_group._shard_alignment != target_group._shard_alignment
+                    or source_group.param_dtype != target_group.param_dtype
+                    or source_group.reduce_dtype != target_group.reduce_dtype
+                    or source_group.orig_dtype != target_group.orig_dtype
+                    or source_group.mp_policy != target_group.mp_policy
+                ):
+                    raise ValueError(
+                        "Buffer region transition groups must have matching mesh "
+                        "and precision"
+                    )
+                sizes = buffer_sizes(target_group, grad=grad)
+                offsets = {}
+                for dtype, size in sizes.items():
+                    if dtype not in source_ctx.buffers:
+                        raise ValueError(
+                            "Buffer region transition dtype buckets do not match: "
+                            f"{dtype} is missing from the MTP FFN region"
+                        )
+                    start, end = source_ctx._ranges[dtype]
+                    item_dtype = (
+                        target_group.reduce_dtype
+                        or target_group.param_dtype
+                        or target_group.orig_dtype
+                        if grad
+                        else dtype or target_group.param_dtype or target_group.orig_dtype
+                    )
+                    alignment = (
+                        target_group.mesh_info.shard_mesh_size
+                        * target_group._shard_alignment
+                        * item_dtype.itemsize
+                    )
+                    capacity = end - start
+                    if size > capacity:
+                        raise ValueError(
+                            "Buffer region transition exceeds MTP FFN region "
+                            f"capacity for {dtype}: need {size} bytes, have {capacity}"
+                        )
+                    if start % alignment or size % alignment:
+                        raise ValueError(
+                            "Buffer region transition is not shard-aligned for "
+                            f"{dtype}: offset={start}, size={size}, alignment={alignment}"
+                        )
+                    offsets[dtype] = start
+                return _alias_buffer_region(source_ctx, sizes), offsets
+
+            source_data_ctx = source_group.data_buffer_ctx
+            source_grad_ctx = source_group.grad_buffer_ctx
+            if source_grad_ctx is None:
+                raise ValueError(
+                    "Buffer region transition source has no gradient buffer"
+                )
+            data_alias, data_offsets = alias_target(
+                source_data_ctx, data_target_group, grad=False
+            )
+            grad_alias, grad_offsets = alias_target(
+                source_grad_ctx, grad_target_group, grad=True
+            )
+            data_target_group.data_buffer_ctx = data_alias
+            grad_target_group.grad_buffer_ctx = grad_alias
+            source_group._post_backward_prefetch_target = data_target_group
+
+            def alias_summary(
+                alias: GFSDPBufferContext,
+                source_ctx: GFSDPBufferContext,
+                offsets: dict[torch.dtype | None, int],
+            ) -> dict[str, dict[str, int]]:
+                return {
+                    str(dtype): {
+                        "offset_bytes": offsets[dtype],
+                        "size_bytes": size,
+                        "capacity_bytes": source_ctx.buffers[dtype].numel(),
+                        "pool_bytes": alias._storage_ctx.buffers[dtype].numel(),
+                    }
+                    for dtype, size in (
+                        (dtype, tensor.numel()) for dtype, tensor in alias.buffers.items()
+                    )
+                }
+
+            logger.info(
+                "GFSDP buffer region transition active: source=%s data_target=%s "
+                "grad_target=%s data=%s grad=%s",
+                source_group._module_fqn,
+                data_target_group._module_fqn,
+                grad_target_group._module_fqn,
+                alias_summary(data_alias, source_data_ctx, data_offsets),
+                alias_summary(grad_alias, source_grad_ctx, grad_offsets),
+            )
+
     def validate_shared_state(self) -> None:
         data_buffer_ctx2ctx_using_param_groups: dict[
             GFSDPBufferContext, list[GFSDPParamGroup]
@@ -487,53 +645,70 @@ class GFSDPState(_State):
                 "num_grad_buffers must be no less than min(1, num_param_groups)"
                 f", but got {num_grad_buffers=} {num_param_groups=}."
             )
-        for ctx_using_param_groups in data_buffer_ctx2ctx_using_param_groups.values():
-            if (
-                len(
-                    param_groups_with_no_reshard_after_forward := [
-                        param_group
-                        for param_group in ctx_using_param_groups
-                        if not param_group.reshard_after_forward
-                    ]
-                )
-                > 1
-            ):
-                raise ValueError(
-                    "Only one parameter group across groups which share a data buffer"
-                    " is allowed to have no reshard after forward"
-                    f", but got {param_groups_with_no_reshard_after_forward=}"
-                )
-            if (
-                len(
-                    param_groups_with_no_reshard_after_backward := [
-                        param_group
-                        for param_group in ctx_using_param_groups
-                        if not param_group.reshard_after_backward
-                    ]
-                )
-                > 1
-            ):
-                raise ValueError(
-                    "Only one parameter group across groups which share a data buffer"
-                    " is allowed to have no reshard after backward"
-                    f", but got {param_groups_with_no_reshard_after_backward=}"
-                )
-        for ctx_using_param_groups in grad_buffer_ctx2ctx_using_param_groups.values():
-            if (
-                len(
-                    param_groups_with_no_reduce_grads := [
-                        param_group
-                        for param_group in ctx_using_param_groups
-                        if not param_group.reduce_grads
-                    ]
-                )
-                > 1
-            ):
-                raise ValueError(
-                    "Only one parameter group across groups which share a grad buffer"
-                    " is allowed to have no grad reduce"
-                    f", but got {param_groups_with_no_reduce_grads=}"
-                )
+        data_param_groups = [
+            param_group
+            for groups in data_buffer_ctx2ctx_using_param_groups.values()
+            for param_group in groups
+        ]
+        for index, param_group in enumerate(data_param_groups):
+            for other in data_param_groups[index + 1 :]:
+                if not param_group.data_buffer_ctx.overlaps(other.data_buffer_ctx):
+                    continue
+                if not param_group.reshard_after_forward and not other.reshard_after_forward:
+                    raise ValueError(
+                        "Only one parameter group across groups which share a data buffer"
+                        " is allowed to have no reshard after forward, but got "
+                        f"{param_group=} and {other=}"
+                    )
+                if not param_group.reshard_after_backward and not other.reshard_after_backward:
+                    raise ValueError(
+                        "Only one parameter group across groups which share a data buffer"
+                        " is allowed to have no reshard after backward, but got "
+                        f"{param_group=} and {other=}"
+                    )
+
+        grad_param_groups = [
+            param_group
+            for groups in grad_buffer_ctx2ctx_using_param_groups.values()
+            for param_group in groups
+        ]
+        for index, param_group in enumerate(grad_param_groups):
+            grad_buffer_ctx = param_group.grad_buffer_ctx
+            assert grad_buffer_ctx is not None
+            for other in grad_param_groups[index + 1 :]:
+                other_grad_buffer_ctx = other.grad_buffer_ctx
+                assert other_grad_buffer_ctx is not None
+                if (
+                    grad_buffer_ctx.overlaps(other_grad_buffer_ctx)
+                    and not param_group.reduce_grads
+                    and not other.reduce_grads
+                ):
+                    raise ValueError(
+                        "Only one parameter group across groups which share a grad buffer"
+                        " is allowed to have no grad reduce, but got "
+                        f"{param_group=} and {other=}"
+                    )
+
+        for state in self._state_ctx.all_states:
+            for param_group in state._fsdp_param_groups:
+                if param_group._post_backward_prefetch_target is None:
+                    continue
+                target = param_group._post_backward_prefetch_target
+                if not param_group.reshard_after_backward:
+                    raise ValueError(
+                        "MTP transition source must reshard after backward to "
+                        "release its data region"
+                    )
+                if not target.reshard_after_forward:
+                    raise ValueError(
+                        "MTP transition data target must reshard after forward "
+                        "to release the shared region"
+                    )
+                if not target.reshard_after_backward:
+                    raise ValueError(
+                        "MTP transition data target must reshard after backward "
+                        "to release the region for the next microbatch"
+                    )
         data_buffer_ctx2module_prefix: dict[GFSDPBufferContext, str] = {}
         grad_buffer_ctx2module_prefix: dict[GFSDPBufferContext, str] = {}
         state2modules_to_run_forward: dict[GFSDPState, set[nn.Module]] = {}

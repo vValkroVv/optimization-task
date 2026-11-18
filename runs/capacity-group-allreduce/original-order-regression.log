@@ -1,0 +1,117 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_ep_all_reduce_receives_eight_int64_group_counts_for_128_experts _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7831b9804110>
+
+    def test_ep_all_reduce_receives_eight_int64_group_counts_for_128_experts(monkeypatch):
+        num_experts = 128
+        ep_size = 8
+        collective = _patch_all_reduce(
+            monkeypatch, torch.zeros(num_experts, dtype=torch.int64)
+        )
+>       keep = select_capacity_routes(
+            torch.ones((1, 1)),
+            torch.zeros((1, 1), dtype=torch.int64),
+            num_experts=num_experts,
+            policy=fixed_group(2048),
+            ep_group=_group(ep_size),
+        )
+
+collective = <Mock id='132154960921040'>
+ep_size    = 8
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7831b9804110>
+num_experts = 128
+
+gift/tests/unit_tests/test_token_drop_fixed_capacity_group.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/utils/_contextlib.py:124: in decorate_context
+    return func(*args, **kwargs)
+        args       = (tensor([[1.]]), tensor([[0]]))
+        ctx_factory = <bound method _DecoratorContextManager.clone of <torch.autograd.grad_mode.no_grad object at 0x7831b9bfc980>>
+        func       = <function select_capacity_routes at 0x7831b9746ac0>
+        kwargs     = {'ep_group': namespace(size=<function _group.<locals>.<lambda> at 0x7831b97e36a0>), 'num_experts': 128, 'policy': Toke...expert_capacity_factor=None, expert_capacity_tokens=2048, drop_by_group_capacity=True, branchless_capacity_drop=False)}
+gift/torchtitan/models/common/moe/dispatch/capacity.py:139: in select_capacity_routes
+    totals = funcol.all_reduce(totals, "sum", ep_group)
+        buckets    = tensor([0])
+        capacity   = 256
+        counts     = tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ... 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0])
+        ep_group   = namespace(size=<function _group.<locals>.<lambda> at 0x7831b97e36a0>)
+        ep_size    = 8
+        expert_ids = tensor([[0]])
+        ids        = tensor([0])
+        max_num_tokens = None
+        needs_drop = tensor(False)
+        num_experts = 128
+        policy     = TokenDropConfig(strategy='fixed_capacity', expert_capacity_factor=None, expert_capacity_tokens=2048, drop_by_group_capacity=True, branchless_capacity_drop=False)
+        scores     = tensor([[1.]])
+        totals     = tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ... 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0])
+        valid      = tensor([True])
+        weights    = tensor([1.])
+/usr/lib/python3.12/unittest/mock.py:1134: in __call__
+    return self._mock_call(*args, **kwargs)
+        args       = (tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,..., 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0]), 'sum', namespace(size=<function _group.<locals>.<lambda> at 0x7831b97e36a0>))
+        kwargs     = {}
+        self       = <Mock id='132154960921040'>
+/usr/lib/python3.12/unittest/mock.py:1138: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+        args       = (tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,..., 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0]), 'sum', namespace(size=<function _group.<locals>.<lambda> at 0x7831b97e36a0>))
+        kwargs     = {}
+        self       = <Mock id='132154960921040'>
+/usr/lib/python3.12/unittest/mock.py:1199: in _execute_mock_call
+    result = effect(*args, **kwargs)
+        args       = (tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,..., 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0]), 'sum', namespace(size=<function _group.<locals>.<lambda> at 0x7831b97e36a0>))
+        effect     = <function _patch_all_reduce.<locals>.all_reduce at 0x7831b97e3600>
+        kwargs     = {}
+        self       = <Mock id='132154960921040'>
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+group_loads = tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ... 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0])
+reduce_op = 'sum'
+group = namespace(size=<function _group.<locals>.<lambda> at 0x7831b97e36a0>)
+
+    def all_reduce(group_loads, reduce_op, group):
+        assert reduce_op == "sum"
+        assert group_loads.dtype == torch.int64
+>       assert group_loads.shape == (group.size(),)
+E       assert torch.Size([128]) == (8,)
+E         At index 0 diff: 128 != 8
+E         Use -v to get more diff
+
+group      = namespace(size=<function _group.<locals>.<lambda> at 0x7831b97e36a0>)
+group_loads = tensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ... 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0])
+observations = []
+other_source_counts = tensor([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ... 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0])
+reduce_op  = 'sum'
+
+gift/tests/unit_tests/test_token_drop_fixed_capacity_group.py:51: AssertionError
+=============================== warnings summary ===============================
+../../../opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68
+  /opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+    import pynvml  # type: ignore[import]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED gift/tests/unit_tests/test_token_drop_fixed_capacity_group.py::test_ep_all_reduce_receives_eight_int64_group_counts_for_128_experts
+1 failed, 1 warning in 3.42s

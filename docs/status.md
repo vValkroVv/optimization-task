@@ -325,6 +325,82 @@ Remaining unknowns include all-rank and full-update critical paths, actual
 clocks/counters, per-expert token counts, native tensor lifetimes and global
 peak effects, and repeated unprofiled throughput results.
 
+## Seven-configuration campaign: measurements complete; layers.7 overlap unmet
+
+The revised 15 November goal selects A/B/C/D0/S/SE/SE-fused timing runs, each
+with 40 warmup and 100 measured complete optimizer updates, then four separate
+update-21 diagnostics. The [campaign report](../runs/schedule-embedding/report.md#revised-measurement-assignment)
+owns finite acceptance and evidence. New SE includes compact coalescing, ordered
+owner accumulation and direct lookup; SE-fused also enables embedding routing
+preparation. Historical SE receipts contain all four stages and retain their
+original labels. Existing capacity edits remain preserved and excluded.
+Both implementations are integrated and focused GPU checks pass: 71 GFSDP
+CUDA/NCCL cases, local kernel bit parity, and optimized eight-rank embedding
+autograd/state checks. These checks establish implemented and tested code; they
+do not establish the original layers.7 overlap objective. The independent
+review finding is resolved.
+The five-stage eight-rank component ladder passed with lower measured peak
+memory and zero retry/OOM deltas. Both native accumulation-32 smokes pass;
+D0/SE have identical 6,973,565,952-byte communication pools per rank and exactly
+the two intended remaps. The historical short-window timings completed; they
+do not replace the new fixed-window campaign. On resumption, no training
+children remained and all eight H100s were idle. Minimal native stage selection,
+targeted CPU/CUDA checks and the independent launch review pass. All seven fixed
+40+100 native timings now have final `ADJUDICATED_PASS` proofs under one reviewed
+offline method. The five raw nullable-selector reporting failures remain
+preserved. Primary envelopes, token totals and memory were independently
+reconstructed; the report links full cadence, plots and every comparison.
+SE-fused/SE is −0.0454% physical throughput in this one sequence, without an
+established repeatable effect. Corrected data retains the shared hump/recovery;
+causal attribution remains unresolved. Four separate update-21 captures completed
+on all eight ranks with the same frozen source/configuration/harness and saved-D
+cache. All eight actual MCP imports, event counts, annotations, matched/inverse
+launch flows and asynchronous tails pass under the separate
+[final-005 receipt](../runs/schedule-embedding/trace-analysis/capture-acceptance-final-005.json).
+The native proof table, [comparison report](../runs/schedule-embedding/trace-analysis/comparison-004.md),
+[comparison JSON](../runs/schedule-embedding/trace-analysis/comparison-004.json),
+and rank-[0](../runs/schedule-embedding/trace-analysis/four-way-004-rank0.html)/
+[1](../runs/schedule-embedding/trace-analysis/four-way-004-rank1.html) timelines
+are summarized in the [campaign report](../runs/schedule-embedding/report.md#revised-perfetto-profile-findings).
+The independent [final integration review](../runs/schedule-embedding/final-campaign-review.md)
+passes with no unresolved material finding.
+
+Across 24 semantic cases, actual layers.7 compiled-kernel overlap with
+MTP-parent reduce-scatter is zero; candidate kernels start 2.336–56.065
+microseconds after it ends, with the remaining wait cause unknown. Both MTP
+parameter all-gathers precede head reduce-scatter; norm packing starts before
+parent reduce-scatter ends in all 18 S/SE/SE-fused cases. Early FFN reduce-scatter
+overlaps generic local compute, but positive ownership of the overlapping
+MTP-prefix compiled compute is **UNESTABLISHED** for both that reduction and
+layers.7 dense all-gather. The AG-adjacent stream-7 inactivity proxy is not a
+head-RS-to-compiled-FFN interval; its ranges do not support a causal regression
+claim. The campaign's measurements and review are complete, while the original
+layers.7 overlap objective remains unmet.
+
+The unprofiled SE-fused/SE observation remains provisional at −0.04544% physical
+TPS, +5.841 ms/update, +38.49 MiB maximum allocated and +18 MiB maximum reserved.
+All seven timing variants retain a 6.77–8.08% first-to-last-20 mean cadence
+decrease; drift cause and the 13 fused specializations' settling behavior remain
+unresolved. Raw wrapper failures and protocol exclusions remain preserved. Task
+training processes and the telemetry logger are stopped, and all eight GPUs are
+idle; no further GPU work is scheduled.
+
+## Capacity destination-group all-reduce: candidate timing and profile pending
+
+The 15 November goal authorizes a narrow arithmetic reorder in this task's
+capacity path and measurements on the existing owner allocation. The candidate
+is integrated and independently reviewed: local int64 expert counts are grouped
+before functional EP SUM, preserving the local/global gate and stable selection.
+Focused CPU/Gloo and CUDA compile/SAC checks pass; the payload regression fails
+on the original implementation and passes on the candidate. The
+[single report](../runs/capacity-group-allreduce/report.md) owns exact checks,
+the completed null eager component result and the remaining native pair/trace
+gates. Reduced tensor payload is established; a training-speed benefit is not.
+The synchronized development tree retains the SR008 implementation. It groups
+the counters whenever `drop_by_group_capacity` is enabled. The selected
+[128-counter production recipe](baseline.md#current-final-task-baseline) is
+pinned to the earlier selector revision.
+
 ## Global data correction: current comparisons use the corrected inputs
 
 The [global input requirement](baseline.md#global-requirement-real-data-and-production-tokenizer)

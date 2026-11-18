@@ -4,6 +4,41 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+<a id="active-assignment-seven-configuration-timings-profiles-and-drift"></a>
+## Completed assignment: seven-configuration timings, profiles and drift
+
+The revised 15 November goal authorizes minimal native embedding-stage selection
+in this task's `gift/`, targeted checks, serial A/B/C/D0/S/SE/SE-fused timings
+at exactly 40+100 updates, four separate update-21 profiles and bounded drift
+research on the current eight-H100 server. The
+[single report](../runs/schedule-embedding/report.md#revised-measurement-assignment)
+owns the finite checklist. Preserve the production-data workload, precision,
+compile/SAC, accumulation and existing storage budgets. Reuse the saved D cache.
+No new allocation, installation or publication is authorized. The independent
+capacity edits and incomplete evidence below remain preserved.
+
+Stage selection, all seven timing proofs, the current-data drift record and all
+four native captures are complete. The actual Perfetto imports, comparisons and
+GPU-tail acceptance pass, and the [final integration review](../runs/schedule-embedding/final-campaign-review.md)
+is complete. The [campaign report](../runs/schedule-embedding/report.md#revised-perfetto-profile-findings)
+and [current state](../docs/status.md#seven-configuration-campaign-measurements-complete-layers7-overlap-unmet)
+own the results. The original layers.7 overlap objective remains unmet, and
+MTP-prefix-specific overlap ownership is unestablished; neither is hidden by
+the positive generic local-compute overlap. Drift cause and fused-specialization
+settling remain unknown. No further GPU work is scheduled for this assignment.
+
+## Separate assignment: capacity destination-group all-reduce
+
+Authorized by the 15 November 2026 goal attachment. Change only the local/group
+aggregation order in this task's capacity path, preserving exact drop behavior
+and compile/SAC semantics. The [single report](../runs/capacity-group-allreduce/report.md#scope-and-finite-acceptance)
+owns the finite checklist: focused correctness and one scoped review, warmed
+eight-rank NCCL component/fragment measurements, exactly one native production-data
+D control/candidate 10+10 pair, and a bounded final candidate update-21 trace.
+Use only the existing owner allocation; no installation, new allocation or
+publication is authorized. The completed production-data input census and
+accepted MTP/FP8 decisions are reused.
+
 ## Global priority: rebaseline all runs on real data
 
 Owner instruction, 15 November 2026. The

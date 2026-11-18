@@ -48,11 +48,15 @@ def _hide_cuda_in_cpu_tests(monkeypatch):
 
 
 class _Model(nn.Module):
-    def __init__(self, mesh, *, owner):
+    def __init__(self, mesh, *, owner, optimization_stages=None):
         super().__init__()
         embedding = nn.Embedding(16, 8, device=mesh.device_type)
         self.tok_embeddings = (
-            RowOwnerEmbedding.from_embedding(embedding, mesh) if owner else embedding
+            RowOwnerEmbedding.from_embedding(
+                embedding, mesh, optimization_stages=optimization_stages
+            )
+            if owner
+            else embedding
         )
         # An existing non-embedding GFSDP bucket supplies enough scratch,
         # analogous to the unchanged private lm_head bucket in the crop.
@@ -118,8 +122,8 @@ def _source_sum(ids, derivative, owner):
     return _local_slice(total, owner)
 
 
-def _routing_checks(mesh):
-    model = _Model(mesh, owner=True)
+def _routing_checks(mesh, optimization_stages=None):
+    model = _Model(mesh, owner=True, optimization_stages=optimization_stages)
     owner = model.tok_embeddings
     rank = dist.get_rank()
     device = owner.weight.device
@@ -248,7 +252,14 @@ def _routing_checks(mesh):
         torch.testing.assert_close(
             owner(ids), _full_weight(device).bfloat16()[ids], rtol=0, atol=0
         )
-    for bad in (-1, 16, "dtype", "device"):
+    for bad in (
+        -1,
+        16,
+        torch.iinfo(torch.int64).min,
+        torch.iinfo(torch.int64).max,
+        "dtype",
+        "device",
+    ):
         invalid = torch.tensor([0], dtype=torch.int64, device=device)
         if rank == 0:
             if bad == "dtype":
@@ -425,7 +436,7 @@ def _seed_gradients(model, value):
         param.grad = torch.zeros_like(param).fill_(value)
 
 
-def _state_checks(mesh, directory):
+def _state_checks(mesh, directory, optimization_stages=None):
     # The baseline saves flat GFSDP table/moments. The owner must load that
     # exact format and retain FQN, EMA, dense optimizer state and next update.
     baseline = _Model(mesh, owner=False)
@@ -448,7 +459,7 @@ def _state_checks(mesh, directory):
     for key, value in baseline_adapter.model_save_state_dict().items():
         if key == "tok_embeddings.weight":
             assert isinstance(value, _FlatCheckpointTensor) and value.shape == (128,)
-    owner_model = _Model(mesh, owner=True)
+    owner_model = _Model(mesh, owner=True, optimization_stages=optimization_stages)
     owner = owner_model.tok_embeddings
     owner_store = BackendBufferStore([owner_model])
     adapter = GFSDPCheckpointAdapter([owner_model])
@@ -574,7 +585,7 @@ def _state_checks(mesh, directory):
     torch.testing.assert_close(owner._ema_weight, main, rtol=0, atol=0)
 
 
-def _worker(rank, world, directory, backend="gloo"):
+def _worker(rank, world, directory, backend="gloo", optimization_stages=None):
     torch.set_num_threads(1)
     device = "cuda" if backend == "nccl" else "cpu"
     if device == "cuda":
@@ -596,8 +607,8 @@ def _worker(rank, world, directory, backend="gloo"):
         if device == "cpu":
             assert not torch.cuda.is_initialized()
         _borrow_checks(mesh)
-        _routing_checks(mesh)
-        _state_checks(mesh, directory)
+        _routing_checks(mesh, optimization_stages)
+        _state_checks(mesh, directory, optimization_stages)
         if device == "cpu":
             assert not torch.cuda.is_initialized()
     finally:
@@ -633,6 +644,22 @@ def test_unsupported_embedding_options_are_guarded(tmp_path):
                 num_embeddings=16, embedding_dim=8, param_init={"weight": Ones()}
             ).build()
         owner = RowOwnerEmbedding.from_embedding(original, mesh)
+        assert owner.optimization_stages == ()
+        assert RowOwnerEmbedding.from_embedding(
+            original, mesh, optimize=True
+        ).optimization_stages == (
+            "compact",
+            "owner_add",
+            "owner_lookup",
+            "routing",
+        )
+        assert RowOwnerEmbedding.from_embedding(
+            original, mesh, optimization_stages=("routing", "compact")
+        ).optimization_stages == ("compact", "routing")
+        with pytest.raises(ValueError, match="unknown row-owner optimization"):
+            RowOwnerEmbedding.from_embedding(
+                original, mesh, optimization_stages=("unknown",)
+            )
         root = Module()
         root.tok_embeddings = owner
         identity = owner.weight
@@ -650,6 +677,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", required=True, choices=("nccl",))
     parser.add_argument("--checkpoint-dir", required=True)
+    parser.add_argument("--optimize-embeddings", action="store_true")
     args = parser.parse_args()
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     _worker(
@@ -657,4 +685,9 @@ if __name__ == "__main__":
         int(os.environ["WORLD_SIZE"]),
         args.checkpoint_dir,
         args.backend,
+        (
+            ("compact", "owner_add", "owner_lookup", "routing")
+            if args.optimize_embeddings
+            else None
+        ),
     )

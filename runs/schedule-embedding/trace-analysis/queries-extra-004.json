@@ -1,0 +1,5 @@
+{
+  "tail": "SELECT s.id,s.name,s.ts,s.dur,s.category,extract_arg(s.arg_set_id,'args.correlation') AS correlation,(SELECT count(*) FROM flow f WHERE f.slice_out=s.id) AS device_links FROM slice s WHERE s.category IN ('cuda_runtime','cuda_driver') AND (s.name GLOB '*Launch*' OR s.name GLOB '*Memcpy*' OR s.name GLOB '*Memset*' OR s.name GLOB '*Synchronize*') ORDER BY s.ts",
+  "owner_host": "SELECT o.id AS owner_scope,o.name AS owner_name,s.category,s.name,count(*) AS n,sum(s.dur)/1e6 AS sum_ms FROM slice o JOIN slice s ON s.track_id=o.track_id AND s.ts>=o.ts AND s.ts+s.dur<=o.ts+o.dur WHERE o.name IN ('_OwnerLookup','_OwnerLookupBackward') GROUP BY 1,2,3,4 ORDER BY 1,3,4",
+  "bounds": "SELECT start_ts,end_ts FROM trace_bounds"
+}

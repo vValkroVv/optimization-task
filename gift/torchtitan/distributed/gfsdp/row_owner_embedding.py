@@ -25,6 +25,34 @@ from ._common import FSDPMeshInfo
 from ._tensor import RaggedShard, RaggedShardDTensor, install
 
 logger = logging.getLogger("gfsdp")
+_ROW_OWNER_OPTIMIZATIONS = ("compact", "owner_add", "owner_lookup", "routing")
+
+
+def _resolve_optimization_stages(
+    optimize: bool, optimization_stages: tuple[str, ...] | None
+) -> tuple[str, ...]:
+    if optimize and optimization_stages is not None:
+        raise ValueError("pass either optimize or diagnostic optimization_stages")
+    requested = _ROW_OWNER_OPTIMIZATIONS if optimize else (optimization_stages or ())
+    if len(set(requested)) != len(requested):
+        raise ValueError("row-owner optimization stages must not contain duplicates")
+    unknown = set(requested).difference(_ROW_OWNER_OPTIMIZATIONS)
+    if unknown:
+        raise ValueError(f"unknown row-owner optimization stages: {sorted(unknown)}")
+    return tuple(stage for stage in _ROW_OWNER_OPTIMIZATIONS if stage in requested)
+
+
+def _compact_native_is_safe(
+    num_ids: int, num_unique: int, width: int, num_sms: int
+) -> bool:
+    """Keep compact native dispatch away from its unordered BF16 atomic path."""
+    if num_ids <= 3072:
+        return True
+    max_segments = min(num_ids, num_unique)
+    stride_warped = ((width + 31) // 32) * 32
+    block = min(stride_warped, 1024)
+    sum_scatter_grid = (max_segments * stride_warped + block - 1) // block
+    return sum_scatter_grid >= 4 * num_sms
 
 
 class RowOwnerEmbedding(Module):
@@ -51,6 +79,8 @@ class RowOwnerEmbedding(Module):
         dense_mesh: DeviceMesh,
         *,
         shard_alignment: int = 8,
+        optimize: bool = False,
+        optimization_stages: tuple[str, ...] | None = None,
     ) -> "RowOwnerEmbedding":
         if dense_mesh.ndim != 1:
             raise ValueError(
@@ -99,6 +129,9 @@ class RowOwnerEmbedding(Module):
         )
         result.num_embeddings = vocab
         result.embedding_dim = width
+        result._optimization_stages = _resolve_optimization_stages(
+            optimize, optimization_stages
+        )
         result.mesh_info = info
         result.rows_per_owner = vocab // info.shard_mesh_size
         result.row_start = result.rows_per_owner * info.shard_mesh_rank
@@ -128,7 +161,18 @@ class RowOwnerEmbedding(Module):
             requires_grad=weight.requires_grad,
         )
         result.train(embedding.training)
+        if result.optimization_stages:
+            logger.info(
+                "row_owner_embedding optimizations enabled stages=%s "
+                "compact_native_guard='N<=3072 or native sum_scatter_grid>=4*num_sms'",
+                result.optimization_stages,
+            )
         return result
+
+    @property
+    def optimization_stages(self) -> tuple[str, ...]:
+        """Enabled opt-in CUDA stages, exposed as immutable construction state."""
+        return self._optimization_stages
 
     def reset_parameters(self) -> None:
         # Configurable embedding initialization normally uses _param_init.
@@ -263,18 +307,45 @@ class RowOwnerEmbedding(Module):
                 if valid_type
                 else torch.empty(0, dtype=torch.int64, device=device)
             )
-            valid = ((flat >= 0) & (flat < self.num_embeddings)).all().to(torch.int64)
-            if not valid_type:
-                valid.zero_()
-            # Clamping makes metadata safe even for invalid IDs; all ranks
-            # reject the shared validity matrix before any payload exchange.
-            unique, inverse = torch.unique(
-                flat.clamp(0, self.num_embeddings - 1), sorted=True, return_inverse=True
+            optimized_routing = (
+                "routing" in self.optimization_stages
+                and device.type == "cuda"
+                and valid_type
+                and flat.numel() <= 8192
             )
-            owners = torch.div(unique, self.rows_per_owner, rounding_mode="floor")
-            metadata = torch.zeros(world + 1, dtype=torch.int64, device=device)
-            metadata[:world].scatter_add_(0, owners, torch.ones_like(owners))
-            metadata[world] = valid
+            if optimized_routing:
+                from . import _row_owner_embedding_kernels as kernels
+
+                metadata = torch.empty(world + 1, dtype=torch.int64, device=device)
+                safe_ids = torch.empty_like(flat)
+                kernels.validate_and_clamp_ids(
+                    flat, safe_ids, metadata[world], self.num_embeddings
+                )
+                route_ids = safe_ids
+            else:
+                valid = (
+                    ((flat >= 0) & (flat < self.num_embeddings)).all().to(torch.int64)
+                )
+                if not valid_type:
+                    valid.zero_()
+                # Clamp before owner division so INT64_MIN/MAX never overflow
+                # into an invalid or negative owner index.
+                route_ids = flat.clamp(0, self.num_embeddings - 1)
+
+            unique, inverse = torch.unique(route_ids, sorted=True, return_inverse=True)
+            if optimized_routing:
+                kernels.build_routing_metadata(
+                    unique,
+                    metadata[world],
+                    metadata,
+                    self.rows_per_owner,
+                    world,
+                )
+            else:
+                owners = torch.div(unique, self.rows_per_owner, rounding_mode="floor")
+                metadata = torch.zeros(world + 1, dtype=torch.int64, device=device)
+                metadata[:world].scatter_add_(0, owners, torch.ones_like(owners))
+                metadata[world] = valid
         with self._stage("counts"):
             matrix = metadata.new_empty(world * (world + 1))
             dist.all_gather_into_tensor(
@@ -338,6 +409,30 @@ class RowOwnerEmbedding(Module):
         return RaggedShardDTensor(local, self.weight._spec, requires_grad=False)
 
 
+def _native_source_coalesce(
+    grad_bf16: torch.Tensor,
+    indices: torch.Tensor,
+    unique: torch.Tensor | None,
+    num_weights: int,
+    *,
+    compact_rows: int | None = None,
+    output: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Use native ordered duplicate reduction and keep its BF16 boundary."""
+    if compact_rows is not None:
+        return torch.ops.aten.embedding_dense_backward.default(
+            grad_bf16, indices, compact_rows, -1, False
+        )
+    dense = torch.ops.aten.embedding_dense_backward.default(
+        grad_bf16, indices, num_weights, -1, False
+    )
+    if output is None:
+        return dense.index_select(0, unique)
+    torch.index_select(dense, 0, unique, out=output)
+    del dense
+    return output
+
+
 class _OwnerLookup(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -350,20 +445,51 @@ class _OwnerLookup(torch.autograd.Function):
             unique, inverse, requested, send, receive = owner._route(ids)
             local_rows = requested.sub_(owner.row_start)
             width, count = owner.embedding_dim, requested.numel()
-            send_offset = max(4 * count * width, 2 * unique.numel() * width)
+            unique_count = unique.numel()
+            compact_coalescing = False
+            if "compact" in owner.optimization_stages and weight.device.type == "cuda":
+                num_sms = torch.cuda.get_device_properties(
+                    weight.device
+                ).multi_processor_count
+                compact_coalescing = _compact_native_is_safe(
+                    ids.numel(), unique_count, width, num_sms
+                )
+            direct_lookup = (
+                "owner_lookup" in owner.optimization_stages
+                and weight.device.type == "cuda"
+                and weight._local_tensor.dtype == torch.float32
+                and weight._local_tensor.is_contiguous()
+                and local_rows.dtype == torch.int64
+                and local_rows.is_contiguous()
+            )
+            send_offset = (
+                2 * unique_count * width
+                if direct_lookup
+                else max(4 * count * width, 2 * unique_count * width)
+            )
             with owner._scratch(send_offset + 2 * count * width) as scratch:
                 with owner._stage("owner_lookup"):
-                    selected = _view(scratch, 0, count, width, torch.float32)
-                    torch.index_select(
-                        weight._local_tensor.view(owner.rows_per_owner, width),
-                        0,
-                        local_rows,
-                        out=selected,
-                    )
                     values = _view(scratch, send_offset, count, width, torch.bfloat16)
-                    values.copy_(selected)
+                    if direct_lookup:
+                        if count:
+                            from . import _row_owner_embedding_kernels as kernels
+
+                            kernels.owner_lookup_bf16(
+                                weight._local_tensor.view(owner.rows_per_owner, width),
+                                local_rows,
+                                values,
+                            )
+                    else:
+                        selected = _view(scratch, 0, count, width, torch.float32)
+                        torch.index_select(
+                            weight._local_tensor.view(owner.rows_per_owner, width),
+                            0,
+                            local_rows,
+                            out=selected,
+                        )
+                        values.copy_(selected)
                 with owner._stage("value_exchange"):
-                    returned = _view(scratch, 0, unique.numel(), width, torch.bfloat16)
+                    returned = _view(scratch, 0, unique_count, width, torch.bfloat16)
                     dist.all_to_all_single(
                         returned,
                         values,
@@ -379,45 +505,91 @@ class _OwnerLookup(torch.autograd.Function):
             output.record_stream(torch.cuda.current_stream(output.device))
         ctx.owner = owner
         ctx.splits = (send, receive)
-        ctx.save_for_backward(ids, unique, local_rows)
+        ctx.input_shape = tuple(ids.shape)
+        ctx.input_count = ids.numel()
+        ctx.unique_count = unique_count
+        ctx.compact_coalescing = compact_coalescing
+        if compact_coalescing:
+            ctx.save_for_backward(inverse, local_rows)
+        else:
+            ctx.save_for_backward(ids, unique, local_rows)
         return output
 
     @staticmethod
     @once_differentiable
     def backward(ctx: Any, grad_output: torch.Tensor) -> tuple:
         owner = ctx.owner
-        ids, unique, local_rows = ctx.saved_tensors
+        if ctx.compact_coalescing:
+            inverse, local_rows = ctx.saved_tensors
+            ids = unique = None
+            saved_route = (inverse, local_rows)
+        else:
+            ids, unique, local_rows = ctx.saved_tensors
+            inverse = None
+            saved_route = (ids, unique, local_rows)
         send, receive = ctx.splits
-        with owner._communication(grad_output, ids, unique, local_rows):
-            with owner._stage("source_coalescing"):
-                # Preserve native CUDA dispatch, original order/duplicate IDs,
-                # and BF16 row rounding before any cross-source FP32 addition.
-                dense = torch.ops.aten.embedding_dense_backward.default(
-                    grad_output.to(torch.bfloat16).contiguous(),
-                    ids,
-                    owner.num_embeddings,
-                    -1,
-                    False,
-                )
+        with owner._communication(grad_output, *saved_route):
             width = owner.embedding_dim
-            received_offset = unique.numel() * width * 2
-            wide_offset = received_offset + sum(receive) * width * 2
-            # Align FP32 views even when an odd hidden dimension is supported.
-            wide_offset = (wide_offset + 3) // 4 * 4
-            gradient_offset = wide_offset + max(receive, default=0) * width * 4
+            unique_count = ctx.unique_count
+            receive_count = sum(receive)
+            compact_coalescing = ctx.compact_coalescing
+            grad_bf16 = (
+                grad_output.to(torch.bfloat16).contiguous().view(ctx.input_count, width)
+            )
             grad_weight_local = torch.zeros(
                 (owner.rows_per_owner, width),
                 dtype=torch.float32,
                 device=owner.weight.device,
             )
-            with owner._scratch(gradient_offset) as scratch:
-                with owner._stage("source_coalescing"):
-                    coalesced = _view(scratch, 0, unique.numel(), width, torch.bfloat16)
-                    torch.index_select(dense, 0, unique, out=coalesced)
-                    del dense
+            direct_owner_add = (
+                "owner_add" in owner.optimization_stages
+                and grad_weight_local.is_cuda
+                and grad_weight_local.dtype == torch.float32
+                and grad_weight_local.is_contiguous()
+                and local_rows.dtype == torch.int64
+                and local_rows.is_contiguous()
+            )
+            if compact_coalescing:
+                with owner._stage("compact_source_coalescing"):
+                    coalesced = _native_source_coalesce(
+                        grad_bf16,
+                        inverse,
+                        None,
+                        owner.num_embeddings,
+                        compact_rows=unique_count,
+                    )
+                del grad_bf16
+                received_offset = 0
+            else:
+                received_offset = unique_count * width * 2
+            received_end = received_offset + receive_count * width * 2
+            scratch_size = received_end
+            if not direct_owner_add:
+                # Preserve the native index_add path's FP32 source conversion
+                # for the disabled/unsupported fused-owner fallback.
+                wide_offset = (received_end + 3) // 4 * 4
+                scratch_size = wide_offset + max(receive, default=0) * width * 4
+            with owner._scratch(scratch_size) as scratch:
+                if not compact_coalescing:
+                    coalesced = _view(scratch, 0, unique_count, width, torch.bfloat16)
+                    with owner._stage("source_coalescing"):
+                        # Preserve the full-vocabulary native reduction when
+                        # compact dispatch is disabled or its guard fails.
+                        _native_source_coalesce(
+                            grad_bf16,
+                            ids,
+                            unique,
+                            owner.num_embeddings,
+                            output=coalesced,
+                        )
+                    del grad_bf16
                 with owner._stage("gradient_exchange"):
                     received = _view(
-                        scratch, received_offset, sum(receive), width, torch.bfloat16
+                        scratch,
+                        received_offset,
+                        receive_count,
+                        width,
+                        torch.bfloat16,
                     )
                     dist.all_to_all_single(
                         received,
@@ -426,17 +598,32 @@ class _OwnerLookup(torch.autograd.Function):
                         list(send),
                         group=owner.mesh_info.shard_process_group,
                     )
+                    # Compact coalescing owns this tensor; NCCL has now queued
+                    # its same-stream read, so release it before owner adds.
+                    if compact_coalescing:
+                        del coalesced
                 with owner._stage("owner_reduction"):
+                    # _route builds a sorted unique list per requester and
+                    # keeps each requester's split intact. Thus each source
+                    # segment has one writer per destination row; the loop
+                    # also preserves source-rank addition order.
                     offset = 0
                     for count in receive:
                         if count:
-                            source = _view(
-                                scratch, wide_offset, count, width, torch.float32
-                            )
-                            source.copy_(received[offset : offset + count])
-                            grad_weight_local.index_add_(
-                                0, local_rows[offset : offset + count], source
-                            )
+                            source_rows = local_rows[offset : offset + count]
+                            source_values = received[offset : offset + count]
+                            if direct_owner_add:
+                                from . import _row_owner_embedding_kernels as kernels
+
+                                kernels.owner_add_bf16_(
+                                    grad_weight_local, source_rows, source_values
+                                )
+                            else:
+                                source = _view(
+                                    scratch, wide_offset, count, width, torch.float32
+                                )
+                                source.copy_(source_values)
+                                grad_weight_local.index_add_(0, source_rows, source)
                         offset += count
         grad_weight = RaggedShardDTensor(
             grad_weight_local.reshape(-1), owner.weight._spec, requires_grad=False

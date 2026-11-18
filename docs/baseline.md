@@ -70,6 +70,11 @@ combined-four and FlashQLA `external_gate` is the foundation of this recipe.
 The [selector report](../runs/capacity-selector/report.md) records the tested S
 launch path, the production flag, and the evidence behind this selection. The
 flag is an explicit setting for the recipe. The shared library default is off.
+Use source revision `766fcc4a016a6e9a4af53042df2c3298596474cb` to reproduce
+this selection with its tested 128-counter payload. The synchronized development
+tree includes the SR008 group-counter candidate in the same call path. Its
+native candidate timing and profile remain open in the
+[capacity group-counter report](../runs/capacity-group-allreduce/report.md).
 
 The historical FlashQLA invocation and per-run values are retained in the
 [FlashQLA native plan](../runs/flash-qla/native-plan.json). It selects the
