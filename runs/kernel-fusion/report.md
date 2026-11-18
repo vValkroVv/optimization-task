@@ -261,13 +261,33 @@ same real data order, production tokenizer, compiler-cache policy,
 The timing starts and ends at synchronized update boundaries across
 all eight ranks. Per-update host cadence is recorded separately.
 
-The baseline passed all eight rank checks. Updates 41–140 processed
-209,715,200 physical tokens in 1274.575 s at **164,537 global tokens/s**.
-Peak allocated and reserved were 66.998 and 69.260 GiB. There were zero
-allocator retries and OOMs. The median of the maximum-rank host cadence
-was 13.171 s for the first 20 measured updates and 12.342 s for the last
-20 (−6.29%). The boundary compiler observer reported stable metadata.
-[Baseline summary](../../artifacts/kernel-fusion/combined-five-140/baseline/summary.json)
+Both arms passed the complete-window checks on all eight ranks. Each
+processed 209,715,200 physical tokens and 209,664,000 supervised tokens.
+The resolved configs differ only in the dump folder. The dataset and
+tokenizer receipts, seed 2048, runtime versions, GPUs and compiler-cache
+policy match. Every rank reported exactly the expected fusion switches.
+
+| Arm | Global physical tokens/s | Synchronized elapsed, s | Mean update, s | Peak allocated, GiB | Peak reserved, GiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| [Baseline](../../artifacts/kernel-fusion/combined-five-140/baseline/summary.json) | 164,537 | 1274.575 | 12.746 | 66.998 | 69.260 |
+| [Combined five](../../artifacts/kernel-fusion/combined-five-140/combined-five/summary.json) | 166,519 | 1259.411 | 12.594 | 66.986 | 69.162 |
+| Change | **+1.20%** | −15.164 | −0.152 | −12.46 MiB | −100.00 MiB |
+
+The maximum-rank host cadence median fell from 12.803 to 12.664 s.
+Within each arm, the median of the last 20 updates was 6.29% shorter
+than the first 20 for the baseline (13.171 → 12.342 s) and 6.34%
+shorter for the candidate (13.017 → 12.191 s). Both arms recorded zero
+allocator retries and OOMs. The compiler observer reported stable
+boundary metadata with partial coverage. The throughput delta is from
+one serial pair on the same node.
+
+The raw summaries, resolved configurations, source fingerprints and
+rank switch logs are under `artifacts/kernel-fusion/combined-five-140/`
+locally and `runs/kernel-fusion/artifacts/raw/fusion-140-pair-001-*` on
+SR008. The baseline summary SHA256 is
+`8062a07a6121c616a2ba10e40273daee1616166fb7ffe07f39fd195939f6b743`.
+The candidate summary SHA256 is
+`7e85b795e0e6497c31fbde8e3b12650a76bd9107bb1ea0aec4a0162e1126c7e5`.
 
 ## Implementation audit
 

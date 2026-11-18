@@ -1,6 +1,6 @@
 # Current state
 
-Updated: 18 November 2026. This file owns integrated results, observed costs,
+Updated: 19 November 2026. This file owns integrated results, observed costs,
 evidence-based priorities and unknowns. [SOTA ideas](sota-ideas.md) owns
 hypotheses/proposals; [the plan](../planning/README.md) owns future execution.
 Update this file when new evidence changes a conclusion.
@@ -25,6 +25,17 @@ capacity-drop policy are part of the [selected recipe](baseline.md#current-final
 
 See the [run report](../runs/capacity-selector/report.md) and the [selected
 rank-0 trace](../artifacts/4fix_qla_embed_selector_gpu.json).
+
+## Five Hopper fusions measured together at 40+100
+
+On `sr008-gpu1` with eight H100s, the combined GDN output norm and FP8,
+MLA RoPE and Q/K packing, CuTe norm and residual add, GDN short-conv
+backward, and dense FP8 weight-tail changes delivered **+1.20%** global
+physical throughput against the selected compiled baseline. Over steps
+41–140 throughput rose from 164,537 to 166,519 tokens/s. Peak allocated
+fell by 12.46 MiB and peak reserved by 100 MiB. This is one matched serial
+pair. The five optimizations are opt-in. [Measurements and implementation
+audit](../runs/kernel-fusion/report.md#combined-five-at-40100)
 
 ## Consolidated rank-0 analysis: observed costs and priorities
 
