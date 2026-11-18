@@ -4,6 +4,64 @@
 [candidates](../docs/candidates.md) owns mechanisms/source pointers.
 Follow [workflow](workflow.md) and [validation](validation.md).
 
+## Active assignment: expert GFSDP optimizations
+
+Use English for all updates, assignments, code, and documentation for this goal.
+The starting recipe is [S + GPU capacity selector + five Hopper fusions](../docs/baseline.md#current-final-task-baseline).
+Use the existing eight-H100 `sr008-gpu1` allocation and the task checkout at
+`/workspace-SR008.nfs2/vkropotin/optimization-task`. Reuse the verified compiler
+cache. Keep the selected architecture and setup fixed in every arm, including
+EP8/eFSDP1, dense FSDP8, TP/PP/CP1, production-tokenizer data, compile, SAC,
+EMA, MTP, and 32-microbatch accumulation.
+
+1. Inspect the LLM Foundry FP8 gather and adapt the applicable parts for cached
+   routed-expert shards and the GFSDP gather path. Measure per-generation
+   quantization and reuse on the existing singleton expert groups.
+2. Write routed-expert dW to the existing FP32 reduce-scatter slot from the
+   DeepGEMM epilogue, preserving the BF16 rounding boundary.
+3. Preserve tail expert weights across nonfinal LM-head backward callbacks and
+   verify the dense MTP re-gathers separately.
+
+For each candidate, document pinned implementation research and cost, run
+focused correctness checks, then collect a separate 10+10 run and matched
+profile against the fixed EP8 control. Measure a combined arm and promote only the
+candidates with a verified gain. Commit and push reviewed milestones to `main`,
+then fast-forward the server checkout and measure there. Continue profiling
+and validating additional optimizations after the three-candidate campaign,
+prioritizing throughput gains that persist as model depth grows.
+[Candidate designs](../docs/profile-my-ideas.md#fp8-all-gather-for-sharded-routed-expert-weights)
+
+For tail retention, adapt the pinned
+[vision-runtime callback guard](../references/vision-runtime/source/torchtitan/distributed/gfsdp/_state.py#L607).
+The [pinned PyTorch callback](https://github.com/pytorch/pytorch/blob/8b353065ce260336c5fdfa74d754e8bd9b91b062/torch/distributed/fsdp/_fully_shard/_fsdp_state.py#L379-L416)
+uses the final-backward flag to gate finalization. GFSDP also needs to retain
+nonparticipating groups' shared-buffer ownership through nonfinal callbacks.
+Test owner-safe release and pending gather completion alongside participation.
+The candidate adds a host-side state check and uses existing buffer ranges and
+events. On EP8, the two expert scopes per microbatch are singleton paths. The
+two dense MTP re-gathers in the selected trace are DP8 collectives.
+
+For FP8 weights, the inspected LLM Foundry revision is
+`eca85af5e254520722efdc3de1a7c9bb834d1a2a`, with GigaFSDP gitlink
+`27a1825817bec332a5e327ddcb23cabb122bb32e`. Its expert-preparation,
+byte-gather, zero-copy view, and consumer handoff patterns inform this port.
+Keep GIFT's 128-by-128 quantizer arithmetic and the FP32-to-BF16 rounding
+boundary. On EP8/eFSDP1, replace the per-generation BF16 cache with E4M3 data
+and FP32 scales; no expert-weight network payload is involved. Verify that
+compiled forward, backward, and SAC resolve the intended weight generation,
+including layer 5 and cache invalidation after optimizer, EMA, and load.
+[Megatron FP8 lifecycle reference](https://github.com/NVIDIA/Megatron-LM/blob/core_v0.20.0/megatron/core/fp8_utils.py#L620-L650)
+
+For direct dW, the deployed DeepGEMM `2.3.0+f093a4c` SM90 kernel header has
+SHA-256 `fd8a620440cc31ae7d01010fde1f914aae6998f2dcf6ede2a65e3b5e76001726`.
+Its BF16 store uses TMA reduce-add into a zeroed destination. The candidate
+needs a dedicated Hopper K-grouped epilogue with the same rounded values in
+the existing FP32 slot, covering experts with zero tokens. Preserve the
+existing singleton collective, FP32 shard accumulation, and release event.
+Verify aligned output views, special values, and the compiled backward's
+mutation and data lifetimes before timing the shortened packing path.
+[NVIDIA TMA semantics](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-reduce-async-bulk-tensor)
+
 <a id="active-assignment-seven-configuration-timings-profiles-and-drift"></a>
 ## Completed assignment: seven-configuration timings, profiles and drift
 

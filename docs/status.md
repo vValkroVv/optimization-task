@@ -41,6 +41,25 @@ training configs differ only in enabling the GPU selector.
 [Selector pair and trace](../runs/capacity-selector/report.md) ·
 [Fusion pair and audit](../runs/kernel-fusion/report.md#combined-five-at-40100)
 
+### Fixed-recipe control for expert GFSDP candidates
+
+On 19 November 2026, the fixed production recipe at `1f02311a5` passed the
+unprofiled 10+10 control on the eight-H100 `sr008-gpu1` allocation. The
+resolved configuration retained EP8/eFSDP1, dense FSDP8, the GPU selector
+and the five fusions. The ten measured updates processed 20,971,520 physical
+input tokens in 120.603 seconds, or **173,889 tokens/s**. Maximum-rank peak
+allocated and reserved memory were **65.958 GiB** and **67.854 GiB**.
+The compiler-cache observer reported stable metadata across its observed
+window. This control uses the 10+10 protocol, with startup outside the
+timing window.
+
+The server receipt is under
+`runs/kernel-fusion/artifacts/raw/efsdp-control-ep8-001-timing/`.
+Its `summary.json` retains all-rank timings and allocator peaks, and
+`completion.json` records PASS and the resolved config hash. The control
+profile is captured separately under `efsdp-control-ep8-001-trace`.
+[Active campaign and acceptance](../planning/README.md#active-assignment-expert-gfsdp-optimizations)
+
 ## Consolidated rank-0 analysis: observed costs and priorities
 
 This section consolidates the studied S trace, source/grid arithmetic and prior
