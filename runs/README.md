@@ -1,5 +1,7 @@
 # Run evidence
 
+- [Compile comparison](compile-baseline/report.md): the selected baseline with
+  and without compile, rank-0 trace accounting, and custom-kernel candidates.
 - [GPU capacity selector](capacity-selector/report.md): the selected production
   stack, isolated EP8 checks, native 10+10 comparison, and matched Perfetto traces.
 - [Current crop smoke](100b-crop8-ep8-smoke/report.md): maintained launcher,
