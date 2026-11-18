@@ -4,7 +4,7 @@ from torch.distributed.tensor import Partial, Placement, Replicate, Shard
 from torch.distributed.tensor.experimental import register_sharding
 
 
-def register_cute_gated_norm_sharding(forward_op, backward_op):
+def register_cute_gated_norm_sharding(forward_op, backward_op, residual_forward_op):
     """Allow row sharding on every mesh axis, with replicated gate parameters.
 
     Hidden sharding requires redistribution: each gate sees the whole hidden
@@ -15,10 +15,7 @@ def register_cute_gated_norm_sharding(forward_op, backward_op):
     replicate: Placement = Replicate()
     partial: Placement = Partial()
 
-    @register_sharding(forward_op)
-    def forward_strategy(
-        x, weight, gate_up_weight, gate_down_weight, eps, gating_weight
-    ):
+    def forward_strategies(x, *, include_residual):
         strategies: list[tuple[list[Placement], list[Placement | None]]] = [
             ([replicate] * 7, [replicate] * 4 + [None, None])
         ]
@@ -30,7 +27,21 @@ def register_cute_gated_norm_sharding(forward_op, backward_op):
                     [shard] + [replicate] * 3 + [None, None],
                 )
             )
+        if include_residual:
+            return [(outputs, [*inputs, inputs[0]]) for outputs, inputs in strategies]
         return strategies
+
+    @register_sharding(forward_op)
+    def forward_strategy(
+        x, weight, gate_up_weight, gate_down_weight, eps, gating_weight
+    ):
+        return forward_strategies(x, include_residual=False)
+
+    @register_sharding(residual_forward_op)
+    def residual_forward_strategy(
+        x, weight, gate_up_weight, gate_down_weight, eps, gating_weight, residual
+    ):
+        return forward_strategies(x, include_residual=True)
 
     @register_sharding(backward_op)
     def backward_strategy(

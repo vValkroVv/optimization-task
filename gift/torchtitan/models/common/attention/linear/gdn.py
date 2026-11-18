@@ -7,6 +7,8 @@ lazily. RoPE unused.
 TODO: training path only (chunk mode; no SP/CP, no cache).
 """
 
+import os
+
 import torch
 from torch import nn
 
@@ -23,8 +25,16 @@ from torchtitan.models.common.attention.varlen_meta import (
     unflatten_varlen_batch,
     VarlenMetadata,
 )
+from torchtitan.ops.float8.cuda_gemm import FP8Linear
 
 __all__ = ["GatedDeltaNet"]
+
+
+def _env_flag(name: str) -> bool:
+    value = os.getenv(name, "")
+    if value not in ("", "0", "1"):
+        raise ValueError(f"{name} must be 0 or 1, got {value!r}")
+    return value == "1"
 
 
 class GatedDeltaNet(GatedDeltaAttention):
@@ -36,6 +46,14 @@ class GatedDeltaNet(GatedDeltaAttention):
 
     def __init__(self, config: Config):
         super().__init__(config)
+        self._fuse_short_conv_backward = _env_flag("GIFT_GDN_FUSE_SHORT_CONV_BWD")
+        self._output_norm_fp8: type[torch.autograd.Function] | None = None
+        if _env_flag("GIFT_GDN_FUSE_OUTPUT_NORM_FP8"):
+            from torchtitan.models.common.attention.linear.gdn_output_fp8 import (
+                GDNOutputNormFP8,
+            )
+
+            self._output_norm_fp8 = GDNOutputNormFP8
         ba_proj, z_proj = config._gating_projections()
         self.ba_proj = ba_proj.build()
         self.z_proj = z_proj.build()
@@ -74,7 +92,11 @@ class GatedDeltaNet(GatedDeltaAttention):
         b_, s_, _ = x.shape
 
         # q, k: [.., L, num_k_heads, head_k_dim]; v: [.., L, num_v_heads, head_v_dim].
-        q, k, v = self.qkv(x, cu_seqlens=cu_seqlens)
+        q, k, v = self.qkv(
+            x,
+            cu_seqlens=cu_seqlens,
+            fuse_conv_backward=self._fuse_short_conv_backward,
+        )
 
         # Decay/gating: ba_proj -> (beta b, decay-input a), each [.., L, num_v_heads].
         ba = self.ba_proj(x).view(
@@ -109,8 +131,32 @@ class GatedDeltaNet(GatedDeltaAttention):
             cu_seqlens,
         )
 
-        o = self.o_norm(o, z) * self.o_norm_output_multiplier
-        o = o.reshape(b_, s_, self.value_dim)
+        if (
+            self._output_norm_fp8 is not None
+            and isinstance(self.o_proj, FP8Linear)
+            and self.head_v_dim == 128
+            and self.o_norm_output_multiplier == 2.0
+            and b_ * s_ > 0
+            and (b_ * s_) % 128 == 0
+            and o.is_cuda
+            and o.dtype == z.dtype == torch.bfloat16
+            and o.is_contiguous()
+            and z.is_contiguous()
+            and self.o_norm.weight.is_contiguous()
+            and not self.o_norm._forward_hooks
+            and not self.o_norm._forward_pre_hooks
+        ):
+            o = self._output_norm_fp8.apply(
+                o,
+                z,
+                self.o_norm.weight,
+                self.o_norm.eps,
+                self.o_norm.activation,
+                self.o_norm.zero_centered,
+            )
+        else:
+            o = self.o_norm(o, z) * self.o_norm_output_multiplier
+            o = o.reshape(b_, s_, self.value_dim)
         o = self.o_proj(o)
         if cu_seqlens is not None:
             o = unflatten_varlen_batch(o, bsz, seqlen)

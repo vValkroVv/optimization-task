@@ -6,15 +6,19 @@ accounting). ``ResidualTransformerBlock`` is the concrete pre-norm /
 sandwich-norm block that all current decoder models build on.
 """
 
-import torch
+import os
 
 from typing import TypeAlias
+
+import torch
+from torch.distributed.tensor import DTensor
 
 from torchtitan.config.schema.models.common.decoder_blocks.transformer_block import (
     ResidualTransformerBlockConfig,
     TransformerBlockConfig,
 )
 from torchtitan.models.common.attention import AttentionMasksType
+from torchtitan.models.common.norms.gated_norm import GatedRMSNorm
 from torchtitan.protocols.blocks import Block
 
 __all__ = ["TransformerBlock", "ResidualTransformerBlock"]
@@ -66,6 +70,19 @@ class ResidualTransformerBlock(TransformerBlock):
             if config.ffn_residual_scale is not None
             else None
         )
+        fuse_residual = os.environ.get("GIFT_CUTE_NORM_FUSE_RESIDUAL") == "1"
+        self._fuse_attention_residual = (
+            fuse_residual
+            and isinstance(self.post_attn_norm, GatedRMSNorm)
+            and self.post_attn_norm.norm_backend == "cute"
+            and self.attn_residual_scale is None
+        )
+        self._fuse_ffn_residual = (
+            fuse_residual
+            and isinstance(self.post_ffn_norm, GatedRMSNorm)
+            and self.post_ffn_norm.norm_backend == "cute"
+            and self.ffn_residual_scale is None
+        )
 
         # ``moe`` and ``feed_forward`` are distinct checkpoint keys, so keep
         # both attribute names and select at forward time. ``moe_enabled`` is
@@ -112,6 +129,14 @@ class ResidualTransformerBlock(TransformerBlock):
         attn_out = self.attention(
             self.attention_norm(x), rope_cache, attention_masks, positions
         )
+        if (
+            self._fuse_attention_residual
+            and self.post_attn_norm is not None
+            and not self.post_attn_norm._forward_hooks
+            and _can_fuse_residual(x, attn_out)
+        ):
+            x = self.post_attn_norm(attn_out, residual=x)
+            return x, self.ffn_norm(x)
         if self.post_attn_norm is not None:
             attn_out = self.post_attn_norm(attn_out)
         if self.attn_residual_scale is not None:
@@ -123,8 +148,27 @@ class ResidualTransformerBlock(TransformerBlock):
     def _forward_ffn_suffix(
         self, x: torch.Tensor, ffn_out: torch.Tensor
     ) -> torch.Tensor:
+        if (
+            self._fuse_ffn_residual
+            and self.post_ffn_norm is not None
+            and not self.post_ffn_norm._forward_hooks
+            and _can_fuse_residual(x, ffn_out)
+        ):
+            return self.post_ffn_norm(ffn_out, residual=x)
         if self.post_ffn_norm is not None:
             ffn_out = self.post_ffn_norm(ffn_out)
         if self.ffn_residual_scale is not None:
             ffn_out = self.ffn_residual_scale(ffn_out)
         return x + ffn_out
+
+
+def _can_fuse_residual(residual: torch.Tensor, norm_input: torch.Tensor) -> bool:
+    return (
+        residual.dtype == norm_input.dtype == torch.bfloat16
+        and residual.shape == norm_input.shape
+        and residual.is_cuda
+        and residual.device == norm_input.device
+        and residual.is_contiguous()
+        and not isinstance(residual, DTensor)
+        and not isinstance(norm_input, DTensor)
+    )

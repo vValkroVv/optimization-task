@@ -62,7 +62,9 @@ class GatedRMSNorm(Module):
             torch.empty(config.normalized_shape, config.gate_rank)
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, *, residual: torch.Tensor | None = None
+    ) -> torch.Tensor:
         if self.norm_backend == "cute":
             # Form 1+w in fp32, before the kernel rounds tensor-core operands.
             weight = 1.0 + self.weight.float() if self.zero_centered else self.weight
@@ -73,8 +75,9 @@ class GatedRMSNorm(Module):
                 self.gate_down_weight,
                 eps=self.eps,
                 gating_weight=self.gating_weight,
+                residual=residual,
             )
-        return _gated_rms_norm(
+        output = _gated_rms_norm(
             x,
             self.weight,
             self.gate_up_weight,
@@ -83,3 +86,4 @@ class GatedRMSNorm(Module):
             gating_weight=self.gating_weight,
             zero_centered=self.zero_centered,
         )
+        return output if residual is None else residual + output

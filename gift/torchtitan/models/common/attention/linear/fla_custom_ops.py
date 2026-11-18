@@ -83,6 +83,7 @@ def qkv_conv1d_unpack_op(
     cu_seqlens: torch.Tensor | None,
     normalize_qk: bool,
     eps: float,
+    fuse_backward: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Opaque custom-op wrapper over fla's ``fused_qkv_conv1d_unpack`` (short conv)."""
     from fla.ops.common.fused_conv_qkv import fused_qkv_conv1d_unpack
@@ -114,6 +115,7 @@ def _(
     cu_seqlens,
     normalize_qk,
     eps,
+    fuse_backward=False,
 ):
     bs, seqlen = qkv.shape[0], qkv.shape[1]
     return (
@@ -126,7 +128,6 @@ def _(
 def _qkv_conv_setup(ctx, inputs, output):
     qkv, weight = inputs[0], inputs[1]
     ctx.save_for_backward(qkv, weight)
-    # num_heads, num_v_heads, head_dim, head_v_dim, cu_seqlens, normalize_qk, eps
     ctx.fwd_args = inputs[2:]
 
 
@@ -157,16 +158,33 @@ _RECOMPUTE["qkv_conv1d"] = _qkv_conv_recompute
 
 
 def _qkv_conv_backward(ctx, grad_q, grad_k, grad_v):
-    nh, nvh, hd, hvd, cu_seqlens, normalize_qk, eps = ctx.fwd_args
-    d_qkv, d_weight = fla_vjp(
-        "qkv_conv1d",
-        list(ctx.saved_tensors),
-        [grad_q, grad_k, grad_v],
-        [cu_seqlens],
-        [nh, nvh, hd, hvd, normalize_qk, eps],
-        "",
-    )
-    return d_qkv, d_weight, None, None, None, None, None, None, None
+    nh, nvh, hd, hvd, cu_seqlens, normalize_qk, eps, fuse_backward = ctx.fwd_args
+    qkv, weight = ctx.saved_tensors
+    if (
+        fuse_backward
+        and qkv.is_cuda
+        and qkv.dtype == torch.bfloat16
+        and weight.shape[-1] == 4
+        and hd == hvd == 128
+        and qkv.numel() != 0
+    ):
+        from torchtitan.models.common.attention.linear.gdn_short_conv import (
+            gdn_short_conv_backward,
+        )
+
+        d_qkv, d_weight = gdn_short_conv_backward(
+            qkv, weight, grad_q, grad_k, grad_v, cu_seqlens, nh, nvh, normalize_qk, eps
+        )
+    else:
+        d_qkv, d_weight = fla_vjp(
+            "qkv_conv1d",
+            [qkv, weight],
+            [grad_q, grad_k, grad_v],
+            [cu_seqlens],
+            [nh, nvh, hd, hvd, normalize_qk, eps],
+            "",
+        )
+    return d_qkv, d_weight, None, None, None, None, None, None, None, None
 
 
 qkv_conv1d_unpack_op.register_autograd(

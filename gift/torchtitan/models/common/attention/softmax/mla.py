@@ -5,14 +5,18 @@ DeepSeek-V3 style low-rank Q/KV compression with a decoupled RoPE head. Shared b
 """
 
 import math
+import os
+from typing import TypeAlias
 
 import torch
-
-from typing import TypeAlias
+from torch.distributed.tensor import DTensor
 
 from torchtitan.config.schema.models.common.attention.softmax.mla import MLAConfig
 from torchtitan.models.common.attention.const import AttentionMasksType
 from torchtitan.models.common.attention.softmax.gqa import SoftmaxAttention
+from torchtitan.models.common.attention.softmax.kernels.sdpa import (
+    ScaledDotProductAttention,
+)
 from torchtitan.models.common.embeddings.rope import (
     apply_rotary_emb_complex,
 )
@@ -98,6 +102,36 @@ class MLA(SoftmaxAttention):
 
         self.inner_attention = config.inner_attention.build()
 
+        crop = (
+            type(self.inner_attention) is ScaledDotProductAttention
+            and self.n_heads == 32
+            and self.qk_nope_head_dim == 128
+            and self.qk_rope_head_dim == 64
+            and self.v_head_dim == 128
+        )
+        self._fused_rope = (
+            os.environ.get("GIFT_MLA_FUSED_ROPE") == "1"
+            and crop
+            and self.kv_lora_rank == 512
+            and self.q_lora_rank == 0
+            and self.alpha_q == 1.0
+            and config.yarn_factor is None
+        )
+
+    def parallelize(self, parallel_dims) -> None:
+        if parallel_dims.tp_enabled or parallel_dims.cp_enabled:
+            self._fused_rope = False
+        super().parallelize(parallel_dims)
+
+    def _rotate_query(self, q, freqs_cis, positions):
+        q_nope, q_pe = torch.split(
+            q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
+        )
+        (q_pe,) = apply_rotary_emb_complex(
+            q_pe, freqs_cis=freqs_cis, positions=positions
+        )
+        return torch.cat([q_nope, q_pe], dim=-1)
+
     def forward(
         self,
         x: torch.Tensor,
@@ -121,21 +155,41 @@ class MLA(SoftmaxAttention):
                 )
             q = self.wq_b(q_latent)
         q = q.view(bsz, seqlen, -1, self.qk_head_dim)
-        q_nope, q_pe = torch.split(
-            q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
+        use_fused_rope = (
+            self._fused_rope
+            and torch.compiler.is_compiling()
+            and attention_masks is None
+            and q.shape == (2, 4096, 32, 192)
+            and q.is_cuda
+            and q.dtype == torch.bfloat16
+            and q.is_contiguous()
+            and freqs_cis.shape == (4096, 32)
+            and freqs_cis.dtype == torch.complex64
+            and not freqs_cis.requires_grad
+            and freqs_cis.device == q.device
+            and freqs_cis.is_contiguous()
+            and positions is not None
+            and positions.shape == (2, 4096)
+            and positions.dtype == torch.int32
+            and positions.device == q.device
+            and positions.is_contiguous()
+            and not isinstance(q, DTensor)
+            and not isinstance(freqs_cis, DTensor)
+            and not isinstance(positions, DTensor)
+            # CP alone can wrap inner attention without calling parallelize().
+            and not getattr(self.inner_attention, "_context_parallel_enabled", False)
         )
-        (q_pe,) = apply_rotary_emb_complex(
-            q_pe, freqs_cis=freqs_cis, positions=positions
-        )
-        q = torch.cat([q_nope, q_pe], dim=-1)
+        if not use_fused_rope:
+            q = self._rotate_query(q, freqs_cis, positions)
 
         # Key-value projection
         kv = self.wkv_a(x)
         kv, k_pe = torch.split(kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
 
-        (k_pe,) = apply_rotary_emb_complex(
-            k_pe.unsqueeze(2), freqs_cis=freqs_cis, positions=positions
-        )
+        if not use_fused_rope:
+            (k_pe,) = apply_rotary_emb_complex(
+                k_pe.unsqueeze(2), freqs_cis=freqs_cis, positions=positions
+            )
 
         if self.training and self._mla_kv_latent_z_loss_coef != 0.0:
             kv = AddAuxiliaryLoss.apply(
@@ -147,7 +201,28 @@ class MLA(SoftmaxAttention):
         kv = self.wkv_b(kv)
         kv = kv.view(bsz, seqlen, -1, self.qk_nope_head_dim + self.v_head_dim)
         k_nope, v = torch.split(kv, [self.qk_nope_head_dim, self.v_head_dim], dim=-1)
-        k = torch.cat([k_nope, k_pe.expand(-1, -1, self.n_heads, -1)], dim=-1)
+        if (
+            use_fused_rope
+            and k_nope.shape == (2, 4096, 32, 128)
+            and k_nope.stride() == (4096 * 8192, 8192, 256, 1)
+            and k_pe.stride() == (4096 * 576, 576, 1)
+            and k_nope.device == k_pe.device == q.device
+            and k_nope.dtype == k_pe.dtype == torch.bfloat16
+            and not isinstance(k_nope, DTensor)
+            and not isinstance(k_pe, DTensor)
+        ):
+            from torchtitan.models.common.attention.softmax.mla_rope_pack import (
+                MLARoPEPack,
+            )
+
+            q, k = MLARoPEPack.apply(q, k_nope, k_pe, freqs_cis, positions)
+        else:
+            if use_fused_rope:
+                q = self._rotate_query(q, freqs_cis, positions)
+                (k_pe,) = apply_rotary_emb_complex(
+                    k_pe.unsqueeze(2), freqs_cis=freqs_cis, positions=positions
+                )
+            k = torch.cat([k_nope, k_pe.expand(-1, -1, self.n_heads, -1)], dim=-1)
 
         output = self.inner_attention(
             q, k, v, attention_masks=attention_masks, scale=self.softmax_scale

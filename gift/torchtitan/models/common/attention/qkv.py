@@ -149,7 +149,11 @@ class LinearAttnQKV(Module):
         self.qkv_conv1d = config.conv.build()
 
     def forward(
-        self, x: torch.Tensor, cu_seqlens: torch.Tensor | None = None
+        self,
+        x: torch.Tensor,
+        cu_seqlens: torch.Tensor | None = None,
+        *,
+        fuse_conv_backward: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         from torchtitan.models.common.attention.linear.fla_custom_ops import (
             qkv_conv1d_unpack_op,
@@ -167,5 +171,6 @@ class LinearAttnQKV(Module):
             cu_seqlens,
             self.normalize_qk,
             self.eps,
+            fuse_conv_backward,
         )
         return q, k, v

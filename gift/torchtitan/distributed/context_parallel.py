@@ -146,6 +146,7 @@ def apply_cp_to_forward(model: nn.Module, cp_mesh: DeviceMesh) -> None:
                 return cp_forward
 
             mod.forward = _make_cp_forward(original_forward, cp_mesh)
+            mod._context_parallel_enabled = True
 
     logger.info("Applied Context Parallel (forward wrapping) to the model")
 

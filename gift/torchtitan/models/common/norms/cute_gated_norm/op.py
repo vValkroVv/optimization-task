@@ -80,6 +80,12 @@ def _forward(
     torch.Tensor,
     torch.Tensor,
 ]:
+    return _run_forward(x, weight, gate_up_weight, gate_down_weight, eps, gating_weight)
+
+
+def _run_forward(
+    x, weight, gate_up_weight, gate_down_weight, eps, gating_weight, residual=None
+):
     _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
     _check_device(x)
     if x.numel() == 0:
@@ -107,6 +113,7 @@ def _forward(
             _aligned(gate_down_weight),
             eps,
             gating_weight,
+            residual=None if residual is None else _aligned(residual),
         )
     # Preserve leading dimensions so DTensor can shard rows without flattening
     # a batch/sequence shard across the normalized hidden dimension.
@@ -125,6 +132,53 @@ def _forward_fake(x, weight, gate_up_weight, gate_down_weight, eps, gating_weigh
         x.new_empty((hidden, 16)),
         x.new_empty((16, hidden)),
         x.new_empty((hidden, 16)),
+    )
+
+
+@torch.library.custom_op(
+    "torchtitan::cute_gated_norm_residual_fwd", mutates_args=(), device_types="cuda"
+)
+def _forward_residual(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    gate_up_weight: torch.Tensor,
+    gate_down_weight: torch.Tensor,
+    eps: float,
+    gating_weight: float,
+    residual: torch.Tensor,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    _validate_residual(x, residual)
+    return _run_forward(
+        x, weight, gate_up_weight, gate_down_weight, eps, gating_weight, residual
+    )
+
+
+def _validate_residual(x, residual):
+    if (
+        residual.shape != x.shape
+        or residual.dtype != x.dtype
+        or residual.device != x.device
+    ):
+        raise ValueError(
+            "CuTe residual must match the BF16 norm input shape and device"
+        )
+
+
+@_forward_residual.register_fake
+def _forward_residual_fake(
+    x, weight, gate_up_weight, gate_down_weight, eps, gating_weight, residual
+):
+    _validate_residual(x, residual)
+    return _forward_fake(
+        x, weight, gate_up_weight, gate_down_weight, eps, gating_weight
     )
 
 
@@ -209,10 +263,30 @@ def _autograd_backward(ctx, dy, *unused):
 
 _forward.register_autograd(_autograd_backward, setup_context=_setup_context)
 
-register_cute_gated_norm_sharding(_forward._opoverload, _backward._opoverload)
+
+def _setup_residual_context(ctx, inputs, output):
+    _setup_context(ctx, inputs[:-1], output)
 
 
-def gated_norm(x, weight, gate_up_weight, gate_down_weight, *, eps, gating_weight):
+def _autograd_residual_backward(ctx, dy, *unused):
+    return (*_autograd_backward(ctx, dy), dy)
+
+
+_forward_residual.register_autograd(
+    _autograd_residual_backward, setup_context=_setup_residual_context
+)
+
+register_cute_gated_norm_sharding(
+    _forward._opoverload, _backward._opoverload, _forward_residual._opoverload
+)
+
+
+def gated_norm(
+    x, weight, gate_up_weight, gate_down_weight, *, eps, gating_weight, residual=None
+):
     """Self-gated RMSNorm for BF16 Hopper inputs; supports first-order gradients."""
     _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
-    return _forward(x, weight, gate_up_weight, gate_down_weight, eps, gating_weight)[0]
+    args = (x, weight, gate_up_weight, gate_down_weight, eps, gating_weight)
+    if residual is not None:
+        return _forward_residual(*args, residual)[0]
+    return _forward(*args)[0]
