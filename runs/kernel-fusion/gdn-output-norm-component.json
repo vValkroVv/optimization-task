@@ -1,0 +1,142 @@
+{
+  "component": "output-norm",
+  "device": "NVIDIA H100 80GB HBM3",
+  "torch": "2.15.0.dev20260822+cu130",
+  "cases": [
+    {
+      "batch": 2,
+      "sequence_length": 64,
+      "compiled_sac": false,
+      "data_and_scales_bitwise": true,
+      "projected_output_bitwise": true,
+      "dx": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 65536
+      },
+      "dg": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 65536
+      },
+      "dnorm_weight": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 128
+      },
+      "dprojection_weight": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 262144
+      }
+    },
+    {
+      "batch": 2,
+      "sequence_length": 64,
+      "compiled_sac": true,
+      "data_and_scales_bitwise": true,
+      "projected_output_bitwise": true,
+      "dx": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 65536
+      },
+      "dg": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 65536
+      },
+      "dnorm_weight": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 128
+      },
+      "dprojection_weight": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 262144
+      }
+    },
+    {
+      "batch": 2,
+      "sequence_length": 4096,
+      "compiled_sac": true,
+      "data_and_scales_bitwise": true,
+      "projected_output_bitwise": true,
+      "dx": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 33554432
+      },
+      "dg": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 33554432
+      },
+      "dnorm_weight": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 128
+      },
+      "dprojection_weight": {
+        "relative_l2": 0,
+        "max_abs": 0,
+        "unequal": 0,
+        "elements": 16777216
+      },
+      "timing": {
+        "scope": "GDN gated norm, multiplier and rowwise FP8 quantization before the output GEMM",
+        "method": "CUDA Graph, 5 event spans of 20 replays after warmup",
+        "baseline": {
+          "median_us": 151.70559883117676,
+          "samples_us": [
+            151.55199766159058,
+            151.80799961090088,
+            151.70559883117676,
+            151.72640085220337,
+            151.68639421463013
+          ]
+        },
+        "candidate": {
+          "median_us": 63.82240056991577,
+          "samples_us": [
+            63.82240056991577,
+            63.919997215270996,
+            63.86399865150452,
+            63.68640065193176,
+            63.75679969787598
+          ]
+        }
+      }
+    }
+  ],
+  "source_base": "abbbcaf0311409a817b16d794af79e3f3c106864",
+  "artifact": "sr008-gpu1:/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/kernel-fusion/source-001/runs/kernel-fusion/artifacts/raw/gdn-output-norm-003",
+  "cuda_physical_device": 4,
+  "exit_code": 0,
+  "source_sha256": {
+    "gift/torchtitan/models/common/attention/linear/gdn_output_fp8.py": "4e8568f22239f7bab4b9535e6f3b16d20c6cfb4ed98f6b61fe6fb47db758a785",
+    "runs/kernel-fusion/check_gdn_components.py": "2e1652dec8f2ed94a1d1acc66fccdc6c79f1f6c1ecceb405e6c01e475d91ab59"
+  },
+  "prior_attempts": [
+    {
+      "artifact": "gdn-components-001/output-norm.log",
+      "finding": "In production-shaped payload, 4 of 33554432 FP8 bytes differed by one. The CUDA quantizer scales matched. Output vector width changed the FP32 RMS reduction tree. Gluon now pins the FLA layout."
+    },
+    {
+      "artifact": "gdn-output-norm-002/output-norm.log",
+      "finding": "Production-shaped FP8 payload and scales matched. Compiling a different shape in the same process triggered a sourceless SymInt in FP8Linear. Attempt 003 resets Dynamo before each independent fixed-shape case. Mixed-shape dynamic compilation was not validated."
+    }
+  ]
+}
