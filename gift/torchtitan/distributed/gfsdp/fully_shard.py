@@ -34,6 +34,7 @@ from ._tensor import install as _install_ragged_shard_dtensor
 
 if TYPE_CHECKING:
     from ._collectives import AllGatherResult
+    from ._fp8_expert_weight_cache import ExpertAllGatherResult
 
 __all__ = [
     "UnshardHandle",
@@ -664,7 +665,9 @@ class GFSDPModule(FSDPModule):
             for fsdp_param_group in state._fsdp_param_groups:
                 for fsdp_param in fsdp_param_group.fsdp_params:
                     fsdp_param.reset_sharded_param()
-                if fsdp_param_group._bf16_cache_enabled:
+                if fsdp_param_group._fp8_cache is not None:
+                    fsdp_param_group.record_weight_write()
+                elif fsdp_param_group._bf16_cache_enabled:
                     if fsdp_param_group._bf16_cache_layout_is_eligible():
                         fsdp_param_group.record_weight_write()
                     else:
@@ -687,7 +690,7 @@ class UnshardHandle:
 class _UnshardHandleImpl(UnshardHandle):
     def __init__(self, fsdp_param_groups: Sequence[GFSDPParamGroup]):
         self._fsdp_param_groups = list(fsdp_param_groups)
-        self._all_gather_results: list[AllGatherResult] = []
+        self._all_gather_results: list[AllGatherResult | ExpertAllGatherResult] = []
 
     def wait(self) -> None:
         if self._fsdp_param_groups:

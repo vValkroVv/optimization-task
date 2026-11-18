@@ -7,10 +7,42 @@
 from __future__ import annotations
 
 import warnings
+from typing import Protocol
 
 import torch
+from torch._library.opaque_object import CustomClassBase, register_opaque_type
 
 _deep_gemm = None
+
+
+class _PreparedExpertWeightProvider(Protocol):
+    def resolve_fp8_weight(
+        self, projection: str, expected_generation: int | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor, int]: ...
+
+
+class PreparedExpertWeight(CustomClassBase):
+    """Identifies a GFSDP projection without retaining its borrowed FP8 planes."""
+
+    def __init__(
+        self,
+        provider: _PreparedExpertWeightProvider | None = None,
+        projection: str = "",
+        generation: int | None = None,
+    ):
+        self._provider = provider
+        self._projection = projection
+        self._generation = generation
+
+    def _resolve(self) -> tuple[torch.Tensor, torch.Tensor, int]:
+        assert self._provider is not None
+        return self._provider.resolve_fp8_weight(self._projection, self._generation)
+
+    def __fx_repr__(self):
+        return "PreparedExpertWeight()", {"PreparedExpertWeight": PreparedExpertWeight}
+
+
+register_opaque_type(PreparedExpertWeight, typ="reference")
 
 
 def _load_deep_gemm():
@@ -134,6 +166,16 @@ def _m_grouped_fp8_gemm_nt_contiguous(
     m_indices: torch.Tensor,
 ) -> torch.Tensor:
     """Return a fresh bf16 result so selective AC can cache the GEMM output."""
+    return _m_grouped_fp8_gemm(a_data, a_scale, b_data, b_scale, m_indices)
+
+
+def _m_grouped_fp8_gemm(
+    a_data: torch.Tensor,
+    a_scale: torch.Tensor,
+    b_data: torch.Tensor,
+    b_scale: torch.Tensor,
+    m_indices: torch.Tensor,
+) -> torch.Tensor:
     assert (
         a_data.is_cuda
         and a_scale.is_cuda
@@ -175,6 +217,104 @@ def _(
 ) -> torch.Tensor:
     return torch.empty(
         (a_data.shape[0], b_data.shape[1]), dtype=torch.bfloat16, device=a_data.device
+    )
+
+
+@torch.library.custom_op(
+    "torchtitan::bind_prepared_fp8_weight",
+    mutates_args=(),
+    tags=(torch.Tag.cudagraph_unsafe,),
+)
+def _bind_prepared_fp8_weight(
+    like: torch.Tensor, weight: PreparedExpertWeight
+) -> PreparedExpertWeight:
+    # SAC saves this small reference independently of the GEMM result.
+    _, _, generation = weight._resolve()
+    return PreparedExpertWeight(weight._provider, weight._projection, generation)
+
+
+@_bind_prepared_fp8_weight.register_fake
+def _(like: torch.Tensor, weight: PreparedExpertWeight) -> PreparedExpertWeight:
+    return PreparedExpertWeight()
+
+
+@torch.library.custom_op(
+    "torchtitan::m_grouped_fp8_gemm_prepared_weight",
+    mutates_args=(),
+    tags=(torch.Tag.cudagraph_unsafe,),
+)
+def _m_grouped_fp8_gemm_prepared_weight(
+    a_data: torch.Tensor,
+    a_scale: torch.Tensor,
+    weight: PreparedExpertWeight,
+    m_indices: torch.Tensor,
+    out_features: int,
+) -> torch.Tensor:
+    b_data, b_scale, _ = weight._resolve()
+    assert b_data.shape[1] == out_features
+    return _m_grouped_fp8_gemm(a_data, a_scale, b_data, b_scale, m_indices)
+
+
+@_m_grouped_fp8_gemm_prepared_weight.register_fake
+def _(
+    a_data: torch.Tensor,
+    a_scale: torch.Tensor,
+    weight: PreparedExpertWeight,
+    m_indices: torch.Tensor,
+    out_features: int,
+) -> torch.Tensor:
+    return torch.empty(
+        (a_data.shape[0], out_features), dtype=torch.bfloat16, device=a_data.device
+    )
+
+
+def _transpose_fp8_weight(
+    data: torch.Tensor, scale: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    from torchtitan.ops.float8.triton_kernels.block_transpose import (
+        transpose_last_two_dims_fn,
+    )
+
+    return transpose_last_two_dims_fn(data), transpose_last_two_dims_fn(scale)
+
+
+@torch.library.custom_op(
+    "torchtitan::transpose_prepared_fp8_weight",
+    mutates_args=(),
+    tags=(torch.Tag.cudagraph_unsafe,),
+)
+def _transpose_prepared_fp8_weight(
+    like: torch.Tensor,
+    weight: PreparedExpertWeight,
+    num_experts: int,
+    out_features: int,
+    in_features: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    # Pre-backward unshard may have placed the generation in a different slot.
+    data, scale, _ = weight._resolve()
+    assert data.shape == (num_experts, out_features, in_features)
+    return _transpose_fp8_weight(data, scale)
+
+
+@_transpose_prepared_fp8_weight.register_fake
+def _(
+    like: torch.Tensor,
+    weight: PreparedExpertWeight,
+    num_experts: int,
+    out_features: int,
+    in_features: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    return (
+        torch.empty(
+            (num_experts, in_features, out_features),
+            dtype=torch.float8_e4m3fn,
+            device=like.device,
+        ),
+        torch.empty(
+            (num_experts, in_features // 128, out_features // 128),
+            dtype=torch.float32,
+            device=like.device,
+        ),
     )
 
 

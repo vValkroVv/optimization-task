@@ -151,6 +151,9 @@ class ParallelismConfig:
     writing and `record_bf16_weight_write()` after the write completes.
     """
 
+    gfsdp_fp8_expert_weights: bool = False
+    """Cache GFSDP routed-expert weight shards as E4M3 with FP32 block scales."""
+
     gfsdp_split_layer0_ffn: bool = False
     """Give layers.0's dense w1/w2/w3 FFN its own compiled GFSDP boundary."""
 

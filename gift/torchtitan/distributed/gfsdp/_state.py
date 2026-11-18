@@ -217,12 +217,24 @@ class GFSDPState(_State):
             if group._bf16_cache_requested
         ]
         if requested_cache_groups and not any(
-            group._bf16_cache_enabled for group in requested_cache_groups
+            group._bf16_cache_enabled or group._fp8_cache is not None
+            for group in requested_cache_groups
         ):
             warning_once(
                 logger,
                 "BF16 expert weight reuse was requested, but no GFSDP parameter "
                 "group met the supported layout; using the ordinary all-gather path",
+                stacklevel=2,
+            )
+        if any(
+            group._fp8_cache_requested and group._fp8_cache is None
+            for state in self._state_ctx.all_states
+            for group in state._fsdp_param_groups
+        ):
+            warning_once(
+                logger,
+                "FP8 expert weight reuse was requested for an unsupported GFSDP "
+                "layout; those groups are using their regular weight path",
                 stacklevel=2,
             )
 
@@ -297,7 +309,19 @@ class GFSDPState(_State):
         # Deal the original units, so splitting cannot change alternating slots.
         param_groups = [group for group in param_groups if group not in child_groups]
 
+        if not (
+            yccl_handle is not None
+            or process_group_to_yccl_handle
+            or param_group_to_data_buffer_ctx_idx is not None
+            or data_buffer_ctx_idx_to_yccl_handle is not None
+        ):
+            for group in param_groups:
+                if group not in region_children:
+                    group._fp8_cache_layout = group._select_fp8_weight_cache_layout()
+
         def buffer_sizes(group: GFSDPParamGroup, *, grad: bool) -> dict:
+            if not grad and group._fp8_cache_layout is not None:
+                return group._fp8_cache_layout.receive_sizes_by_dtype()
             itemsize = (
                 group.reduce_dtype or group.param_dtype or group.orig_dtype
             ).itemsize

@@ -35,6 +35,7 @@ pytestmark = pytest.mark.skipif(
 
 from torchtitan.ops.float8.triton_kernels.block_quantization import (  # noqa: E402
     block_quantization_128x128_fn,
+    quantize_fp32_to_blockwise_fp8_,
 )
 from torchtitan.ops.float8.triton_kernels.block_transpose import (  # noqa: E402
     transpose_last_two_dims_fn,
@@ -146,6 +147,112 @@ def test_blockwise_quantization_matches_the_reference():
         scale, expected_scale.reshape(experts, out_dim // BLOCK, in_dim // BLOCK)
     )
     assert torch.equal(data.view(torch.uint8), expected_data.view(torch.uint8))
+
+
+def _preallocated_blockwise_outputs(weight: torch.Tensor):
+    data = torch.empty(weight.shape, dtype=FP8, device=weight.device)
+    scales = torch.empty(
+        (
+            weight.shape[0],
+            weight.shape[1] // BLOCK,
+            weight.shape[2] // BLOCK,
+        ),
+        dtype=torch.float32,
+        device=weight.device,
+    )
+    return data, scales
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        (2, 128, 256),
+        (1, 3072, 128),  # w13 row axis
+        (1, 128, 4096),  # w13 column axis
+        (1, 4096, 128),  # w2 row axis
+        (1, 128, 1536),  # w2 column axis
+    ],
+)
+def test_fp32_blockwise_quantization_matches_explicit_bf16_cast(shape):
+    """Keep production matrix axes while limiting each case to one expert."""
+    torch.manual_seed(0)
+    weight = torch.randn(shape, dtype=torch.float32, device=DEV) * 16.0
+    data, scales = _preallocated_blockwise_outputs(weight)
+
+    expected_data, expected_scales = block_quantization_128x128_fn(
+        weight.to(torch.bfloat16)
+    )
+    returned_data, returned_scales = quantize_fp32_to_blockwise_fp8_(
+        weight, data, scales
+    )
+
+    assert returned_data is data
+    assert returned_scales is scales
+    assert torch.equal(scales, expected_scales)
+    assert torch.equal(data.view(torch.uint8), expected_data.view(torch.uint8))
+
+
+def test_fp32_blockwise_quantization_accepts_contiguous_local_matrix_slice():
+    torch.manual_seed(1)
+    source = torch.randn((4, 256, 384), dtype=torch.float32, device=DEV)
+    weight = source[1:3]
+    assert weight.is_contiguous()
+
+    data, scales = _preallocated_blockwise_outputs(weight)
+    expected_data, expected_scales = block_quantization_128x128_fn(
+        weight.to(torch.bfloat16)
+    )
+    returned_data, returned_scales = quantize_fp32_to_blockwise_fp8_(
+        weight, data, scales
+    )
+
+    assert returned_data is data
+    assert returned_scales is scales
+    assert torch.equal(scales, expected_scales)
+    assert torch.equal(data.view(torch.uint8), expected_data.view(torch.uint8))
+
+
+def test_fp32_blockwise_quantization_matches_bf16_rounding_boundaries():
+    weight = torch.zeros((1, 2 * BLOCK, 2 * BLOCK), dtype=torch.float32, device=DEV)
+    midpoint = 1.0625  # halfway between adjacent E4M3 values 1.0 and 1.125
+    near_midpoint = 2.0**-20
+
+    # This tile also keeps its scale at one while exercising BF16 rounding
+    # immediately above and below the E4M3 midpoint.
+    weight[0, 0, 0] = 448.0
+    weight[0, 0, 1] = midpoint + near_midpoint
+    weight[0, 0, 2] = midpoint - near_midpoint
+    weight[0, 0, 3] = -(midpoint + near_midpoint)
+    weight[0, 0, 4] = 1.0 + 2.0**-8  # BF16 tie rounds to the even lower value
+    weight[0, 0, 5] = 1.0 + 3.0 * 2.0**-8  # tie rounds to the even upper value
+
+    # A zero tile checks the 1e-30 scale floor. The next tile maxima test
+    # power-of-two scale selection on opposite sides of BF16 rounding.
+    weight[0, BLOCK, 0] = 448.5  # BF16 tie rounds to 448, so scale remains 1
+    weight[0, BLOCK, BLOCK] = 449.75  # rounds to 450, so scale becomes 2
+    weight[0, BLOCK, BLOCK + 1] = 2.0 * (midpoint + near_midpoint)
+
+    data, scales = _preallocated_blockwise_outputs(weight)
+    expected_data, expected_scales = block_quantization_128x128_fn(
+        weight.to(torch.bfloat16)
+    )
+    returned_data, returned_scales = quantize_fp32_to_blockwise_fp8_(
+        weight, data, scales
+    )
+
+    assert returned_data is data
+    assert returned_scales is scales
+    assert torch.equal(scales, expected_scales)
+    assert torch.equal(data.view(torch.uint8), expected_data.view(torch.uint8))
+
+
+def test_fp32_blockwise_quantization_rejects_non_tile_aligned_matrices():
+    weight = torch.zeros((1, BLOCK + 1, BLOCK), dtype=torch.float32, device=DEV)
+    data = torch.empty(weight.shape, dtype=FP8, device=DEV)
+    scales = torch.empty((1, 2, 1), dtype=torch.float32, device=DEV)
+
+    with pytest.raises(ValueError, match="multiples of 128"):
+        quantize_fp32_to_blockwise_fp8_(weight, data, scales)
 
 
 # --- the transpose the dgrad needs ---

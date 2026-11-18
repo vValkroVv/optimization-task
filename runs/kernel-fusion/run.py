@@ -38,6 +38,7 @@ COMBINED_VARIANTS = (
 )
 GFSDP_CONTROLS = {
     "retain-tail-weights": "parallelism.gfsdp_retain_tail_weights",
+    "fp8-expert-weights": "parallelism.gfsdp_fp8_expert_weights",
 }
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
 FIXED_TRACE_CONTROL = "efsdp-control-ep8-002-trace"

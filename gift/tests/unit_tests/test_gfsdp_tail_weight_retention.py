@@ -179,6 +179,7 @@ def _lifecycle_group(context, pending, events, *, retain_tail_weights=True):
     group._post_reduce_event = None
     group._post_forward_indices = []
     group._bf16_cache_enabled = False
+    group._fp8_cache = None
     group._all_gather_input_set_dtypes = set()
     group.comm_ctx = SimpleNamespace(retain_tail_weights=retain_tail_weights)
     group.device_handle = SimpleNamespace(

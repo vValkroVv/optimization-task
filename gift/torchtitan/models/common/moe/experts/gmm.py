@@ -24,6 +24,7 @@ from .swiglu import fused_swiglu
 
 if TYPE_CHECKING:
     from torchtitan.distributed.deepep.fp8_state import FP8DispatchState
+    from torchtitan.ops.float8.deep_gemm_handle import PreparedExpertWeight
 
 __all__ = ["GroupedExperts"]
 
@@ -98,6 +99,9 @@ class GroupedExperts(Module):
                 )
         self.num_experts = config.num_experts
         self._use_float8_grouped_gemm = config.use_float8_grouped_gemm
+        self._gfsdp_fp8_weights: (
+            tuple[PreparedExpertWeight, PreparedExpertWeight] | None
+        ) = None
         assert config.dim is not None, "partial GroupedExperts.Config"
         self._sparse_fused_swiglu_quant = config.sparse_fused_swiglu_quant
         self.swiglu_limit = config.swiglu_limit
@@ -249,11 +253,18 @@ class GroupedExperts(Module):
         )
         from torchtitan.ops.float8.triton_kernels.utils import build_m_indices
 
-        fp8_weights = fp8_state.fp8_expert_weights
-        if fp8_weights is None:
-            # The backend had nothing to overlap the quantization with.
-            fp8_weights = self._quantize_local_expert_weights()
-        w13_E2FD, w2_EDF = fp8_weights
+        if self._gfsdp_fp8_weights is not None:
+            prepared_w13, prepared_w2 = self._gfsdp_fp8_weights
+            # Keep the original parameter edges for BF16 gradients. The GEMMs
+            # resolve the prepared values only while the GFSDP slot is live.
+            w13_E2FD, w2_EDF = self._local_expert_weights()
+        else:
+            prepared_w13 = prepared_w2 = None
+            fp8_weights = fp8_state.fp8_expert_weights
+            if fp8_weights is None:
+                # The backend had nothing to overlap the quantization with.
+                fp8_weights = self._quantize_local_expert_weights()
+            w13_E2FD, w2_EDF = fp8_weights
         # ``x_RD`` is whatever the dispatcher returned: the payload, or the edge
         # carrying its gradient. See the gradient-edge note in hybridep.py.
         use_edges = fp8_state.uses_gradient_edges
@@ -284,6 +295,7 @@ class GroupedExperts(Module):
             tensor_groups_sizes_padded=fp8_state.padded_group_sizes_t,
             m_indices=m_indices_R,
             fp8_grad_output=use_edges and fused_swiglu_quant,
+            prepared_weight=prepared_w13,
         )
         clip_counts = self._clip_counts()
         if fused_swiglu_quant:
@@ -322,6 +334,7 @@ class GroupedExperts(Module):
             tensor_groups_sizes_padded=fp8_state.padded_group_sizes_t,
             m_indices=m_indices_R,
             fp8_grad_output=use_edges,
+            prepared_weight=prepared_w2,
         )
         if use_edges:
             fp8_state.output_fp8_edge = output_edge
@@ -354,7 +367,8 @@ class GroupedExperts(Module):
             # fp8 layout exists for these grouped GEMMs, so the two are one
             # choice, made here.
             dispatch_kwargs["use_fp8_dispatch"] = True
-            dispatch_kwargs["expert_weights"] = self._local_expert_weights()
+            if self._gfsdp_fp8_weights is None:
+                dispatch_kwargs["expert_weights"] = self._local_expert_weights()
         dispatch_result = self.token_dispatcher.dispatch(
             x_TD,
             topk_scores_TK,

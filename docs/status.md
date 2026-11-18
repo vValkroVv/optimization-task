@@ -69,6 +69,14 @@ weight-quantization launches and 21 expert gradient-accumulation launches.
 [Control capture receipt](../runs/efsdp-optimizations/control-profile.json)
 [Active campaign and acceptance](../planning/README.md#active-assignment-expert-gfsdp-optimizations)
 
+The tail-retention and FP8 expert-weight candidates are opt-in. The tail
+callback and shared-buffer checks passed locally. FP8 layout, write fences,
+and prepared GEMM tests passed with CPU doubles, including two generations
+of the zero-stride BF16 gradient anchor through compiled forward and SAC
+backward. The initial native candidate launch hit a connection error on
+`sr008-gpu1`. Native correctness, timing, and peak-memory comparisons remain
+open for both candidates.
+
 ## Consolidated rank-0 analysis: observed costs and priorities
 
 This section consolidates the studied S trace, source/grid arithmetic and prior
