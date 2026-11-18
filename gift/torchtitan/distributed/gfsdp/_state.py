@@ -72,6 +72,8 @@ class GFSDPStateContext:
         self.post_backward_final_callback_queued: bool = False
         # Whether to finalize backward in this backward's final callback
         self.is_last_backward: bool = True
+        # Keep unused weight prefetches live between chunked-head backwards.
+        self.retain_tail_weights: bool = False
         # Optional user-provided event recorded after optimizer for the
         # all-gather streams to wait on in the root pre-forward
         self.post_optim_event: torch.Event | None = None
@@ -236,6 +238,7 @@ class GFSDPState(_State):
     ) -> None:
         """Share communication and EMA state across the root module tree."""
         self._comm_ctx.lazy_init(self._device)
+        self._comm_ctx.retain_tail_weights = self._state_ctx.retain_tail_weights
         for state in self._state_ctx.all_states:
             self._state_ctx._ema_tracked_param_groups.update(
                 state._state_ctx._ema_tracked_param_groups
@@ -869,14 +872,35 @@ class GFSDPState(_State):
     def _root_post_backward_final_callback(self) -> None:
         logger.debug("GFSDP::root_post_backward")
         with torch.profiler.record_function("GFSDP::root_post_backward_callback"):
+            retain_tail_weights = (
+                self._state_ctx.retain_tail_weights
+                and not self._state_ctx.is_last_backward
+            )
             for state in self._state_ctx.all_states:
+                if retain_tail_weights:
+                    state_participated = state._training_state in (
+                        TrainingState.PRE_BACKWARD,
+                        TrainingState.POST_BACKWARD,
+                    ) or any(
+                        fsdp_param_group._training_state
+                        in (TrainingState.PRE_BACKWARD, TrainingState.POST_BACKWARD)
+                        for fsdp_param_group in state._fsdp_param_groups
+                    )
                 for fsdp_param_group in state._fsdp_param_groups:
+                    if retain_tail_weights and fsdp_param_group._training_state in (
+                        TrainingState.IDLE,
+                        TrainingState.FORWARD,
+                    ):
+                        continue
                     if fsdp_param_group._training_state != TrainingState.POST_BACKWARD:
                         # Run post-backward in case forward inputs did not require
                         # gradient so the autograd backward did not run
                         fsdp_param_group.post_backward()
                     fsdp_param_group._training_state = TrainingState.IDLE
-                state._training_state = TrainingState.IDLE
+                if not retain_tail_weights:
+                    state._training_state = TrainingState.IDLE
+                elif state_participated:
+                    state._training_state = TrainingState.IDLE
                 if self._state_ctx.is_last_backward:
                     state._finalize_backward()
                 for fsdp_param_group in state._fsdp_param_groups:

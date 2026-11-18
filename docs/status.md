@@ -56,8 +56,17 @@ timing window.
 The server receipt is under
 `runs/kernel-fusion/artifacts/raw/efsdp-control-ep8-001-timing/`.
 Its `summary.json` retains all-rank timings and allocator peaks, and
-`completion.json` records PASS and the resolved config hash. The control
-profile is captured separately under `efsdp-control-ep8-001-trace`.
+`completion.json` records PASS and the resolved config hash. The separate
+update-21 profile passed at `efsdp-control-ep8-002-trace`. The first profile
+attempt stopped before producing traces after the server connection dropped.
+The timing and passing profile resolved to the same training setup apart from
+the update count, profiler settings, and output directory.
+
+Both profiled ranks show 14 logical expert unshards per microbatch and two
+dense MTP NCCL gathers between the LM-head callbacks, across all three captured
+microbatches. The expert groups are singletons. Each microbatch has 26 expert
+weight-quantization launches and 21 expert gradient-accumulation launches.
+[Control capture receipt](../runs/efsdp-optimizations/control-profile.json)
 [Active campaign and acceptance](../planning/README.md#active-assignment-expert-gfsdp-optimizations)
 
 ## Consolidated rank-0 analysis: observed costs and priorities

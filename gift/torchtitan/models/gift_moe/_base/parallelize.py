@@ -126,6 +126,16 @@ def _validate_mtp_transition_request(
         )
 
 
+def _validate_tail_weight_retention_request(
+    parallelism: ParallelismConfig,
+) -> None:
+    if (
+        parallelism.gfsdp_retain_tail_weights
+        and parallelism.fsdp_backend != "gfsdp2"
+    ):
+        raise ValueError("gfsdp_retain_tail_weights requires fsdp_backend='gfsdp2'")
+
+
 def parallelize_gift_moe(
     model: GiftMoEModel,
     *,
@@ -155,6 +165,7 @@ def parallelize_gift_moe(
         parallel_dims=parallel_dims,
         parallelism=parallelism,
     )
+    _validate_tail_weight_retention_request(parallelism)
 
     # CP: wrap inner attention forward BEFORE parallelize() so CP logic
     # runs inside the local_map boundary on local tensors.
@@ -244,6 +255,7 @@ def parallelize_gift_moe(
                 parallelism.gfsdp_row_owner_embedding_optimization_stages
             ),
             mtp_transition_prefetch=parallelism.gfsdp_mtp_transition_prefetch,
+            retain_tail_weights=parallelism.gfsdp_retain_tail_weights,
             **fsdp_kwargs,
         )
     elif parallelism.fsdp_backend == "fsdp2":
@@ -282,6 +294,7 @@ def apply_gfsdp(
     row_owner_embedding_optimizations: bool = False,
     row_owner_embedding_optimization_stages: tuple[str, ...] | None = None,
     mtp_transition_prefetch: bool = False,
+    retain_tail_weights: bool = False,
 ):
     """
     Apply data parallelism (via GFSDP2) to the model.
@@ -457,6 +470,7 @@ def apply_gfsdp(
     # No ``reshard_after_forward`` on purpose: ``None`` turns on the root's
     # automatic mode, which governs every unit.
     root = g_fully_shard(model, **fsdp_config)
+    root.set_retain_tail_weights(retain_tail_weights)
 
     if reuse_bf16_expert_weights and cache_requested_groups == 0:
         logger.warning(

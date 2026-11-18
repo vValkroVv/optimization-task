@@ -67,6 +67,14 @@ class GFSDPBufferContext:
             if ctx.release_event is not None:
                 stream.wait_event(ctx.release_event)
 
+    def release(self, owner: Any, stream: torch.Stream | None) -> bool:
+        """Publish completion only for the current owner of this region."""
+        if self.owner is not owner:
+            return False
+        self.release_event = stream.record_event() if stream is not None else None
+        self.owner = None
+        return True
+
     @contextlib.contextmanager
     def borrow(self, stream: torch.Stream | None) -> Iterator[dict]:
         """Temporarily use existing bytes after all overlapping users finish.
@@ -142,6 +150,8 @@ class GFSDPBufferContext:
 
 
 class GFSDPCommContext:
+    retain_tail_weights: bool = False
+
     def lazy_init(self, device: torch.device) -> None:
         self.device_handle = _get_device_handle(device.type)
         # Setting the all-gather/reduce-scatter streams to be higher priority
@@ -867,6 +877,8 @@ class GFSDPParamGroup:
     # Runtime #
     def unshard(self, async_op: bool = False) -> None:
         if self._all_gather_result is not None:  # already called, pending wait
+            if self.comm_ctx.retain_tail_weights:
+                self._check_pending_all_gather_owner()
             return
         if self.is_unsharded:
             return
@@ -934,10 +946,33 @@ class GFSDPParamGroup:
     def wait_for_unshard(self) -> AllGatherResult | None:
         if (all_gather_result := self._all_gather_result) is None:
             return None
+        if self.comm_ctx.retain_tail_weights:
+            self._check_pending_all_gather_owner()
         all_gather_result.wait()
         self._to_unsharded()
         self._all_gather_result = None
         return all_gather_result
+
+    def _check_pending_all_gather_owner(self) -> None:
+        data_buffer_ctx = self.data_buffer_ctx
+        if (owner := data_buffer_ctx.conflicting_owner(self)) is not None:
+            raise RuntimeError(
+                f"{self} has a pending all-gather, but its data buffer is in use by {owner}."
+            )
+        if data_buffer_ctx.owner is not self:
+            raise RuntimeError(
+                f"{self} has a pending all-gather without owning its data buffer."
+            )
+
+    def _release_data_buffer(self) -> None:
+        if self._all_gather_result is not None:
+            # The gather writes on the communication stream; wait on this
+            # consumer stream before making the region available to another group.
+            self._check_pending_all_gather_owner()
+            self._all_gather_result.wait()
+            self._all_gather_result = None
+        if self.data_buffer_ctx.owner is self:
+            self.data_buffer_ctx.release(self, self.device_handle.current_stream())
 
     def reshard(self) -> None:
         if self._training_state == TrainingState.FORWARD:
@@ -951,15 +986,22 @@ class GFSDPParamGroup:
         logger.debug(
             "%s", self._with_fqn(f"GFSDP::{self._training_state.name.lower()}_reshard")
         )
+        if self.comm_ctx.retain_tail_weights and self._all_gather_result is not None:
+            self._check_pending_all_gather_owner()
+            self._all_gather_result.wait()
+            self._all_gather_result = None
         if self._bf16_cache_enabled:
             self._bf16_cache_reader_event = (
                 self.device_handle.current_stream().record_event()
             )
         self._to_sharded()
-        self.data_buffer_ctx.release_event = (
-            self.device_handle.current_stream().record_event()
-        )
-        self.data_buffer_ctx.owner = None
+        if self.comm_ctx.retain_tail_weights:
+            self._release_data_buffer()
+        else:
+            self.data_buffer_ctx.release_event = (
+                self.device_handle.current_stream().record_event()
+            )
+            self.data_buffer_ctx.owner = None
 
     def pre_forward(
         self, module: nn.Module, args: tuple[Any, ...], kwargs: dict[str, Any]
@@ -1148,9 +1190,12 @@ class GFSDPParamGroup:
             # If there was a mistargeted unshard without a corresponding wait,
             # then we wait here and clear the unshard
             logger.debug("%s", self._with_fqn("GFSDP::wait_for_mistargeted_unshard"))
-            self._all_gather_result.wait()
-            self._all_gather_result = None
-            self.data_buffer_ctx.owner = None
+            if self.comm_ctx.retain_tail_weights:
+                self._release_data_buffer()
+            else:
+                self._all_gather_result.wait()
+                self._all_gather_result = None
+                self.data_buffer_ctx.owner = None
         self._post_forward_indices.clear()
         if self._bf16_cache_enabled:
             if self._bf16_cache_prepared_generation != self._bf16_cache_generation:

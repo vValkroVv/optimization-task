@@ -450,6 +450,19 @@ class GFSDPModule(FSDPModule):
         state = self._get_fsdp_state()
         state._state_ctx.is_last_backward = is_last_backward
 
+    def set_retain_tail_weights(self, enable: bool) -> None:
+        """Keep unused weight prefetches across nonfinal backward callbacks.
+
+        Must be called before the first forward so the root callback uses one
+        consistent lifecycle policy for the whole model.
+        """
+        state = self._get_fsdp_state()
+        if state._is_root is not None:
+            raise RuntimeError(
+                "set_retain_tail_weights must be called before the first forward"
+            )
+        state._state_ctx.retain_tail_weights = enable
+
     def set_requires_gradient_sync(
         self, requires_gradient_sync: bool, *, recurse: bool = True
     ) -> None:

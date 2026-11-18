@@ -7,13 +7,17 @@ import argparse
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
 import sys
 
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 PIN = "abbbcaf0311409a817b16d794af79e3f3c106864"
-PRODUCTION_SOURCE_SHA256 = "44176fbe151220d6f1d511104e71ad43d6f520773076cedd2fb1ddf9fbf92850"
+PRODUCTION_REVISION = "1f02311a52ef979a84e164836583e73c1c5e6767"
+PRODUCTION_SOURCE_SHA256 = (
+    "44176fbe151220d6f1d511104e71ad43d6f520773076cedd2fb1ddf9fbf92850"
+)
 SWITCHES = {
     "mla-rope": "GIFT_MLA_FUSED_ROPE",
     "dense-pad": "GIFT_FP8_QUANTIZE_WEIGHT_TAIL",
@@ -32,6 +36,11 @@ COMBINED_VARIANTS = (
     "gdn-short-conv",
     "dense-pad",
 )
+GFSDP_CONTROLS = {
+    "retain-tail-weights": "parallelism.gfsdp_retain_tail_weights",
+}
+FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
+FIXED_TRACE_CONTROL = "efsdp-control-ep8-002-trace"
 
 
 def load(path: Path, name: str):
@@ -65,6 +74,117 @@ def timing_140(command: list[str]) -> list[str]:
     return command
 
 
+def verify_follow_up_revision(revision: str) -> None:
+    head = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
+    ).strip()
+    if revision != head:
+        raise ValueError(
+            f"Expected the full follow-up revision {revision}, found {head}"
+        )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "merge-base",
+            "--is-ancestor",
+            PRODUCTION_REVISION,
+            head,
+        ],
+        check=True,
+    )
+    status = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "status",
+            "--porcelain",
+            "--",
+            "gift/",
+            str(HERE / "run.py"),
+        ],
+        text=True,
+    )
+    if status:
+        raise ValueError(f"Follow-up source has uncommitted changes:\n{status}")
+
+
+def training_overrides(command: list[str]) -> tuple[Path, dict[str, str]]:
+    config, *tokens = command[command.index("--") + 1 :]
+    overrides = dict(zip(tokens[::2], tokens[1::2], strict=True))
+    if len(tokens) != 2 * len(overrides) or any(
+        not flag.startswith("--") for flag in overrides
+    ):
+        raise RuntimeError("Expected unique training overrides with explicit values")
+    overrides.pop("--dump_folder")
+    return Path(config), overrides
+
+
+def enforce_fixed_recipe(base, control: Path, controls: dict[str, bool], mode: str):
+    resolved_path = control / "native/config/resolved_config.yaml"
+    completion = base._load_json(control / "completion.json")
+    if completion["status"] != "PASS" or completion[
+        "resolved_config_sha256"
+    ] != base.sha256_file(resolved_path):
+        raise RuntimeError(
+            f"Fixed production control receipt failed verification: {control}"
+        )
+    source = base._load_json(control / "metadata.json")
+    if (
+        source["source_snapshot_before"]["tracked_and_untracked_sha256"]
+        != PRODUCTION_SOURCE_SHA256
+    ):
+        raise RuntimeError(
+            f"Fixed control used a different production source: {control}"
+        )
+    control_hashes = source["config_hashes_before"]
+    current_hashes = base._config_hashes()
+    for key, digest in current_hashes.items():
+        if control_hashes[key] != digest:
+            raise RuntimeError(f"Fixed production input changed: {key}")
+
+    _, expected_overrides = training_overrides(source["argv"])
+    expected = base._load_yaml(resolved_path)
+    expected.pop("dump_folder")
+    if mode == "timing-140":
+        expected_overrides["--training.steps"] = "140"
+        expected["training"]["steps"] = 140
+    for dotted, enabled in controls.items():
+        section, field = dotted.split(".", 1)
+        expected_overrides[f"--{dotted}"] = str(enabled).lower()
+        expected[section][field] = enabled
+    launch = base._launch
+    verify = base._verify_resolved_config
+
+    def launch_verified(command, *args):
+        config, actual_overrides = training_overrides(command)
+        if base.sha256_file(config) != control_hashes["generated_experiment_sha256"]:
+            raise RuntimeError("Generated experiment differs from the fixed control")
+        if actual_overrides != expected_overrides:
+            raise RuntimeError("Native training overrides differ from the fixed recipe")
+        return launch(command, *args)
+
+    def verify_config(paths, args):
+        digest = verify(paths, args)
+        actual = base._load_yaml(paths["native"] / "config/resolved_config.yaml")
+        actual.pop("dump_folder")
+        if actual != expected:
+            differences = sorted(
+                key
+                for key in actual.keys() | expected.keys()
+                if key not in actual
+                or key not in expected
+                or actual[key] != expected[key]
+            )
+            raise RuntimeError(f"Fixed production config differs in {differences}")
+        return digest
+
+    base._launch = launch_verified
+    base._verify_resolved_config = verify_config
+
+
 def main() -> int:
     baseline = load(ROOT / "runs/compile-baseline/run.py", "_kernel_fusion_compile")
     if sys.argv[1:2] == ["rank"]:
@@ -78,13 +198,35 @@ def main() -> int:
         return 0
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("variant", choices=("baseline", *SWITCHES, COMBINED, PRODUCTION))
+    parser.add_argument(
+        "variant", choices=("baseline", *SWITCHES, COMBINED, PRODUCTION)
+    )
     parser.add_argument("mode", choices=("timing", "timing-140", "trace"))
     parser.add_argument("run_id")
     parser.add_argument("--candidate-source", type=Path)
+    parser.add_argument(
+        "--source-revision", help="Full committed HEAD for a production follow-up"
+    )
+    parser.add_argument(
+        "--gfsdp-optimization", choices=GFSDP_CONTROLS, action="append", default=[]
+    )
     args = parser.parse_args()
     if (args.variant in {"baseline", PRODUCTION}) != (args.candidate_source is None):
         parser.error("Only historical candidate runs require --candidate-source")
+    if args.source_revision and args.variant != PRODUCTION:
+        parser.error("Follow-up revisions require the production recipe")
+    if args.gfsdp_optimization and not args.source_revision:
+        parser.error("GFSDP optimizations require a committed --source-revision")
+    if args.source_revision:
+        verify_follow_up_revision(args.source_revision)
+    controls = (
+        {
+            field: name in args.gfsdp_optimization
+            for name, field in GFSDP_CONTROLS.items()
+        }
+        if args.source_revision
+        else {}
+    )
     activate(args.variant)
     os.environ.pop("TORCH_COMPILE_DISABLE", None)
     os.environ["TORCHDYNAMO_DISABLE"] = "0"
@@ -117,7 +259,10 @@ def main() -> int:
                 "rank",
                 args.variant,
             ]
-            return [*command, "--compile.enable", "true"]
+            command.extend(("--compile.enable", "true"))
+            for field, enabled in controls.items():
+                command.extend((f"--{field}", str(enabled).lower()))
+            return command
 
         def compiled_expectations(original, variant):
             expected = expectations(original, variant)
@@ -125,6 +270,7 @@ def main() -> int:
             def resolve(args):
                 checks = expected(args)
                 checks["compile.enable"] = True
+                checks.update(controls)
                 return checks
 
             return resolve
@@ -136,8 +282,35 @@ def main() -> int:
             def load_base_runner():
                 base = load_base()
                 if args.variant == PRODUCTION:
-                    # The selector runner checks the committed GIFT content
-                    # against the measured candidate, independent of doc commits.
+                    if args.source_revision:
+                        snapshot = base.source_snapshot(ROOT)
+                        if (
+                            snapshot["head"] != args.source_revision
+                            or snapshot["untracked_file_count"]
+                        ):
+                            raise RuntimeError(
+                                "Follow-up GIFT source changed during preflight"
+                            )
+                        native.S_SOURCE_SHA256 = snapshot[
+                            "tracked_and_untracked_sha256"
+                        ]
+                        control = native.RAW_ROOT / (
+                            FIXED_TRACE_CONTROL
+                            if args.mode == "trace"
+                            else FIXED_TIMING_CONTROL
+                        )
+                        enforce_fixed_recipe(base, control, controls, args.mode)
+                        config_hashes = base._config_hashes
+
+                        def follow_up_hashes():
+                            return {
+                                **config_hashes(),
+                                "kernel_fusion_runner_sha256": native._sha256(
+                                    Path(__file__)
+                                ),
+                            }
+
+                        base._config_hashes = follow_up_hashes
                     return base
                 base.verify_task_root(source)
                 baseline_snapshot = base.source_snapshot(ROOT)

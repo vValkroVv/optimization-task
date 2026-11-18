@@ -12,7 +12,9 @@ Use the existing eight-H100 `sr008-gpu1` allocation and the task checkout at
 `/workspace-SR008.nfs2/vkropotin/optimization-task`. Reuse the verified compiler
 cache. Keep the selected architecture and setup fixed in every arm, including
 EP8/eFSDP1, dense FSDP8, TP/PP/CP1, production-tokenizer data, compile, SAC,
-EMA, MTP, and 32-microbatch accumulation.
+EMA, MTP, and 32-microbatch accumulation. The production runner checks the
+recorded input hashes and compares the full resolved configuration with the
+matching control. Candidate flags are the only training configuration changes.
 
 1. Inspect the LLM Foundry FP8 gather and adapt the applicable parts for cached
    routed-expert shards and the GFSDP gather path. Measure per-generation

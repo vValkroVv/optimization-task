@@ -169,6 +169,9 @@ class ParallelismConfig:
     gfsdp_mtp_transition_prefetch: bool = False
     """Prefetch the last trunk layer after split MTP FFN backward using its released buffer region."""
 
+    gfsdp_retain_tail_weights: bool = False
+    """Retain unused GFSDP weight prefetches between nonfinal head backward callbacks."""
+
     fsdp_reshard_after_forward: Literal["default", "always", "never"] = "default"
     """
     `reshard_after_forward` specifies the policy for applying `reshard_after_forward`
