@@ -1,6 +1,12 @@
 # Agreed 100B-dev crop baseline
 
-**State:** This is the accepted default workload contract. Its canonical task-local YAML is [gift_100b_crop8_ep8_fp8_compile_cute.yaml](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml), with the model preset [100b_crop8.yaml](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml). The 15 November rerun replaces the input baseline with real diverse data and the production tokenizer described below. Its [campaign report](../runs/production-data-abcd/report.md) owns current acceptance and measurements. The previous [MDS smoke](../runs/overnight-streaming-perf/report.md) and [HF smoke](../runs/100b-crop8-ep8-smoke/report.md) remain historical evidence for their original inputs.
+The current production baseline is the [selected recipe](#current-final-task-baseline)
+applied to the task-local [crop YAML](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml)
+and [model preset](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml).
+The [throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
+records the comparison on real data and the production tokenizer. The previous
+[MDS smoke](../runs/overnight-streaming-perf/report.md) and
+[HF smoke](../runs/100b-crop8-ep8-smoke/report.md) document their original inputs.
 
 ## Global requirement: real data and production tokenizer
 
@@ -52,10 +58,11 @@ additional compute.
 
 ## Current final task baseline
 
-**Owner decision, 18 November 2026:** the selected production recipe is
-**4fix + FlashQLA + embeddings/GFSDP + GPU capacity selector**. It extends S,
-the control in the selector comparison. The 14 November selection of
-combined-four and FlashQLA `external_gate` is the foundation of this recipe.
+The owner accepted **S + GPU capacity selector + five Hopper fusions** as the
+current production baseline on 19 November 2026. This is the final recipe for
+the eight-layer 100B-dev crop on eight H100s. S builds on the four fixes and
+FlashQLA `external_gate`, then adds the FFN/embedding changes and GFSDP schedule
+repairs. [Throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
 
 | Part | Selected setting |
 | --- | --- |
@@ -65,19 +72,39 @@ combined-four and FlashQLA `external_gate` is the foundation of this recipe.
 | GDN backend | Select `external_gate` explicitly with `runs/flash-qla/run.py --gdn-backend external_gate`. The choice is recipe-scoped; the generic backend default remains separate. |
 | Embeddings and GFSDP (S) | Split the MTP and layer-0 FFN groups, use row-owner input embeddings, and enable the S GFSDP scheduling repairs. Use S embedding settings, with the SE stages off. |
 | GPU capacity selector | Set `branchless_capacity_drop: true` under `model.config.blocks.<block>.moe.experts.token_dispatcher.token_drop` for `gdn_moe` and `mla_moe`. Keep fixed capacity 50,000, group-capacity dropping, and the original 128-counter all-reduce. |
-| Short comparison window | Logical epoch size 102,400; measure optimizer updates 11–20 after 10 warmup updates. Preserve the 65,000-update LR horizon and 2,000 LR-warmup updates used in A/B/C/D and the selector comparison. |
+| Hopper fusions | Enable GDN output norm → FP8, MLA RoPE + Q/K packing, CuTe norm + residual add, GDN short-conv backward, and the Dense FP8 weight tail. |
+| Measurement | Logical epoch size 102,400, LR horizon 65,000 updates, and LR warmup 2,000 updates. The final comparison measured optimizer updates 41–140 after 40 warmup updates. Initial follow-up comparisons can use 10+10. |
 
-The [selector report](../runs/capacity-selector/report.md) records the tested S
-launch path, the production flag, and the evidence behind this selection. The
-flag is an explicit setting for the recipe. The shared library default is off.
-The measured S GIFT worktree is preserved by the synchronization merge
-`b9a36408a5795f40503217ed199129687ac4f6a1`. The measured launch uses the S
-bridge and loads the original capacity module from the saved snapshot, whose
-bytes match the capacity source at `766fcc4a016a6e9a4af53042df2c3298596474cb`.
-The [compile comparison runner](../runs/compile-baseline/report.md#comparison-contract)
-shows how to reproduce that launch from the synchronized tree. The group-counter
-candidate in the development tree has separate native timing and profiling
-gates in the [capacity group-counter report](../runs/capacity-group-allreduce/report.md).
+### Launch the selected recipe
+
+On the verified SR008 eight-H100 allocation, run from the synchronized task
+`main` with a fresh run ID. The launcher uses the production-tokenizer `data-002`
+input, the saved D cache, compile, the S bridge and the original capacity overlay.
+
+```bash
+/opt/torchtitan-venv/bin/python3.12 -B runs/kernel-fusion/run.py production timing-140 <run-id>
+```
+
+Use `timing` for 10+10 or `trace` for the update-21 diagnostic. The `production`
+variant verifies the measured GIFT source fingerprint and activates these five
+switches before starting any rank. The MLA gate → FP8 and MoE dual-layout
+SwiGLU experiments are disabled in this recipe.
+
+```bash
+GIFT_GDN_FUSE_OUTPUT_NORM_FP8=1
+GIFT_MLA_FUSED_ROPE=1
+GIFT_CUTE_NORM_FUSE_RESIDUAL=1
+GIFT_GDN_FUSE_SHORT_CONV_BWD=1
+GIFT_FP8_QUANTIZE_WEIGHT_TAIL=1
+```
+
+The source for the five fusions is in commit `fe5950b56`. The S bridge loads
+the original capacity module from the saved snapshot and verifies its bytes
+against `766fcc4a016a6e9a4af53042df2c3298596474cb`. The
+[selector report](../runs/capacity-selector/report.md) records the earlier
+selector-only comparison. The [fusion report](../runs/kernel-fusion/report.md#combined-five-at-40100)
+records the final pair. The grouped-counter implementation has its own
+[validation](../runs/capacity-group-allreduce/report.md).
 
 The historical FlashQLA invocation and per-run values are retained in the
 [FlashQLA native plan](../runs/flash-qla/native-plan.json). It selects the

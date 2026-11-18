@@ -13,6 +13,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 PIN = "abbbcaf0311409a817b16d794af79e3f3c106864"
+PRODUCTION_SOURCE_SHA256 = "44176fbe151220d6f1d511104e71ad43d6f520773076cedd2fb1ddf9fbf92850"
 SWITCHES = {
     "mla-rope": "GIFT_MLA_FUSED_ROPE",
     "dense-pad": "GIFT_FP8_QUANTIZE_WEIGHT_TAIL",
@@ -23,6 +24,7 @@ SWITCHES = {
     "mla-gate-fp8": "GIFT_MLA_FUSED_GATE_FP8",
 }
 COMBINED = "combined-five"
+PRODUCTION = "production"
 COMBINED_VARIANTS = (
     "gdn-output-fp8",
     "mla-rope",
@@ -45,7 +47,7 @@ def load(path: Path, name: str):
 def variant_switches(variant: str) -> set[str]:
     if variant == "baseline":
         return set()
-    if variant == COMBINED:
+    if variant in {COMBINED, PRODUCTION}:
         return {SWITCHES[name] for name in COMBINED_VARIANTS}
     return {SWITCHES[variant]}
 
@@ -76,18 +78,20 @@ def main() -> int:
         return 0
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("variant", choices=("baseline", *SWITCHES, COMBINED))
+    parser.add_argument("variant", choices=("baseline", *SWITCHES, COMBINED, PRODUCTION))
     parser.add_argument("mode", choices=("timing", "timing-140", "trace"))
     parser.add_argument("run_id")
     parser.add_argument("--candidate-source", type=Path)
     args = parser.parse_args()
-    if (args.variant == "baseline") != (args.candidate_source is None):
-        parser.error("Candidate runs require an isolated --candidate-source worktree")
+    if (args.variant in {"baseline", PRODUCTION}) != (args.candidate_source is None):
+        parser.error("Only historical candidate runs require --candidate-source")
     activate(args.variant)
     os.environ.pop("TORCH_COMPILE_DISABLE", None)
     os.environ["TORCHDYNAMO_DISABLE"] = "0"
     native = load(ROOT / "runs/capacity-selector/native.py", "_kernel_fusion_native")
     native.RAW_ROOT = HERE / "artifacts/raw"
+    if args.variant == PRODUCTION:
+        native.S_SOURCE_SHA256 = PRODUCTION_SOURCE_SHA256
     if args.mode == "timing-140":
         native_args = native._native_args
         native._native_args = lambda mode, run_id: timing_140(native_args(mode, run_id))
@@ -131,6 +135,10 @@ def main() -> int:
 
             def load_base_runner():
                 base = load_base()
+                if args.variant == PRODUCTION:
+                    # The selector runner checks the committed GIFT content
+                    # against the measured candidate, independent of doc commits.
+                    return base
                 base.verify_task_root(source)
                 baseline_snapshot = base.source_snapshot(ROOT)
                 if (

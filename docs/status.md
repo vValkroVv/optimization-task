@@ -5,37 +5,41 @@ evidence-based priorities and unknowns. [SOTA ideas](sota-ideas.md) owns
 hypotheses/proposals; [the plan](../planning/README.md) owns future execution.
 Update this file when new evidence changes a conclusion.
 
-## GPU capacity selector accepted for the production stack
+## Production baseline and measured throughput
 
-The owner selected **4fix + FlashQLA + embeddings/GFSDP + GPU capacity
-selector** on 18 November. This is S with `branchless_capacity_drop: true`
-for both GDN and MLA MoE blocks. The existing 128-counter all-reduce and
-capacity-drop policy are part of the [selected recipe](baseline.md#current-final-task-baseline).
+The owner accepted **S + GPU capacity selector + five Hopper fusions** on
+19 November 2026 as the current production baseline for the eight-layer
+crop on eight H100s. [Recipe and launcher](baseline.md#current-final-task-baseline)
 
-- Perfetto found **42 → 0** one-byte predicate copies and paired host waits
-  on each profiled rank. Across three microbatches, GPU idle time in the
-  targeted all-reduce-to-quantize windows fell by **9.78 ms on rank 0** and
-  **11.42 ms on rank 1**. The original rank-0 gap fell from **310.1 to 8.6 µs**.
-- Isolated EP8 checks matched drop masks and affected gradients on all eight
-  ranks, including forced drops, compile, and SAC. Complete routing
-  preparation fell from **384.70 to 355.73 µs** in the isolated replay.
-- The separate native 10+10 pair measured **170,321 → 171,475 tokens/s**
-  (**+0.68%**), with peak allocated **+2.5 MiB** and reserved **−20 MiB**.
-  The throughput result is provisional and belongs to this pair.
+TPS counts global physical input tokens per second. Memory is the maximum
+PyTorch allocator peak across eight ranks within the measurement window.
+The 40+100 rows cover updates 41–140 and 209,715,200 physical tokens each.
 
-See the [run report](../runs/capacity-selector/report.md) and the [selected
-rank-0 trace](../artifacts/4fix_qla_embed_selector_gpu.json).
+| Variant | Warmup + measured | TPS | Mean update, s | Peak allocated, GiB | Peak reserved, GiB | TPS vs A |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| A · original baseline | 40+100 | 149,636 | 14.015 | 70.387 | 71.670 | — |
+| B · four fixes | 40+100 | 156,741 | 13.380 | 68.520 | 69.807 | +4.75% |
+| C · FlashQLA `external_gate` | 40+100 | 160,205 | 13.090 | 68.554 | 69.746 | +7.06% |
+| D0 · MTP/layer-0 FFN splits and row-owner embeddings | 40+100 | 162,272 | 12.924 | 66.963 | 69.201 | +8.44% |
+| S · GFSDP schedule repairs | 40+100 | 163,221 | 12.849 | 66.954 | 69.201 | +9.08% |
+| SE · S with three embedding optimizations | 40+100 | 163,229 | 12.848 | 66.924 | 68.334 | +9.08% |
+| SE-fused · SE with embedding routing fusion | 40+100 | 163,155 | 12.854 | 66.962 | 68.352 | +9.03% |
+| S · selector control | 10+10 | 170,321 | 12.313 | 65.887 | 67.580 | — |
+| S + GPU selector · selector candidate | 10+10 | 171,475 | 12.230 | 65.889 | 67.561 | — |
+| S + GPU selector · fusion control | 40+100 | 164,537 | 12.746 | 66.998 | 69.260 | +9.96% |
+| **S + GPU selector + five fusions · production** | **40+100** | **166,519** | **12.594** | **66.986** | **69.162** | **+11.28%** |
 
-## Five Hopper fusions measured together at 40+100
-
-On `sr008-gpu1` with eight H100s, the combined GDN output norm and FP8,
-MLA RoPE and Q/K packing, CuTe norm and residual add, GDN short-conv
-backward, and dense FP8 weight-tail changes delivered **+1.20%** global
-physical throughput against the selected compiled baseline. Over steps
-41–140 throughput rose from 164,537 to 166,519 tokens/s. Peak allocated
-fell by 12.46 MiB and peak reserved by 100 MiB. This is one matched serial
-pair. The five optimizations are opt-in. [Measurements and implementation
-audit](../runs/kernel-fusion/report.md#combined-five-at-40100)
+The five fusions gained **1.20% TPS** in the matched 40+100 pair and lowered
+peak allocated by **12.46 MiB** and reserved by **100 MiB**. The selector gained
+**0.68%** in its separate 10+10 pair. Chaining the measured A→S, selector
+and fusion gains gives **+11.14%**. Comparing the final and original 40+100
+runs across allocations gives **+11.28% TPS**, **−3.40 GiB allocated** and
+**−2.51 GiB reserved**. The historical S and fusion control used the same
+data, tokenizer, seed, runtime versions and pre-fusion GIFT bytes. Their
+training configs differ only in enabling the GPU selector.
+[A–SE-fused results](../runs/schedule-embedding/timing-results-140.md) ·
+[Selector pair and trace](../runs/capacity-selector/report.md) ·
+[Fusion pair and audit](../runs/kernel-fusion/report.md#combined-five-at-40100)
 
 ## Consolidated rank-0 analysis: observed costs and priorities
 
@@ -466,9 +470,9 @@ No additional training or installation follows from that publication request.
 ## Current final task baseline: owner-selected recipe
 
 The 14 November selection of the 100B-dev crop, combined-four (including V2
-prefetch), and FlashQLA `external_gate` is the foundation for S and the
-18 November production stack above. The exact settings are in the
-[recipe](baseline.md#current-final-task-baseline).
+prefetch), and FlashQLA `external_gate` is the foundation for S. The 18 November
+selector selection and the 19 November fusion selection extend that recipe.
+[Exact settings](baseline.md#current-final-task-baseline)
 
 The combined-four result remains a provisional +4.49% fixed-window difference
 from one sequential pair with settling cadence. FlashQLA's fixed-order native

@@ -1,16 +1,17 @@
 # GIFT training optimization
 
 The selected production stack for the eight-layer 100B-dev crop on eight H100s
-is **4fix + FlashQLA + embeddings/GFSDP + GPU capacity selector**. It builds on
-S, which includes the MTP and layer-0 FFN splits, row-owner embeddings, and GFSDP
-schedule repairs. See the [recipe](docs/baseline.md#current-final-task-baseline)
-and [selector results](runs/capacity-selector/report.md).
+is **S + GPU capacity selector + five Hopper fusions**. The final 40+100 run
+measured 166,519 global physical tokens/s, with peak allocated and reserved
+memory of 66.986 and 69.162 GiB. See the
+[launch recipe](docs/baseline.md#launch-the-selected-recipe) and the
+[throughput and memory matrix](docs/status.md#production-baseline-and-measured-throughput).
 
 | Read | Purpose |
 | --- | --- |
 | [Current state](docs/status.md) | What is implemented, verified, unresolved and concluded |
 | [Baseline](docs/baseline.md) | Canonical model/config and current final task recipe |
-| [Latest A/B/C/D results](runs/production-data-abcd/report.md) | Production-tokenizer comparison of baseline, four fixes, FlashQLA and FFN/embedding changes |
+| [Throughput and memory matrix](docs/status.md#production-baseline-and-measured-throughput) | Production-tokenizer measurements from the original baseline through the final stack |
 | [GPU capacity selector](runs/capacity-selector/report.md) | S versus S with GPU capacity-drop selection, including the native 10+10 comparison and matched Perfetto traces |
 | [Candidates](docs/candidates.md) | Potential improvements, local source code and compatibility limits |
 | [CUDA Graphs](docs/cuda-graphs.md) | Historical findings and why graphs are not enabled by default |
@@ -35,7 +36,7 @@ before and after enabling the GPU capacity selector.
 | Baseline + four fixes | [4fix.json](artifacts/4fix.json) |
 | Four fixes + FlashQLA external_gate | [4fix_qla.json](artifacts/4fix_qla.json) |
 | S: four fixes + FlashQLA + MTP/layer-0 FFN splits + row-owner embeddings + GFSDP schedule repairs | [4fix_qla_embed.json](artifacts/4fix_qla_embed.json) |
-| S + GPU capacity selector (selected production stack) | [4fix_qla_embed_selector_gpu.json](artifacts/4fix_qla_embed_selector_gpu.json) |
+| S + GPU capacity selector (pre-fusion control) | [4fix_qla_embed_selector_gpu.json](artifacts/4fix_qla_embed_selector_gpu.json) |
 
 `artifacts/` is ignored by Git. The [trace manifest](runs/production-data-abcd/trace-shortcuts.json)
 records their original server paths, sizes and SHA256 hashes. Each trace contains

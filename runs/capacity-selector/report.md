@@ -1,8 +1,9 @@
 # GPU capacity selector on S
 
-The owner accepted the GPU capacity selector for the production stack on
-18 November 2026. The selected recipe is **4fix + FlashQLA + embeddings/GFSDP +
-GPU capacity selector**. This report compares S against that recipe. S includes
+The owner accepted the GPU capacity selector for production on 18 November
+2026. The selector-only result is the control for the later
+[five-fusion comparison](../kernel-fusion/report.md#combined-five-at-40100).
+This report compares S against S + GPU capacity selector. S includes
 FlashQLA `external_gate`, the MTP and layer-0 FFN splits, row-owner embeddings,
 and the GFSDP schedule fixes on top of the four fixes. Both runs used the
 original 128-counter capacity all-reduce. The only training configuration

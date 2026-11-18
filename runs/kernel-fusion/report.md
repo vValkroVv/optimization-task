@@ -252,7 +252,7 @@ the dense FP8 weight tail. The source files match local `main` commit
 `d388a664f9965b4afbfefcd3da692415ffcb456000b664bd7b030b2f53b20990`.
 [Source manifest](../../artifacts/kernel-fusion/combined-five-140/combined-source.sha256)
 
-The [runner](run-140.sh) launches the control and combined arm serially as
+The historical [comparison runner](run-140.sh) launched the control and combined arm serially as
 `fusion-140-pair-001-baseline` and `fusion-140-pair-001-combined-five`.
 Each warms up on updates 1–40 and times complete updates 41–140,
 including communication, optimizer and EMA. The two arms use the
@@ -260,6 +260,10 @@ same real data order, production tokenizer, compiler-cache policy,
 32 microbatches per update and the existing 65,000-update LR schedule.
 The timing starts and ends at synchronized update boundaries across
 all eight ranks. Per-update host cadence is recorded separately.
+
+The owner accepted the combined arm for production on 19 November 2026.
+The [selected recipe](../../docs/baseline.md#launch-the-selected-recipe)
+documents `run.py production` for launching this stack from synchronized `main`.
 
 Both arms passed the complete-window checks on all eight ranks. Each
 processed 209,715,200 physical tokens and 209,664,000 supervised tokens.
