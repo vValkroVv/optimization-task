@@ -1,16 +1,17 @@
 # GIFT training optimization
 
-The current final task baseline is a production-shaped eight-layer 100B-dev crop
-on eight H100s, with accepted V2 prefetch, the combined-four foundation, and
-explicit FlashQLA `external_gate` selection. The measurements are provisional;
-they do not establish a general speedup or production validation. See the
-[baseline recipe](docs/baseline.md#current-final-task-baseline).
+The selected production stack for the eight-layer 100B-dev crop on eight H100s
+is **4fix + FlashQLA + embeddings/GFSDP + GPU capacity selector**. It builds on
+S, which includes the MTP and layer-0 FFN splits, row-owner embeddings, and GFSDP
+schedule repairs. See the [recipe](docs/baseline.md#current-final-task-baseline)
+and [selector results](runs/capacity-selector/report.md).
 
 | Read | Purpose |
 | --- | --- |
 | [Current state](docs/status.md) | What is implemented, verified, unresolved and concluded |
 | [Baseline](docs/baseline.md) | Canonical model/config and current final task recipe |
 | [Latest A/B/C/D results](runs/production-data-abcd/report.md) | Production-tokenizer comparison of baseline, four fixes, FlashQLA and FFN/embedding changes |
+| [GPU capacity selector](runs/capacity-selector/report.md) | S versus S with GPU capacity-drop selection, including the native 10+10 comparison and matched Perfetto traces |
 | [Candidates](docs/candidates.md) | Potential improvements, local source code and compatibility limits |
 | [CUDA Graphs](docs/cuda-graphs.md) | Historical findings and why graphs are not enabled by default |
 | [Work plan](planning/README.md) | Editable priorities, experiment acceptance and next actions |
@@ -23,15 +24,18 @@ and [graph analysis](runs/cuda-graphs-evidence/README.md).
 
 ## Latest rank-0 traces
 
-The four 15 November 2026 production-data diagnostics are available locally as
-original Chrome trace JSON files, with GPU and FSDP annotations preserved:
+The latest available production-data diagnostics are available locally as
+original Chrome trace JSON files, with GPU and FSDP annotations preserved.
+A/B/C retain their 15 November captures. The two S traces show the stack
+before and after enabling the GPU capacity selector.
 
 | Variant | Local trace |
 | --- | --- |
 | Baseline | [baseline.json](artifacts/baseline.json) |
 | Baseline + four fixes | [4fix.json](artifacts/4fix.json) |
 | Four fixes + FlashQLA external_gate | [4fix_qla.json](artifacts/4fix_qla.json) |
-| Four fixes + FlashQLA + MTP/layer-0 FFN splits and row-owner embeddings | [4fix_qla_embed.json](artifacts/4fix_qla_embed.json) |
+| S: four fixes + FlashQLA + MTP/layer-0 FFN splits + row-owner embeddings + GFSDP schedule repairs | [4fix_qla_embed.json](artifacts/4fix_qla_embed.json) |
+| S + GPU capacity selector (selected production stack) | [4fix_qla_embed_selector_gpu.json](artifacts/4fix_qla_embed_selector_gpu.json) |
 
 `artifacts/` is ignored by Git. The [trace manifest](runs/production-data-abcd/trace-shortcuts.json)
 records their original server paths, sizes and SHA256 hashes. Each trace contains

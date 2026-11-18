@@ -1,8 +1,329 @@
 # Current state
 
-Updated: 15 November 2026. This file owns the integrated project state;
-[the plan](../planning/README.md) owns future priorities. Update this file when
-new evidence changes a conclusion, not after each diagnostic command.
+Updated: 18 November 2026. This file owns integrated results, observed costs,
+evidence-based priorities and unknowns. [SOTA ideas](sota-ideas.md) owns
+hypotheses/proposals; [the plan](../planning/README.md) owns future execution.
+Update this file when new evidence changes a conclusion.
+
+## GPU capacity selector accepted for the production stack
+
+The owner selected **4fix + FlashQLA + embeddings/GFSDP + GPU capacity
+selector** on 18 November. This is S with `branchless_capacity_drop: true`
+for both GDN and MLA MoE blocks. The existing 128-counter all-reduce and
+capacity-drop policy are part of the [selected recipe](baseline.md#current-final-task-baseline).
+
+- Perfetto found **42 → 0** one-byte predicate copies and paired host waits
+  on each profiled rank. Across three microbatches, GPU idle time in the
+  targeted all-reduce-to-quantize windows fell by **9.78 ms on rank 0** and
+  **11.42 ms on rank 1**. The original rank-0 gap fell from **310.1 to 8.6 µs**.
+- Isolated EP8 checks matched drop masks and affected gradients on all eight
+  ranks, including forced drops, compile, and SAC. Complete routing
+  preparation fell from **384.70 to 355.73 µs** in the isolated replay.
+- The separate native 10+10 pair measured **170,321 → 171,475 tokens/s**
+  (**+0.68%**), with peak allocated **+2.5 MiB** and reserved **−20 MiB**.
+  The throughput result is provisional and belongs to this pair.
+
+See the [run report](../runs/capacity-selector/report.md) and the [selected
+rank-0 trace](../artifacts/4fix_qla_embed_selector_gpu.json).
+
+## Consolidated rank-0 analysis: observed costs and priorities
+
+This section consolidates the studied S trace, source/grid arithmetic and prior
+component results. It ranks measured areas for investigation; it makes no
+implementation choice or predicted speedup. The hypotheses and proposals remain
+in [SOTA ideas](sota-ideas.md); the [plan](../planning/README.md) owns execution.
+This documentation update changes no training source, configuration or runtime.
+
+### Evidence identity and timing scope
+
+The local `artifacts/4fix_qla_embed.json` is the S `diagnostic-140-004` rank-0
+capture of optimizer update 21: three of 32 microbatches, world size eight,
+NVIDIA H100 80GB HBM3, 132 SMs. Its SHA256 is
+`c921f19d52934fe7b597a79b81f4a179ec1c0dde2bf4616f9a9e4973163e6b95`.
+Supporting local files are `artifacts/microbatch_costs.json` and its same-stem
+analysis script, `artifacts/hybrid_ep_rank0_quant.json`, and
+`artifacts/gemm_roofline.json`; they are ignored artifacts, so essential results
+are reproduced here. The source reviewed for this cost ledger was
+`e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f`. The follow-up selector campaign
+recorded matched S runtime and GIFT fingerprints and resolved training
+controls. S has a separate run history from the corrected-input A/B/C/D
+campaign below. [S comparison receipts](../runs/capacity-selector/report.md#native-1010-result).
+
+Attribution covers all 9,317 physical kernel/memcpy/memset events exactly once,
+with zero missing CPU/runtime links and zero category/phase sum residuals.
+Fifteen prefix events total 0.057184 ms; 9,302 events belong to the three
+microbatches. Nested GPU annotations are excluded. Summed durations count work
+on every stream; interval unions count occupied elapsed time. Communication
+kernels include device waits/spin time. Occupancy is not SM utilization.
+Host waits overlap GPU activity and must not be added to device totals.
+Neither one rank nor this three-microbatch prefix establishes the all-rank,
+full-update critical path or steady-state throughput.
+
+### Microbatch elapsed time, work, overlap and host waits
+
+All entries are milliseconds. GPU span runs from the first to last correlated
+physical event for that microbatch, including its GPU tail after the CPU
+annotation. Idle is span minus the all-stream event union. Compute includes
+noncommunication kernels; copies are separate. Overlap is the interval
+intersection of compute and communication, not a removable-time estimate.
+Event-sum minus union credits all simultaneous physical events; it is a
+different quantity from compute/communication overlap.
+
+| Scope | MB1 | MB2 | MB3 | Mean |
+| --- | ---: | ---: | ---: | ---: |
+| GPU span | 388.875 | 381.506 | 385.623 | 385.335 |
+| Physical-event sum | 420.577 | 425.983 | 440.385 | 428.982 |
+| All-stream GPU union | 372.172 | 369.116 | 373.528 | 371.605 |
+| Event-sum minus union (overlap credit) | 48.405 | 56.868 | 66.857 | 57.377 |
+| All-stream idle | 16.703 | 12.390 | 12.096 | 13.730 |
+| Compute union | 313.571 | 314.384 | 314.023 | 313.993 |
+| Communication union | 99.411 | 106.079 | 121.957 | 109.149 |
+| Compute/communication overlap | 41.982 | 51.738 | 62.837 | 52.186 |
+| Communication without compute | 57.429 | 54.341 | 59.120 | 56.963 |
+| Memcpy/memset union | 6.667 | 0.469 | 0.482 | 2.539 |
+| CPU F/B annotation | 371.596 | 364.867 | 367.346 | 367.936 |
+| GPU tail after CPU annotation | 17.547 | 16.888 | 18.566 | 17.667 |
+| CUDA API duration sum | 176.476 | 204.515 | 205.059 | 195.350 |
+| Host synchronization sum | 156.715 | 186.048 | 188.346 | 177.037 |
+
+The whole-trace physical-event sum is 1,287.003 ms and the all-stream union is
+1,114.873 ms. Whole-trace first-to-last physical-event elapsed time is
+1,165.651 ms, including the prefix and inter-microbatch gaps. These scopes differ
+from mean microbatch span (385.335 ms). The 87 host synchronization calls across the
+microbatches total 531.110 ms; this is host waiting, not additional GPU work.
+
+### Complete exclusive device-cost ledger
+
+Each row is one exclusive category. Times are physical-event sums in
+milliseconds for each microbatch and their mean; the 15 prefix events are
+excluded and remain recorded separately above. The 26 rows total 420.577 /
+425.983 / 440.385 ms, or 428.982 ms per microbatch. Category sums exceed elapsed
+time because streams overlap. Ambiguous owners remain explicit.
+
+| Category | MB1 summed ms | MB2 summed ms | MB3 summed ms | Mean summed ms/MB |
+| --- | ---: | ---: | ---: | ---: |
+| LM-head GEMMs | 68.515 | 69.606 | 65.628 | 67.916 |
+| Routed expert GEMMs | 49.996 | 50.440 | 50.521 | 50.319 |
+| FSDP all-gather | 22.358 | 34.238 | 36.536 | 31.044 |
+| HybridEP combine | 30.352 | 29.716 | 30.122 | 30.063 |
+| FSDP reduce-scatter | 26.959 | 23.754 | 36.269 | 28.994 |
+| Norm, router and activation kernels | 28.408 | 28.612 | 28.787 | 28.603 |
+| FP8 scales, quantization and layout | 21.978 | 22.019 | 22.065 | 22.021 |
+| Other elementwise, reduction and layout kernels | 13.323 | 22.884 | 22.655 | 19.621 |
+| Combined-block dense GEMMs: attention/shared-expert owner ambiguous | 19.255 | 19.333 | 19.455 | 19.347 |
+| GDN attention core and local operations | 19.177 | 19.311 | 19.125 | 19.204 |
+| Copy/cast/fill kernels | 22.024 | 16.553 | 15.613 | 18.063 |
+| Other attention projection GEMMs | 15.921 | 15.706 | 15.960 | 15.862 |
+| Dense FFN GEMMs | 15.032 | 14.666 | 15.952 | 15.217 |
+| HybridEP dispatch | 13.979 | 13.390 | 13.500 | 13.623 |
+| MLA attention core | 11.253 | 10.971 | 11.739 | 11.321 |
+| MTP attention projection GEMMs | 9.656 | 9.370 | 10.419 | 9.815 |
+| FP32 GEMMs: attention/router owner ambiguous | 5.723 | 5.716 | 5.745 | 5.728 |
+| Loss kernels | 4.706 | 4.731 | 4.618 | 4.685 |
+| Other NCCL communication | 3.607 | 3.931 | 4.647 | 4.062 |
+| Layer-0 attention projection GEMMs | 3.928 | 3.943 | 3.972 | 3.948 |
+| Identified shared-expert GEMMs | 3.746 | 3.719 | 3.745 | 3.737 |
+| Memcpy events | 6.333 | 0.138 | 0.140 | 2.204 |
+| HybridEP helper kernels | 2.727 | 1.662 | 1.521 | 1.970 |
+| Embedding | 1.258 | 1.217 | 1.282 | 1.252 |
+| Memset events | 0.333 | 0.331 | 0.342 | 0.335 |
+| EP padding/layout preparation | 0.028 | 0.028 | 0.028 | 0.028 |
+
+The 19.347 ms combined-block and 5.728 ms FP32 ambiguous GEMMs are not silently
+assigned to routed experts or attention. The identified shared-expert row is
+therefore not a complete shared-expert backward cost.
+
+### Forward, SAC replay and actual backward
+
+These phases partition the same three-microbatch events, excluding the prefix;
+times are summed milliseconds, not extra costs to add to the ledger.
+
+| Phase | MB1 summed ms | MB2 summed ms | MB3 summed ms | Mean summed ms/MB |
+| --- | ---: | ---: | ---: | ---: |
+| Original forward | 110.087 | 108.095 | 106.477 | 108.220 |
+| Outer SAC replay | 59.421 | 59.701 | 61.679 | 60.267 |
+| Backward after outer replay | 247.130 | 254.218 | 268.337 | 256.561 |
+| Intrinsic FLA VJP reconstruction | 2.729 | 2.735 | 2.723 | 2.729 |
+| Mixed backward preparation | 1.018 | 1.039 | 0.975 | 1.011 |
+| Other local backward replay | 0.192 | 0.195 | 0.193 | 0.194 |
+
+Outer SAC replay is 60.267 ms/MB. FLA's intrinsic VJP reconstruction is a separate
+2.729 ms/MB; removing outer replay would not establish removal of intrinsic VJP
+work. The SAC label uses compiled-backward replay boundaries plus replayed
+HybridEP/grouped-GEMM operations. Fused mixed helpers are attributed to an
+execution phase, not proven avoidable SAC overhead.
+
+SAC composition is a regrouping of the 60.267 ms, with no additional work:
+
+| SAC component | Mean summed ms/MB |
+| --- | ---: |
+| Attention projection GEMMs | 12.360 |
+| EP main dispatch + combine | 11.220 |
+| Norm/router/activation | 7.499 |
+| Routed expert GEMMs | 5.409 |
+| FP8 scale/quant/layout | 4.602 |
+| GDN core/local + MLA core | 6.171 |
+| Other NCCL communication | 3.343 |
+| Dense FFN + identified shared-expert GEMMs | 4.718 |
+| FP32 GEMMs, owner ambiguous | 1.353 |
+| Other elementwise/reduction/layout | 2.744 |
+| EP helpers/preparation + copies/fills | 0.847 |
+
+### Routed GEMM work and arithmetic rates
+
+The 147 routed GEMMs include 42 original-forward calls, 21 SAC replay calls,
+42 dgrad calls and 42 wgrad calls. Counts below cover all three microbatches;
+FLOPs and milliseconds are per-microbatch means. Arithmetic is source/grid
+reconstruction: two FLOPs per FMA, including padded rows, divided by summed
+kernel durations. It excludes quantization, layout, communication, copies,
+submission and gaps. It is not actual hardware-counter utilization or full-step
+MFU.
+
+The [NVIDIA H100 specification](https://www.nvidia.com/en-us/data-center/h100/)
+quotes 1,979 BF16 / 3,958 FP8 TFLOP/s **with sparsity**. The dense references used
+here are 989.5 BF16 / 1,979 FP8 TFLOP/s. Routed kernel templates use 116 SMs;
+linear scaling of the FP8 reference by 116/132 gives 1,739.121 TFLOP/s. This is
+an optimistic SM-budget reference. Actual clocks, power limits and tensor/SM
+counters were not measured.
+
+| Routed role | Calls | TFLOPs/MB | Kernel ms/MB | Achieved TFLOP/s | % of 116-SM FP8 reference |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Up/gate forward | 21 | 10.852 | 8.363 | 1297.7 | 74.6% |
+| Down forward | 21 | 5.426 | 4.701 | 1154.3 | 66.4% |
+| Up/gate SAC replay | 3 | 1.693 | 1.305 | 1297.4 | 74.6% |
+| Down SAC replay | 18 | 4.667 | 4.104 | 1137.2 | 65.4% |
+| Down dgrad | 21 | 5.426 | 4.262 | 1273.1 | 73.2% |
+| Up/gate dgrad | 21 | 10.852 | 8.793 | 1234.2 | 71.0% |
+| Down wgrad | 21 | 5.426 | 6.527 | 831.3 | 47.8% |
+| Up/gate wgrad | 21 | 10.852 | 12.264 | 884.9 | 50.9% |
+| All routed GEMMs | 147 | 55.196 | 50.319 | 1096.9 | 63.1% |
+| Wgrad subtotal | 42 | 16.278 | 18.791 | 866.3 | 49.8% |
+
+For the head, MTP folds two heads × batch two into four rows of sequences;
+two loss chunks give M=8192, N=128256, K=4096 per matrix call. Six BF16 GEMMs
+per microbatch (forward, dX and dW for both chunks) perform 51.643 TFLOPs in
+67.916 ms: 760.385 TFLOP/s, 76.85% of the dense BF16 reference. These shapes
+come from the workload and local [MTPLoss/chunked-loss](../gift/torchtitan/components/loss.py)
+and [linear projection](../gift/torchtitan/models/common/embeddings/token_debeddings.py)
+source, not captured input dimensions.
+
+For experts, [SwiGLU quantization](../gift/torchtitan/ops/float8/triton_kernels/fused_swiglu_quantization.py)
+uses a 64-row launch block. Its grid and the [grouped-GEMM payload path](../gift/torchtitan/models/common/moe/experts/gmm.py)
+reconstruct the following summed padded
+receiver-local rows M per layer; D=4096 and expert width=1536 remain fixed.
+Rows vary by layer and microbatch. These are not exact true-token counts or
+per-expert load-balance measurements.
+
+| MoE layer | MB1 padded M | MB2 padded M | MB3 padded M |
+| --- | ---: | ---: | ---: |
+| L1.GDN_MoE | 67,712 | 66,944 | 67,200 |
+| L2.GDN_MoE | 66,944 | 67,200 | 67,456 |
+| L3.MLA_MoE | 65,536 | 65,792 | 65,536 |
+| L4.GDN_MoE | 63,744 | 64,384 | 64,384 |
+| L5.GDN_MoE | 59,776 | 60,800 | 60,416 |
+| L6.GDN_MoE | 59,136 | 59,648 | 60,416 |
+| L7.MLA_MoE | 46,720 | 47,872 | 46,080 |
+
+The head's rated-peak arithmetic floor is 52.191 ms, leaving a 15.726 ms
+kernel-only ceiling relative to this trace. Expert wgrad's 116-SM reference
+floor is 9.360 ms, leaving a 9.431 ms ceiling. Neither is an attainable-gain
+forecast, and neither converts directly to step latency or TPS. FP8 operands
+and FP32 scales are source-verified; BF16 output/storage does not turn those
+expert tensor multiplies into BF16 work. Installed DeepGEMM accumulation
+behavior was not independently reverified.
+
+Backward FP8 preparation across the whole model includes grouped requantization
+4.257 ms/MB (81 launches over the capture), scaling-aware FP8 transpose
+2.291 ms/MB (231), and last-two-dimension transpose 1.395 ms/MB (78). These are
+subsets of the ledger's FP8 row, not additions or exclusively MoE costs.
+
+### HybridEP: main kernels, preparation, host scopes and overlap
+
+All EP kernels are on stream 7. The 120 main dispatch/combine calls total
+131.059 ms over the capture, or 43.686 ms/MB. Including 318 helper kernels gives
+136.969 ms total (45.656 ms/MB). Correlating all device events launched inside
+EP CPU scopes, including preparation, gives 849 events / 152.305 ms total
+(50.768 ms/MB). CPU scope durations are submission/wait spans and overlap GPU
+execution. The table separates these scopes; counts cover three microbatches
+and times are per-microbatch duration sums.
+
+| EP operation | Calls | Main GPU ms/MB | All correlated GPU ms/MB | CPU scope ms/MB |
+| --- | ---: | ---: | ---: | ---: |
+| forward dispatch | 21 | 4.493 | 8.017 | 6.899 |
+| forward combine | 21 | 11.078 | 11.195 | 0.525 |
+| recompute dispatch | 18 | 3.856 | 6.690 | 5.556 |
+| recompute combine | 18 | 7.364 | 7.469 | 0.528 |
+| backward dispatch_bwd | 21 | 5.274 | 5.659 | 1.270 |
+| backward combine_bwd | 21 | 11.621 | 11.737 | 0.600 |
+
+EP helper totals over the whole capture are: NVLink gather 2.387 ms (39 calls),
+scan 1.419 ms (39), device-sync kernel 1.940 ms (120), and expected-value update
+0.164 ms (120). Correlated preparation includes rowwise quantization 2.305 ms
+(60), block quantization 12.471 ms (78), routing metadata 0.248 ms (39), padding
+0.083 ms (39), and BF16 fill 0.040 ms (39). These totals are already included in
+the correlated scope or exclusive ledger; do not add them again.
+
+Only 1.818 ms of the main EP kernels overlaps FSDP all-gather across all three
+microbatches; compute overlap is 0.025 ms and FSDP reduce-scatter overlap is zero.
+Helper expected-value updates add 0.003 ms of all-gather overlap. Main EP work
+is therefore largely exposed against the measured rank-0 compute timeline;
+this does not prove a collective dependency or a removable all-rank wait.
+
+Inside the 39 original/recompute dispatch scopes, `cudaStreamSynchronize` totals
+8.871 ms (4.907 forward + 3.963 recompute). Separately, the 39 preceding
+`aten::is_nonzero` scopes total 475.860 ms, with 474.829 ms inside their runtime
+synchronizations. The preceding scalar scopes end shortly before dispatch but
+can wait for earlier queued work; neither host total is an estimate of saved
+time, nor can it be added to the device communication budget.
+
+The inspected [capacity implementation](../gift/torchtitan/models/common/moe/dispatch/capacity.py)
+and [MoE configuration](../gift/torchtitan/config/moe.py) give EP8/B2/S4096/top-8/E128
+at most 524,288 global routes versus a `group_gate` budget of 6,250 × 128 = 800,000. This makes
+the gate capacity inactive for this crop's source-level geometry; it does not
+remove valid-mask semantics or establish a production EP32 result. The existing
+nonblocking path's nominal 524,288-row capacity is below the conservative
+526,208-row padded bound. Source explicitly rejects fused nonblocking plus
+token drop because of a count/NaN bug, and the grouped-wgrad `.tolist()` fallback
+synchronizes. These are existing integration constraints, not an approved flag
+change or a speedup estimate.
+
+### Memory evidence is scoped separately
+
+The [reported SE comparison](sota-ideas.md#measured-headroom-and-quack-component-evidence) records
+66.924 / 68.334 GiB allocated/reserved peaks versus A's 70.387 / 71.670 GiB:
+reductions of 3.463 / 3.336 GiB. This is a separately reported 140-update
+comparison, not a local memory receipt for the S trace or guaranteed reusable
+headroom at every phase.
+
+The isolated [Quack LM-head report](../runs/quack-lmhead/report.md) measures
+native component peaks of 9.370 / 9.943 GiB versus patched Q4096's
+6.251 / 7.109 GiB: 3.119 GiB less allocated, without robust direct latency gain.
+Q8192's paired mean elapsed decrease is 0.94–1.00%, close to the 0.623% A/A
+mean difference; its component allocated peak is 7.297 GiB. Those processes
+include a materialized untied head and FP32 dW collector, not native GFSDP state.
+Both Quack variants have larger local gradient error than native against FP32;
+full-training memory, convergence and continuation are not established. Their
+memory reductions cannot be added to the SE reduction without lifecycle-matched
+native measurements. The historical 1,024-token FLCE port below reduced
+allocated peak by 2.6384 GiB but regressed TPS by 3.2898%.
+
+### Evidence-based priorities and lower-priority areas
+
+This ordering identifies measured costs and unresolved evidence, not proposed
+mechanisms, implementation authorization or projected gains.
+
+| Priority | Area | Evidence and limit |
+| --- | --- | --- |
+| First | Memory lifetimes and outer SAC replay | 60.267 ms/MB of observed replay spans communication, attention, GEMMs and preparation. Separate component/run memory reductions exist; which saved tensors affect the native peak is unmeasured. No replay budget is declared wholly removable. |
+| First | Exposed MoE communication | Main EP kernels cost 43.686 ms/MB with only 1.818 ms all-gather and 0.025 ms compute overlap across the capture. Host waits and source constraints require separate interpretation. |
+| Next | Expert wgrad and adjacent FP8/layout work | Wgrad is 18.791 ms/MB at 866.3 TFLOP/s, 49.8% of the 116-SM reference, versus 66.4–74.6% for original forward roles. Backward requantization/transposes have separately measured budgets. The limiting hardware mechanism is unknown. |
+| Lower for generic kernel tuning | LM head and already efficient routed forward GEMMs | The head is large at 67.916 ms/MB but reaches 76.85% of rated dense BF16; up/gate forward reaches 74.6% and down forward 66.4% of the 116-SM FP8 reference. These rates bound arithmetic-only room and rank generic tuning below the areas above; they do not reject targeted GEMM or head work. |
+| Lower for isolated latency work | CE and GDN intrinsic replay | All loss kernels sum to 4.685 ms/MB; intrinsic VJP replay is 2.729 ms/MB. Neither explains the 60.267 ms outer SAC budget. The Quack component has no robust Q4096 latency gain. |
+| Lower without exposed-wait evidence | Raw FSDP collective duration | AG + RS sum to 60.038 ms/MB outside the main compute stream and already overlap other work. This raw sum is not a 60 ms latency opportunity; only an affected exposed dependency can support that claim. |
+
+Remaining unknowns include all-rank and full-update critical paths, actual
+clocks/counters, per-expert token counts, native tensor lifetimes and global
+peak effects, and repeated unprofiled throughput results.
 
 ## Global data correction: current comparisons use the corrected inputs
 
@@ -57,12 +378,10 @@ No additional training or installation follows from that publication request.
 
 ## Current final task baseline: owner-selected recipe
 
-On 14 November 2026 the owner selected the 100B-dev crop plus the accepted V2
-prefetch foundation, the combined-four foundation, and explicit FlashQLA
-`external_gate` activation for the current final task baseline. The
-[baseline](baseline.md#current-final-task-baseline) is the canonical owner of
-the exact recipe and invocation. This recipe selection does not change generic
-GDN backend defaults or establish production validation.
+The 14 November selection of the 100B-dev crop, combined-four (including V2
+prefetch), and FlashQLA `external_gate` is the foundation for S and the
+18 November production stack above. The exact settings are in the
+[recipe](baseline.md#current-final-task-baseline).
 
 The combined-four result remains a provisional +4.49% fixed-window difference
 from one sequential pair with settling cadence. FlashQLA's fixed-order native
@@ -132,8 +451,7 @@ behavior remain unverified.
 
 Across the three eight-rank runs, rank-zero median host cadence from updates 41–60 to
 121–140 decreases by about 9.9–10.4%, with the same direction on every rank and a
-nonmonotonic early hump. Data-cache effects remain possible; changing MoE routing/load
-imbalance is the leading unproven hypothesis. The [timing-drift record](../runs/flash-qla/timing-drift.md)
+nonmonotonic early hump. The cause of the drift is unresolved. The [timing-drift record](../runs/flash-qla/timing-drift.md)
 owns the evidence and limits. The [comparison JSON](../runs/flash-qla/historical-drift-comparison.json)
 gives the exact all-rank values and hashes; these cadence intervals do not establish
 device-only time or stationary/general throughput.
@@ -414,9 +732,9 @@ licenses, tests and hashes under `references/`.
 - Vision-related work: CompactCE, streaming prefetch, GFSDP, frozen storage and
   metrics. This collection is not confirmed as the promised vision team list.
   CompactCE rejects MTP; the baseline has MTP1.
-- Additional hypotheses retained from earlier source reviews: MLA backend,
-  GFSDP prefetch, MoE metadata/communication, GDN recomputation and linear CE.
-  Their former 700B-specific settings are not crop defaults.
+- Earlier source-review questions are retained in [candidates](candidates.md)
+  and [SOTA ideas](sota-ideas.md). Former 700B-specific settings are not crop
+  defaults.
 
 The four explicit-kernel experiments above remain task-local; this preserved
 donor inventory was not benchmarked on the current crop. The owner-selected
@@ -470,7 +788,7 @@ Preserved completed evidence:
   the original parser failure stays recorded. Both ranks were analyzed using
   actual Perfetto MCP. [Canonical results](../runs/overnight-streaming-perf/g3-baseline-perfetto.json),
   SQL, compact source evidence and compressed trace pair are retained. The input
-  wait is a V2 hypothesis, not a measured gain.
+  wait was an unresolved finding at that historical stage, not a measured gain.
 - C1 B2 passed; compact history is retained. C2 A reached terminal PASS export
   at 08:34:48 UTC; child 418189 and its process group stopped, and its controller
   was absent at 08:45 UTC. C2 B and C50 were cancelled without launch. The

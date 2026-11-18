@@ -2,6 +2,15 @@
 
 Status: complete, 15 November 2026. Input acceptance, six component processes, all four timing runs, all four diagnostics and MCP reconciliation passed. The closed native campaign confirms all owned training processes exited and all eight GPUs were idle.
 
+## Production stack follow-up
+
+On 18 November the owner selected **4fix + FlashQLA + embeddings/GFSDP + GPU
+capacity selector**. The selector extends S, which adds the GFSDP schedule
+repairs to the D stack. The separate S comparison measured **+0.68%** in one
+native 10+10 pair and eliminated all 42 predicate host waits per profiled rank
+over three microbatches. The tables below retain the original A/B/C/D scope.
+[Selector report](../capacity-selector/report.md).
+
 ## Local/server synchronization and trace shortcuts
 
 Owner instruction, 15 November 2026: synchronize the completed implementation,
@@ -9,14 +18,14 @@ compact evidence and locally maintained documentation, then commit and push the
 consolidated task. This supersedes the execution assignment's earlier
 no-publication restriction without authorizing another GPU run.
 
-Four byte-identical original rank-0 diagnostics are copied into the ignored
-root `artifacts/` directory as `baseline.json`, `4fix.json`, `4fix_qla.json` and
-`4fix_qla_embed.json`. The [shortcut manifest](trace-shortcuts.json) records
-source paths, exact sizes and SHA256 hashes; the [repository index](../../README.md#latest-rank-0-traces)
-links the local copies. All GPU/FSDP annotations are preserved. The original
-server run directories and historical local evidence remain intact. Ignored
-runtime datasets, compiler caches and other raw campaign payloads remain at
-their recorded server paths.
+This campaign produced the original rank-0 A/B/C/D diagnostics. The ignored
+local `baseline.json`, `4fix.json` and `4fix_qla.json` shortcuts select A/B/C
+from this campaign. `4fix_qla_embed.json` now selects the later S capture, and
+`4fix_qla_embed_selector_gpu.json` selects S with the GPU capacity selector.
+The original D diagnostic remains under `proddata-d-diagnostic-001`.
+The [shortcut manifest](trace-shortcuts.json) records source paths, exact sizes,
+and SHA-256 hashes. The [repository index](../../README.md#latest-rank-0-traces)
+links the local copies. All GPU/FSDP annotations are preserved.
 
 ## Scope and finite acceptance
 

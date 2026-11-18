@@ -1,10 +1,12 @@
 # GPU capacity selector on S
 
-Compare S with `branchless_capacity_drop` disabled and enabled. S includes the
-four fixes, FlashQLA `external_gate`, the MTP and layer-0 FFN splits, row-owner
-embeddings, and the GFSDP schedule fixes. Use the S settings for both MoE block
-templates, with the original 128-counter capacity all-reduce. The only training
-configuration difference is the selector flag.
+The owner accepted the GPU capacity selector for the production stack on
+18 November 2026. The selected recipe is **4fix + FlashQLA + embeddings/GFSDP +
+GPU capacity selector**. This report compares S against that recipe. S includes
+FlashQLA `external_gate`, the MTP and layer-0 FFN splits, row-owner embeddings,
+and the GFSDP schedule fixes on top of the four fixes. Both runs used the
+original 128-counter capacity all-reduce. The only training configuration
+difference was `branchless_capacity_drop` in the two MoE block templates.
 
 ## Reference and expected cost
 
@@ -205,11 +207,11 @@ rank-1 trace and per-site original-event comparisons are in the local ignored
 | rank 0 | 26,948,598 | `dbd9da0ddfb950c5c7f4e28e388bbac48879651596782d88945eab7fb687a5ad` |
 | rank 1 | 26,953,540 | `9c20fbc58dce81c7deeaa2b279f3c35a5875e6334a04a05a363fc8342247fff5` |
 
-## Recommendation
+## Production selection
 
-Use the GPU selector as an explicit option for S. It passes the focused
-correctness checks, removes the predicate host synchronization, and has a
-small positive throughput result with nearly identical peaks in this pair.
-The short serial comparison supports a provisional +0.68% observation for
-this workload. Repeated native A/B measurements would be needed to establish
-a general throughput gain. Library defaults retain their current values.
+Enable `branchless_capacity_drop: true` in both MoE block templates as an
+explicit setting of the [production recipe](../../docs/baseline.md#current-final-task-baseline).
+The exact drop-policy checks passed on all eight ranks, and Perfetto confirmed
+elimination of the predicate host synchronization in the targeted intervals.
+The native 10+10 pair measured +0.68% throughput. That figure is specific to
+the measured pair. The shared library default is off.

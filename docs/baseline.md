@@ -52,11 +52,10 @@ additional compute.
 
 ## Current final task baseline
 
-**Owner decision, 14 November 2026:** the current final task baseline is this
-crop workload with the accepted V2 CPU-prefetch foundation, the combined-four
-foundation, and FlashQLA's `external_gate` backend. This selects a task recipe;
-it does not change generic GDN library/backend defaults or establish production
-validation.
+**Owner decision, 18 November 2026:** the selected production recipe is
+**4fix + FlashQLA + embeddings/GFSDP + GPU capacity selector**. It extends S,
+the control in the selector comparison. The 14 November selection of
+combined-four and FlashQLA `external_gate` is the foundation of this recipe.
 
 | Part | Selected setting |
 | --- | --- |
@@ -64,7 +63,13 @@ validation.
 | Existing accepted V2 | CPU materialized-batch prefetch depth 32. This is the already accepted V2 setting, reused as part of the combined recipe rather than an additional fifth change. |
 | Three combined-four additions beyond V2 | BF16 expert-weight reuse; the explicit routing-metadata kernel using `indices_to_map`; and stable cap-zero cross-entropy through the existing `CrossEntropyLoss` and `ChunkedCELoss` path. GPU input-preparation fusion and fused Linear+CE remain excluded. |
 | GDN backend | Select `external_gate` explicitly with `runs/flash-qla/run.py --gdn-backend external_gate`. The choice is recipe-scoped; the generic backend default remains separate. |
-| Current measurement recipe | Logical epoch size 102,400; 20 optimizer updates, with 1–10 as measurement warmup and 11–20 measured. Preserve the training LR schedule at 65,000 total updates and 2,000 LR-warmup updates. The 15 November goal selects this window for all A/B/C/D timing runs. |
+| Embeddings and GFSDP (S) | Split the MTP and layer-0 FFN groups, use row-owner input embeddings, and enable the S GFSDP scheduling repairs. Use S embedding settings, with the SE stages off. |
+| GPU capacity selector | Set `branchless_capacity_drop: true` under `model.config.blocks.<block>.moe.experts.token_dispatcher.token_drop` for `gdn_moe` and `mla_moe`. Keep fixed capacity 50,000, group-capacity dropping, and the original 128-counter all-reduce. |
+| Short comparison window | Logical epoch size 102,400; measure optimizer updates 11–20 after 10 warmup updates. Preserve the 65,000-update LR horizon and 2,000 LR-warmup updates used in A/B/C/D and the selector comparison. |
+
+The [selector report](../runs/capacity-selector/report.md) records the tested S
+launch path, the production flag, and the evidence behind this selection. The
+flag is an explicit setting for the recipe. The shared library default is off.
 
 The historical FlashQLA invocation and per-run values are retained in the
 [FlashQLA native plan](../runs/flash-qla/native-plan.json). It selects the
@@ -87,9 +92,8 @@ measurements are not a numerical selection rule or convergence result. See the
 [combined-four report](../runs/combined-four/report.md) and
 [FlashQLA report](../runs/flash-qla/report.md) for evidence and limits.
 
-Long-run convergence, checkpoint/resume, EMA updates, CP warmup, and production
-PP4/EP32 behavior remain open validation gates. This task baseline is not a
-production validation claim.
+Full-scale validation remains open for long-run convergence, checkpoint/resume,
+EMA updates, CP warmup, and production PP4/EP32 behavior.
 
 ## Identity and scope
 

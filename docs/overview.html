@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Оптимизация предобучения GIFT 3.5</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f5f7f6;
+      --sheet: #fff;
+      --ink: #182b3b;
+      --muted: #526675;
+      --line: #d6e0e3;
+      --teal: #087e80;
+      --teal-soft: #e8f4f2;
+      --navy-soft: #edf2f6;
+      --warm: #f8f3e9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 15px/1.48 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    main { width: min(100% - 36px, 1380px); margin: 0 auto; padding: 34px 0 28px; }
+    header { max-width: 1120px; margin: 0 auto 20px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+    h1, h2, h3, h4 { color: var(--ink); line-height: 1.2; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 3.3vw, 2.8rem); letter-spacing: -0.03em; font-weight: 690; }
+    .subhead { margin: 9px 0 0; color: var(--muted); }
+    section { max-width: 1280px; margin: 0 auto; padding: 23px 0 25px; border-bottom: 1px solid var(--line); }
+    .section-head { display: grid; grid-template-columns: 38px minmax(0,1fr); gap: 10px; margin-bottom: 14px; align-items: start; }
+    .number { color: var(--teal); font-size: .8rem; font-weight: 760; letter-spacing: .08em; padding-top: 3px; }
+    h2 { margin: 0; font-size: clamp(1.3rem, 2vw, 1.7rem); letter-spacing: -.018em; }
+    h3 { margin: 20px 0 9px; font-size: 1.04rem; }
+    h4 { margin: 0 0 8px; font-size: .96rem; }
+    p { margin: 8px 0; }
+    .lead { max-width: 1050px; color: #344b5a; }
+    .small { color: var(--muted); font-size: .86rem; }
+    .table-scroll {
+      max-width: 100%;
+      margin: 10px 0 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--sheet);
+      scrollbar-color: #9ab8bb #edf2f2;
+    }
+    table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .87rem; line-height: 1.4; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    thead th { color: #274251; background: var(--navy-soft); font-size: .76rem; font-weight: 750; letter-spacing: .025em; }
+    tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+    tbody th[scope="row"] { min-width: 132px; color: #253e4d; font-weight: 680; }
+    .group th { padding-top: 7px; padding-bottom: 7px; color: #076d6e; background: #f0f7f6; font-size: .74rem; letter-spacing: .05em; text-transform: uppercase; }
+    .numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    code { padding: .07em .25em; border-radius: 3px; color: #173849; background: #eef2f3; font: .92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .pill { display: inline-block; padding: 2px 7px; border-radius: 4px; color: #096b6c; background: var(--teal-soft); font-size: .74rem; font-weight: 700; white-space: nowrap; }
+    .callout { margin: 13px 0; padding: 10px 13px; border-left: 3px solid var(--teal); background: var(--teal-soft); color: #214149; }
+    .callout.warm { border-left-color: #b68636; background: var(--warm); color: #4d3d24; }
+    .compare { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; align-items: start; }
+    .sac-panel { min-width: 0; }
+    .sac-scroll { max-height: 440px; overflow: auto; border: 1px solid var(--line); border-radius: 7px; background: var(--sheet); }
+    .sac-scroll table { min-width: 430px; font-size: .82rem; }
+    .sac-scroll th, .sac-scroll td { padding: 6px 8px; }
+    .sac-scroll th:first-child { width: 54px; }
+    .sac-scroll thead th { position: sticky; top: 0; z-index: 1; }
+    .experiment-summary { color: var(--muted); font-size: .86rem; margin-top: -6px; }
+    @media (max-width: 760px) {
+      main { width: min(100% - 24px, 1380px); padding-top: 24px; }
+      section { padding: 19px 0 21px; }
+      .compare { grid-template-columns: 1fr; gap: 10px; }
+      .sac-scroll { max-height: 420px; }
+      table { min-width: 740px; }
+    }
+    @media print {
+      @page { size: A4 landscape; margin: 12mm; }
+      html, body { background: #fff; }
+      body { font-size: 8.5pt; line-height: 1.3; }
+      main { width: 100%; padding: 0; }
+      header { max-width: none; margin-bottom: 8px; padding-bottom: 8px; }
+      h1 { font-size: 21pt; }
+      section { max-width: none; padding: 10px 0; }
+      .section-head { margin-bottom: 6px; }
+      h2 { font-size: 13pt; }
+      h3 { margin: 10px 0 5px; }
+      .table-scroll { overflow: visible; border-radius: 0; break-inside: avoid; }
+      table { min-width: 0; font-size: 6.8pt; }
+      th, td { padding: 4px 5px; }
+      .compare { grid-template-columns: 1fr 1fr; }
+      .sac-scroll { max-height: none; overflow: visible; border-radius: 0; }
+      .sac-scroll table { min-width: 0; font-size: 6.4pt; }
+      .sac-scroll th, .sac-scroll td { padding: 2px 4px; }
+      .callout { padding: 6px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Оптимизация предобучения GIFT 3.5</h1>
+      <p class="subhead">Сравнение полной модели, crop-конфигурации, исходных кандидатов и результатов замеров. Состояние на 16 ноября 2026 года.</p>
+    </header>
+
+    <section aria-labelledby="s1">
+      <div class="section-head"><span class="number">01</span><div><h2 id="s1">Архитектура и параллелизм</h2></div></div>
+      <p class="lead">Crop на 8 H100 содержит два полных периода исходной архитектуры и сохраняет ширины слоёв, FP8, SAC, компиляцию, MTP и EMA.</p>
+      <div class="table-scroll" role="region" aria-label="Архитектура полной модели и crop 19B" tabindex="0">
+        <table>
+          <thead><tr><th>Свойство</th><th>100B-dev, полная модель</th><th>Crop 19B, измерения</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Основные слои</th><td>40 слоёв; [GDN, GDN, GDN, MLA] × 10</td><td>8 слоёв; [GDN, GDN, GDN, MLA] × 2</td></tr>
+            <tr><th scope="row">Блоки</th><td>30 GDN + 10 MLA</td><td>6 GDN + 2 MLA</td></tr>
+            <tr><th scope="row">Dense / MoE</th><td>Слой 0 dense, слои 1–39 MoE</td><td>Слой 0 dense, слои 1–7 MoE</td></tr>
+            <tr><th scope="row">Ширина / словарь</th><td>4 096 / 128 256; embeddings не связаны</td><td>4 096 / 128 256; embeddings не связаны</td></tr>
+            <tr><th scope="row">Dense FFN</th><td>Hidden 10 944</td><td>Hidden 10 944</td></tr>
+            <tr><th scope="row">MoE FFN</th><td>128 routed experts, hidden 1 536, top-8 + 1 shared expert</td><td>Те же параметры</td></tr>
+            <tr><th scope="row">GDN</th><td>16 K / 32 V heads, dim 128, conv 4</td><td>Те же параметры</td></tr>
+            <tr><th scope="row">MLA</th><td>32 heads; full-rank Q; KV rank 512; QK 192 (128 + 64 RoPE), V 128</td><td>Те же параметры</td></tr>
+            <tr><th scope="row">MTP</th><td>Один MLA + dense FFN, loss weight 0,3</td><td>То же</td></tr>
+            <tr><th scope="row">GPU</th><td>512, целевой план</td><td>8 H100 по 80 ГБ</td></tr>
+            <tr><th scope="row">PP</th><td>4</td><td>1</td></tr>
+            <tr><th scope="row">EP</th><td>32</td><td>8</td></tr>
+            <tr><th scope="row">Dense FSDP</th><td>128</td><td>8</td></tr>
+            <tr><th scope="row">Expert FSDP</th><td>4</td><td>1</td></tr>
+            <tr><th scope="row">TP</th><td>1</td><td>1</td></tr>
+            <tr><th scope="row">CP</th><td>1</td><td>1</td></tr>
+            <tr><th scope="row">DP replication</th><td>1</td><td>1</td></tr>
+            <tr><th scope="row">FSDP backend</th><td>GFSDP2</td><td>GFSDP2</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="s2">
+      <div class="section-head"><span class="number">02</span><div><h2 id="s2">Настройки обучения и политики SAC</h2></div></div>
+      <div class="table-scroll" role="region" aria-label="Сравнение настроек обучения" tabindex="0">
+        <table>
+          <thead><tr><th>Настройка</th><th>100B-dev, полная модель</th><th>Crop 19B, измерения</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Global batch</th><td>8 192</td><td>512</td></tr>
+            <tr><th scope="row">Local batch</th><td>64</td><td>2</td></tr>
+            <tr><th scope="row">Размер микробатча</th><td>2</td><td>2</td></tr>
+            <tr><th scope="row">Trainer gradient accumulation</th><td>1</td><td>32</td></tr>
+            <tr><th scope="row">PP microbatches / local batch</th><td>32</td><td>Нет, PP1</td></tr>
+            <tr><th scope="row">Sequence length</th><td>Max 4 096; warmup 1 536 → 4 096 за 5 000 updates</td><td>4 096, без прогрессии</td></tr>
+            <tr><th scope="row">FP8</th><td>Dense и sparse включены</td><td>Dense и sparse включены</td></tr>
+            <tr><th scope="row">Компиляция</th><td>Model и loss включены</td><td>Model и loss включены</td></tr>
+            <tr><th scope="row">Norm backend</th><td><code>compile</code></td><td>CuTe</td></tr>
+            <tr><th scope="row">Optimizer</th><td>Fused AdamW</td><td>Fused AdamW</td></tr>
+            <tr><th scope="row">EMA</th><td>Включена; decay 0,99, interval 10, start step 10 000</td><td>Те же параметры</td></tr>
+            <tr><th scope="row">Token drop</th><td>Fixed capacity 50 000, group capacity, adaptive balance</td><td>Те же параметры</td></tr>
+            <tr><th scope="row">CPU offload</th><td>State и activations выключены</td><td>State и activations выключены</td></tr>
+            <tr><th scope="row">MTP / loss</th><td>MTP1, weight 0,3; 2 chunks</td><td>MTP1, weight 0,3; 2 chunks</td></tr>
+            <tr><th scope="row">Checkpointing</th><td>Включено, каждые 250 updates</td><td>Выключено в коротких замерах</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Selective activation checkpointing по слоям</h3>
+      <p class="small">Каждая таблица показывает все trunk-слои. MTP-блок MLA + dense FFN использует recompute в обеих конфигурациях.</p>
+      <div class="compare">
+        <div class="sac-panel">
+          <h4>100B-dev, 40 слоёв <span class="small">(прокрутка по слоям)</span></h4>
+          <div class="sac-scroll" role="region" aria-label="SAC полной модели по всем слоям" tabindex="0">
+            <table>
+              <thead><tr><th>Слой</th><th>Блок</th><th>SAC</th></tr></thead>
+              <tbody>
+            <tr><th scope="row">0</th><td>GDN, dense</td><td>Recompute</td></tr>
+            <tr><th scope="row">1</th><td>GDN, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">2</th><td>GDN, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">3</th><td>MLA, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">4</th><td>GDN, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">5</th><td>GDN, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">6</th><td>GDN, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">7</th><td>MLA, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">8</th><td>GDN, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">9</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">10</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">11</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">12</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">13</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">14</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">15</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">16</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">17</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">18</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">19</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">20</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">21</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">22</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">23</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">24</th><td>GDN, MoE</td><td>Save experts_up + comm</td></tr>
+            <tr><th scope="row">25</th><td>GDN, MoE</td><td>Save experts_up + comm</td></tr>
+            <tr><th scope="row">26</th><td>GDN, MoE</td><td>Save experts_up + comm</td></tr>
+            <tr><th scope="row">27</th><td>MLA, MoE</td><td>Save experts_up + comm</td></tr>
+            <tr><th scope="row">28</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">29</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">30</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">31</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">32</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">33</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">34</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">35</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">36</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">37</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">38</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">39</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="sac-panel">
+          <h4>Crop 19B, 8 слоёв</h4>
+          <div class="sac-scroll" role="region" aria-label="SAC crop 19B по всем слоям" tabindex="0">
+            <table>
+              <thead><tr><th>Слой</th><th>Блок</th><th>SAC</th></tr></thead>
+              <tbody>
+            <tr><th scope="row">0</th><td>GDN, dense</td><td>Recompute</td></tr>
+            <tr><th scope="row">1</th><td>GDN, MoE</td><td>Recompute</td></tr>
+            <tr><th scope="row">2</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">3</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">4</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">5</th><td>GDN, MoE</td><td>Save experts_up + comm</td></tr>
+            <tr><th scope="row">6</th><td>GDN, MoE</td><td>Save experts_up</td></tr>
+            <tr><th scope="row">7</th><td>MLA, MoE</td><td>Save experts_up</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="s3">
+      <div class="section-head"><span class="number">03</span><div><h2 id="s3">Подготовленные кандидаты и идеи по трассам</h2></div></div>
+
+      <h3>Исходная подборка кандидатов</h3>
+      <div class="table-scroll" role="region" aria-label="Исходные кандидаты оптимизаций" tabindex="0">
+        <table>
+          <thead><tr><th>ID и идея</th><th>Механизм и применимость</th><th>Статус</th></tr></thead>
+          <tbody>
+            <tr class="group"><th colspan="3">Kindulov</th></tr>
+            <tr>
+              <th scope="row"><code>K1</code> Softcap + CE</th>
+              <td>Fusion softcap/CE и раннее освобождение chunks. В crop softcap нет; compiled CE уже использует BF16 logits/gradients и FP32 row stats.</td>
+              <td>Полный donor-путь не измерялся. В основной серии есть отдельная stable cap-zero CE адаптация без softcap.</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>K2</code> Локальный FFN recompute</th>
+              <td>Сокращает хранение активаций ценой повторных GEMM и SwiGLU; SAC может дублировать работу. Routed donor отвергает FP8.</td>
+              <td>Не измерялся отдельно.</td>
+            </tr>
+            <tr class="group"><th colspan="3">Evko</th></tr>
+            <tr>
+              <th scope="row"><code>E1</code> Hidden z-loss</th>
+              <td>Fusion SwiGLU, FP8 quantization и gate/up z-gradient. Активный z-loss стоит на norm input; BF16 backward inputs увеличивают хранение.</td>
+              <td>Меняет функцию потерь; исходники ядер CudaCherry недоступны.</td>
+            </tr>
+            <tr class="group"><th colspan="3">Runtime-подборка MR41</th></tr>
+            <tr><th scope="row"><code>R1</code> CompactCE</th><td>Считает head и loss для supervised-позиций.</td><td>Реализация отвергает MTP1.</td></tr>
+            <tr><th scope="row"><code>R2</code> Streaming prefetch</th><td>Очередь CPU-батчей глубины 32 перекрывает подготовку данных и обучение.</td><td>Включён с глубиной 32; измерен вместе с M2, M3 и stable CE.</td></tr>
+            <tr><th scope="row"><code>R3</code> GFSDP buffers/prefetch</th><td>В crop уже включён GFSDP2; нужна конкретизация недостающего механизма и его совместимости с backward/SAC.</td><td>Отдельного измерения нет.</td></tr>
+            <tr><th scope="row"><code>R4</code> Frozen BF16 storage</th><td>Хранение замороженных весов в BF16 экономит память.</td><td>В полном предобучении crop замороженных параметров нет.</td></tr>
+            <tr><th scope="row"><code>R5</code> Metric accounting</th><td>Разделяет физические input tokens и supervised tokens.</td><td>Отдельного прироста скорости не измеряли.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Идеи по анализу трасс</h3>
+      <div class="table-scroll" role="region" aria-label="Идеи по анализу трасс" tabindex="0">
+        <table>
+          <thead><tr><th>ID</th><th>Механизм</th><th>Статус</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><code>M1</code></th><td>Объединить подготовку позиций, масок, auxiliary scaling и MTP targets в одно GPU-ядро.</td><td>Измерен отдельно; устойчивого TPS-выигрыша нет, в выбранную конфигурацию не входит.</td></tr>
+            <tr><th scope="row"><code>M2</code></th><td>Переиспользовать BF16-веса экспертов между микробатчами: одно преобразование на шаг оптимизатора при expert FSDP1.</td><td>Реализовано и включено в выбранную конфигурацию.</td></tr>
+            <tr><th scope="row"><code>M3</code></th><td>Одно ядро для карты и вероятностей маршрутизации вместо цепочки eager-операций.</td><td>Реализовано и включено в выбранную конфигурацию.</td></tr>
+            <tr><th scope="row"><code>M4</code></th><td>Раньше запускать reduce-scatter градиентов FFN, пока продолжается backward блока MTP или слоя 0.</td><td>Реализовано и измерено.</td></tr>
+            <tr><th scope="row"><code>M5</code></th><td>Суммировать счётчики токенов экспертов по группам назначения перед EP all-reduce.</td><td>Реализовано; компонентный тест и обучение без ускорения. Диагностика не завершена.</td></tr>
+            <tr><th scope="row"><code>M6</code></th><td>Сохранять точную keep mask и результат проверки capacity для повторного использования при SAC.</td><td>Предложение, не измерено.</td></tr>
+            <tr><th scope="row"><code>M7</code></th><td>Отправлять ID токенов, значения и градиенты строк владельцам embedding вместо обмена полной таблицей.</td><td>Реализовано и измерено.</td></tr>
+            <tr><th scope="row"><code>M8</code></th><td>Пропуск повторной сборки весов embedding перед backward.</td><td>Отдельная идея; с compile и SAC не измерялась.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="s4">
+      <div class="section-head"><span class="number">04</span><div><h2 id="s4">Результаты измерений и ограниченный потенциал</h2></div></div>
+      <p class="lead">8 H100; 10 шагов прогрева и 10 измеряемых шагов. Реальные данные и производственный токенизатор. TPS: входные токены в секунду суммарно по 8 GPU.</p>
+      <p class="small">Память: максимальный PyTorch peak по рангам в измеряемом окне, ГиБ (2³⁰ байт), allocated / reserved. TPS в целых токенах/с.</p>
+      <div class="table-scroll" role="region" aria-label="Последовательные измеренные конфигурации" tabindex="0">
+        <table>
+          <thead><tr><th>Конфигурация</th><th>TPS</th><th>Δ TPS к предыдущей</th><th>Δ TPS к исходной</th><th>Peak allocated / reserved, ГиБ</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Исходный crop 19B, native FLA, prefetch 0</th><td class="numeric">155 852</td><td>База</td><td>База</td><td class="numeric">69,158 / 69,752</td></tr>
+            <tr><th scope="row">R2 prefetch + M2 BF16 reuse + M3 routing + stable cap-zero CE</th><td class="numeric">163 191</td><td>+4,71%</td><td>+4,71%</td><td class="numeric">69,149 / 69,768</td></tr>
+            <tr><th scope="row">FlashQLA external_gate <span class="pill">выбранная конфигурация</span></th><td class="numeric">166 800</td><td>+2,21%</td><td>+7,03%</td><td class="numeric">67,296 / 67,688</td></tr>
+            <tr><th scope="row">FFN overlap + row-owner embedding (M4, M7)</th><td class="numeric">170 033</td><td>+1,94%</td><td>+9,10%</td><td class="numeric">65,890 / 68,088</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="experiment-summary">Изменения добавляются последовательно; прирост TPS указан к предыдущей строке. Порядок фиксирован, без повтора контроля; эффекты внутри составного изменения не разделены.</p>
+
+      <h3>Реализованные эксперименты без принятого выигрыша</h3>
+      <p class="small">У каждой строки свой контроль. Первые три сравнения выполнены на тестовом токенизаторе; capacity counters проверены на реальных данных с производственным токенизатором. Масштабирование ниже оценивается по глубине при сохранении размеров слоёв.</p>
+      <div class="table-scroll" role="region" aria-label="Эксперименты без принятого выигрыша" tabindex="0">
+        <table>
+          <thead><tr><th>Эксперимент</th><th>TPS контроля</th><th>TPS варианта</th><th>Δ TPS</th><th>Peak контроля allocated / reserved, ГиБ</th><th>Peak варианта allocated / reserved, ГиБ</th><th>Итог и масштабирование</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">M1: fusion подготовки входа</th><td class="numeric">156 351</td><td class="numeric">156 606</td><td class="numeric">+0,16%</td><td class="numeric">69,534 / 70,221</td><td class="numeric">69,516 / 70,143</td><td>Устойчивого выигрыша в обучении нет. Работа фиксирована на микробатч; с ростом глубины её доля уменьшается.</td></tr>
+            <tr><th scope="row">FLA Linear+CE, tile 1024</th><td class="numeric">156 368</td><td class="numeric">151 224</td><td class="numeric">−3,29%</td><td class="numeric">69,534 / 70,201</td><td class="numeric">66,895 / 67,701</td><td>Памяти меньше, обучение медленнее. Фиксированная работа выходной головы; её доля уменьшается с глубиной.</td></tr>
+            <tr><th scope="row">FlashQLA: fused gate вместо external gate</th><td class="numeric">160 091</td><td class="numeric">159 735</td><td class="numeric">−0,22%</td><td class="numeric">68,080 / 69,859</td><td class="numeric">68,035 / 70,035</td><td>Преимущество не установлено; дрейф времени внутри запусков около 10,4%. Повторяется в каждом GDN-слое; относительная доля примерно сохраняется.</td></tr>
+            <tr><th scope="row">M5: capacity counters 128→8</th><td class="numeric">170 108</td><td class="numeric">169 989</td><td class="numeric">−0,07%</td><td class="numeric">65,891 / 67,424</td><td class="numeric">65,893 / 67,424</td><td>Компонентный тест и обучение не показали ускорения. Оба замера обучения завершены; диагностика не завершилась. Повторяется в каждом MoE-слое.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Почему часть улучшений ограничена</h3>
+      <div class="table-scroll" role="region" aria-label="Ограничения оставшихся оптимизаций" tabindex="0">
+        <table>
+          <thead><tr><th>Идея</th><th>Оценка эффекта</th><th>Ограничение</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Norm/residual fusion</th><td>Оценка 0,4–0,5% времени окна из трёх микробатчей для forward + backward; 0,2–0,3% для forward.</td><td>Расчёт по исторической трассе; peak memory отдельно не оценён.</td></tr>
+            <tr><th scope="row">M5: capacity group counters</th><td>Полная операция: 91,696→92,816 мкс; сам all-reduce: 78,960→78,976 мкс. Медианы максимума по 8 рангам.</td><td>Буфер сократился с 1 024 до 64 байт, но коллективы и ожидания остались.</td></tr>
+            <tr><th scope="row">GPU metadata / CUDA Graphs</th><td>В старом V2-префиксе GPU idle составлял 3,32%; host wait capacity checks 652,941 мс, GPU idle overlap 6,319 мс.</td><td>Большая часть ожидания перекрывалась вычислениями; оценка относится к другому workload.</td></tr>
+            <tr><th scope="row">FP8 weight cache</th><td>Оценка dense quantization: около 0,7% префикса.</td><td>Нужны память для кэша и контроль его жизненного цикла.</td></tr>
+            <tr><th scope="row">MLA backend</th><td>Текущий путь использует cuDNN flash.</td><td>Быстрая совместимая training-замена не установлена.</td></tr>
+            <tr><th scope="row">GDN / local FFN recompute</th><td>Меньше сохранённых активаций ценой пересчёта.</td><td>Локальная политика может дублировать действующий SAC.</td></tr>
+            <tr><th scope="row">GFSDP overlap / MoE metadata</th><td>Требуют сохранения зависимостей и ожиданий коллективов.</td><td>BF16 reuse измерен для expert FSDP1; целевой expert FSDP4 требует отдельной проверки.</td></tr>
+            <tr><th scope="row">MoE dispatch/GEMM/combine pipeline</th><td>Потенциал скорости и peak memory не измерен.</td><td>Для интеграции нужна отдельная работа по последовательности операций.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

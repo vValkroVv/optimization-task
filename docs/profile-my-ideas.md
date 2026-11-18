@@ -14,6 +14,18 @@ original trace scope; the MTP section records a separate, unimplemented and
 unbenchmarked experiment, and the capacity ideas below remain unimplemented
 research with no measured speedup.
 
+On 18 November 2026, the owner set two high-priority candidates for reducing
+memory and step time at `eFSDP > 1`:
+[FP8 all-gather for sharded routed-expert weights](#fp8-all-gather-for-sharded-routed-expert-weights)
+and [direct expert weight gradients into the FP32 reduce-scatter buffer](#direct-expert-weight-gradients-into-the-fp32-reduce-scatter-buffer).
+Two follow-ups from the same review are
+[BF16 expert gradient exchange with FP32 owner reduction](#bf16-expert-gradient-exchange-with-fp32-owner-reduction),
+selected for an experiment, and
+[keeping tail weights live across chunked LM-head backward](#keep-tail-weights-live-across-chunked-lm-head-backward),
+selected as a scheduling fix. The weight path remains local FP8 shard caching
+with two shared gather slots. A cache of all fully gathered layers is deferred
+because its memory grows with model depth.
+
 ## Finding and evidence scope
 
 The first microbatch has a short GPU preparation prefix before the embedding
@@ -156,6 +168,604 @@ causal speedup remains inconclusive without a contemporary control/noise estimat
 The [completed report](../runs/bf16-expert-cache/report.md) owns the evidence and
 limits. The feature stays disabled by default. These crop results do not
 establish behavior or performance of production PP4/EP32.
+
+## FP8 all-gather for sharded routed-expert weights
+
+**[IMPORTANT] High priority for multi-rank expert FSDP.**
+
+### Scope and current path
+
+Owner-selected research candidate, 18 November 2026. Start on one NVLink-connected
+node with eight H100s, PP/TP/CP1, dense FSDP8, EP4 and eFSDP2, with no separate DP
+replicas. Use the selected recipe as the starting point, including the production
+tokenizer and real-data mixture, 32 microbatches per update, model and loss compile,
+the per-layer SAC policy, MTP and EMA. Compare the existing BF16 expert gather
+against FP8 expert gather on that same EP4/eFSDP2 topology.
+[Selected recipe](baseline.md#current-final-task-baseline) ·
+[Data contract](baseline.md#global-requirement-real-data-and-production-tokenizer)
+
+EP assigns 32 of the 128 routed experts to each EP lane. The eFSDP pair shards the
+weights for that lane across two GPUs. For rank 0, eFSDP gathers weights and
+reduces weight gradients on `{0, 4}`, while HybridEP exchanges routed activations
+with `{0, 1, 2, 3}`. Target only `w13` and `w2` of the routed experts in the seven
+MoE layers. Attention, routers, shared experts, and dense FFNs use dense FSDP.
+[Mesh construction](../gift/torchtitan/distributed/parallel_dims.py#L164) ·
+[Expert parameter groups](../gift/torchtitan/models/gift_moe/_base/parallelize.py#L284)
+
+```text
+Current   FP32 master shard -> BF16 input shard -> BF16 weight all-gather
+          -> quantize the full weights -> DeepGEMM
+
+Proposed  FP32 master shard -> BF16 rounding -> local E4M3 + FP32 scales
+          -> store until the next weight write -> all-gather data and scales
+          -> DeepGEMM reads views of the gathered output
+```
+
+The current configuration enables FP8 expert GEMMs and still uses BF16 weight
+all-gather. The BF16 expert cache requires an expert shard group of size one.
+With eFSDP2, the ordinary gather casts the local FP32 shard into an existing BF16
+input buffer and reuses that input within the microbatch. Backward finalization
+clears its validity for the next microbatch. HybridEP quantizes the full BF16
+weights when its dispatch path runs, including SAC replay where that dispatch
+is recomputed. GFSDP has hooks for alternate gather representations, but the
+current parameter extension accepts one input tensor and does not gather these
+block scales. The expert FP8 gather requires source integration.
+[FP8 config](../gift/torchtitan/config/configs.py#L678) ·
+[BF16 cache eligibility](../gift/torchtitan/distributed/gfsdp/_param_group.py#L619) ·
+[Gather input](../gift/torchtitan/distributed/gfsdp/_collectives.py#L54) ·
+[Input invalidation](../gift/torchtitan/distributed/gfsdp/_param_group.py#L1130) ·
+[Gather extension](../gift/torchtitan/distributed/gfsdp/_param.py#L287) ·
+[Current expert quantizer call](../gift/torchtitan/distributed/deepep/hybridep.py#L323)
+
+### Exact EP4 layout and precision
+
+The model has width 4,096 and expert intermediate width 1,536. In the current
+flat expert group, `w13` precedes `w2`. The equal split is at element 301,989,888,
+exactly after the first 24 `w13` expert matrices. The second shard contains the
+remaining eight `w13` matrices and all 32 `w2` matrices. There is no padding at
+this split. Both ranks own complete 128×128 tiles, so the local tile maximum is
+the same maximum used after a BF16 gather. No inter-rank reduction of tile
+maxima is needed for this layout. Check the actual flat slices during setup.
+For other shapes or shard degrees, require complete tiles in each matrix's
+physical layout and keep the existing BF16 route when the layout is ineligible.
+[Weight shapes and registration order](../gift/torchtitan/models/common/moe/experts/gmm.py#L121) ·
+[Parameter collection order](../gift/torchtitan/distributed/gfsdp/_init.py#L164) ·
+[Flat shard layout](../gift/torchtitan/distributed/gfsdp/_param_group.py#L327)
+
+| Tensor | Value shape for the local EP lane after gather | FP32 scale shape | FP8 data elements | FP32 scale elements |
+| --- | --- | --- | ---: | ---: |
+| `w13` | `[32, 3072, 4096]` | `[32, 24, 32]` | 402,653,184 | 24,576 |
+| `w2` | `[32, 4096, 1536]` | `[32, 32, 12]` | 201,326,592 | 12,288 |
+| Full group | | | 603,979,776 | 36,864 |
+| One eFSDP shard | | | 301,989,888 | 18,432 |
+
+Use exactly the current `FP32 → BF16 → E4M3FN` numerical sequence. Compute the
+tile maximum and the power-of-two FP32 scale from **BF16-rounded** values, then
+use the same scaling arithmetic, E4M3 conversion, and scale layout as the
+existing quantizer.
+The first reference can explicitly cast to BF16 and invoke the existing
+128×128 quantizer on each contiguous local matrix range. The production
+implementation should fold BF16 rounding into the quantizer and write into
+the existing cache slices, after proving equality against that reference.
+Direct FP32-to-FP8 quantization can change both scales and FP8 values.
+[Current scale arithmetic and output layout](../gift/torchtitan/ops/float8/triton_kernels/block_quantization.py#L64)
+
+### GFSDP integration and buffer ownership
+
+1. **Cache each local shard per weight generation.** Replace the persistent
+   BF16 gather input with E4M3 bytes and FP32 scales. Refresh once before first
+   use of a new FP32 master version. Invalidate on optimizer writes, checkpoint
+   load, EMA swap or swap-back, and backing replacement. Order the refresh
+   after the master write and after any pending reader of the old cache. Keep
+   FP32 masters and persisted optimizer, model and EMA state in their current
+   formats. Treat the FP8 cache as derived runtime state.
+   [Existing invalidation and event pattern](../gift/torchtitan/distributed/gfsdp/_param_group.py#L655)
+2. **Replace the two shared receive slots.** Gather FP8 bytes as `uint8` and
+   scales as FP32 in two fixed-order collectives on the same eFSDP group. Split
+   the resulting byte and scale arrays at 402,653,184 bytes and 24,576 floats
+   and take contiguous `w13` and `w2` views. The weight data requires no repack.
+   Represent the two planes as one expert group's weight gather. Keep the
+   FP32 gradient bucket layout independent because GFSDP currently uses the
+   gather dtype map to iterate gradient buckets.
+   Each consumer waits for both planes. Retain GFSDP's completion and
+   output-slot release rules, including asynchronous `Work.wait()` semantics
+   where applicable. The small scale all-gather adds a launch whose cost
+   belongs in the measurement.
+   [Gather completion](../gift/torchtitan/distributed/gfsdp/_collectives.py#L24) ·
+   [Gradient bucket iteration](../gift/torchtitan/distributed/gfsdp/_param_group.py#L1094) ·
+   [Slot ownership](../gift/torchtitan/distributed/gfsdp/_param_group.py#L866) ·
+   [NCCL rank order](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/collectives.html#allgather)
+3. **Feed the existing DeepGEMM path.** Use the gathered `(data, scale)`
+   planes at the expert-weight integration point and bypass the full-weight
+   quantizer in HybridEP. Make the prepared weights available to the expert
+   call so that it also bypasses the fallback quantizer. The existing
+   `quantize_expert_weight(w, (data, scale))` accepts precomputed values and
+   returns the weight gradient to the original edge. Adapt GFSDP's
+   unsharded-parameter construction, which now builds that edge from the
+   gathered BF16 view. Provide the logical BF16 gradient edge without a
+   full BF16 weight backing. Pass the prepared planes to grouped GEMM
+   alongside the dispatch metadata and leave the dispatch weight outputs
+   empty on this path. SAC can retain those outputs across slot reuse.
+   Preserve BF16 `dW` and the same FP32 packing, reduce-scatter and gradient
+   accumulation. The gathered weights and scales use the existing DeepGEMM
+   format. Activation dispatch, combine and token-drop behavior stay on
+   their current paths.
+   [Unsharded parameter construction](../gift/torchtitan/distributed/gfsdp/_param.py#L209) ·
+   [Autograd adapter](../gift/torchtitan/ops/float8/quantize_expert_weights.py#L23) ·
+   [Expert fallback](../gift/torchtitan/models/common/moe/experts/gmm.py#L252) ·
+   [DeepGEMM consumer and weight-gradient path](../gift/torchtitan/ops/float8/grouped_gemm.py#L109)
+4. **Resolve backward weights from the active slot.** Grouped GEMM currently
+   saves actual FP8 data and scale tensors for `dgrad`. The SAC policy for
+   layer 5 also retains the dispatch output under `save:experts_up+comm`.
+   Saved references to a recycled receive slot can read another layer's
+   weights. Bind backward and SAC replay to the current layer and weight
+   generation, using the existing `pre_backward` unshard to supply live
+   views before either consumes them. Keep a slot owned until its last
+   consumer completes, and keep the existing dgrad transpose in the cost
+   accounting. Verify this path explicitly under compile and slot reuse.
+   [Saved weight tensors](../gift/torchtitan/ops/float8/grouped_gemm.py#L122) ·
+   [Backward unshard](../gift/torchtitan/distributed/gfsdp/_param_group.py#L989) ·
+   [Per-layer SAC](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml#L99) ·
+   [Dispatch classification](../gift/torchtitan/distributed/activation_checkpoint.py#L87)
+
+Megatron Core documents `--fp8-param-gather` with its blockwise E4M3 recipe
+and sharded FP32 main weights. Use it as a reference for quantized weight
+storage and gather lifecycle. GIFT uses its own BF16 rounding boundary,
+GFSDP flat layout, DeepGEMM wrappers and SAC lifetimes, so the proposed
+integration follows those contracts.
+[Megatron Core 0.20 MoE guide](https://docs.nvidia.com/megatron-core/developer-guide/0.20.0/user-guide/features/moe.html) ·
+[Megatron blockwise recipe](https://docs.nvidia.com/megatron-core/developer-guide/latest/user-guide/features/low_precision_training.html#blockwise-deepseek-style-block-scaling)
+
+### Calculated GPU memory savings
+
+Each local input is 576 MiB in BF16 or 288 MiB of FP8 plus 72 KiB of FP32
+scales. Each full output is 1,152 MiB in BF16 or 576 MiB of FP8 plus 144 KiB
+of scales. Count one persistent local input per MoE layer and two shared
+output slots per expert shard group.
+
+| Routed-expert weight buffers per GPU | BF16 | FP8 + FP32 scales | Saved |
+| --- | ---: | ---: | ---: |
+| Seven persistent local inputs | 3.9375 GiB | 1.9692 GiB | 1.9683 GiB |
+| Two shared full outputs | 2.2500 GiB | 1.1253 GiB | 1.1247 GiB |
+| **Total** | **6.1875 GiB** | **3.0945 GiB** | **3.0930 GiB** |
+
+This is the planned reduction in resident gather storage relative to the
+EP4 BF16 control. Holding one additional full FP8 group costs 576.14 MiB.
+Holding all seven in addition to the two shared slots costs 3.94 GiB and
+can erase the storage saving. A prototype with both BF16 and FP8 output
+pools would save only about 0.84 GiB after replacing the seven local inputs,
+before scratch. The integrated target replaces both pools. Measure peak
+allocated and reserved separately, including cache refresh, saved tensors,
+SAC, and transpose scratch. Count any reduction in quantizer temporaries
+only after verifying their lifetime and contribution to the peak.
+[Persistent gather inputs](../gift/torchtitan/distributed/gfsdp/_param_group.py#L707) ·
+[Shared output pools](../gift/torchtitan/distributed/gfsdp/_state.py#L344)
+
+### Modeled step-time effect
+
+The selected EP8 source and trace are evidence for operation counts and
+kernel costs. For the trace use `capacity-selector-001-trace`, update 21,
+rank 0, three microbatches, SHA-256
+`dbd9da0ddfb950c5c7f4e28e388bbac48879651596782d88945eab7fb687a5ad`.
+The capture has 42 CPU expert all-gather scopes, two per layer per
+microbatch. This includes layers 6 and 7. The root callbacks from the two
+head-loss backward chunks reshard expert groups before decoder backward,
+including the tail groups eligible for automatic retention after forward.
+Use **448 logical gathers per rank per update** as the EP4 planning case
+with the same schedule. If a schedule retains both tail groups through
+those callbacks, the sensitivity case is 384 gathers. Record the actual
+EP4 count and forward/backward split.
+[Selected trace](../artifacts/4fix_qla_embed_selector_gpu.json) ·
+[Trace receipt](../runs/capacity-selector/report.md#native-trace-mechanism) ·
+[Chunked head backward](../gift/torchtitan/components/loss.py#L761) ·
+[GFSDP root callback](../gift/torchtitan/distributed/gfsdp/_state.py#L694)
+
+| Work removed | Estimate per rank per update | Basis |
+| --- | ---: | --- |
+| Weight all-gather traffic | **125.97 GiB** received and the same sent at 448 gathers | Peer bytes per gather fall from 576 to 288.07 MiB. At 384 gathers, the saving is 107.97 GiB per direction. |
+| Serialized payload transfer time | **0.45 s** at 448 gathers, **0.39 s** at 384 | Model at 300 GB/s effective directional bandwidth. The large dense head gathers in the EP8 reference trace give 242–295 GB/s. The EP4 pair and additional scale launch need measurement. |
+| Repeated full-weight FP8 quantization | **About 0.26 s** of kernel work | The trace shows 39 `w13`/`w2` pairs totaling 12.383 ms across three microbatches. The model doubles bytes for the EP4 full group and scales to 32 microbatches. Replacing these calls with seven local shard refreshes still costs a few milliseconds. |
+| Repeated local FP32-to-BF16 casts | **Up to about 0.13 s** of separate kernel work | Seven one-time casts in the reference total 4.143 ms for the same local shard size. The EP4 ordinary input path refreshes once per microbatch. The upper estimate assumes the new quantizer fuses BF16 rounding. |
+
+For planning, assume 25–50% of the gather and local-cast savings and
+50–75% of the FP8-quantization savings translate into distinct reductions in
+critical-path time after overlap. This gives approximately **0.26–0.49 s
+per update** across the two gather-count cases. With the measured EP8
+reference of 12.2301 s per update, the illustrative throughput gain is
+**+2.2–4.2%** using `T / (T − saved_time) − 1`. The EP4 step time,
+effective bandwidth, exposed waits, launch overhead and memory peaks need
+their own A/B. The FP32 expert reduce-scatter remains in the measurement.
+[EP8 native timing](../runs/capacity-selector/report.md#native-1010-result) ·
+[NCCL all-gather bandwidth convention](https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md#allgather)
+
+### Validation sequence
+
+1. **Isolate the EP4/eFSDP2 component first.** Compare the real `w13` and
+   `w2` shard shapes on all four pairs. Measure GPU and host time for
+   baseline gather plus full quantization, FP8 data plus scale gather, and
+   local cache refresh separately. Capture allocated and reserved peaks,
+   physical buffer sizes, message volumes, and the slowest rank. Compare
+   gathered FP8 bytes and FP32 scales bitwise against
+   `BF16 all-gather → existing quantizer`, including tile values at
+   rounding boundaries.
+2. **Validate the affected training path.** Compare expert forward outputs
+   and `dX`/`dW`, the FP32 reduction and accumulation across 32
+   microbatches, and the resulting FP32 master update. Exercise the normal
+   same-slot reuse across layers 1 → 3 → 5 → 7. Verify layer 5 backward
+   after layer 7 overwrites its old forward slot. Exercise ordinary SAC
+   replay and layer 5's `save:experts_up+comm` path with compile enabled, both weight
+   orientations, empty expert token groups, and the unchanged token-drop
+   behavior. Check repeated cache hits, optimizer refresh, EMA swap and
+   swap-back, and checkpoint continuation.
+3. **Measure native EP4 against native EP4.** After the component passes,
+   run matched unprofiled 10-warmup + 10-measured pairs on the production
+   tokenizer and real data. Keep the same accumulation, LR schedule,
+   parallelism, SAC and compile. Record tokens/s and per-rank allocated and
+   reserved peaks. Use a matched profile to verify FP8 payload and scale
+   gathers, removal of the repeated full-weight casts, weight gathers
+   during forward and backward, and whether shorter gathers reduce compute
+   waits or contention. Check the step series for drift, and repeat the
+   pair if drift or noise prevents resolving the effect.
+   [Validation policy](../planning/validation.md)
+
+The priority is to test the multi-rank path with the existing mathematical
+recipe and shared memory budget. Implementation and EP4 GPU validation are
+open. The calculated buffer reduction and throughput scenario are planning
+inputs.
+
+## Direct expert weight gradients into the FP32 reduce-scatter buffer
+
+**[IMPORTANT] High priority for multi-rank expert FSDP.**
+
+Start with the same eight-H100 crop as the FP8 all-gather candidate, with
+PP/TP/CP1, dense FSDP8, EP4, eFSDP2, 32 microbatches per optimizer update,
+compile, and the current per-layer SAC policy. Scope the change to routed
+experts' `w13` and `w2` in the seven MoE layers. This targets gradient
+production and can be tested with either BF16 or FP8 weight all-gather.
+[Expert parameter groups](../gift/torchtitan/models/gift_moe/_base/parallelize.py#L284)
+
+### Current path and proposed change
+
+DeepGEMM's K-grouped weight backward accumulates into zero-initialized
+BF16 `dW13` and `dW2` tensors. Autograd delivers those gradients to GFSDP.
+In `post_backward`, GFSDP acquires the shared gradient slot and uses
+`torch._foreach_copy_` to widen the gradients into its flat FP32
+reduce-scatter input. The two parameter-shaped FP32 views already exist.
+With PP1, the routed-expert group reduces each microbatch's gradients
+and accumulates the resulting FP32 shard across the 32 microbatches.
+[DeepGEMM backward](../gift/torchtitan/ops/float8/grouped_gemm.py#L221) ·
+[FP32 input views](../gift/torchtitan/distributed/gfsdp/_param_group.py#L519) ·
+[Gradient packing](../gift/torchtitan/distributed/gfsdp/_param_group.py#L1000) ·
+[Sharded accumulation](../gift/torchtitan/distributed/gfsdp/_collectives.py#L177)
+
+Write `dW13` and `dW2` from the SM90 GEMM epilogue directly into those
+views. Apply the current BF16 round-to-nearest-even to the FP32 accumulator
+and widen that rounded result to FP32 before storing it. The current
+DeepGEMM FP32 store skips this rounding. The current BF16 store rounds and
+uses TMA reduce-add into a zeroed destination. Implement an overwrite for
+the eligible single-contribution case and explicitly zero the regions for
+experts with no tokens, including the all-empty batch. Preserve the current
+BF16 baseline values, including its zero and special-value behavior.
+Keeping a full FP32 zero fill and destination reduce-add can consume the
+bandwidth saved by removing packing.
+[GIFT accumulation call](../gift/torchtitan/ops/float8/deep_gemm_handle.py#L99) ·
+[Pinned SM90 epilogue](../../hybrid-ep-overlap/sources/donors/deepgemm-baseline/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh#L350)
+
+Acquire the existing expert gradient slot before the first `dW` write,
+after its previous reduce-scatter and follow-up shard accumulation release
+it. Keep independent `dX` and weight-gradient operand preparation ahead of
+that wait where dependencies allow. Publish readiness once per weight to
+GFSDP and enqueue the same FP32 reduce-scatter after both writes complete.
+Keep the collective's precision, scaling, ordering, and FP32 shard
+accumulation. The slot remains owned until reduction and accumulation finish.
+Retain the ordinary gradient route for unsupported layouts, deferred
+reductions, multiple contributors, and consumers that require a materialized
+autograd gradient. Verify the direct path's mutation and readiness under
+compile and SAC. A second full FP32 slot would add 2.25 GiB per GPU, so the
+candidate uses the existing slot budget.
+[Current buffer acquisition and release](../gift/torchtitan/distributed/gfsdp/_param_group.py#L1000) ·
+[Reduction waits and release event](../gift/torchtitan/distributed/gfsdp/_collectives.py#L123)
+
+### EP4 traffic, memory, and timing estimate
+
+The 32 routed experts per EP lane produce 603,979,776 gradient elements
+per MoE layer. There are 224 group reductions per rank per update, with
+two `dW` producers per group.
+
+| Cost per GPU | Per MoE layer per microbatch | Per optimizer update |
+| --- | ---: | ---: |
+| Current packing, BF16 read plus FP32 write | 3.375 GiB | 756 GiB |
+| Additional producer writes from wider FP32 stores | 1.125 GiB | 252 GiB |
+| Net logical output and packing traffic removed | 2.250 GiB | 504 GiB |
+
+The direct path removes up to **1.125 GiB** of live BF16 `dW` storage for
+one layer on a GPU. The existing **2.25 GiB** FP32 reduce-scatter input and
+the sharded gradients remain allocated. The peak allocated and reserved
+savings depend on where the temporary gradients are live. The traffic
+calculation excludes initialization, TMA destination reads, and network
+traffic. The reduce-scatter payload is the same.
+
+In `capacity-selector-001-trace`, update 21, rank 0, the three captured
+EP8/eFSDP1 microbatches contain 21 expert
+`FSDP::post_backward_accumulate` regions. Their 63 BF16-to-FP32 packing
+kernels total **13.656 ms** on stream 7, with zero interval overlap with
+kernels, copies, or memsets on other streams in that capture. Doubling the
+gradient size and scaling to 32 microbatches gives **291 ms** of modeled
+packing work on EP4. At the same effective bandwidth, charging for the
+wider GEMM stores leaves **194 ms** of modeled savings. If half to all of
+this budget reduces elapsed time, the planning range is **about 100–195 ms
+per update**. The observed EP8 step of 12.2301 s gives an illustrative
+**+0.8–1.6% throughput**. EP4 may expose an earlier wait on the shared slot,
+and the new epilogue can change GEMM performance. Measure both on EP4.
+[Source Kineto trace](../artifacts/4fix_qla_embed_selector_gpu.json) ·
+[Trace receipt](../runs/capacity-selector/report.md#native-trace-mechanism) ·
+[Native timing reference](../runs/capacity-selector/report.md#native-1010-result)
+
+### Validation sequence
+
+1. **Benchmark the EP4 component.** Use the actual 32-expert `w13` and `w2`
+   shapes. Compare current BF16 GEMM plus packing, BF16 overwrite plus
+   packing as a control for the store change, and rounded direct FP32
+   overwrite. Compare the full FP32 collective input to the current path.
+   Include empty experts, all-empty batches, and BF16 rounding boundaries.
+   Measure from `dW` operands ready to reduce-scatter launch, including
+   explicit zeros and slot waits, and verify that the direct path has no
+   full-size temporary or hidden compiler copy.
+2. **Validate the training path.** Run with the existing compile and SAC
+   policy. Verify single delivery of both gradients, safe slot reuse across
+   adjacent expert layers, and the ordinary fallback. Compare local FP32
+   shards after reduction, accumulated gradients after 32 microbatches,
+   clipping, and the FP32 master update.
+3. **Measure native EP4 A/B.** Use matched unprofiled 10-warmup + 10-measured
+   runs on real data with the production tokenizer. Compare throughput and
+   per-rank allocated and reserved peaks. In a separate matched profile,
+   confirm the expert packing kernels disappear and compare the timing of
+   each first `dW` write, previous slot release, and reduce-scatter launch.
+   [Validation policy](../planning/validation.md)
+
+## BF16 expert gradient exchange with FP32 owner reduction
+
+**[IMPORTANT] Test on multi-rank expert FSDP with strict FP32 update parity.**
+
+### Current path and proposed change
+
+For routed-expert `w13` and `w2`, DeepGEMM already produces BF16 `dW`. GFSDP
+widens each rank's full contribution to FP32, then runs FP32 reduce-scatter.
+Each rank accumulates only its resulting FP32 shard across microbatches.
+Expert and dense groups use different meshes. Change only the expert gradient
+collective, independently of the precision used to gather expert weights.
+[DeepGEMM output](../gift/torchtitan/ops/float8/grouped_gemm.py#L221) ·
+[GFSDP gradient packing](../gift/torchtitan/distributed/gfsdp/_param_group.py#L1000) ·
+[Reduction and sharded accumulation](../gift/torchtitan/distributed/gfsdp/_collectives.py#L123)
+
+Use the current flat gradient layout to split each BF16 contribution into
+equal slices, one per eFSDP owner. Exchange the slices on the **eFSDP group**.
+Each owner receives one contribution from every peer and includes its own
+local contribution. Convert each slice exactly to FP32, sum in FP32 and
+produce the same kind of FP32 shard as today. Preserve padding, zero
+contributions from empty experts, the current gradient divide factor of one,
+and the local shard's existing copy-or-add sequence. The first microbatch
+writes the reduced shard, and later microbatches add a separately computed
+FP32 reduction result. Keep the existing optimizer, clipping and persisted
+state contracts. The initial scope is PP1, TP1, CP1, with no separate DP
+replica group and the selected compile and SAC settings.
+[Expert mesh](../gift/torchtitan/distributed/parallel_dims.py#L164) ·
+[Gradient scaling](../gift/torchtitan/models/gift_moe/_base/parallelize.py#L368)
+
+This is an alternative to the direct FP32 GEMM store for the same gradient
+collective. With BF16 exchange, the natural producer is the existing BF16
+`dW`. Widening the full gradient in the GEMM and narrowing it before exchange
+would add traffic. Keep the FP32 collective as the reference and fallback.
+
+### Scaling estimate
+
+For a group of size `P`, a full BF16 contribution of size `B` and an FP32 ring
+reduce-scatter on the same elements, the per-rank, per-direction peer payload
+is `B × (P − 1) / P` for BF16 exchange and `2B × (P − 1) / P` for the ring.
+This is a logical payload calculation. Fabric bytes, message startup, NCCL
+SM use, packing, the owner sum and lost overlap all affect elapsed time.
+
+| PP1 topology | Routed experts per rank | Full BF16 `dW` | Current FP32 ring per direction | BF16 exchange per direction |
+| --- | ---: | ---: | ---: | ---: |
+| 8 GPU, EP4, eFSDP2 | 32 | 1,152 MiB | 1,152 MiB | 576 MiB |
+| 128 GPU, EP32, eFSDP4 | 4 | 144 MiB | 216 MiB | 108 MiB |
+
+At EP32/eFSDP4, an owner keeps its own 36 MiB BF16 slice and receives three
+36 MiB peer slices. The saving is 108 MiB per layer per microbatch in each
+direction. With seven MoE layers and the current global/local batches of
+512/2, the 128-GPU configuration has **two microbatches per update**, so the
+saving is **1.48 GiB per GPU per direction per update**. With 32 microbatches
+and a global batch of 8,192 it is **23.625 GiB**. The 8-GPU EP4 run keeps 32
+microbatches at global batch 512 and saves **126 GiB** per direction per
+update. Under the current rank order, rank 0's expert shard peers at EP32 are
+0, 32, 64 and 96. Confirm the physical placement at launch. Contiguous rank
+packing on eight-GPU nodes puts those four peers on different nodes.
+[Crop batch sizes](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml#L77) ·
+[Accumulation formula](../gift/torchtitan/trainer.py#L223)
+
+Domyn implemented this approach for a 1T MoE on 384 GH200s with EP4 and
+cross-node expert FSDP. After adopting FP8 weight gathers, they reported
+**+14% tokens/s per GPU** from the BF16 gradient exchange. They reported
+bitwise agreement in their four-rank tests and described the general result
+as dependent on summation order. This supports testing the approach on Hopper.
+Our step-time gain and exact agreement on our topology remain open.
+[Domyn implementation report](https://www.domyn.com/blog/training-1t-moe-eu-public-infrastructure-pytorch#bf16-gradient-all-to-all-with-fp32-accumulation)
+
+### Precision, memory and integration
+
+- **Match the actual FP32 reduction order.** Lossless BF16 transport preserves
+  the producer's bits. The FP32 sum of four contributions can round
+  differently when the additions are reassociated. Establish NCCL's actual
+  channel-specific order for each owner and shard range on the pinned runtime
+  and topology.
+  Compare FP32 shards bitwise after one microbatch and after accumulation,
+  then compare clipping and the FP32 optimizer update. Use the FP32 collective
+  on configurations where exact parity has not been established. A BF16
+  output collective would add rounding even with FP32 internal accumulation.
+  [NCCL ring reference](https://github.com/NVIDIA/nccl/blob/v2.30.7-1/src/device/reduce_scatter.h#L11)
+- **Keep the existing gradient-slot budget.** The current flat FP32 slot
+  holds `2B` bytes. A candidate layout uses two disjoint BF16 views of size
+  `B` for packed sends and received slices, including the self slice. Pack
+  the ordinary `w13` and `w2` outputs directly into the send view. At EP32
+  this is 144 MiB plus 144 MiB inside the existing 288 MiB slot. GFSDP's
+  existing FP32 output alias points at the rank's 72 MiB slice. To reuse
+  it, put sends in the first half on group ranks 0 and 1 and the second
+  half on group ranks 2 and 3. Put receives in the other half. After the
+  exchange has finished reading the send half, a kernel can widen and sum
+  the received BF16 slices in registers and write the FP32 result to the
+  existing output alias. Then use the existing FP32 sharded accumulator.
+  This avoids materializing a widened receive plane. The row-owner embedding
+  already passes disjoint views of one GFSDP allocation to all-to-all.
+  Verify this layout's ownership, alignment, allocation and compile behavior
+  in the expert path. Measure BF16 packing before changing the producer.
+  A direct BF16 write can remove packing if acquiring the slot earlier
+  preserves backward overlap.
+  [FP32 output aliases](../gift/torchtitan/distributed/gfsdp/_param_group.py#L550) ·
+  [Row-owner exchange](../gift/torchtitan/distributed/gfsdp/row_owner_embedding.py#L353)
+- **Preserve asynchronous reuse.** Acquire the slot after the previous
+  consumer releases it, publish the BF16 inputs from the compute stream,
+  order the exchange before local reduction, and release the slot after
+  FP32 shard accumulation completes. Ensure all ranks issue the same
+  collective sequence with empty experts and during SAC. Measure overlap
+  with weight all-gathers, expert compute and HybridEP. Avoid an extra
+  full-size send, receive or FP32 staging allocation.
+  [Existing gradient-slot acquisition](../gift/torchtitan/distributed/gfsdp/_param_group.py#L1000) ·
+  [Existing reduction stream](../gift/torchtitan/distributed/gfsdp/_collectives.py#L123)
+
+First compare the native FP32 collective and BF16 exchange plus FP32 sum at
+the actual EP4/eFSDP2 tensor sizes. Time packing, exchange, local reduction,
+accumulation and slot waits. Use the four-rank shape and target rank placement
+to verify the scaling and exactness condition before selecting EP32. Follow
+with matched native training on the current production tokenizer, real data,
+compile and SAC. Record throughput, per-rank allocated and reserved peaks,
+and a separate matched trace. The EP8/eFSDP1 trace cannot measure this
+multi-rank expert exchange.
+[Validation protocol](../planning/validation.md)
+
+## Keep tail weights live across chunked LM-head backward
+
+**[IMPORTANT] Fix the nonfinal GFSDP callback with the existing weight slots.**
+
+### Trace evidence and cause
+
+The selected `capacity-selector-001-trace`, update 21, rank 0, contains three
+microbatches on EP8/eFSDP1. Each has two inner LM-head backward callbacks and
+one outer callback. The first inner callback reshards the `layers.7` and
+`layers.6` expert groups. The outer decoder backward later calls their gather
+paths again. Across the capture there are 42 expert gather scopes. The expert
+groups are singletons in this capture, so these are logical unshard paths.
+The same capture shows **two actual dense DP8 NCCL all-gathers inside the
+second head chunk of each microbatch**, one for the MTP parent and one for its
+FFN group. Their BF16 output lengths are 99,791,360 and 134,479,872 elements.
+[Trace artifact](../artifacts/4fix_qla_embed_selector_gpu.json) ·
+[Trace receipt](../runs/capacity-selector/report.md#native-trace-mechanism) ·
+[Singleton expert cache path](../gift/torchtitan/distributed/gfsdp/_collectives.py#L46)
+
+GFSDP deliberately keeps the last forward owner of each shared weight slot.
+At decoder forward exit, the two expert slots hold the weights of layers 7
+and 6. The chunked loss detaches slices of `hidden_states`, runs backward
+separately on each head chunk, then propagates the accumulated gradient into
+the decoder graph. It marks the inner calls with `is_last_backward=False`.
+The current root callback uses that flag for finalization but calls
+`post_backward()` for groups that have not entered the inner backward. Their
+`reshard()` clears ownership. That is how a head-only backward can evict
+expert weights and invalidate materialized or prefetched dense MTP weights.
+[Forward retention](../gift/torchtitan/distributed/gfsdp/_state.py#L420) ·
+[Detached head backward](../gift/torchtitan/components/loss.py#L709) ·
+[Decoder backward bridge](../gift/torchtitan/components/loss.py#L839) ·
+[Root callback](../gift/torchtitan/distributed/gfsdp/_state.py#L694)
+
+### Proposed fix and lifetime
+
+Adapt the preserved `vision-runtime` guard. For each nonfinal callback,
+leave groups in `IDLE` or `FORWARD` alone. Run the existing fallback
+`post_backward()` for a group in `PRE_BACKWARD` whose regular hook has not
+run, including the case where its forward inputs did not require gradients.
+Reset `POST_BACKWARD` groups without running reduction twice. Preserve
+final callback behavior, forward-order tracking, profiling drains, and head
+gradient accumulation across chunks. The donor includes a unit test of the
+per-group state transitions.
+[Donor callback](../references/vision-runtime/source/torchtitan/distributed/gfsdp/_state.py#L607) ·
+[Donor unit test](../references/vision-runtime/source/tests/unit_tests/test_gfsdp_partial_backward.py#L11)
+
+The current PP1 order fits in the existing two expert slots.
+
+| Point in the schedule | Expert slot A | Expert slot B |
+| --- | --- | --- |
+| Decoder forward complete, then both head chunks | Layer 7 retained | Layer 6 retained |
+| Layer 7 backward | Layer 7 reads, then releases | Layer 6 retained |
+| Layer 6 backward | Prefetch layer 5 into the released slot | Layer 6 reads, then releases |
+| Layer 5 backward | Layer 5 reads | Prefetch layer 4 into the released slot |
+
+For dense MTP, preserve the parent and FFN regions and their pending gather
+results through the inner head callbacks. These regions already share a
+physical slot and the saved buffer inventory shows they are disjoint. Dense
+layers 7 and 6 still need their own gathers. Before preserving dense layer-7
+prefetch overlap, check its actual destination range against the retained
+MTP regions. The selected trace launches a dense layer-7 prefetch after the
+MTP FFN release and before the MTP parent release. The inspected source has a
+different explicit prefetch chain. The trace order alone cannot establish
+that those destinations can coexist.
+[Saved region inventory](../runs/ffn-row-owner/native-memory-results.json#L139) ·
+[Current explicit prefetch chain](../gift/torchtitan/models/gift_moe/_base/parallelize.py#L373)
+
+Track the buffer owner, the byte range, the release event and any pending
+all-gather as one lifetime. The current `reshard()` can clear the slot owner
+even when another group owns it, and `wait_for_unshard()` can install a
+pending result without reacquiring ownership. Check that a nonparticipant's
+cleanup cannot clear another group's slot or release it early. Skip
+speculative prefetches whose range is still occupied and preserve the
+required wait before a later writer reuses that range. Handle prefetched but
+unused groups at the proper final boundary. The fix must fit the existing
+slot budget for both BF16 and FP8 expert gathers.
+[Ownership transitions](../gift/torchtitan/distributed/gfsdp/_param_group.py#L932) ·
+[Prefetch conflict check](../gift/torchtitan/distributed/gfsdp/_param_group.py#L1170)
+
+### Expected effect and validation
+
+For the seven-MoE-layer crop, the proposed schedule removes **two expert
+weight gathers per microbatch**, from 14 to 12. This is independent of the
+separate opportunity to eliminate the two dense MTP re-gathers recorded in
+the trace. The table counts logical expert weight gathers. If the FP8 path
+uses separate collectives for values and scales, avoiding a logical gather
+also avoids both of those collectives.
+
+| Topology and accumulation | Expert gathers per update | BF16 expert payload avoided per GPU per direction | FP8 expert payload avoided per GPU per direction, including scales |
+| --- | ---: | ---: | ---: |
+| 8 GPU, EP4/eFSDP2, 32 microbatches | 448 → 384 | 36 GiB | 18.00 GiB |
+| 128 GPU, EP32/eFSDP4, 2 microbatches | 28 → 24 | 432 MiB | 216.05 MiB |
+| 128 GPU, EP32/eFSDP4, 32 microbatches | 448 → 384 | 6.75 GiB | 3.38 GiB |
+
+At DP8, eliminating both dense MTP re-gathers would additionally avoid about
+**391 MiB per GPU per direction per microbatch**, or **12.22 GiB** at 32
+microbatches. These calculations use the full output size multiplied by
+`(group size − 1) / group size`. They carry no assumption that every avoided
+millisecond shortens the step. On a deeper decoder with the same two slots,
+the expert opportunity stays at two gathers and becomes a smaller fraction
+of total gathers.
+
+1. **Check the callback and buffer lifetime.** Cover two head chunks, both
+   retained expert slots, split MTP regions, an in-flight prefetch, an unused
+   prefetch and the no-input-gradient fallback. Verify ownership and release
+   events across consecutive updates. Exercise existing nonfinal-backward
+   callers, including PP no-sync and shape probes, when changing the common
+   GFSDP callback.
+2. **Check native correctness.** Preserve the selected SAC policy, compile,
+   head/MTP losses, accumulation and FP32 optimizer update. Verify head
+   reduction occurs once at its existing boundary and each participating
+   group publishes its gradients once. Check that the two expert slots and
+   the split MTP regions retain and release their actual storage safely.
+3. **Check the mechanism and speed separately.** Use a matched EP4/eFSDP2
+   rank-level trace to check that expert layers 7 and 6 enter backward with
+   valid weights and no extra gather, and that layer 5 prefetch waits for the
+   correct release. Check dense MTP separately for the two recorded
+   re-gathers and inspect any shift in layer-7 prefetch. Then use matched
+   unprofiled native runs to measure throughput and peak memory.
+   [Validation protocol](../planning/validation.md)
+
+The callback and gather counts come from the saved trace. The proposed
+schedule, memory behavior and performance at eFSDP greater than one still
+need native validation.
 
 ## Fuse MoE routing metadata preparation
 

@@ -1,5 +1,7 @@
 # Run evidence
 
+- [GPU capacity selector](capacity-selector/report.md): the selected production
+  stack, isolated EP8 checks, native 10+10 comparison, and matched Perfetto traces.
 - [Current crop smoke](100b-crop8-ep8-smoke/report.md): maintained launcher,
   source/config identities, all-rank execution result and limits.
 - [Historical CUDA Graph evidence](cuda-graphs-evidence/README.md): retained

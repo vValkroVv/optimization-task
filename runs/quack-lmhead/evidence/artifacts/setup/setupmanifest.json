@@ -1,0 +1,142 @@
+{
+  "activation": {
+    "commands": [
+      "source /etc/profile.d/wm.sh",
+      "RUNTIME=/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime",
+      "QUACK_SRC=/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/source/quack-bb0e6b220f6b9ee6b36a638d3d6c6150d52db8d8",
+      "source \"$RUNTIME/venv/bin/activate\"",
+      "export PYTHONPATH=\"$QUACK_SRC${PYTHONPATH:+:$PYTHONPATH}\""
+    ],
+    "direct_interpreter": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/venv/bin/python"
+  },
+  "cutlass_install": {
+    "command": "python -m pip install --disable-pip-version-check --no-input nvidia-cutlass-dsl[cu13]==4.7.0 --report artifacts/setup/pip-install-report.json",
+    "quack_install_method": "source tree on PYTHONPATH; not installed into site-packages",
+    "report": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/artifacts/setup/pip-install-report.json",
+    "request": "nvidia-cutlass-dsl[cu13]==4.7.0",
+    "wheel_pins": [
+      {
+        "name": "nvidia-cutlass-dsl",
+        "sha256": "f96e35c1393a8afa9a20cada1aa08fdca16d673852f3274144e3e81693f13a14",
+        "url": "https://files.pythonhosted.org/packages/a3/a7/597b08f293989c3774621f668918bfb6c6c308510cad000abd8ee674f2d4/nvidia_cutlass_dsl-4.7.0-py3-none-any.whl",
+        "version": "4.7.0"
+      },
+      {
+        "name": "nvidia-cutlass-dsl-libs-base",
+        "sha256": "0ee3ca427a43bd3190fc4ac06fba15fa7a923241a1cc928d3e2b4a6f480dbd39",
+        "url": "https://files.pythonhosted.org/packages/08/97/896495b02ec87fd19372f3e5245be12e301651f610b6ec7408bc7e562426/nvidia_cutlass_dsl_libs_base-4.7.0-cp312-cp312-manylinux_2_28_x86_64.whl",
+        "version": "4.7.0"
+      },
+      {
+        "name": "nvidia-cutlass-dsl-libs-cu12",
+        "sha256": "eaf85bd605f41f968c483dcee1ae9e13ffd765b623f976869401f77e7255b5e1",
+        "url": "https://files.pythonhosted.org/packages/53/c8/90ebbd437f56fd268482c2eaafb8811c2a2eaa70030dfeef62fa00c10c53/nvidia_cutlass_dsl_libs_cu12-4.7.0-cp312-cp312-manylinux_2_28_x86_64.whl",
+        "version": "4.7.0"
+      },
+      {
+        "name": "nvidia-cutlass-dsl-libs-cu13",
+        "sha256": "66dda9dd19729836b919174bb33d70aef895d785f3320dafceca695513408cef",
+        "url": "https://files.pythonhosted.org/packages/29/4c/1d17ab9cdc4e7494c79c60d832fabf6fcd814caaeba3ea9ea217122dd6a1/nvidia_cutlass_dsl_libs_cu13-4.7.0-cp312-cp312-manylinux_2_28_x86_64.whl",
+        "version": "4.7.0"
+      },
+      {
+        "name": "nvidia-cutlass-dsl-libs-core",
+        "sha256": "3c6a128ce314aca3f332eabcb0e55a2c4c3aa951e336584a7aeb2b013bed4474",
+        "url": "https://files.pythonhosted.org/packages/76/ce/75a7df4b90256f6924f8355e25bb52351750b2ce654cc926dd6a3aa1e354/nvidia_cutlass_dsl_libs_core-4.7.0-py3-none-any.whl",
+        "version": "4.7.0"
+      },
+      {
+        "name": "nvidia-cuda-nvdisasm",
+        "sha256": "d3fdbdd49fa53e2e4aacd3db8259d052bd2b049ececdcb69e92e083c6728e7ca",
+        "url": "https://files.pythonhosted.org/packages/64/4a/c84a14209a549d97831a02d111d943f47c995d4d3beaa3416daa3b534abb/nvidia_cuda_nvdisasm-13.5.37-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "version": "13.5.37"
+      },
+      {
+        "name": "protobuf",
+        "sha256": "e9db7e292e0ab79dd108d7f1a94fe31601ce1ee3f7b79e0692043423020b0593",
+        "url": "https://files.pythonhosted.org/packages/16/92/d1e32e3e0d894fe00b15ce28ad4944ab692713f2e7f0a99787405e43533a/protobuf-6.33.6-cp39-abi3-manylinux2014_x86_64.whl",
+        "version": "6.33.6"
+      }
+    ]
+  },
+  "diagnostics": {
+    "capability_guard_log": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/artifacts/setup/import-check-capability-guarded.log",
+    "guard_note": "Top-level Quack import calls torch.cuda.get_device_capability while building RMSNorm configs; the guarded no-device check intentionally stopped at that call. The experiment worker/coordinator later confirmed import and Q8192 GPU compilation with the required profile.",
+    "initial_nested_venv_issue": "A nested --system-site-packages venv resolved global /usr/local torch 2.11 instead of production venv torch 2.15. Fixed with the task-owned .pth path overlay; no torch reinstall.",
+    "no_profile_import_log": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/artifacts/setup/import-check-no-wm-profile.log"
+  },
+  "linear_cross_entropy_activation_constraints": {
+    "inspection_only": true,
+    "scaled_exp_conditions": [
+      "x and weight are CUDA tensors; reduction is mean or sum; chunk_size is divisible by 128",
+      "effective x and weight dtypes are bfloat16 (autocast dtype when autocast is enabled)",
+      "x last dimension matches d; x and weight last strides are 1",
+      "vocabulary V is divisible by 128; d is divisible by 8; _pick_tile_n1(V) finds a divisor in (192, 256, 128, 64)",
+      "device capability is exactly (9, 0) (SM90/H100)"
+    ],
+    "scaled_exp_gate": "scaled_exp_lce_supported",
+    "source_file": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/source/quack-bb0e6b220f6b9ee6b36a638d3d6c6150d52db8d8/quack/linear_cross_entropy.py",
+    "wrapper": "LinearCrossEntropy.forward",
+    "wrapper_conditions": [
+      "bias is None; input is CUDA; last input stride is 1",
+      "in_features and out_features are divisible by 8; input token count is divisible by 8",
+      "chunk_size is set and divisible by 8; reduction is mean or sum"
+    ]
+  },
+  "quack_source": {
+    "archive_file_count": 253,
+    "archive_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/source/quack-bb0e6b220f6b9ee6b36a638d3d6c6150d52db8d8.tar.gz",
+    "archive_sha256": "1381a5dc3ab64fd15cdc68ab379821486ff038ed8cb8eb4f3e4ab51291ec3b34",
+    "archive_url": "https://github.com/Dao-AILab/quack/archive/bb0e6b220f6b9ee6b36a638d3d6c6150d52db8d8.tar.gz",
+    "commit": "bb0e6b220f6b9ee6b36a638d3d6c6150d52db8d8",
+    "extracted_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/source/quack-bb0e6b220f6b9ee6b36a638d3d6c6150d52db8d8",
+    "license_path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/source/quack-bb0e6b220f6b9ee6b36a638d3d6c6150d52db8d8/LICENSE",
+    "repository": "https://github.com/Dao-AILab/quack",
+    "source_version": "0.6.5"
+  },
+  "runtime": {
+    "host_route": "ssh -T -oRemoteCommand=none sr008-gpu",
+    "production_interpreter": "/opt/torchtitan-venv/bin/python3.12",
+    "production_python": "3.12.3",
+    "production_site_overlay": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/venv/lib/python3.12/site-packages/00-torchtitan-production-site.pth",
+    "production_site_overlay_contents": "import site; site.addsitedir('/opt/torchtitan-venv/lib/python3.12/site-packages')",
+    "production_site_packages": "/opt/torchtitan-venv/lib/python3.12/site-packages",
+    "production_versions_before_task_overlay": {
+      "apache-tvm-ffi": "0.1.11",
+      "nvidia-cutlass-dsl": "4.4.1",
+      "python": "3.12.3",
+      "torch": "2.15.0.dev20260822+cu130",
+      "triton": "3.8.0+git3f6e4113"
+    },
+    "profile_required": "/etc/profile.d/wm.sh",
+    "resolved_paths": {
+      "cutlass": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/venv/lib/python3.12/site-packages/nvidia_cutlass_dsl/dsl_packages/cutlass/__init__.py",
+      "quack": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/source/quack-bb0e6b220f6b9ee6b36a638d3d6c6150d52db8d8/quack/__init__.py",
+      "torch": "/opt/torchtitan-venv/lib/python3.12/site-packages/torch/__init__.py"
+    },
+    "resolved_versions_after_overlay": {
+      "apache-tvm-ffi": "0.1.11",
+      "cuda-bindings": "13.3.1",
+      "cuda-pathfinder": "1.5.5",
+      "cuda-python": "13.3.1",
+      "einops": "0.8.2",
+      "nvidia-cuda-nvdisasm": "13.5.37",
+      "nvidia-cutlass-dsl": "4.7.0",
+      "nvidia-cutlass-dsl-libs-base": "4.7.0",
+      "nvidia-cutlass-dsl-libs-core": "4.7.0",
+      "nvidia-cutlass-dsl-libs-cu12": "4.7.0",
+      "nvidia-cutlass-dsl-libs-cu13": "4.7.0",
+      "protobuf": "6.33.6",
+      "torch": "2.15.0.dev20260822+cu130",
+      "triton": "3.8.0+git3f6e4113"
+    },
+    "task_interpreter": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/venv/bin/python",
+    "task_local_caches": {
+      "pip": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/cache/pip",
+      "tmp": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/tmp"
+    },
+    "task_local_site_precedes_production_site": true,
+    "task_venv": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/quack-lmhead/runtime/venv",
+    "venv_mode": "created with --system-site-packages"
+  }
+}
