@@ -366,6 +366,40 @@ class GFSDPModule(FSDPModule):
             )
         state._buffer_region_child = child_state
 
+    def set_buffer_region_transition(
+        self,
+        *,
+        source: "GFSDPModule",
+        data_target: "GFSDPModule",
+        grad_target: "GFSDPModule",
+    ) -> None:
+        """Reuse a source unit's existing buffer regions for later target units.
+
+        The root resolves matching parameter groups and creates bounded aliases
+        during lazy initialization, after the original slots have been dealt.
+        This must be configured before the first forward.
+        """
+        modules = [source, data_target, grad_target]
+        _assert_all_fsdp_modules(modules)
+        state = self._get_fsdp_state()
+        if state._is_root is not None:
+            raise RuntimeError(
+                "set_buffer_region_transition must be called before the first "
+                "forward: the buffers it reuses are bound during lazy init"
+            )
+        if state._buffer_region_transition is not None:
+            raise ValueError("A buffer region transition is already configured")
+        available_modules = set(cast("nn.Module", self).modules())
+        if any(module not in available_modules for module in modules):
+            raise ValueError(
+                "Buffer region transition modules must belong to the root module"
+            )
+        if len(set(modules)) != len(modules):
+            raise ValueError("Buffer region transition modules must be distinct")
+        state._buffer_region_transition = tuple(
+            module._get_fsdp_state() for module in modules
+        )
+
     def set_shard_order(self, modules: "list[GFSDPModule]") -> None:
         """Declare the order forward enters these units, for buffer dealing.
 

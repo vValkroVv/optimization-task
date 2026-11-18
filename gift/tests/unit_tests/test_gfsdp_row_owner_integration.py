@@ -23,7 +23,9 @@ from torchtitan.distributed.gfsdp._state import _get_module_fsdp_state
 from torchtitan.distributed.gfsdp.fully_shard import GFSDPModule
 from torchtitan.distributed.gfsdp.row_owner_embedding import RowOwnerEmbedding
 from torchtitan.models.gift_moe._base.parallelize import (
+    _validate_mtp_transition_request,
     _validate_row_owner_request,
+    apply_gfsdp,
     parallelize_gift_moe,
 )
 
@@ -31,6 +33,8 @@ from torchtitan.models.gift_moe._base.parallelize import (
 def test_row_owner_control_decodes_independently_and_defaults_off():
     defaults = ParallelismConfig()
     assert defaults.gfsdp_row_owner_embeddings is False
+    assert defaults.gfsdp_row_owner_embedding_optimizations is False
+    assert defaults.gfsdp_mtp_transition_prefetch is False
     assert defaults.gfsdp_split_layer0_ffn is False
     assert defaults.gfsdp_split_mtp_ffn is False
 
@@ -40,8 +44,30 @@ def test_row_owner_control_decodes_independently_and_defaults_off():
         path="parallelism",
     )
     assert owner_only.gfsdp_row_owner_embeddings is True
+    assert owner_only.gfsdp_row_owner_embedding_optimizations is False
+    assert owner_only.gfsdp_mtp_transition_prefetch is False
     assert owner_only.gfsdp_split_layer0_ffn is False
     assert owner_only.gfsdp_split_mtp_ffn is False
+
+    optimized = decode(
+        ParallelismConfig,
+        {
+            "gfsdp_row_owner_embeddings": True,
+            "gfsdp_row_owner_embedding_optimizations": True,
+        },
+        path="parallelism",
+    )
+    assert optimized.gfsdp_row_owner_embedding_optimizations is True
+
+    transition = decode(
+        ParallelismConfig,
+        {
+            "gfsdp_split_mtp_ffn": True,
+            "gfsdp_mtp_transition_prefetch": True,
+        },
+        path="parallelism",
+    )
+    assert transition.gfsdp_mtp_transition_prefetch is True
 
 
 def _validation_inputs(**overrides):
@@ -92,16 +118,141 @@ def test_enabled_row_owner_rejects_unsupported_modes(overrides, message):
         )
 
 
+def test_embedding_optimizations_require_row_owner_embeddings():
+    model, parallel_dims, training, parallelism = _validation_inputs(
+        parallelism__gfsdp_row_owner_embeddings=False,
+        parallelism__gfsdp_row_owner_embedding_optimizations=True,
+    )
+    with pytest.raises(ValueError, match="requires gfsdp_row_owner_embeddings"):
+        _validate_row_owner_request(
+            model,
+            parallel_dims=parallel_dims,
+            training=training,
+            parallelism=parallelism,
+        )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"parallelism__fsdp_backend": "fsdp2"}, "fsdp_backend='gfsdp2'"),
+        ({"parallelism__gfsdp_split_mtp_ffn": False}, "requires gfsdp_split_mtp_ffn"),
+        ({"parallel_dims__pp": 2}, "requires PP1"),
+        ({"mtp": None}, "requires mtp.layers.0"),
+        (
+            {"mtp": SimpleNamespace(layers={"0": object(), "1": object()})},
+            "exactly one MTP layer",
+        ),
+        ({"norm": None}, "requires model.norm"),
+        ({"layers": {}}, "requires a trunk layer"),
+    ],
+)
+def test_mtp_transition_rejects_unsupported_modes(overrides, message):
+    parallelism = ParallelismConfig(
+        fsdp_backend="gfsdp2",
+        gfsdp_split_mtp_ffn=True,
+        gfsdp_mtp_transition_prefetch=True,
+    )
+    parallel_dims = SimpleNamespace(pp=1)
+    mtp = SimpleNamespace(layers={"0": object()})
+    model = SimpleNamespace(
+        mtp=mtp,
+        layers={"0": object()},
+        norm=object(),
+    )
+    for key, value in overrides.items():
+        if key.startswith("parallelism__"):
+            setattr(parallelism, key.removeprefix("parallelism__"), value)
+        elif key.startswith("parallel_dims__"):
+            setattr(parallel_dims, key.removeprefix("parallel_dims__"), value)
+        else:
+            setattr(model, key, value)
+    with pytest.raises(ValueError, match=message):
+        _validate_mtp_transition_request(
+            model,
+            parallel_dims=parallel_dims,
+            parallelism=parallelism,
+        )
+
+
+def test_mtp_transition_validation_keeps_multiple_heads_when_disabled():
+    parallelism = ParallelismConfig(fsdp_backend="gfsdp2")
+    model = SimpleNamespace(
+        mtp=SimpleNamespace(layers={"0": object(), "1": object()}),
+    )
+
+    _validate_mtp_transition_request(
+        model,
+        parallel_dims=SimpleNamespace(pp=1),
+        parallelism=parallelism,
+    )
+
+
+def test_mtp_transition_validation_accepts_the_supported_single_head():
+    parallelism = ParallelismConfig(
+        fsdp_backend="gfsdp2",
+        gfsdp_split_mtp_ffn=True,
+        gfsdp_mtp_transition_prefetch=True,
+    )
+    model = SimpleNamespace(
+        mtp=SimpleNamespace(layers={"0": object()}),
+        layers={"0": object()},
+        norm=object(),
+        lm_head=object(),
+    )
+
+    _validate_mtp_transition_request(
+        model,
+        parallel_dims=SimpleNamespace(pp=1),
+        parallelism=parallelism,
+    )
+
+
+def test_direct_apply_gfsdp_rejects_multiple_mtp_layers():
+    model = SimpleNamespace(
+        mtp=SimpleNamespace(
+            layers={
+                "0": SimpleNamespace(_ffn_overlap_regions=object()),
+                "1": object(),
+            }
+        ),
+        layers={"0": object()},
+        norm=object(),
+        lm_head=object(),
+    )
+
+    with pytest.raises(ValueError, match="exactly one MTP layer"):
+        apply_gfsdp(
+            model,
+            dp_mesh=None,
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.float32,
+            pp_enabled=False,
+            mtp_transition_prefetch=True,
+        )
+
+
 class TestGFSDPRowOwnerIntegration(DTensorTestBase):
     @property
     def world_size(self):
         return 2
 
-    def _parallelize(self, *, row_owner: bool, split_layer0_ffn: bool = False):
+    def _parallelize(
+        self,
+        *,
+        row_owner: bool,
+        split_layer0_ffn: bool = False,
+        row_owner_optimizations: bool = False,
+        row_owner_optimization_stages: tuple[str, ...] | None = None,
+    ):
         parallelism = ParallelismConfig(
             fsdp_backend="gfsdp2",
             data_parallel_shard_degree=self.world_size,
             gfsdp_row_owner_embeddings=row_owner,
+            gfsdp_row_owner_embedding_optimizations=row_owner_optimizations,
+            gfsdp_row_owner_embedding_optimization_stages=(
+                row_owner_optimization_stages
+            ),
             gfsdp_split_layer0_ffn=split_layer0_ffn,
         )
         model = load_model_spec("gift_moe/debugmodel.yaml").model.build().to(
@@ -164,3 +315,63 @@ class TestGFSDPRowOwnerIntegration(DTensorTestBase):
             root_state._shard_order[1],
             _get_module_fsdp_state(model.layers["0"].feed_forward),
         )
+
+    @with_comms
+    def test_row_owner_optimization_flag_reaches_embedding_factory(self):
+        calls = []
+        original = RowOwnerEmbedding.from_embedding.__func__
+
+        def record_optimize(cls, embedding, dense_mesh, *, optimize=False, **kwargs):
+            calls.append(optimize)
+            return original(
+                cls,
+                embedding,
+                dense_mesh,
+                optimize=optimize,
+                **kwargs,
+            )
+
+        with patch.object(
+            RowOwnerEmbedding,
+            "from_embedding",
+            classmethod(record_optimize),
+        ):
+            self._parallelize(row_owner=True, row_owner_optimizations=True)
+        self.assertEqual(calls, [True])
+
+    @with_comms
+    def test_row_owner_stage_selector_reaches_embedding_factory(self):
+        stages = ("compact", "owner_add", "owner_lookup")
+        calls = []
+        original = RowOwnerEmbedding.from_embedding.__func__
+
+        def record_stages(
+            cls,
+            embedding,
+            dense_mesh,
+            *,
+            optimize=False,
+            optimization_stages=None,
+            **kwargs,
+        ):
+            calls.append(optimization_stages)
+            return original(
+                cls,
+                embedding,
+                dense_mesh,
+                optimize=optimize,
+                optimization_stages=optimization_stages,
+                **kwargs,
+            )
+
+        with patch.object(
+            RowOwnerEmbedding,
+            "from_embedding",
+            classmethod(record_stages),
+        ):
+            model = self._parallelize(
+                row_owner=True,
+                row_owner_optimization_stages=stages,
+            )
+        self.assertEqual(calls, [stages])
+        self.assertEqual(model.tok_embeddings.optimization_stages, stages)

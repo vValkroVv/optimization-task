@@ -199,6 +199,22 @@ pair did not establish a general training gain.
 own their measured scopes. These isolated pairs establish component behavior,
 not a whole-training speedup or production readiness.
 
+The 15 November scheduling/embedding follow-on adds two independent
+default-off `ParallelismConfig` controls. `gfsdp_mtp_transition_prefetch`
+requires `gfsdp_split_mtp_ffn`; it enables multi-target head prefetch and the
+MTP-FFN-to-last-trunk reuse of existing data/gradient regions. It requires
+PP1, MTP1 and runtime-matched dense process groups.
+`gfsdp_row_owner_embedding_optimizations` requires
+`gfsdp_row_owner_embeddings` and selects the scoped embedding optimizations
+after their numerical and component checks. The optional
+`gfsdp_row_owner_embedding_optimization_stages` tuple selects a subset;
+`("compact", "owner_add", "owner_lookup")` excludes routing, and adding
+`"routing"` selects all four stages. Its `None` default preserves the aggregate
+boolean's existing behavior; aggregate `True` and an explicit tuple are rejected
+together. These controls leave the current D defaults unchanged. The
+[schedule/embedding report](../runs/schedule-embedding/report.md) owns its
+implementation, checks and performance verdict.
+
 ## How to use this collection
 
 Start with a concrete bottleneck in the default crop. Select one mechanism,

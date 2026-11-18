@@ -22,6 +22,7 @@ from torchtitan.callbacks.sources.dispatcher_source import (
 )
 from torchtitan.config.moe import TokenDropConfig
 from torchtitan.models.common.moe.dispatch.base import BaseEPTokenDispatcher
+from torchtitan.models.common.moe.dispatch import capacity
 from torchtitan.models.common.moe.dispatch.capacity import select_capacity_routes
 from torchtitan.models.common.moe.dispatch.deepep import DeepEPTokenDispatcher
 from torchtitan.protocols.moe_monitoring import DispatchObservation
@@ -40,15 +41,128 @@ def _group(size: int):
     return SimpleNamespace(size=lambda: size)
 
 
-def _patch_all_reduce(monkeypatch, other_sources: torch.Tensor) -> Mock:
-    """Stand in for the EP all-reduce: add what the other sources contribute."""
-    collective = Mock(
-        side_effect=lambda tensor, reduce_op, group: tensor + other_sources
-    )
+def _patch_all_reduce(monkeypatch, other_source_counts: torch.Tensor) -> Mock:
+    """Stand in for EP SUM while checking the destination-group payload."""
+    observations = []
+
+    def all_reduce(group_loads, reduce_op, group):
+        assert reduce_op == "sum"
+        assert group_loads.dtype == torch.int64
+        assert group_loads.shape == (group.size(),)
+        assert other_source_counts.numel() % group.size() == 0
+        other_group_loads = other_source_counts.view(group.size(), -1).sum(1)
+        global_group_loads = group_loads + other_group_loads
+        observations.append((group_loads.clone(), global_group_loads.clone()))
+        return global_group_loads
+
+    collective = Mock(side_effect=all_reduce)
+    collective.observations = observations
     monkeypatch.setattr(
         "torchtitan.models.common.moe.dispatch.capacity.funcol.all_reduce", collective
     )
     return collective
+
+
+@pytest.mark.parametrize(
+    "route_ids,scores,other_source_counts,expected_keep",
+    [
+        ([[0], [1], [2]], [0.9, 0.8, 0.7], [0, 0, 0, 0], [True, True, True]),
+        (
+            [[0], [0], [0], [0], [0], [0], [1], [2]],
+            [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2],
+            [0, 0, 0, 0],
+            [True, True, True, True, True, True, True, True],
+        ),
+        (
+            [[0], [0], [0], [0], [1], [1], [1], [1]],
+            [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2],
+            [9, 0, 0, 0],
+            [True, True, True, True, True, True, True, True],
+        ),
+        (
+            [[0], [0], [0], [0], [0], [0], [1], [2]],
+            [0.5] * 8,
+            [10, 0, 0, 0],
+            [True, True, True, True, False, False, True, True],
+        ),
+        (
+            [[0], [0], [0], [0], [0], [0], [1], [2]],
+            [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2],
+            [0, 0, 20, 0],
+            [True, True, True, True, False, False, True, True],
+        ),
+    ],
+    ids=[
+        "no-overload",
+        "local-only",
+        "global-only",
+        "tied-overload",
+        "other-group-overload",
+    ],
+)
+def test_group_counter_reduction_matches_original_gate_and_mask(
+    monkeypatch, route_ids, scores, other_source_counts, expected_keep
+):
+    """Moving the expert sum before SUM preserves counts, gate, and stable mask."""
+    ids = torch.tensor(route_ids, dtype=torch.int64)
+    scores = torch.tensor(scores, dtype=torch.float32).view_as(ids)
+    other_source_counts = torch.tensor(other_source_counts, dtype=torch.int64)
+    collective = _patch_all_reduce(monkeypatch, other_source_counts)
+    sorted_calls = []
+    sorted_capacity_mask = capacity._sorted_capacity_mask
+
+    def record_selection(*args, **kwargs):
+        sorted_calls.append(True)
+        return sorted_capacity_mask(*args, **kwargs)
+
+    monkeypatch.setattr(capacity, "_sorted_capacity_mask", record_selection)
+    keep = select_capacity_routes(
+        scores, ids, num_experts=4, policy=fixed_group(8), ep_group=_group(2)
+    )
+
+    capacity_per_expert = 4
+    local_counts = torch.bincount(ids.flatten(), minlength=4)
+    original_global_counts = local_counts + other_source_counts
+    expected_local_group_loads = local_counts.view(2, 2).sum(1)
+    expected_global_group_loads = original_global_counts.view(2, 2).sum(1)
+    expected_needs_drop = bool(
+        (local_counts > capacity_per_expert).any()
+        and (expected_global_group_loads > capacity_per_expert * 4).any()
+    )
+
+    collective.assert_called_once()
+    actual_local_group_loads, actual_global_group_loads = collective.observations[0]
+    torch.testing.assert_close(
+        actual_local_group_loads, expected_local_group_loads, rtol=0, atol=0
+    )
+    torch.testing.assert_close(
+        actual_global_group_loads, expected_global_group_loads, rtol=0, atol=0
+    )
+    assert bool(sorted_calls) is expected_needs_drop
+    torch.testing.assert_close(
+        keep, torch.tensor(expected_keep, dtype=torch.bool).view_as(ids), rtol=0, atol=0
+    )
+
+
+def test_ep_all_reduce_receives_eight_int64_group_counts_for_128_experts(monkeypatch):
+    num_experts = 128
+    ep_size = 8
+    collective = _patch_all_reduce(
+        monkeypatch, torch.zeros(num_experts, dtype=torch.int64)
+    )
+    keep = select_capacity_routes(
+        torch.ones((1, 1)),
+        torch.zeros((1, 1), dtype=torch.int64),
+        num_experts=num_experts,
+        policy=fixed_group(2048),
+        ep_group=_group(ep_size),
+    )
+
+    payload = collective.call_args.args[0]
+    assert payload.dtype == torch.int64
+    assert payload.numel() == ep_size
+    assert payload.numel() != num_experts
+    assert keep.all()
 
 
 def test_config_round_trip_and_per_source_quota():

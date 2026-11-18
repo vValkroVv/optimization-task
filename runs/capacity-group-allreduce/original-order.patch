@@ -1,0 +1,22 @@
+diff --git b/gift/torchtitan/models/common/moe/dispatch/capacity.py a/gift/torchtitan/models/common/moe/dispatch/capacity.py
+index 83bbda3f..545606f9 100644
+--- b/gift/torchtitan/models/common/moe/dispatch/capacity.py
++++ a/gift/torchtitan/models/common/moe/dispatch/capacity.py
+@@ -132,13 +132,14 @@ def select_capacity_routes(
+     if policy.drop_by_group_capacity:
+         # Match Foundry: reduce loads, but keep this source's capacity. Empty
+         # sources also enter the collective before either path can return.
+-        group_loads = counts[:num_experts].view(ep_size, num_experts // ep_size).sum(1)
++        totals = counts[:num_experts]
+         if ep_group is not None:
+             # Functional collectives are saved by SAC and remain visible to
+             # compile even on an empty source whose mask does not use the gate.
+-            group_loads = funcol.all_reduce(group_loads, "sum", ep_group)
++            totals = funcol.all_reduce(totals, "sum", ep_group)
++        loads = totals.view(ep_size, num_experts // ep_size).sum(1)
+         budget = capacity * num_experts
+-        needs_drop = needs_drop & (group_loads > budget).any()
++        needs_drop = needs_drop & (loads > budget).any()
+ 
+     if policy.branchless_capacity_drop:
+         # Keep this after the group collective: peers may still need to drop.

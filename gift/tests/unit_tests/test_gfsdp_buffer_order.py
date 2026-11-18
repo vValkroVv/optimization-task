@@ -33,6 +33,10 @@ pytest.importorskip("torch")
 import torch  # noqa: E402
 
 from torchtitan.distributed.gfsdp._param_group import GFSDPParamGroup  # noqa: E402
+from torchtitan.distributed.gfsdp._common import (  # noqa: E402
+    DataParallelMeshInfo,
+    TrainingState,
+)
 from torchtitan.distributed.gfsdp._state import (  # noqa: E402
     _forward_ordered_states,
     _grad_buffer_ctx_idx_map,
@@ -277,9 +281,136 @@ def test_a_buffer_the_target_already_owns_is_not_an_obstacle():
     target.data_buffer_ctx.owner = target
 
     GFSDPParamGroup._prefetch_unshard(target, "forward")
-
     assert target.unsharded
 
+
+class _FakeStream:
+    def __init__(self):
+        self.events = []
+
+    def record_event(self):
+        event = object()
+        self.events.append(event)
+        return event
+
+
+class _FakeBufferContext:
+    def __init__(self):
+        self.owner = None
+        self.release_event = None
+        self.yccl_handles = {torch.float32: None}
+
+    def conflicting_owner(self, owner):
+        return self.owner if self.owner is not None and self.owner is not owner else None
+
+    def wait_for_release(self, _stream):
+        return None
+
+
+def _post_backward_group(*, training_state, has_grad, reduce_grads, reshard_after_backward):
+    group = object.__new__(GFSDPParamGroup)
+    stream = _FakeStream()
+    param = torch.nn.Parameter(torch.ones(2))
+    param.grad = torch.ones_like(param) if has_grad else None
+    fsdp_param = SimpleNamespace(
+        unsharded_param=param,
+        unsharded_accumulated_grad=None,
+        _unsharded_accumulated_grad=torch.zeros_like(param),
+        unsharded_grad_data=param.grad,
+        sharded_param=SimpleNamespace(grad=None, requires_grad=True),
+    )
+    group._training_state = training_state
+    group._module_fqn = "test.group"
+    group._with_fqn = lambda name: name
+    group.fsdp_params = [fsdp_param]
+    group._all_gather_dtype_to_fsdp_params = {torch.float32: [fsdp_param]}
+    group.grad_buffer_ctx = _FakeBufferContext()
+    group.data_buffer_ctx = _FakeBufferContext()
+    group.device_handle = SimpleNamespace(current_stream=lambda: stream)
+    group.device = torch.device("cpu")
+    group.orig_dtype = torch.float32
+    group.param_dtype = torch.float32
+    group.reduce_dtype = torch.float32
+    group.gradient_divide_factor = None
+    group.force_sum_reduction_for_comms = False
+    group.mp_policy = SimpleNamespace(bit32_acc_for_bit16_reduce_scatter=False)
+    group._reduce_scatter_input = {torch.float32: torch.zeros(4)}
+    group._padded_sharded_param_grad = {torch.float32: torch.zeros(2)}
+    group.mesh_info = object.__new__(DataParallelMeshInfo)
+    group.mesh_info.shard_process_group = object()
+    group.comm_ctx = SimpleNamespace(reduce_scatter_stream=stream)
+    group.reduce_grads = reduce_grads
+    group.reshard_after_backward = reshard_after_backward
+    group._post_reduce_event = object()  # Must not count as a new reduction.
+    group._post_backward_prefetch_target = object()
+    group.data_buffer_ctx.owner = group
+    return group, stream
+
+
+@pytest.mark.parametrize(
+    (
+        "training_state",
+        "has_grad",
+        "reduce_grads",
+        "reshard_after_backward",
+        "expected_reductions",
+        "expected_prefetches",
+    ),
+    [
+        (TrainingState.PRE_BACKWARD, True, True, True, 1, 1),
+        (TrainingState.IDLE, False, True, True, 0, 0),
+        # A callback with stale group state and a nonempty grad still is not an
+        # actual PRE_BACKWARD completion for this call.
+        (TrainingState.IDLE, True, True, True, 1, 0),
+        (TrainingState.PRE_BACKWARD, True, False, True, 0, 0),
+        (TrainingState.PRE_BACKWARD, True, True, False, 1, 0),
+    ],
+)
+def test_post_backward_transition_requires_real_reduced_resharded_backward(
+    monkeypatch,
+    training_state,
+    has_grad,
+    reduce_grads,
+    reshard_after_backward,
+    expected_reductions,
+    expected_prefetches,
+):
+    import torchtitan.distributed.gfsdp._param_group as param_group_module
+
+    group, _stream = _post_backward_group(
+        training_state=training_state,
+        has_grad=has_grad,
+        reduce_grads=reduce_grads,
+        reshard_after_backward=reshard_after_backward,
+    )
+    reductions = []
+    prefetches = []
+    reduce_event = object()
+
+    def fake_reduce_scatter(*_args, **_kwargs):
+        reductions.append(True)
+        return reduce_event
+
+    def fake_reshard(self):
+        self.data_buffer_ctx.release_event = _stream.record_event()
+        self.data_buffer_ctx.owner = None
+
+    monkeypatch.setattr(param_group_module, "reduce_scatter", fake_reduce_scatter)
+    monkeypatch.setattr(GFSDPParamGroup, "reshard", fake_reshard)
+    monkeypatch.setattr(
+        GFSDPParamGroup,
+        "_prefetch_unshard",
+        staticmethod(lambda target, pass_type: prefetches.append((target, pass_type))),
+    )
+
+    group.post_backward()
+
+    assert len(reductions) == expected_reductions
+    assert len(prefetches) == expected_prefetches
+    if expected_prefetches:
+        assert prefetches == [(group._post_backward_prefetch_target, "backward")]
+    if not reduce_grads and has_grad:
+        assert group.grad_buffer_ctx.owner is group
 
 def test_a_buffer_someone_else_holds_skips_the_prefetch():
     """Taken from gigafsdp: a prefetch is an optimization, not an obligation.
