@@ -384,15 +384,17 @@ def measure(operations, group, warmup_pairs, pairs):
     return result
 
 
+def cuda_profile_activities():
+    from torch.profiler import ProfilerActivity
+
+    return [ProfilerActivity.CPU, ProfilerActivity.CUDA]
+
+
 def profile_operations(operations, group, path):
     import torch
     import torch.distributed as dist
 
-    activities = [
-        torch.profiler.ProfilerActivity.CPU,
-        torch.profiler.ProfilerActivity.CUDA,
-    ]
-    with torch.profiler.profile(activities=activities) as trace:
+    with torch.profiler.profile(activities=cuda_profile_activities()) as trace:
         for scope, variants in operations.items():
             for name, fn in variants.items():
                 dist.barrier(group=group)
@@ -429,6 +431,9 @@ def profile_operations(operations, group, path):
                 for event in within
                 if event.get("name") == "cudaStreamSynchronize" and "dur" in event
             ],
+            "host_scalar_reads": sum(
+                event.get("name") == "aten::_local_scalar_dense" for event in within
+            ),
             "device_to_host_copies": [
                 {
                     "name": event["name"],
@@ -441,6 +446,12 @@ def profile_operations(operations, group, path):
         }
     if summary.keys() != names:
         raise RuntimeError(f"incomplete component profiler capture: {path}")
+    for name, activity in summary.items():
+        if (
+            name != "capacity_component.selector.S"
+            and not activity["device_kernels_us"]
+        ):
+            raise RuntimeError(f"CUDA kernels missing from {name} in {path}")
     return summary
 
 
@@ -496,6 +507,11 @@ def main():
     parser.add_argument("--capacity-source", type=Path)
     parser.add_argument("--warmup-pairs", type=int, default=10)
     parser.add_argument("--pairs", type=int, default=50)
+    parser.add_argument(
+        "--profile-only",
+        action="store_true",
+        help="replay with the existing fixtures/cache and collect CUDA traces only",
+    )
     args = parser.parse_args()
     if min(args.warmup_pairs, args.pairs) <= 0:
         parser.error("warmup and measured pair counts must be positive")
@@ -545,7 +561,12 @@ def main():
                 "the selector requires an input copy for the actual router layout"
             )
 
-        checks = parity(capacity, group, rank, scores, ids)
+        if not args.profile_only:
+            # Kineto chooses a CPU-only or CUDA-capable profiler on first use.
+            # Initialize it with CUDA before the CPU-only parity captures.
+            with torch.profiler.profile(activities=cuda_profile_activities()):
+                pass
+            checks = parity(capacity, group, rank, scores, ids)
         predicate = torch.zeros((), device=device, dtype=torch.bool)
         compiled = {
             name: torch.compile(
@@ -577,7 +598,8 @@ def main():
         ):
             exact(control, candidate)
         del control, candidate
-        samples = measure(operations, group, args.warmup_pairs, args.pairs)
+        if not args.profile_only:
+            samples = measure(operations, group, args.warmup_pairs, args.pairs)
         profile = profile_operations(
             operations, group, args.output / f"rank{rank}_trace.json"
         )
@@ -596,16 +618,16 @@ def main():
             "fixture_sha256": hashlib.sha256(fixture_path.read_bytes()).hexdigest(),
             "weights_contiguous_without_copy": True,
             "selector_output_bytes": weights.numel(),
-            "parity": checks,
-            "samples": samples,
             "profile": profile,
             "selector_resources": kernel_resources(_capacity_mask_kernel),
         }
+        if not args.profile_only:
+            receipt.update(parity=checks, samples=samples)
         (args.output / f"rank{rank}.json").write_text(
             json.dumps(receipt, indent=2) + "\n"
         )
         dist.barrier(group=group)
-        if rank == 0:
+        if rank == 0 and not args.profile_only:
             report(
                 args.output,
                 [
