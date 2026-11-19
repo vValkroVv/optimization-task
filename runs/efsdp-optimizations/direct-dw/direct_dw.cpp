@@ -133,7 +133,7 @@ extern "C" __global__ void direct_dw_special_value_probe(
 )";
     }
 
-    static void launch_impl(const KernelHandle& kernel, const LaunchConfigHandle& config, const Args& args) {
+    static void launch_impl(const KernelHandle& kernel, const LaunchConfigHandle& config, Args args) {
         DG_CUDA_UNIFIED_CHECK(launch_kernel(kernel, config,
             args.input, args.bf16_zero_output, args.fp32_output));
     }
