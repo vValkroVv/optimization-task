@@ -213,7 +213,10 @@ def main():
                 raise RuntimeError(f"The rebuilt {name} lost bitwise agreement")
         dw.expected = None
         del native_dw, expected
-        baseline = lambda: production_pair(component, dx, dw)
+
+        def baseline():
+            production_pair(component, dx, dw)
+
         calls = {
             "control": baseline,
             **{

@@ -1,0 +1,1527 @@
+{
+  "disposition": "retain native torch.mm for dX and pitched dW",
+  "baseline_revision": "ab62730a9fabd7c95b69fd07607f59dac0e7ae03",
+  "baseline_staged_source_sha256": "97964ea19c785f687f8b5bec363d1291a8646e34342124e8ea893eb0225f52ea",
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "fixture_sha256": "15227882b1da44c2881b63622b6249bcddd307d90575216290f29ab9f720c727",
+  "fixture_capture": {
+    "rank": 0,
+    "world_size": 8,
+    "update": 1,
+    "microbatch": 1,
+    "gradient_accumulation": 32,
+    "source_revision": "8c223c7202ba3fdedb8c50b6b3313db5c5c86c79",
+    "capture_sha256": "e8db9079aed9458c95d8daf404da5b846727f199cc04562a0ae4b28a9af5db31",
+    "resolved_config": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/native/config/resolved_config.yaml",
+    "resolved_config_sha256": "459c283ec8daebb6493198fca4cba6e23e168324a097f79e948ea72ba5b2ed3d",
+    "cuda_device": "NVIDIA H100 80GB HBM3",
+    "torch_version": "2.15.0.dev20260822+cu130",
+    "cuda_version": "13.0",
+    "compile_backend": "inductor",
+    "num_sms": 116,
+    "lm_head_class": "torchtitan.distributed.gfsdp.fully_shard.GFSDPLinear",
+    "lm_head_bias": false,
+    "lm_head_compiled_in_native": false,
+    "diagnostic_only": true
+  },
+  "runtime": {
+    "torch": "2.15.0.dev20260822+cu130",
+    "torch_git": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+    "toolkit": "13.0",
+    "cublas_lt_version": 130101,
+    "cublas_lt_library_sha256": "1489aeb75d55ee55782798343ac66f57771d561cc1fe1e0491568deefa0e6515",
+    "gpu": "_CudaDeviceProperties(name='NVIDIA H100 80GB HBM3', major=9, minor=0, total_memory=81089MB, multi_processor_count=132, uuid=c94b0c9a-14ca-0083-dcc3-08cc6e0367a9, pci_bus_id=25, pci_device_id=0, pci_domain_id=0, L2_cache_size=50MB)",
+    "blas_preferred_backend": "_BlasBackend.Cublas",
+    "allow_bf16_reduced_precision_reduction": true,
+    "workspace_environment": {
+      "CUBLAS_WORKSPACE_CONFIG": null,
+      "CUBLASLT_WORKSPACE_SIZE": null,
+      "TORCH_CUBLASLT_UNIFIED_WORKSPACE": null,
+      "DISABLE_ADDMM_CUDA_LT": null
+    },
+    "shared_workspace_limit_bytes": 33554432,
+    "new_workspace_allocation_bytes": 0
+  },
+  "staged_reference_checks": {
+    "parity_reference": "eager bias-free Linear backward, native BF16 dW with FP32 foreach copy and add",
+    "elements_per_chunk": 525336576,
+    "control_fp32_bitwise": true,
+    "each_pitched_bf16_chunk_bitwise": [
+      true,
+      true
+    ],
+    "pitched_fp32_bitwise": true,
+    "merge_ptx_cta_barrier": true,
+    "passed": true
+  },
+  "screen": {
+    "source_revision": "cca7bb1076670d85f680daa78e9293dd476128bb",
+    "screen_repetitions": 2,
+    "paired_repetitions": 12,
+    "roles": {
+      "dx": {
+        "column_major_m_n_k_lda_ldb_ldc": [
+          4096,
+          8192,
+          128256,
+          4096,
+          128256,
+          4096
+        ],
+        "column_major_trans_a": "N",
+        "column_major_trans_b": "N",
+        "minimum_pointer_alignment_bytes": 256,
+        "output_shapes": [
+          [
+            8192,
+            4096
+          ],
+          [
+            8192,
+            4096
+          ]
+        ],
+        "output_strides": [
+          [
+            4096,
+            1
+          ],
+          [
+            4096,
+            1
+          ]
+        ],
+        "output_storage_offsets": [
+          0,
+          0
+        ],
+        "exposed_ids": 20,
+        "validated_configs": 58932,
+        "workspace_bounded_configs": 87,
+        "zero_workspace_configs": 79,
+        "successful_launch_configurations": 87,
+        "bitwise_configurations": 80,
+        "first_in_rank_with_zero_workspace": {
+          "index": 39,
+          "algorithm_id": 21,
+          "tile_id": 23,
+          "split_k": 1,
+          "reduction_scheme": 0,
+          "stages_id": 9,
+          "cluster_shape_id": 0,
+          "custom_option": 0,
+          "workspace_bytes": 0,
+          "chunk_bitwise": [
+            true,
+            true
+          ],
+          "total_median_ms": 38.30148792266846
+        },
+        "shortlisted": [
+          {
+            "index": 1,
+            "algorithm_id": 66,
+            "tile_id": 23,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 3,
+            "custom_option": 4,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 22.398623943328857,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 22.818912506103516,
+                  "wall_ms": 22.8348625,
+                  "host_enqueue_ms": 0.032422,
+                  "host_wait_ms": 22.799839499999997
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 23.135632514953613,
+                  "wall_ms": 23.1515975,
+                  "host_enqueue_ms": 0.032992,
+                  "host_wait_ms": 23.114304500000003
+                },
+                "pitched": {
+                  "cuda_event_ms": 22.77841567993164,
+                  "wall_ms": 22.7941445,
+                  "host_enqueue_ms": 0.037521,
+                  "host_wait_ms": 22.753290999999997
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": -0.17072820663452148,
+              "median_absolute_control_pair_event_delta_ms": 0.24196815490722656
+            }
+          },
+          {
+            "index": 7,
+            "algorithm_id": 66,
+            "tile_id": 495,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 5,
+            "custom_option": 7,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 23.35193634033203,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 23.341903686523438,
+                  "wall_ms": 23.357426500000003,
+                  "host_enqueue_ms": 0.032061,
+                  "host_wait_ms": 23.322480499999998
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 23.26316738128662,
+                  "wall_ms": 23.2797225,
+                  "host_enqueue_ms": 0.0321775,
+                  "host_wait_ms": 23.2432145
+                },
+                "pitched": {
+                  "cuda_event_ms": 23.894880294799805,
+                  "wall_ms": 23.9114705,
+                  "host_enqueue_ms": 0.0381355,
+                  "host_wait_ms": 23.866944
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": 0.6010088920593262,
+              "median_absolute_control_pair_event_delta_ms": 0.19867229461669922
+            }
+          },
+          {
+            "index": 0,
+            "algorithm_id": 66,
+            "tile_id": 24,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 5,
+            "custom_option": 7,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 23.645615577697754,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 23.27598476409912,
+                  "wall_ms": 23.292323,
+                  "host_enqueue_ms": 0.0328905,
+                  "host_wait_ms": 23.251497999999998
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 23.273344039916992,
+                  "wall_ms": 23.289841000000003,
+                  "host_enqueue_ms": 0.031886,
+                  "host_wait_ms": 23.254279500000003
+                },
+                "pitched": {
+                  "cuda_event_ms": 23.340432167053223,
+                  "wall_ms": 23.3571485,
+                  "host_enqueue_ms": 0.039085,
+                  "host_wait_ms": 23.3154465
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": 0.007119655609130859,
+              "median_absolute_control_pair_event_delta_ms": 0.10257625579833984
+            }
+          }
+        ],
+        "winner_index": 1
+      },
+      "dw_pitched": {
+        "column_major_m_n_k_lda_ldb_ldc": [
+          4096,
+          128256,
+          8192,
+          4096,
+          128256,
+          8192
+        ],
+        "column_major_trans_a": "N",
+        "column_major_trans_b": "T",
+        "minimum_pointer_alignment_bytes": 256,
+        "output_shapes": [
+          [
+            128256,
+            4096
+          ],
+          [
+            128256,
+            4096
+          ]
+        ],
+        "output_strides": [
+          [
+            8192,
+            1
+          ],
+          [
+            8192,
+            1
+          ]
+        ],
+        "output_storage_offsets": [
+          0,
+          4096
+        ],
+        "exposed_ids": 20,
+        "validated_configs": 58932,
+        "workspace_bounded_configs": 87,
+        "zero_workspace_configs": 79,
+        "successful_launch_configurations": 87,
+        "bitwise_configurations": 80,
+        "first_in_rank_with_zero_workspace": {
+          "index": 42,
+          "algorithm_id": 21,
+          "tile_id": 24,
+          "split_k": 1,
+          "reduction_scheme": 0,
+          "stages_id": 9,
+          "cluster_shape_id": 0,
+          "custom_option": 0,
+          "workspace_bytes": 0,
+          "chunk_bitwise": [
+            true,
+            true
+          ],
+          "total_median_ms": 37.27668762207031
+        },
+        "shortlisted": [
+          {
+            "index": 1,
+            "algorithm_id": 66,
+            "tile_id": 24,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 5,
+            "custom_option": 7,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 23.021023750305176,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 23.317008018493652,
+                  "wall_ms": 23.332708500000003,
+                  "host_enqueue_ms": 0.03388,
+                  "host_wait_ms": 23.297000500000003
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 22.793136596679688,
+                  "wall_ms": 22.8106515,
+                  "host_enqueue_ms": 0.032659999999999995,
+                  "host_wait_ms": 22.7730685
+                },
+                "pitched": {
+                  "cuda_event_ms": 22.73908805847168,
+                  "wall_ms": 22.7554675,
+                  "host_enqueue_ms": 0.0392005,
+                  "host_wait_ms": 22.7137195
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": -0.6162476539611816,
+              "median_absolute_control_pair_event_delta_ms": 0.2895040512084961
+            }
+          },
+          {
+            "index": 6,
+            "algorithm_id": 66,
+            "tile_id": 495,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 5,
+            "custom_option": 7,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 23.430320262908936,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 23.70419216156006,
+                  "wall_ms": 23.7224285,
+                  "host_enqueue_ms": 0.032977,
+                  "host_wait_ms": 23.683656
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 23.667471885681152,
+                  "wall_ms": 23.683565,
+                  "host_enqueue_ms": 0.032411999999999996,
+                  "host_wait_ms": 23.648139999999998
+                },
+                "pitched": {
+                  "cuda_event_ms": 23.030895233154297,
+                  "wall_ms": 23.0463075,
+                  "host_enqueue_ms": 0.038073499999999996,
+                  "host_wait_ms": 23.0030645
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": -0.7548408508300781,
+              "median_absolute_control_pair_event_delta_ms": 0.3928642272949219
+            }
+          },
+          {
+            "index": 5,
+            "algorithm_id": 66,
+            "tile_id": 29,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 3,
+            "custom_option": 1,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 23.70945644378662,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 23.891376495361328,
+                  "wall_ms": 23.907998,
+                  "host_enqueue_ms": 0.0330785,
+                  "host_wait_ms": 23.8714725
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 24.01529598236084,
+                  "wall_ms": 24.0344785,
+                  "host_enqueue_ms": 0.034308000000000005,
+                  "host_wait_ms": 23.993948
+                },
+                "pitched": {
+                  "cuda_event_ms": 23.52854347229004,
+                  "wall_ms": 23.544557,
+                  "host_enqueue_ms": 0.0393175,
+                  "host_wait_ms": 23.502108999999997
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": -0.6532487869262695,
+              "median_absolute_control_pair_event_delta_ms": 0.1656475067138672
+            }
+          }
+        ],
+        "winner_index": 6
+      },
+      "dw_contiguous": {
+        "column_major_m_n_k_lda_ldb_ldc": [
+          4096,
+          128256,
+          8192,
+          4096,
+          128256,
+          4096
+        ],
+        "column_major_trans_a": "N",
+        "column_major_trans_b": "T",
+        "minimum_pointer_alignment_bytes": 256,
+        "output_shapes": [
+          [
+            128256,
+            4096
+          ],
+          [
+            128256,
+            4096
+          ]
+        ],
+        "output_strides": [
+          [
+            4096,
+            1
+          ],
+          [
+            4096,
+            1
+          ]
+        ],
+        "output_storage_offsets": [
+          0,
+          0
+        ],
+        "exposed_ids": 20,
+        "validated_configs": 58932,
+        "workspace_bounded_configs": 87,
+        "zero_workspace_configs": 79,
+        "successful_launch_configurations": 87,
+        "bitwise_configurations": 80,
+        "first_in_rank_with_zero_workspace": {
+          "index": 42,
+          "algorithm_id": 21,
+          "tile_id": 24,
+          "split_k": 1,
+          "reduction_scheme": 0,
+          "stages_id": 9,
+          "cluster_shape_id": 0,
+          "custom_option": 0,
+          "workspace_bytes": 0,
+          "chunk_bitwise": [
+            true,
+            true
+          ],
+          "total_median_ms": 36.90508842468262
+        },
+        "shortlisted": [
+          {
+            "index": 6,
+            "algorithm_id": 66,
+            "tile_id": 495,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 5,
+            "custom_option": 7,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 23.62336015701294,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 23.682384490966797,
+                  "wall_ms": 23.697966,
+                  "host_enqueue_ms": 0.0319595,
+                  "host_wait_ms": 23.6630155
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 24.50852870941162,
+                  "wall_ms": 24.524238,
+                  "host_enqueue_ms": 0.031911999999999996,
+                  "host_wait_ms": 24.4875125
+                },
+                "pitched": {
+                  "cuda_event_ms": 23.091968536376953,
+                  "wall_ms": 23.108778,
+                  "host_enqueue_ms": 0.037911,
+                  "host_wait_ms": 23.055355
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": -0.8434724807739258,
+              "median_absolute_control_pair_event_delta_ms": 0.16254425048828125
+            }
+          },
+          {
+            "index": 1,
+            "algorithm_id": 66,
+            "tile_id": 24,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 5,
+            "custom_option": 7,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 23.63318395614624,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 23.242688179016113,
+                  "wall_ms": 23.258207499999997,
+                  "host_enqueue_ms": 0.0324905,
+                  "host_wait_ms": 23.2198565
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 23.19713592529297,
+                  "wall_ms": 23.2125955,
+                  "host_enqueue_ms": 0.0316775,
+                  "host_wait_ms": 23.177315
+                },
+                "pitched": {
+                  "cuda_event_ms": 22.667200088500977,
+                  "wall_ms": 22.6827915,
+                  "host_enqueue_ms": 0.037891999999999995,
+                  "host_wait_ms": 22.643175
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": -0.5635595321655273,
+              "median_absolute_control_pair_event_delta_ms": 0.15388870239257812
+            }
+          },
+          {
+            "index": 0,
+            "algorithm_id": 66,
+            "tile_id": 248,
+            "split_k": 1,
+            "reduction_scheme": 0,
+            "stages_id": 35,
+            "cluster_shape_id": 5,
+            "custom_option": 7,
+            "workspace_bytes": 4,
+            "chunk_bitwise": [
+              true,
+              true
+            ],
+            "total_median_ms": 23.965440273284912,
+            "timing": {
+              "median_ms": {
+                "control": {
+                  "cuda_event_ms": 23.23844814300537,
+                  "wall_ms": 23.2541985,
+                  "host_enqueue_ms": 0.032433500000000004,
+                  "host_wait_ms": 23.218861
+                },
+                "control_repeat": {
+                  "cuda_event_ms": 23.268256187438965,
+                  "wall_ms": 23.2857225,
+                  "host_enqueue_ms": 0.032243,
+                  "host_wait_ms": 23.248431
+                },
+                "pitched": {
+                  "cuda_event_ms": 23.252863883972168,
+                  "wall_ms": 23.270137,
+                  "host_enqueue_ms": 0.037557,
+                  "host_wait_ms": 23.228212999999997
+                }
+              },
+              "median_pitched_minus_control_midpoint_event_ms": -0.016848087310791016,
+              "median_absolute_control_pair_event_delta_ms": 0.24006366729736328
+            }
+          }
+        ],
+        "winner_index": 6
+      }
+    },
+    "advanced": {
+      "dw_pitched": 6
+    },
+    "matched_merge_bitwise": true,
+    "matched_eager": {
+      "median_ms": {
+        "control": {
+          "cuda_event_ms": 48.808000564575195,
+          "wall_ms": 48.832162,
+          "host_enqueue_ms": 0.072781,
+          "host_wait_ms": 48.7161925
+        },
+        "control_repeat": {
+          "cuda_event_ms": 49.07604789733887,
+          "wall_ms": 49.095245500000004,
+          "host_enqueue_ms": 0.07363549999999999,
+          "host_wait_ms": 49.0083125
+        },
+        "pitched": {
+          "cuda_event_ms": 48.007856369018555,
+          "wall_ms": 48.026444,
+          "host_enqueue_ms": 0.0830625,
+          "host_wait_ms": 47.9291515
+        }
+      },
+      "median_pitched_minus_control_midpoint_event_ms": -0.7218637466430664,
+      "median_absolute_control_pair_event_delta_ms": 0.6254405975341797
+    },
+    "matched_graph": {
+      "median_ms": {
+        "control": {
+          "cuda_event_ms": 46.942176818847656,
+          "wall_ms": 46.96391,
+          "host_enqueue_ms": 0.021806,
+          "host_wait_ms": 46.929311
+        },
+        "control_repeat": {
+          "cuda_event_ms": 47.459407806396484,
+          "wall_ms": 47.47634,
+          "host_enqueue_ms": 0.021724,
+          "host_wait_ms": 47.4518475
+        },
+        "pitched": {
+          "cuda_event_ms": 46.292959213256836,
+          "wall_ms": 46.310642,
+          "host_enqueue_ms": 0.021926,
+          "host_wait_ms": 46.285026
+        }
+      },
+      "median_pitched_minus_control_midpoint_event_ms": -0.7086172103881836,
+      "median_absolute_control_pair_event_delta_ms": 0.7174243927001953
+    },
+    "matched_memory": {
+      "baseline": {
+        "starting_allocated_bytes": 7690256384,
+        "starting_reserved_bytes": 7824474112,
+        "peak_allocated_bytes": 7757365248,
+        "peak_reserved_bytes": 7824474112,
+        "allocation_retries": 0,
+        "ooms": 0
+      },
+      "candidate": {
+        "starting_allocated_bytes": 7690256384,
+        "starting_reserved_bytes": 7824474112,
+        "peak_allocated_bytes": 7757365248,
+        "peak_reserved_bytes": 7824474112,
+        "allocation_retries": 0,
+        "ooms": 0
+      }
+    }
+  },
+  "confirmation": {
+    "source_revision": "dce3fd0e03450abb1a665cedfbee368d3892b1c0",
+    "cycles": 6,
+    "rounds": 30,
+    "shortlist": {
+      "tile_495": {
+        "algorithm_id": 66,
+        "tile_id": 495,
+        "split_k": 1,
+        "reduction_scheme": 0,
+        "cta_swizzle": 0,
+        "custom_option": 7,
+        "stages_id": 35,
+        "inner_shape_id": 0,
+        "cluster_shape_id": 5,
+        "heuristic_rank": 6,
+        "workspace_bytes": 4,
+        "index": 6
+      },
+      "tile_29": {
+        "algorithm_id": 66,
+        "tile_id": 29,
+        "split_k": 1,
+        "reduction_scheme": 0,
+        "cta_swizzle": 0,
+        "custom_option": 1,
+        "stages_id": 35,
+        "inner_shape_id": 0,
+        "cluster_shape_id": 3,
+        "heuristic_rank": 5,
+        "workspace_bytes": 4,
+        "index": 5
+      },
+      "tile_24": {
+        "algorithm_id": 66,
+        "tile_id": 24,
+        "split_k": 1,
+        "reduction_scheme": 0,
+        "cta_swizzle": 0,
+        "custom_option": 7,
+        "stages_id": 35,
+        "inner_shape_id": 0,
+        "cluster_shape_id": 5,
+        "heuristic_rank": 1,
+        "workspace_bytes": 4,
+        "index": 1
+      }
+    },
+    "parity": {
+      "tile_495": {
+        "bf16_chunks": [
+          true,
+          true
+        ],
+        "fp32_merge": true
+      },
+      "tile_29": {
+        "bf16_chunks": [
+          true,
+          true
+        ],
+        "fp32_merge": true
+      },
+      "tile_24": {
+        "bf16_chunks": [
+          true,
+          true
+        ],
+        "fp32_merge": true
+      }
+    },
+    "eager": {
+      "median_ms": {
+        "control": {
+          "cuda_event_ms": 48.03750419616699,
+          "wall_ms": 48.05833,
+          "host_enqueue_ms": 0.0798425,
+          "host_wait_ms": 47.967706500000006
+        },
+        "tile_495": {
+          "cuda_event_ms": 47.27132797241211,
+          "wall_ms": 47.2876495,
+          "host_enqueue_ms": 0.09019350000000001,
+          "host_wait_ms": 47.202653
+        },
+        "tile_29": {
+          "cuda_event_ms": 48.12220764160156,
+          "wall_ms": 48.1416375,
+          "host_enqueue_ms": 0.090302,
+          "host_wait_ms": 48.0419975
+        },
+        "tile_24": {
+          "cuda_event_ms": 47.25638389587402,
+          "wall_ms": 47.3024385,
+          "host_enqueue_ms": 0.086809,
+          "host_wait_ms": 47.139719
+        },
+        "repeat": {
+          "cuda_event_ms": 48.05524826049805,
+          "wall_ms": 48.094404499999996,
+          "host_enqueue_ms": 0.0823495,
+          "host_wait_ms": 48.0030865
+        }
+      },
+      "median_absolute_control_pair_event_delta_ms": 0.6363201141357422,
+      "paired": {
+        "tile_495": {
+          "delta_event_ms": -0.3289146423339844,
+          "rounds_faster": 20,
+          "balanced_cycle_medians_event_ms": [
+            -1.2304630279541016,
+            0.3806724548339844,
+            -0.2528800964355469,
+            -0.5962409973144531,
+            -0.8409595489501953,
+            -0.31894683837890625
+          ]
+        },
+        "tile_29": {
+          "delta_event_ms": -0.09412956237792969,
+          "rounds_faster": 15,
+          "balanced_cycle_medians_event_ms": [
+            0.1741943359375,
+            -1.0714225769042969,
+            2.492145538330078,
+            -0.4320487976074219,
+            -0.9093780517578125,
+            -0.6922550201416016
+          ]
+        },
+        "tile_24": {
+          "delta_event_ms": -0.6200962066650391,
+          "rounds_faster": 21,
+          "balanced_cycle_medians_event_ms": [
+            -0.30687904357910156,
+            -1.2138252258300781,
+            1.3959693908691406,
+            -0.2800178527832031,
+            -0.5640487670898438,
+            -1.2589607238769531
+          ]
+        }
+      }
+    },
+    "graph": {
+      "median_ms": {
+        "control": {
+          "cuda_event_ms": 48.13239860534668,
+          "wall_ms": 48.1512955,
+          "host_enqueue_ms": 0.0241375,
+          "host_wait_ms": 48.123927
+        },
+        "tile_495": {
+          "cuda_event_ms": 47.43401527404785,
+          "wall_ms": 47.452413,
+          "host_enqueue_ms": 0.0236385,
+          "host_wait_ms": 47.423963
+        },
+        "tile_29": {
+          "cuda_event_ms": 48.27043342590332,
+          "wall_ms": 48.2909545,
+          "host_enqueue_ms": 0.023226499999999997,
+          "host_wait_ms": 48.2617325
+        },
+        "tile_24": {
+          "cuda_event_ms": 47.19647979736328,
+          "wall_ms": 47.2158315,
+          "host_enqueue_ms": 0.023383,
+          "host_wait_ms": 47.1875835
+        },
+        "repeat": {
+          "cuda_event_ms": 47.9671688079834,
+          "wall_ms": 47.98544750000001,
+          "host_enqueue_ms": 0.023753,
+          "host_wait_ms": 47.9577775
+        }
+      },
+      "median_absolute_control_pair_event_delta_ms": 0.6669769287109375,
+      "paired": {
+        "tile_495": {
+          "delta_event_ms": -0.5045280456542969,
+          "rounds_faster": 19,
+          "balanced_cycle_medians_event_ms": [
+            -1.0707206726074219,
+            0.8167839050292969,
+            -0.04574394226074219,
+            -0.8927345275878906,
+            -1.0552940368652344,
+            0.6159687042236328
+          ]
+        },
+        "tile_29": {
+          "delta_event_ms": 0.14447307586669922,
+          "rounds_faster": 15,
+          "balanced_cycle_medians_event_ms": [
+            0.6556816101074219,
+            1.6802253723144531,
+            -0.06281852722167969,
+            -1.3422393798828125,
+            -0.32364654541015625,
+            0.5485153198242188
+          ]
+        },
+        "tile_24": {
+          "delta_event_ms": -0.7235298156738281,
+          "rounds_faster": 20,
+          "balanced_cycle_medians_event_ms": [
+            0.03635406494140625,
+            -0.2899513244628906,
+            -1.3643531799316406,
+            -0.8509616851806641,
+            -0.6365776062011719,
+            -1.120574951171875
+          ]
+        }
+      }
+    },
+    "memory": {
+      "control": {
+        "starting_allocated_bytes": 7623147520,
+        "starting_reserved_bytes": 7623147520,
+        "peak_allocated_bytes": 7690256384,
+        "peak_reserved_bytes": 7690256384,
+        "allocation_retries": 0,
+        "ooms": 0
+      },
+      "tile_495": {
+        "starting_allocated_bytes": 7623147520,
+        "starting_reserved_bytes": 7623147520,
+        "peak_allocated_bytes": 7690256384,
+        "peak_reserved_bytes": 7690256384,
+        "allocation_retries": 0,
+        "ooms": 0
+      },
+      "tile_29": {
+        "starting_allocated_bytes": 7623147520,
+        "starting_reserved_bytes": 7623147520,
+        "peak_allocated_bytes": 7690256384,
+        "peak_reserved_bytes": 7690256384,
+        "allocation_retries": 0,
+        "ooms": 0
+      },
+      "tile_24": {
+        "starting_allocated_bytes": 7623147520,
+        "starting_reserved_bytes": 7623147520,
+        "peak_allocated_bytes": 7690256384,
+        "peak_reserved_bytes": 7690256384,
+        "allocation_retries": 0,
+        "ooms": 0
+      }
+    },
+    "trace": {
+      "control": {
+        "median": {
+          "host_submit_us": 137.66,
+          "host_wait_us": 47035.772,
+          "device_span_us": 47112.90283203125,
+          "kernel_us": 47094.471,
+          "copy_memset_us": 3.168,
+          "device_inter_event_gap_us": 18.37014062500169
+        },
+        "events": [
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "merge_head_dw",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              128256,
+              1,
+              1
+            ],
+            "block": [
+              128,
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "repeat": {
+        "median": {
+          "host_submit_us": 115.888,
+          "host_wait_us": 48384.779,
+          "device_span_us": 48465.33984375,
+          "kernel_us": 48446.395000000004,
+          "copy_memset_us": 3.232,
+          "device_inter_event_gap_us": 15.712843749995926
+        },
+        "events": [
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "merge_head_dw",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              128256,
+              1,
+              1
+            ],
+            "block": [
+              128,
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "tile_495": {
+        "median": {
+          "host_submit_us": 124.609,
+          "host_wait_us": 47326.106,
+          "device_span_us": 47507.8125,
+          "kernel_us": 47485.252,
+          "copy_memset_us": 3.04,
+          "device_inter_event_gap_us": 15.68098828124581
+        },
+        "events": [
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x96_64x4_1x2_h_bz_coopA_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x96_64x4_1x2_h_bz_coopA_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "merge_head_dw",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              128256,
+              1,
+              1
+            ],
+            "block": [
+              128,
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "tile_29": {
+        "median": {
+          "host_submit_us": 131.754,
+          "host_wait_us": 47648.689,
+          "device_span_us": 47744.8984375,
+          "kernel_us": 47724.61,
+          "copy_memset_us": 3.136,
+          "device_inter_event_gap_us": 17.15243749999942
+        },
+        "events": [
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_128x160_64x5_2x1_v_bz_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_128x160_64x5_2x1_v_bz_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "merge_head_dw",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              128256,
+              1,
+              1
+            ],
+            "block": [
+              128,
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "tile_24": {
+        "median": {
+          "host_submit_us": 134.357,
+          "host_wait_us": 47934.465,
+          "device_span_us": 48021.11962890625,
+          "kernel_us": 48001.984,
+          "copy_memset_us": 3.232,
+          "device_inter_event_gap_us": 16.063921874996566
+        },
+        "events": [
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NNT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "Memset (Device)",
+            "kind": "gpu_memset",
+            "stream": 7,
+            "grid": null,
+            "block": null
+          },
+          {
+            "name": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_NTT",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              2,
+              66,
+              1
+            ],
+            "block": [
+              384,
+              1,
+              1
+            ]
+          },
+          {
+            "name": "merge_head_dw",
+            "kind": "kernel",
+            "stream": 7,
+            "grid": [
+              128256,
+              1,
+              1
+            ],
+            "block": [
+              128,
+              1,
+              1
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "evidence": [
+    {
+      "path": "runs/fusion-followup/artifacts/raw/head-lt-001",
+      "sha256": {
+        "result.json": "22c2218db4ba9fd346ed310f1118a8b56338566e8a738dbec7fc71c7ffee11c6",
+        "profile.trace.json": "48337feb18cfde5f0177b893ea4933820cae827f46204ea14ab9cdb26e22ee3c",
+        "head_lt.so": "66d51af36213361dcc237b4c6dde1c993cf5580b43ac81a71a49faf0ac5b0ea2"
+      }
+    },
+    {
+      "path": "runs/fusion-followup/artifacts/raw/head-lt-confirm-001",
+      "sha256": {
+        "result.json": "6fd9013d1b157d301ec29d4d9467d7cdad27e4abbc272d230cc527406d60d248",
+        "profile.trace.json": "59c70203d73fbb96ce1c4e41b4f52f6ebb66effccac22c27c03cfb75cccce67b",
+        "head_lt.so": "66d51af36213361dcc237b4c6dde1c993cf5580b43ac81a71a49faf0ac5b0ea2"
+      }
+    }
+  ]
+}

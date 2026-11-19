@@ -351,7 +351,7 @@ def install_fp8_rank_measurement(baseline, *, capture_inputs=None, requested_fix
 
 
 def main() -> int:
-    for flag in (FOLDED_CE_ENV, *FUSION_PACK.values(), *FOLLOWUP_KERNELS.values(), "GIFT_GDN_FUSE_SHORT_CONV_BWD_FP8"):
+    for flag in (FOLDED_CE_ENV, *FUSION_PACK.values(), *FOLLOWUP_KERNELS.values()):
         os.environ.pop(flag, None)
     if sys.argv[1:2] != ["rank"]:
         os.environ.pop(DIRECT_DW_BUILD_ENV, None)
