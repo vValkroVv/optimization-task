@@ -310,6 +310,9 @@ def install_fp8_rank_measurement(baseline, *, capture_inputs=None, requested_fix
                 def measured_bootstrap(**kwargs):
                     receipt = write_bootstrap(**kwargs)
                     load(ROOT / "runs/fusion-pack/activation.py", "_fusion_pack_activation").install(requested_fixes)
+                    for arm, module in (("swiglu-row16", "swiglu"), ("cute-replay-stats", "cute")):
+                        if os.environ.get(FOLLOWUP_KERNELS[arm]) == "1":
+                            load(ROOT / f"runs/fusion-followup/{module}_activation.py", f"_proof_{module}").install()
                     return receipt
 
                 flash._write_bootstrap_receipt = measured_bootstrap

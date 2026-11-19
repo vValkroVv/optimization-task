@@ -29,6 +29,7 @@ for arm in baseline "$@"; do
     if [[ $arm != baseline ]]; then
         for rank in {0..7}; do
             grep -Fq "[default$rank]:kernel_fusion followup_kernel=$arm" "$raw/logs/launcher.log"
+            grep -Fq "fusion_followup executed=$arm rank=$rank " "$raw/logs/launcher.log"
         done
     fi
     echo "Completed $run at $(date -u +%FT%TZ)"

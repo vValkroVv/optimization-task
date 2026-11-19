@@ -392,3 +392,24 @@ def test_explicit_fusion_arm_keeps_one_shot_proof_request(monkeypatch):
     assert os.getenv(runner.FUSION_PACK["hidden-z-loss"]) == "1"
     install_proof.assert_called_once()
     assert install_proof.call_args.kwargs["requested_fixes"] == ("hidden-z-loss",)
+
+
+@pytest.mark.parametrize("arm", [None, "swiglu-row16", "cute-replay-stats"])
+def test_followup_rank_clears_inherited_selectors(monkeypatch, arm):
+    spec = spec_from_file_location("_followup_rank", RUNNER)
+    runner = module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    for flag in (*runner.variant_switches("production"), *runner.FOLLOWUP_KERNELS.values()):
+        monkeypatch.setenv(flag, "1")
+    monkeypatch.delenv(runner.DIRECT_DW_BUILD_ENV, raising=False)
+    options = [f"--fusion-fix={fix}" for fix in runner.FUSION_PACK]
+    if arm is not None:
+        options.append(f"--followup-kernel={arm}")
+    monkeypatch.setattr(sys, "argv", [str(RUNNER), "rank", "production", *options, "config"])
+    child = Mock()
+    monkeypatch.setattr(runner, "load", lambda *args: SimpleNamespace(run_rank=child))
+    assert runner.main() == 0
+    child.assert_called_once_with(["true", "config"])
+    assert all(os.getenv(flag) == "1" for flag in runner.FUSION_PACK.values())
+    selected = {name for name, flag in runner.FOLLOWUP_KERNELS.items() if os.getenv(flag)}
+    assert selected == ({arm} if arm is not None else set())
