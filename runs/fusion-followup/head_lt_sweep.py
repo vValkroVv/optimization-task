@@ -1,4 +1,4 @@
-"""Sweep workspace-free cuBLASLt variants for the staged LM-head backward."""
+"""Sweep cuBLASLt variants for the staged LM-head backward without extra allocations."""
 
 import argparse
 import ctypes as ct
@@ -40,8 +40,10 @@ STAGED_SOURCE = "gift/torchtitan/distributed/gfsdp/_staged_head_dw.py"
 
 
 def load_library(output):
-    wheel = Path(torch.__file__).resolve().parent.parent / "nvidia/cu13"
+    torch_wheel = Path(torch.__file__).resolve().parent
+    wheel = torch_wheel.parent / "nvidia/cu13"
     cublas = wheel / "lib/libcublasLt.so.13"
+    torch_cuda = torch_wheel / "lib/libtorch_cuda.so"
     source = Path(__file__).with_name("head_lt.cpp")
     build = output / "head_lt.so"
     subprocess.run(
@@ -57,7 +59,9 @@ def load_library(output):
             "-I/usr/local/cuda/include",
             str(source),
             str(cublas),
+            str(torch_cuda),
             f"-Wl,-rpath,{cublas.parent}",
+            f"-Wl,-rpath,{torch_cuda.parent}",
             "-o",
             str(build),
         ],
@@ -66,10 +70,16 @@ def load_library(output):
     library = ct.CDLL(str(build))
     signatures = {
         "version": (ct.c_size_t, []),
-        "create": (ct.c_void_p, [ct.c_int64] * 6 + [ct.c_int, ct.c_uint32, ct.c_int]),
+        "inherited_workspace_size": (ct.c_size_t, []),
+        "inherited_workspace": (ct.c_void_p, []),
+        "create": (
+            ct.c_void_p,
+            [ct.c_int64] * 6 + [ct.c_int, ct.c_uint32, ct.c_int, ct.c_size_t],
+        ),
         "destroy": (None, [ct.c_void_p]),
         "counts": (None, [ct.c_void_p, ct.POINTER(ct.c_int)]),
         "info": (ct.c_float, [ct.c_void_p, ct.c_int, ct.POINTER(ct.c_int)]),
+        "workspace_size": (ct.c_size_t, [ct.c_void_p, ct.c_int]),
         "run": (ct.c_int, [ct.c_void_p, ct.c_int] + [ct.c_void_p] * 4),
     }
     for name, (result, arguments) in signatures.items():
@@ -80,7 +90,7 @@ def load_library(output):
 
 
 class Gemm:
-    def __init__(self, library, name, inputs, outputs, expected, trans_b):
+    def __init__(self, library, name, inputs, outputs, expected, trans_b, workspace):
         self.library = library
         self.name = name
         self.inputs = inputs
@@ -104,14 +114,16 @@ class Gemm:
         self.alignment = min(
             self.alignment, *((t.data_ptr() & -t.data_ptr()) for t in outputs), 256
         )
-        self.handle = library.head_lt_create(*self.problem, trans_b, self.alignment, 96)
+        self.handle = library.head_lt_create(
+            *self.problem, trans_b, self.alignment, 96, workspace
+        )
         if not self.handle:
             raise RuntimeError(f"Could not initialize {name} cuBLASLt plan")
         counts = (ct.c_int * 3)()
         library.head_lt_counts(self.handle, counts)
         self.counts = dict(
             zip(
-                ("exposed_ids", "validated_configs", "zero_workspace_configs"),
+                ("exposed_ids", "validated_configs", "workspace_bounded_configs"),
                 counts,
                 strict=True,
             )
@@ -125,8 +137,12 @@ class Gemm:
                     "index": i,
                     **dict(zip(CONFIG_FIELDS, config, strict=True)),
                     "waves": waves,
+                    "workspace_bytes": library.head_lt_workspace_size(self.handle, i),
                 }
             )
+        self.counts["zero_workspace_configs"] = sum(
+            row["workspace_bytes"] == 0 for row in self.candidates
+        )
 
     def close(self):
         if self.handle is not None:
@@ -182,6 +198,7 @@ def sample_gpu(call, start, end):
 
 
 def sweep(gemm, repetitions):
+    print(f"{gemm.name}: starting {gemm.describe()}", flush=True)
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     for chunk in range(2):
@@ -191,6 +208,11 @@ def sweep(gemm, repetitions):
     controls, rows = [], []
     for candidate in gemm.candidates:
         i = candidate["index"]
+        if i and i % 64 == 0:
+            print(
+                f"{gemm.name}: completed {i}/{len(gemm.candidates)} configurations",
+                flush=True,
+            )
         if i % 8 == 0:
             controls.append(
                 [
@@ -365,6 +387,26 @@ def fixture_weight(path):
     return raw["ce"]["weight"].cuda()
 
 
+def borrow_existing_workspace(library):
+    if os.environ.get("TORCH_CUBLASLT_UNIFIED_WORKSPACE") not in (None, "1"):
+        raise RuntimeError("The candidate requires the native unified cuBLAS workspace")
+    workspace_bytes = library.head_lt_inherited_workspace_size()
+    if not workspace_bytes:
+        return 0
+    allocated = torch.cuda.memory_allocated()
+    reserved = torch.cuda.memory_reserved()
+    first = library.head_lt_inherited_workspace()
+    second = library.head_lt_inherited_workspace()
+    if (
+        not first
+        or first != second
+        or torch.cuda.memory_allocated() != allocated
+        or torch.cuda.memory_reserved() != reserved
+    ):
+        raise RuntimeError("ATen did not return an existing cuBLAS workspace")
+    return workspace_bytes
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", required=True, type=Path)
@@ -397,20 +439,25 @@ def main():
     torch.backends.cuda.matmul.allow_tf32 = False
     os.environ[FLAG] = "1"
     library, cublas = load_library(args.output)
+    print(f"Replay fixture {args.fixture.resolve()}", flush=True)
     operands, native_dw, capture = capture_operands(args.fixture)
     weight = fixture_weight(args.fixture)
     component = Component(operands)
     numerical = component.check_numerics(native_dw)
     if not numerical["passed"]:
         raise RuntimeError(f"Staged production reference mismatch: {numerical}")
+    workspace = borrow_existing_workspace(library)
+    print(f"Verified existing ATen workspace {workspace} bytes", flush=True)
 
     dx_inputs = tuple((dy.t(), weight) for dy, _ in operands)
     native_dx = tuple(torch.mm(*inputs) for inputs in dx_inputs)
     dx_outputs = tuple(torch.empty_like(out) for out in native_dx)
     # The contiguous dW pitch is diagnostic. The pitched run writes both
     # disjoint production offsets directly into the shared FP32 output slot.
-    dx = Gemm(library, "dx", dx_inputs, dx_outputs, native_dx, False)
-    dw = Gemm(library, "dw_pitched", operands, component.halves, native_dw, True)
+    dx = Gemm(library, "dx", dx_inputs, dx_outputs, native_dx, False, workspace)
+    dw = Gemm(
+        library, "dw_pitched", operands, component.halves, native_dw, True, workspace
+    )
     contiguous = Gemm(
         library,
         "dw_contiguous",
@@ -418,6 +465,7 @@ def main():
         tuple(torch.empty_like(out) for out in native_dw),
         native_dw,
         True,
+        workspace,
     )
     report = {
         "source_revision": subprocess.check_output(
@@ -449,7 +497,8 @@ def main():
                 "DISABLE_ADDMM_CUDA_LT",
             )
         },
-        "candidate_workspace_bytes": 0,
+        "shared_workspace_limit_bytes": workspace,
+        "new_workspace_allocation_bytes": 0,
         "screen_repetitions": args.screen_repetitions,
         "paired_repetitions": args.paired_repetitions,
         "roles": {},
@@ -465,6 +514,8 @@ def main():
             report["roles"][gemm.name] = role
             report_path.write_text(json.dumps(report, indent=2) + "\n")
 
+        for gemm in (dx, dw, contiguous):
+            gemm.expected = None
         del contiguous.outputs, native_dx, native_dw
         eligible = {}
         calls = {"baseline": lambda: production_pair(component, dx, dw)}
