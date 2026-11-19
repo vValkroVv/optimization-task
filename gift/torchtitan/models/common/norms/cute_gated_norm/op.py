@@ -84,14 +84,25 @@ def _forward(
 
 
 def _run_forward(
-    x, weight, gate_up_weight, gate_down_weight, eps, gating_weight, residual=None
+    x,
+    weight,
+    gate_up_weight,
+    gate_down_weight,
+    eps,
+    gating_weight,
+    residual=None,
+    *,
+    stats_only=False,
 ):
     _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
     _check_device(x)
     if x.numel() == 0:
-        y, rho, p, *_ = _forward_fake(
-            x, weight, gate_up_weight, gate_down_weight, eps, gating_weight
+        y = (
+            None
+            if stats_only
+            else torch.empty_like(x, memory_format=torch.contiguous_format)
         )
+        rho, p, *_ = _saved_forward_fake(x)
         # Even an empty row shard must return the replicated auxiliary weights.
         return (
             y,
@@ -114,6 +125,7 @@ def _run_forward(
             eps,
             gating_weight,
             residual=None if residual is None else _aligned(residual),
+            stats_only=stats_only,
         )
     # Preserve leading dimensions so DTensor can shard rows without flattening
     # a batch/sequence shard across the normalized hidden dimension.
@@ -123,9 +135,15 @@ def _run_forward(
 @_forward.register_fake
 def _forward_fake(x, weight, gate_up_weight, gate_down_weight, eps, gating_weight):
     _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
-    hidden = x.shape[-1]
     return (
         torch.empty_like(x, memory_format=torch.contiguous_format),
+        *_saved_forward_fake(x),
+    )
+
+
+def _saved_forward_fake(x):
+    hidden = x.shape[-1]
+    return (
         x.new_empty(x.shape[:-1], dtype=torch.float32),
         x.new_empty((*x.shape[:-1], 16), dtype=torch.float32),
         x.new_empty((hidden,), dtype=torch.float32),
@@ -180,6 +198,34 @@ def _forward_residual_fake(
     return _forward_fake(
         x, weight, gate_up_weight, gate_down_weight, eps, gating_weight
     )
+
+
+@torch.library.custom_op(
+    "torchtitan::cute_gated_norm_fwd_stats", mutates_args=(), device_types="cuda"
+)
+def _forward_stats(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    gate_up_weight: torch.Tensor,
+    gate_down_weight: torch.Tensor,
+    eps: float,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    return _run_forward(
+        x, weight, gate_up_weight, gate_down_weight, eps, 0.0, stats_only=True
+    )[1:]
+
+
+@_forward_stats.register_fake
+def _forward_stats_fake(x, weight, gate_up_weight, gate_down_weight, eps):
+    _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
+    return _saved_forward_fake(x)
 
 
 @torch.library.custom_op(
