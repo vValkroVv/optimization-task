@@ -200,35 +200,28 @@ def gdn_short_conv_backward_fp8_kernel(
     main_columns = segment * 128 + gl.arange(0, 128, layout=gl.SliceLayout(0, main))
     main_rows = local_chunk * 64 + gl.arange(0, 64, layout=gl.SliceLayout(1, main))
     main_offsets = (start + main_rows[:, None]) * QKV_DIM + main_columns[None, :]
-    dx = gl.full((64, 128), 0, gl.float32, taps)
-    for shift in gl.static_range(4):
-        tap_layout: gl.constexpr = main if shift == 0 else taps
-        local_rows = gl.arange(0, 64, layout=gl.SliceLayout(1, tap_layout))
-        columns = segment * 128 + gl.arange(
-            0, 128, layout=gl.SliceLayout(0, tap_layout)
-        )
-        rows = local_chunk * 64 + local_rows
-        offsets = (start + rows[:, None]) * QKV_DIM + columns[None, :]
-        x = gl.load(QKV + offsets, rows[:, None] < length, 0).to(gl.float32)
-        if shift == 0:
-            shifted = dy.slice(0, 64).load(main)
-        else:
-            indices = (local_rows + shift)[:, None] + gl.full(
-                (64, 128), 0, gl.int32, tap_layout
-            )
-            shifted = dy.gather(indices, axis=0)
+    weight_columns = segment * 128 + gl.arange(0, 128, layout=weights)
+    partial_ptr = PartialWeight + partial * (QKV_DIM * 4) + weight_columns * 4
+    unshifted = dy.slice(0, 64).load(main)
+    main_x = gl.load(QKV + main_offsets, main_rows[:, None] < length, 0)
+    dw = gl.sum(unshifted * main_x.to(gl.float32), axis=0)
+    gl.store(partial_ptr + 3, gl.convert_layout(dw, weights))
+    w3 = gl.load(Weight + main_columns * 4 + 3).to(gl.float32)
+    dx = gl.convert_layout(unshifted * w3[None, :] + 0.0, taps)
+
+    local_rows = gl.arange(0, 64, layout=gl.SliceLayout(1, taps))
+    tap_columns = segment * 128 + gl.arange(0, 128, layout=gl.SliceLayout(0, taps))
+    tap_rows = local_chunk * 64 + local_rows
+    tap_offsets = (start + tap_rows[:, None]) * QKV_DIM + tap_columns[None, :]
+    x = gl.load(QKV + tap_offsets, tap_rows[:, None] < length, 0).to(gl.float32)
+    for shift in gl.static_range(1, 4):
+        indices = (local_rows + shift)[:, None] + gl.full((64, 128), 0, gl.int32, taps)
+        shifted = dy.gather(indices, axis=0)
         tap = 3 - shift
-        w = gl.load(Weight + columns * 4 + tap).to(gl.float32)
-        dx += (
-            gl.convert_layout(shifted, taps)
-            * gl.convert_layout(
-                w,
-                gl.SliceLayout(0, taps),
-            )[None, :]
-        )
-        dw = gl.convert_layout(gl.sum(shifted * x, axis=0), weights)
-        weight_columns = segment * 128 + gl.arange(0, 128, layout=weights)
-        gl.store(PartialWeight + partial * (QKV_DIM * 4) + weight_columns * 4 + tap, dw)
+        w = gl.load(Weight + tap_columns * 4 + tap).to(gl.float32)
+        dx += shifted * w[None, :]
+        dw = gl.sum(shifted * x, axis=0)
+        gl.store(partial_ptr + tap, gl.convert_layout(dw, weights))
 
     dx = gl.convert_layout(dx.to(gl.bfloat16), main).to(gl.float32)
     scale = gl.maximum(gl.div_rn(gl.max(gl.abs(dx), axis=1), 448.0), 1e-30)
