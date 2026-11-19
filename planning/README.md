@@ -28,7 +28,8 @@ The standalone campaign completed one final 10+10 timing window per hypothesis
 against a fresh S + GPU capacity selector + five Hopper fusions control.
 Separate update-21 traces establish the mechanism for each hypothesis.
 The current production launcher enables all three flags on this same recipe.
-The combined native check remains open.
+The three-on native EP8/eFSDP1 control completed its 10+10 and update-21 trace.
+[Combined control results](../runs/backward-components/report.md)
 [Standalone results](../docs/status.md#expert-gfsdp-standalone-results)
 [Production launch](../docs/baseline.md#launch-the-selected-recipe)
 [Candidate designs](../docs/profile-my-ideas.md#fp8-all-gather-for-sharded-routed-expert-weights)

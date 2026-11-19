@@ -6,6 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from component_trace import signature, within
+
 
 def summarize(path):
     raw = path.read_bytes()
@@ -15,6 +17,7 @@ def summarize(path):
         for row in rows
         if row.get("cat") == "cpu_op" and "External id" in row.get("args", {})
     }
+    splits = [row for row in host.values() if row["name"] == "SplitBackward0"]
     streams = defaultdict(list)
     experts = defaultdict(list)
     for row in rows:
@@ -59,9 +62,20 @@ def summarize(path):
                 for i, row in enumerate(segment, left)
                 if i not in {left, right, *gemms}
             ]
+            cats = [
+                row
+                for row in overhead
+                if owner(row) == "aten::cat"
+                and "CatArrayBatchedCopy" in row["name"]
+                and any(
+                    within(host[row["args"]["External id"]], split) for split in splits
+                )
+            ]
             chunks.append(
                 {
                     "stream": stream,
+                    "gemms": [signature(entries[i]) for i in gemms],
+                    "ce": [signature(entries[i]) for i in (left, right)],
                     "ce_to_end_of_gemms_ms": (
                         segment[-1]["ts"] + segment[-1]["dur"] - segment[0]["ts"]
                     )
@@ -69,11 +83,8 @@ def summarize(path):
                     "ce_kernel_ms": sum(entries[i]["dur"] for i in (left, right))
                     / 1000,
                     "gemm_ms": sum(entries[i]["dur"] for i in gemms) / 1000,
-                    "cat_ms": sum(
-                        row["dur"] for row in overhead if owner(row) == "aten::cat"
-                    )
-                    / 1000,
-                    "cat_count": sum(owner(row) == "aten::cat" for row in overhead),
+                    "cat_ms": sum(row["dur"] for row in cats) / 1000,
+                    "cat_count": len(cats),
                     "intervening_kernels": [
                         {"owner": owner(row), "name": row["name"], "us": row["dur"]}
                         for row in overhead

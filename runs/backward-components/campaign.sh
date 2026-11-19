@@ -32,11 +32,11 @@ case "$kind" in
         export CUDACHERRY_DISABLE_JIT=1
         export TRITON_CACHE_DIR="$state/triton" TORCHINDUCTOR_CACHE_DIR="$state/inductor"
         mkdir "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
+        failed=0
         (
             cd gift
             "$python" -m pytest -q tests/unit_tests/test_mtp.py -k test_folded_ce_opt_in_preserves_cpu_fallback
-        ) > "$state/cpu-test.log" 2>&1 || echo "$?" > "$state/cpu-test-exit.txt"
-        failed=0
+        ) > "$state/cpu-test.log" 2>&1 || { echo "$?" > "$state/cpu-test-exit.txt"; failed=1; }
         for variant in base folded; do
             "$python" -Bu runs/backward-components/folded_ce.py --fixture "$fixture" \
                 --mode benchmark --variant "$variant" --trace --output "$state/ce-$variant.json" \

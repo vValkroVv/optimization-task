@@ -62,12 +62,25 @@ its observed scope. The table reports the standalone effects in this series.
 
 The default production launcher now enables the three flags together for this
 recipe and checks the same source fingerprint and fixed config. The combined
-native 10+10 and trace remain open. The FP8 multi-rank collective and expert
+native EP8/eFSDP1 10+10 reached 177,002 global tokens/s, with maximum-rank
+peaks of 62.577 GiB allocated and 64.314 GiB reserved. Its update-21 trace
+passed on ranks 0 and 1. The FP8 multi-rank collective and expert
 tail retention with eFSDP greater than one also remain open. Direct dW is
 currently constrained to EP8/eFSDP1.
 [Four-arm receipts](../runs/efsdp-optimizations/four-standalone-receipts.json)
 [Production launch](baseline.md#launch-the-selected-recipe)
 [Topology audit and refactor](../planning/README.md#follow-up-ep-and-gfsdp-topology-audit)
+
+### Folded CE and expert wgrad conversion
+
+On the current production recipe, the opt-in folded CE arm measured 178,274
+tokens/s against 177,002 for its same-revision control (+0.72%) in one matched
+10+10 pair. Peak allocated/reserved memory moved from 62.577/64.314 to
+61.654/63.338 GiB. The full-shape H100 replay matched losses, dLogits,
+dHidden and accumulated LM-head dW bitwise. The existing Triton conversion
+also matched all consumed FP8 operands and direct expert dW bits, but slowed
+the standalone w13 and w2 paths by 16.0% and 20.6%. Production keeps CudaCherry.
+[Backward component experiments](../runs/backward-components/report.md)
 
 ### Fixed-recipe control for expert GFSDP candidates
 
