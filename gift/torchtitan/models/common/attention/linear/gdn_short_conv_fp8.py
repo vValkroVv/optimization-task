@@ -156,7 +156,7 @@ def gdn_short_conv_backward_fp8_kernel(
     # taps do not require each thread to hold a whole column of live values.
     dy = gl.allocate_shared_memory(
         gl.float32,
-        (68, 128),
+        (128, 128),
         gl.SwizzledSharedLayout(1, 1, 4, [1, 0]),
     )
     if role < 2:

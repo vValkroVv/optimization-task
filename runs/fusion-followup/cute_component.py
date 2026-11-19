@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import torch
 from torch import nn
+import yaml
 
 from cute_liveness import digest, generated_calls
 
@@ -283,7 +284,13 @@ def run(args):
         path = args.output.resolve() / name
         path.mkdir()
         os.environ[env] = str(path)
-    torch.use_deterministic_algorithms(True)
+    resolved_bytes = args.resolved_config.read_bytes()
+    resolved = yaml.safe_load(resolved_bytes)
+    deterministic = resolved["debug"]["deterministic"]
+    torch.use_deterministic_algorithms(deterministic)
+    if deterministic:
+        # Match the trainer's deterministic setup without the allocator debug fills.
+        torch.utils.deterministic.fill_uninitialized_memory = False
     fixture = torch.load(args.fixture, map_location="cpu", weights_only=True, mmap=True)
     if fixture["torch_revision"] != torch.version.git_version:
         raise RuntimeError("Capture and replay use different PyTorch revisions")
@@ -291,6 +298,9 @@ def run(args):
     result = {
         "fixture": str(args.fixture),
         "fixture_sha256": digest(args.fixture.read_bytes()),
+        "resolved_config": str(args.resolved_config),
+        "resolved_config_sha256": digest(resolved_bytes),
+        "deterministic_algorithms": deterministic,
         "torch": str(torch.__version__),
         "torch_revision": torch.version.git_version,
         "cuda": torch.version.cuda,
@@ -332,6 +342,7 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, required=True)
+    parser.add_argument("--resolved-config", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=25)
     run(parser.parse_args())
