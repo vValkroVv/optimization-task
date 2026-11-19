@@ -44,7 +44,7 @@ def test_production_rank_cache_receipt(
     monkeypatch.setattr(runner, "load", lambda *args: baseline)
     monkeypatch.setattr(baseline, "load", lambda *args: bridge)
     if cache_state == "legacy":
-        monkeypatch.setattr(runner, "install_fp8_rank_measurement", lambda *_: None)
+        monkeypatch.setattr(runner, "install_fp8_rank_measurement", lambda *_, **__: None)
     stage_selections = []
     monkeypatch.setattr(
         bridge,

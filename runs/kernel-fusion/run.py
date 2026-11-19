@@ -46,6 +46,7 @@ GFSDP_CONTROLS = {
 }
 DIRECT_DW_BUILD_ENV = "GIFT_DIRECT_EXPERT_DW_BUILD"
 DIRECT_DW_NUM_SMS_ENV = "GIFT_DIRECT_EXPERT_DW_NUM_SMS"
+FOLDED_CE_ENV = "GIFT_STABLE_CE_FOLDED_BACKWARD"
 FP8_CACHE_FLAG = f"--{GFSDP_CONTROLS['fp8-expert-weights']}"
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
 FIXED_TRACE_CONTROL = "efsdp-control-ep8-002-trace"
@@ -176,9 +177,10 @@ def enforce_fixed_recipe(base, control: Path, controls: dict[str, bool], mode: s
             "fixed recipe fp8.sparse_deep_gemm_num_sms",
         )
         os.environ[DIRECT_DW_NUM_SMS_ENV] = str(num_sms)
-    if mode == "timing-140":
-        expected_overrides["--training.steps"] = "140"
-        expected["training"]["steps"] = 140
+    if mode in {"timing-140", "capture"}:
+        steps = 1 if mode == "capture" else 140
+        expected_overrides["--training.steps"] = str(steps)
+        expected["training"]["steps"] = steps
     for dotted, enabled in controls.items():
         section, field = dotted.split(".", 1)
         expected_overrides[f"--{dotted}"] = str(enabled).lower()
@@ -283,7 +285,7 @@ def install_fp8_cache_receipt(base) -> None:
     base.WindowMeasurement = FP8WindowMeasurement
 
 
-def install_fp8_rank_measurement(baseline) -> None:
+def install_fp8_rank_measurement(baseline, *, capture_inputs=False) -> None:
     load_bridge = baseline.load
 
     def load_schedule_measurement(path, name):
@@ -292,6 +294,21 @@ def install_fp8_rank_measurement(baseline) -> None:
 
         def patch_flash_measure(flash, *args):
             patch_flash(flash, *args)
+            if capture_inputs:
+                bootstrap = flash._write_bootstrap_receipt
+
+                def capture_bootstrap(**kwargs):
+                    receipt = bootstrap(**kwargs)
+                    capture = load(
+                        ROOT / "runs/backward-components/capture.py",
+                        "_backward_component_capture",
+                    )
+                    capture.install_capture(
+                        Path(kwargs["measurement"]).parent / "component-inputs"
+                    )
+                    return receipt
+
+                flash._write_bootstrap_receipt = capture_bootstrap
             load_base = flash._load_base_measure
 
             def load_base_measurement():
@@ -308,6 +325,7 @@ def install_fp8_rank_measurement(baseline) -> None:
 
 
 def main() -> int:
+    os.environ.pop(FOLDED_CE_ENV, None)
     if sys.argv[1:2] != ["rank"]:
         os.environ.pop(DIRECT_DW_BUILD_ENV, None)
         os.environ.pop(DIRECT_DW_NUM_SMS_ENV, None)
@@ -320,12 +338,20 @@ def main() -> int:
             raise RuntimeError(f"Expected {expected} but rank sees {actual}")
         print(f"kernel_fusion variant={variant} switches={sorted(actual)}", flush=True)
         rank_argv = sys.argv[3:]
+        backward_arm = "control"
+        if rank_argv and rank_argv[0].startswith("--backward-arm="):
+            backward_arm = rank_argv.pop(0).removeprefix("--backward-arm=")
+            if backward_arm not in {"capture", "folded-ce"} or variant != PRODUCTION:
+                raise ValueError(f"Invalid production backward arm: {backward_arm}")
+            if backward_arm == "folded-ce":
+                os.environ[FOLDED_CE_ENV] = "1"
+        print(f"kernel_fusion backward_arm={backward_arm}", flush=True)
         if (
             variant == PRODUCTION
             and FP8_CACHE_FLAG in rank_argv
             and training_overrides(rank_argv)[1].get(FP8_CACHE_FLAG) == "true"
         ):
-            install_fp8_rank_measurement(baseline)
+            install_fp8_rank_measurement(baseline, capture_inputs=backward_arm == "capture")
         if direct_dw_build := os.environ.get(DIRECT_DW_BUILD_ENV):
             num_sms = require_positive_int(
                 os.environ.get(DIRECT_DW_NUM_SMS_ENV), DIRECT_DW_NUM_SMS_ENV
@@ -339,7 +365,7 @@ def main() -> int:
     parser.add_argument(
         "variant", choices=("baseline", *SWITCHES, COMBINED, PRODUCTION)
     )
-    parser.add_argument("mode", choices=("timing", "timing-140", "trace"))
+    parser.add_argument("mode", choices=("timing", "timing-140", "trace", "capture"))
     parser.add_argument("run_id")
     parser.add_argument("--candidate-source", type=Path)
     parser.add_argument(
@@ -349,6 +375,7 @@ def main() -> int:
     parser.add_argument(
         "--gfsdp-optimization", choices=GFSDP_CONTROLS, action="append", default=[]
     )
+    parser.add_argument("--backward-optimization", choices=("folded-ce",))
     parser.add_argument(
         "--direct-dw-build",
         type=Path,
@@ -363,6 +390,11 @@ def main() -> int:
         parser.error("GFSDP optimizations require a committed --source-revision")
     canonical = args.variant == PRODUCTION and args.source_revision is None
     enabled_optimizations = set(GFSDP_CONTROLS if canonical else args.gfsdp_optimization)
+    if args.mode == "capture" or args.backward_optimization:
+        if args.source_revision is None or enabled_optimizations != set(GFSDP_CONTROLS):
+            parser.error("Backward experiments require an explicit revision and all three GFSDP flags")
+        if args.mode == "capture" and args.backward_optimization:
+            parser.error("Capture uses the production control")
     direct_dw_requested = "direct-expert-dw" in enabled_optimizations
     if direct_dw_requested and args.direct_dw_build is None:
         parser.error("--direct-dw-build is required for the direct-expert-dw arm")
@@ -393,6 +425,9 @@ def main() -> int:
     if args.mode == "timing-140":
         native_args = native._native_args
         native._native_args = lambda mode, run_id: timing_140(native_args(mode, run_id))
+    if args.mode == "capture":
+        native_args = native._native_args
+        native._native_args = lambda mode, run_id: native_args("capture", run_id)
     load_native = native._load
     baseline_sha256 = native.S_SOURCE_SHA256
     source = (
@@ -415,6 +450,9 @@ def main() -> int:
                 "rank",
                 args.variant,
             ]
+            backward_arm = "capture" if args.mode == "capture" else args.backward_optimization
+            if backward_arm:
+                command.insert(pos + 3, f"--backward-arm={backward_arm}")
             command.extend(("--compile.enable", "true"))
             for field, enabled in controls.items():
                 command.extend((f"--{field}", str(enabled).lower()))

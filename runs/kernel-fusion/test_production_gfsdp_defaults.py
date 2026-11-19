@@ -228,6 +228,21 @@ def test_canonical_production_rejects_unmeasured_gift_snapshot(cli):
     assert not cli.emitted
 
 
+@pytest.mark.parametrize(
+    ("mode", "option", "arm", "steps"),
+    [("capture", (), "capture", 1), ("timing", ("--backward-optimization", "folded-ce"), "folded-ce", 20)],
+)
+def test_backward_experiment_uses_complete_production_recipe(cli, mode, option, arm, steps):
+    flags = [value for key in cli.runner.GFSDP_CONTROLS for value in ("--gfsdp-optimization", key)]
+    assert cli.invoke("production", mode, "--source-revision", HEAD, *flags,
+                      "--direct-dw-build", str(cli.manifest.parent), *option) == 0
+    command = cli.emitted["command"]
+    assert f"--backward-arm={arm}" in command
+    _, overrides = cli.runner.training_overrides(command)
+    assert overrides["--training.steps"] == str(steps)
+    assert all(overrides[f"--{field}"] == "true" for field in FIELDS)
+
+
 def test_canonical_production_rejects_uncommitted_runner_or_gift_changes(cli):
     cli.git_output["status"] = " M runs/kernel-fusion/run.py\n"
 
