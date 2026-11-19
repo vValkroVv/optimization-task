@@ -37,7 +37,9 @@ def extract(run, fixes):
         and window["window"]["end_after_update"] == 20
     )
     assert window["tokens"]["physical_input_tokens_global"] == 20_971_520
-    assert info["profiler"] == "disabled" and info["detailed_monitoring"].startswith("disabled")
+    assert info["profiler"] == "disabled" and info["detailed_monitoring"].startswith(
+        "disabled"
+    )
     groups = window["memory"]["allocator_counter_deltas_by_rank"]
     assert len(groups) == 8 and all(
         all(v == 0 for v in row.values()) for row in groups.values()
@@ -54,6 +56,8 @@ def extract(run, fixes):
         assert prefix + "backward_arm=folded-ce" in log
         seen = set(re.findall(re.escape(prefix) + r"fix=([\w-]+)", log))
         assert seen == set(fixes), (rank, seen, fixes)
+        executed = set(re.findall(rf"fusion_pack executed=([\w-]+) rank={rank}\b", log))
+        assert executed == set(fixes), (rank, executed, fixes)
     step_stats = re.findall(
         r"\[default0\]:.*?step:\s*(\d+)\s+loss:\s*(\S+)\s+grad_norm:\s*(\S+)", log
     )

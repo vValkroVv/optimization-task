@@ -76,6 +76,7 @@ three changes.
 | Embeddings and GFSDP (S) | Split the MTP and layer-0 FFN groups, use row-owner input embeddings, and enable the S GFSDP scheduling repairs. Use S embedding settings, with the SE stages off. |
 | GPU capacity selector | Set `branchless_capacity_drop: true` under `model.config.blocks.<block>.moe.experts.token_dispatcher.token_drop` for `gdn_moe` and `mla_moe`. Keep fixed capacity 50,000, group-capacity dropping, and the original 128-counter all-reduce. |
 | Hopper fusions | Enable GDN output norm → FP8, MLA RoPE + Q/K packing, CuTe norm + residual add, GDN short-conv backward, and the Dense FP8 weight tail. |
+| Folded CE backward | Each main/MTP loss writes its gradient into the folded BF16 logits gradient for its head. The chunk schedule, FP32 CE arithmetic, two backward GEMMs and FP32 weight-gradient accumulation are retained. |
 | Expert GFSDP production flags | Enable the FP8 expert-weight cache, rounded direct dW into the existing FP32 buffer, and tail weight retention. The FP8 cache replaces the previous BF16 cache for eligible expert groups. |
 | Measurement | Logical epoch size 102,400, LR horizon 65,000 updates, and LR warmup 2,000 updates. The final comparison measured optimizer updates 41–140 after 40 warmup updates. Initial follow-up comparisons can use 10+10. |
 

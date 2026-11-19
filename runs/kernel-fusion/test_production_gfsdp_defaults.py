@@ -31,9 +31,7 @@ def cli(monkeypatch, tmp_path):
     native_path = Path("runs/capacity-selector/native.py")
     native = load(root / native_path, "_production_gfsdp_test_native")
     native_load = native._load
-    measured = json.loads(
-        (root / "runs/efsdp-optimizations/direct-dw-receipts.json").read_text()
-    )["timing"]["candidate"]["gift_snapshot_sha256"]
+    measured = runner.PRODUCTION_FOLDED_SOURCE_SHA256
     snapshot = {
         "head": HEAD,
         "untracked_file_count": 0,
@@ -218,7 +216,7 @@ def test_canonical_production_rejects_unmeasured_gift_snapshot(cli):
     cli.snapshot["tracked_and_untracked_sha256"] = "b" * 64
 
     with pytest.raises(
-        RuntimeError, match="GIFT source differs from the measured GFSDP source"
+        RuntimeError, match="GIFT source differs from the selected folded CE source"
     ):
         cli.invoke(
             "production", "timing", "--direct-dw-build", str(cli.manifest.parent)

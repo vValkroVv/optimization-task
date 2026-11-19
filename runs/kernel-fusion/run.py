@@ -18,13 +18,8 @@ PRODUCTION_REVISION = "1f02311a52ef979a84e164836583e73c1c5e6767"
 PRODUCTION_SOURCE_SHA256 = (
     "44176fbe151220d6f1d511104e71ad43d6f520773076cedd2fb1ddf9fbf92850"
 )
-PRODUCTION_GFSDP_SOURCE_SHA256 = (
-    "a23ffa3ae00c204a881902afdb16c80d3eeaab0453b73a08ab1378a2786465cf"
-)
-# Source used to verify folded CE before its production selection.
-BACKWARD_EXPERIMENT_SOURCE_SHA256 = (
-    "3534324cba0ec666754da79fdf1ee124f1a55ef68af7fefd14bff9b9e1e27194"
-)
+# Fixed recipe, folded CE, and gated fusion implementations verified on SR008.
+PRODUCTION_FOLDED_SOURCE_SHA256 = "af6e567ca9cf990476ada92e24ab014eabe9d4726864ea6d8a07b6849b0eb9cd"
 SWITCHES = {
     "mla-rope": "GIFT_MLA_FUSED_ROPE",
     "dense-pad": "GIFT_FP8_QUANTIZE_WEIGHT_TAIL",
@@ -295,7 +290,7 @@ def install_fp8_cache_receipt(base) -> None:
     base.WindowMeasurement = FP8WindowMeasurement
 
 
-def install_fp8_rank_measurement(baseline, *, capture_inputs=None) -> None:
+def install_fp8_rank_measurement(baseline, *, capture_inputs=None, requested_fixes=()) -> None:
     load_bridge = baseline.load
 
     def load_schedule_measurement(path, name):
@@ -304,6 +299,15 @@ def install_fp8_rank_measurement(baseline, *, capture_inputs=None) -> None:
 
         def patch_flash_measure(flash, *args):
             patch_flash(flash, *args)
+            if requested_fixes:
+                write_bootstrap = flash._write_bootstrap_receipt
+
+                def measured_bootstrap(**kwargs):
+                    receipt = write_bootstrap(**kwargs)
+                    load(ROOT / "runs/fusion-pack/activation.py", "_fusion_pack_activation").install(requested_fixes)
+                    return receipt
+
+                flash._write_bootstrap_receipt = measured_bootstrap
             if capture_inputs:
                 bootstrap = flash._write_bootstrap_receipt
 
@@ -368,7 +372,11 @@ def main() -> int:
             and FP8_CACHE_FLAG in rank_argv
             and training_overrides(rank_argv)[1].get(FP8_CACHE_FLAG) == "true"
         ):
-            install_fp8_rank_measurement(baseline, capture_inputs=backward_arm if backward_arm in {"capture", "scan-capture"} else None)
+            install_fp8_rank_measurement(
+                baseline,
+                capture_inputs=backward_arm if backward_arm in {"capture", "scan-capture"} else None,
+                requested_fixes=tuple(key for key, env in FUSION_PACK.items() if os.environ.get(env) == "1"),
+            )
         if direct_dw_build := os.environ.get(DIRECT_DW_BUILD_ENV):
             num_sms = require_positive_int(
                 os.environ.get(DIRECT_DW_NUM_SMS_ENV), DIRECT_DW_NUM_SMS_ENV
@@ -509,13 +517,10 @@ def main() -> int:
                             "Follow-up GIFT source changed during preflight"
                         )
                     source_digest = snapshot["tracked_and_untracked_sha256"]
-                    if canonical and source_digest not in {
-                        PRODUCTION_GFSDP_SOURCE_SHA256,
-                        BACKWARD_EXPERIMENT_SOURCE_SHA256,
-                    }:
+                    if canonical and source_digest != PRODUCTION_FOLDED_SOURCE_SHA256:
                         raise RuntimeError(
-                            "GIFT source differs from the measured GFSDP source: "
-                            f"{source_digest} != {PRODUCTION_GFSDP_SOURCE_SHA256}"
+                            "GIFT source differs from the selected folded CE source: "
+                            f"{source_digest} != {PRODUCTION_FOLDED_SOURCE_SHA256}"
                         )
                     native.S_SOURCE_SHA256 = source_digest
                     control = native.RAW_ROOT / (
