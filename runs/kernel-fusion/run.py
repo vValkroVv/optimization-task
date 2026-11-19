@@ -43,6 +43,7 @@ GFSDP_CONTROLS = {
 }
 DIRECT_DW_BUILD_ENV = "GIFT_DIRECT_EXPERT_DW_BUILD"
 DIRECT_DW_NUM_SMS_ENV = "GIFT_DIRECT_EXPERT_DW_NUM_SMS"
+FP8_CACHE_FLAG = f"--{GFSDP_CONTROLS['fp8-expert-weights']}"
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
 FIXED_TRACE_CONTROL = "efsdp-control-ep8-002-trace"
 
@@ -222,6 +223,86 @@ def configure_direct_dw_rank(build: str, num_sms: int) -> None:
     configure_direct_expert_dw(native.k_grouped_fp8_gemm_nt_contiguous_rounded_f32)
 
 
+def capture_fp8_cache(measurement, update: int) -> dict:
+    from torchtitan.distributed.gfsdp.fully_shard import _iter_fsdp_param_groups
+
+    if measurement.trainer.config.parallelism.gfsdp_fp8_expert_weights is not True:
+        raise RuntimeError("Native trainer did not enable the GFSDP FP8 expert cache")
+    groups = []
+    for part_index, part in enumerate(measurement.trainer.model_parts):
+        for group in _iter_fsdp_param_groups(part, recurse=True):
+            if not group._fp8_cache_requested:
+                continue
+            cache = group._fp8_cache
+            if cache is None:
+                raise RuntimeError(f"Requested FP8 expert cache is inactive for {group}")
+            # A final optimizer write can leave the last prepared generation stale.
+            if (
+                cache.generation <= 0
+                or not 0 <= cache.prepared_generation <= cache.generation
+                or cache.ready_event is None
+                or cache.writer_event is None
+            ):
+                raise RuntimeError(
+                    f"FP8 expert cache has no prepared and updated state for {group}"
+                )
+            groups.append(
+                {
+                    "model_part": part_index,
+                    "fqn": group._module_fqn,
+                    "generation": cache.generation,
+                    "prepared_generation": cache.prepared_generation,
+                }
+            )
+    if not groups:
+        raise RuntimeError("FP8 expert cache was not requested by any GFSDP parameter group")
+    return {"update": update, "groups": groups}
+
+
+def install_fp8_cache_receipt(base) -> None:
+    class FP8WindowMeasurement(base.WindowMeasurement):
+        def capture_after_train(self) -> None:
+            self._training_boundary_receipts["after_train_fp8_expert_cache"] = (
+                capture_fp8_cache(self, int(self.trainer.step))
+            )
+            super().capture_after_train()
+
+        def _capture_bf16_cache_stats(self, *, update, boundary, require_active):
+            # The FP8 candidate replaces BF16 for routed experts. Keep the true
+            # BF16 metadata, with activation validated above against the FP8 cache.
+            super()._capture_bf16_cache_stats(
+                update=update,
+                boundary=boundary,
+                require_active=require_active and boundary != "after_train",
+            )
+
+    base.WindowMeasurement = FP8WindowMeasurement
+
+
+def install_fp8_rank_measurement(baseline) -> None:
+    load_bridge = baseline.load
+
+    def load_schedule_measurement(path, name):
+        bridge = load_bridge(path, name)
+        patch_flash = bridge._patch_flash_measure
+
+        def patch_flash_measure(flash, *args):
+            patch_flash(flash, *args)
+            load_base = flash._load_base_measure
+
+            def load_base_measurement():
+                base = load_base()
+                install_fp8_cache_receipt(base)
+                return base
+
+            flash._load_base_measure = load_base_measurement
+
+        bridge._patch_flash_measure = patch_flash_measure
+        return bridge
+
+    baseline.load = load_schedule_measurement
+
+
 def main() -> int:
     if sys.argv[1:2] != ["rank"]:
         os.environ.pop(DIRECT_DW_BUILD_ENV, None)
@@ -234,13 +315,20 @@ def main() -> int:
         if actual != expected:
             raise RuntimeError(f"Expected {expected} but rank sees {actual}")
         print(f"kernel_fusion variant={variant} switches={sorted(actual)}", flush=True)
+        rank_argv = sys.argv[3:]
+        if (
+            variant == PRODUCTION
+            and FP8_CACHE_FLAG in rank_argv
+            and training_overrides(rank_argv)[1].get(FP8_CACHE_FLAG) == "true"
+        ):
+            install_fp8_rank_measurement(baseline)
         if direct_dw_build := os.environ.get(DIRECT_DW_BUILD_ENV):
             num_sms = require_positive_int(
                 os.environ.get(DIRECT_DW_NUM_SMS_ENV), DIRECT_DW_NUM_SMS_ENV
             )
             print(f"kernel_fusion direct_dw_num_sms={num_sms}", flush=True)
             configure_direct_dw_rank(direct_dw_build, num_sms)
-        baseline.run_rank(["true", *sys.argv[3:]])
+        baseline.run_rank(["true", *rank_argv])
         return 0
 
     parser = argparse.ArgumentParser(description=__doc__)
