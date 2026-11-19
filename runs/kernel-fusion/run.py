@@ -42,6 +42,7 @@ GFSDP_CONTROLS = {
     "direct-expert-dw": "parallelism.gfsdp_direct_expert_dw",
 }
 DIRECT_DW_BUILD_ENV = "GIFT_DIRECT_EXPERT_DW_BUILD"
+DIRECT_DW_NUM_SMS_ENV = "GIFT_DIRECT_EXPERT_DW_NUM_SMS"
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
 FIXED_TRACE_CONTROL = "efsdp-control-ep8-002-trace"
 
@@ -125,6 +126,18 @@ def training_overrides(command: list[str]) -> tuple[Path, dict[str, str]]:
     return Path(config), overrides
 
 
+def require_positive_int(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise RuntimeError(f"{name} must be a positive integer")
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be a positive integer") from exc
+    if parsed <= 0:
+        raise RuntimeError(f"{name} must be a positive integer")
+    return parsed
+
+
 def enforce_fixed_recipe(base, control: Path, controls: dict[str, bool], mode: str):
     resolved_path = control / "native/config/resolved_config.yaml"
     completion = base._load_json(control / "completion.json")
@@ -151,6 +164,13 @@ def enforce_fixed_recipe(base, control: Path, controls: dict[str, bool], mode: s
     _, expected_overrides = training_overrides(source["argv"])
     expected = base._load_yaml(resolved_path)
     expected.pop("dump_folder")
+    os.environ.pop(DIRECT_DW_NUM_SMS_ENV, None)
+    if controls.get(GFSDP_CONTROLS["direct-expert-dw"]) is True:
+        num_sms = require_positive_int(
+            expected["fp8"]["sparse_deep_gemm_num_sms"],
+            "fixed recipe fp8.sparse_deep_gemm_num_sms",
+        )
+        os.environ[DIRECT_DW_NUM_SMS_ENV] = str(num_sms)
     if mode == "timing-140":
         expected_overrides["--training.steps"] = "140"
         expected["training"]["steps"] = 140
@@ -188,7 +208,7 @@ def enforce_fixed_recipe(base, control: Path, controls: dict[str, bool], mode: s
     base._verify_resolved_config = verify_config
 
 
-def configure_direct_dw_rank(build: str) -> None:
+def configure_direct_dw_rank(build: str, num_sms: int) -> None:
     import torch
 
     from torchtitan.ops.float8.direct_expert_dw import configure_direct_expert_dw
@@ -198,11 +218,14 @@ def configure_direct_dw_rank(build: str) -> None:
         "_direct_expert_dw_build",
     )
     torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
-    native = component.load_direct_dw(build)
+    native = component.load_direct_dw(build, num_sms=num_sms)
     configure_direct_expert_dw(native.k_grouped_fp8_gemm_nt_contiguous_rounded_f32)
 
 
 def main() -> int:
+    if sys.argv[1:2] != ["rank"]:
+        os.environ.pop(DIRECT_DW_BUILD_ENV, None)
+        os.environ.pop(DIRECT_DW_NUM_SMS_ENV, None)
     baseline = load(ROOT / "runs/compile-baseline/run.py", "_kernel_fusion_compile")
     if sys.argv[1:2] == ["rank"]:
         variant = sys.argv[2]
@@ -212,7 +235,11 @@ def main() -> int:
             raise RuntimeError(f"Expected {expected} but rank sees {actual}")
         print(f"kernel_fusion variant={variant} switches={sorted(actual)}", flush=True)
         if direct_dw_build := os.environ.get(DIRECT_DW_BUILD_ENV):
-            configure_direct_dw_rank(direct_dw_build)
+            num_sms = require_positive_int(
+                os.environ.get(DIRECT_DW_NUM_SMS_ENV), DIRECT_DW_NUM_SMS_ENV
+            )
+            print(f"kernel_fusion direct_dw_num_sms={num_sms}", flush=True)
+            configure_direct_dw_rank(direct_dw_build, num_sms)
         baseline.run_rank(["true", *sys.argv[3:]])
         return 0
 
@@ -240,7 +267,6 @@ def main() -> int:
     direct_dw_requested = "direct-expert-dw" in args.gfsdp_optimization
     if direct_dw_requested != (args.direct_dw_build is not None):
         parser.error("--direct-dw-build is required for the direct-expert-dw arm")
-    os.environ.pop(DIRECT_DW_BUILD_ENV, None)
     direct_dw_manifest = None
     if direct_dw_requested:
         build_root = args.direct_dw_build.resolve(strict=True)

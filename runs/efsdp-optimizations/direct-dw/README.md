@@ -21,8 +21,21 @@ can stage without Torch or CUDA by adding `--stage-only`.
 python direct_dw.py --donor "$direct_dw_donor" --build-root "$direct_dw_build"
 DG_CACHE_FORCE_SKIP=1 DG_JIT_CACHE_DIR="$direct_dw_legacy_jit_cache" \
   python verify_direct_dw.py --build-root "$direct_dw_build" \
-  --evidence-dir "$direct_dw_evidence" --samples 12
+  --evidence-dir "$direct_dw_evidence" --num-sms 116 --samples 12
 ```
+
+The value 116 comes from the resolved YAMLs of the passing fixed timing control
+(`runs/kernel-fusion/artifacts/raw/efsdp-control-ep8-001-timing/native/config/resolved_config.yaml`)
+and update-21 trace control
+(`runs/kernel-fusion/artifacts/raw/efsdp-control-ep8-002-trace/native/config/resolved_config.yaml`).
+The runner verifies each control's completion receipt and resolved-config
+checksum before using that value for direct dW. The standalone check applies
+the explicit `--num-sms` value to both the installed DeepGEMM reference and the
+candidate, then records it in `component.json`.
+
+For training ranks, the runner passes the verified budget as
+`GIFT_DIRECT_EXPERT_DW_NUM_SMS` only when direct dW is enabled. The rank requires
+that variable and has no fallback to the device's full SM count.
 
 The build writes `manifest.json` and the extension under `extension/`.
 Make the host build serial before importing it in workers. The candidate

@@ -19,6 +19,17 @@ CANDIDATE_KERNEL = "sm90_k_grouped_fp8_gemm_rounded_f32_impl"
 GUARD_SIZE = 256
 GUARD_VALUE = -23.5
 
+
+def positive_int(value):
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
 SPECIAL_FP32_BITS = (
     0x00000000, 0x80000000, 0x00000001, 0x80000001,  # signed zeros and smallest FP32 subnormals
     0x00008000, 0x80008000, 0x00008001, 0x80008001,  # halfway to a BF16 subnormal and above
@@ -220,6 +231,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-root", type=Path, required=True)
     parser.add_argument("--evidence-dir", type=Path, required=True)
+    parser.add_argument("--num-sms", type=positive_int, required=True)
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--samples", type=int, default=0, help="Optional warm graph replays per variant and case")
     args = parser.parse_args()
@@ -229,10 +241,12 @@ def main():
     device = torch.device("cuda", args.device)
     torch.cuda.set_device(device)
     baseline = verify_baseline()
-    candidate = load_direct_dw(args.build_root)
+    baseline.set_num_sms(args.num_sms)
+    candidate = load_direct_dw(args.build_root, num_sms=args.num_sms)
 
     result = {
         "device": torch.cuda.get_device_name(device),
+        "num_sms": args.num_sms,
         "torch_version": torch.__version__,
         "deep_gemm_version": baseline.__version__,
         "build": json.loads((args.build_root / "manifest.json").read_text()),

@@ -73,18 +73,24 @@ The tail-retention and FP8 expert-weight candidates are opt-in. The tail
 callback and shared-buffer checks passed locally. FP8 layout, write fences,
 and prepared GEMM tests passed with CPU doubles, including two generations
 of the zero-stride BF16 gradient anchor through compiled forward and SAC
-backward. The initial native candidate launch hit a connection error on
-`sr008-gpu1`. Native correctness, timing, and peak-memory comparisons remain
-open for both candidates.
+backward. A standalone native FP8 check compares both production weight
+projections bitwise against the BF16 input path across two cache generations.
+The initial native candidate launch hit a connection error on `sr008-gpu1`.
+Native correctness, timing, and peak-memory comparisons remain open for both
+candidates.
+[FP8 native parity check](../runs/efsdp-optimizations/verify_fp8_expert_weights.py)
 
 Direct expert dW is also opt-in. CPU Inductor with selective checkpointing
 kept both writes on the original FP32 slot with a mock native writer. The
 producer suite passed 34 checks across the standalone and combined paths.
 The shared GFSDP regression suite passed 56 checks and skipped two. It
 covered slot acquisition, incomplete writes, and handoff to reduce-scatter.
-The server connection still failed before any candidate launch. Native
-Hopper compilation, bitwise epilogue parity, and the deployed compiler's
-slot behavior remain open.
+The direct extension now uses the 116-SM sparse DeepGEMM budget recorded in
+both passing control receipts. Its original startup path could read Hopper's
+132-SM default before the trainer set the budget. The standalone native parity
+check uses 116 SMs for both paths. The server connection still failed before
+any candidate launch. Native Hopper compilation, bitwise epilogue parity,
+and the deployed compiler's slot behavior remain open.
 [Direct dW build and verification](../runs/efsdp-optimizations/direct-dw/README.md)
 
 ## Consolidated rank-0 analysis: observed costs and priorities

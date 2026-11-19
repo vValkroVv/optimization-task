@@ -118,13 +118,15 @@ def build(stage_directory, build_root):
     (build_root / "manifest.json").write_text(json.dumps(receipt, indent=2) + "\n")
 
 
-def load_direct_dw(build_root, *, num_sms=None):
+def load_direct_dw(build_root, *, num_sms: int):
     """Load a verified build and configure after the rank selects its CUDA device."""
     import torch
 
+    if isinstance(num_sms, bool) or not isinstance(num_sms, int) or num_sms <= 0:
+        raise ValueError("num_sms must be a positive integer")
     if MODULE_NAME in sys.modules:
         raise RuntimeError("Reuse the configured direct dW extension in this process")
-    baseline = verify_baseline()
+    verify_baseline()
     build_root = Path(build_root).resolve()
     receipt = json.loads((build_root / "manifest.json").read_text())
     stage_directory = build_root / receipt["staged_source"]
@@ -146,7 +148,7 @@ def load_direct_dw(build_root, *, num_sms=None):
         str(stage_directory / "deep_gemm"),
         receipt["cuda_home"],
         str(build_root / "jit"),
-        baseline.get_num_sms() if num_sms is None else num_sms,
+        num_sms,
     )
     sys.modules[MODULE_NAME] = extension
     return extension
