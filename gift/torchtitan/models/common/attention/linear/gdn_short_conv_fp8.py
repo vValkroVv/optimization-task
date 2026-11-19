@@ -157,7 +157,8 @@ def gdn_short_conv_backward_fp8_kernel(
     dy = gl.allocate_shared_memory(
         gl.float32,
         (128, 128),
-        gl.SwizzledSharedLayout(1, 1, 4, [1, 0]),
+        # The tap layout reads four rows and eight channels per warp.
+        gl.SwizzledSharedLayout(8, 1, 4, [1, 0]),
     )
     if role < 2:
         incoming = GradQ if role == 0 else GradK
@@ -211,9 +212,7 @@ def gdn_short_conv_backward_fp8_kernel(
 
     local_rows = gl.arange(0, 64, layout=gl.SliceLayout(1, taps))
     tap_columns = segment * 128 + gl.arange(0, 128, layout=gl.SliceLayout(0, taps))
-    tap_rows = local_chunk * 64 + local_rows
-    tap_offsets = (start + tap_rows[:, None]) * QKV_DIM + tap_columns[None, :]
-    x = gl.load(QKV + tap_offsets, tap_rows[:, None] < length, 0).to(gl.float32)
+    x = gl.convert_layout(main_x, taps).to(gl.float32)
     for shift in gl.static_range(1, 4):
         indices = (local_rows + shift)[:, None] + gl.full((64, 128), 0, gl.int32, taps)
         shifted = dy.gather(indices, axis=0)
