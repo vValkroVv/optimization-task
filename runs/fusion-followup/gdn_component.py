@@ -206,7 +206,8 @@ def make_module(fixture, *, quantized, amp, compile_sac, freeze=False):
                     value,
                     cu,
                     use_reentrant=False,
-                    context_fn=partial(_sac_context_fn, frozenset({"attn", "mm"}), ()),
+                    context_fn=partial(_sac_context_fn, (), ()),
+                    early_stop=False,
                 )
             return qkv_forward(value, cu)
 
