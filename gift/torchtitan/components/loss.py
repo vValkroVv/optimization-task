@@ -4,6 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -910,6 +911,29 @@ class MTPLoss(ChunkedCELoss):
         super().__init__(config, compile_config=compile_config)
         self.loss_weights = list(config.loss_weights)
         self.acceptance_sinks: list[list[dict[str, torch.Tensor]]] = []
+        self._folded_ce = None
+        self._supports_folded_ce = None
+        folded_ce_env = "GIFT_STABLE_CE_FOLDED_BACKWARD"
+        folded_ce_mode = os.environ.get(folded_ce_env) or "0"
+        if folded_ce_mode not in ("0", "1"):
+            raise ValueError(f"{folded_ce_env} must be 0 or 1")
+        if folded_ce_mode == "1":
+            from torchtitan.experiments.four_fusion.stable_ce import (
+                folded_cross_entropy,
+                supports_folded_cross_entropy,
+            )
+
+            self._supports_folded_ce = supports_folded_cross_entropy
+            self._folded_ce = folded_cross_entropy
+            if (
+                compile_config is not None
+                and compile_config.enable
+                and "loss" in compile_config.components
+            ):
+                self._folded_ce = torch.compile(
+                    self._folded_ce, backend=compile_config.backend
+                )
+            logger.info("Stable CE folded backward enabled")
 
     def declared_components(self) -> tuple[str, ...]:
         """``loss_ce``, the weighted MTP mean, and per-head terms when N > 1.
@@ -1036,20 +1060,25 @@ class MTPLoss(ChunkedCELoss):
         )
         num_mtp = len(self.loss_weights)
         mtp_weight_total = sum(self.loss_weights)
-        chunk_loss: torch.Tensor | None = None
-        for head_idx, (weight, head_logits, head_labels) in enumerate(
-            zip(
-                head_weights,
-                torch.chunk(logits, num_heads, dim=0),
-                torch.chunk(labels, num_heads, dim=0),
-            )
+        if (
+            self._folded_ce is not None
+            and self._supports_folded_ce is not None
+            and self._supports_folded_ce(logits, labels)
         ):
-            head_loss = (
-                super()._chunk_loss(
-                    head_logits, head_labels, global_valid_tokens, num_heads=1
+            raw_losses = self._folded_ce(logits, labels, num_heads)
+        else:
+            raw_losses = (
+                self.fn(head_logits, head_labels)
+                for head_logits, head_labels in zip(
+                    torch.chunk(logits, num_heads, dim=0),
+                    torch.chunk(labels, num_heads, dim=0),
                 )
-                * weight
             )
+        chunk_loss: torch.Tensor | None = None
+        for head_idx, (weight, raw_loss) in enumerate(zip(head_weights, raw_losses)):
+            if global_valid_tokens is not None:
+                raw_loss = raw_loss / global_valid_tokens
+            head_loss = raw_loss * weight
             detached = head_loss.detach()
             if head_idx == 0:
                 self.add_component(self.component_name, detached)

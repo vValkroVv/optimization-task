@@ -230,12 +230,37 @@ def test_canonical_production_rejects_unmeasured_gift_snapshot(cli):
 
 @pytest.mark.parametrize(
     ("mode", "option", "arm", "steps"),
-    [("capture", (), "capture", 1), ("timing", ("--backward-optimization", "folded-ce"), "folded-ce", 20)],
+    [
+        ("capture", (), "capture", 1),
+        ("timing", ("--backward-optimization", "folded-ce"), "folded-ce", 20),
+    ],
 )
-def test_backward_experiment_uses_complete_production_recipe(cli, mode, option, arm, steps):
-    flags = [value for key in cli.runner.GFSDP_CONTROLS for value in ("--gfsdp-optimization", key)]
-    assert cli.invoke("production", mode, "--source-revision", HEAD, *flags,
-                      "--direct-dw-build", str(cli.manifest.parent), *option) == 0
+def test_backward_experiment_uses_complete_production_recipe(
+    cli, mode, option, arm, steps, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(cli.runner, "HERE", tmp_path)
+    if mode == "capture":
+        fixture = tmp_path / "artifacts/raw/test-run/component-inputs/rank0.pt"
+        fixture.parent.mkdir(parents=True)
+        fixture.touch()
+    flags = [
+        value
+        for key in cli.runner.GFSDP_CONTROLS
+        for value in ("--gfsdp-optimization", key)
+    ]
+    assert (
+        cli.invoke(
+            "production",
+            mode,
+            "--source-revision",
+            HEAD,
+            *flags,
+            "--direct-dw-build",
+            str(cli.manifest.parent),
+            *option,
+        )
+        == 0
+    )
     command = cli.emitted["command"]
     assert f"--backward-arm={arm}" in command
     _, overrides = cli.runner.training_overrides(command)

@@ -8,7 +8,9 @@ embeddings rolled left by ``k+1`` with the tail zeroed).
 
 import copy
 import dataclasses
+import os
 import unittest
+from unittest.mock import patch
 
 import torch
 from torchtitan.components.loss import ChunkedCELoss, IGNORE_INDEX, MTPLoss
@@ -227,6 +229,28 @@ class TestMTPLoss(unittest.TestCase):
         # Every head should receive gradient.
         for head in range(num_mtp + 1):
             self.assertGreater(pred.grad[head].abs().sum().item(), 0.0)
+
+    def test_folded_ce_opt_in_preserves_cpu_fallback(self):
+        flag = "GIFT_STABLE_CE_FOLDED_BACKWARD"
+        with patch.dict(os.environ, {flag: "0"}):
+            baseline = self._make_loss([0.3])
+        with patch.dict(os.environ, {flag: "1"}):
+            folded = self._make_loss([0.3])
+        folded.lm_head.load_state_dict(baseline.lm_head.state_dict())
+
+        pred = self._stacked_pred(1)
+        other_pred = pred.detach().clone().requires_grad_()
+        labels = torch.arange(_SEQ_LEN).expand(_BSZ, -1).clone()
+        labels[0, -1] = IGNORE_INDEX
+        expected = baseline(pred, labels, 31.5)
+        actual = folded(other_pred, labels, 31.5)
+        expected.backward()
+        actual.backward()
+        self.assertTrue(torch.equal(expected, actual))
+        self.assertTrue(torch.equal(pred.grad, other_pred.grad))
+        self.assertTrue(
+            torch.equal(baseline.lm_head.weight.grad, folded.lm_head.weight.grad)
+        )
 
     def test_zero_weights_equals_main_only(self):
         """With all MTP weights 0, the total equals the main head's CE alone."""

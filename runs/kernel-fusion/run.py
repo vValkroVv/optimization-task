@@ -21,6 +21,10 @@ PRODUCTION_SOURCE_SHA256 = (
 PRODUCTION_GFSDP_SOURCE_SHA256 = (
     "a23ffa3ae00c204a881902afdb16c80d3eeaab0453b73a08ab1378a2786465cf"
 )
+# Folded CE is opt-in. Canonical production clears its switch on every rank.
+BACKWARD_EXPERIMENT_SOURCE_SHA256 = (
+    "3534324cba0ec666754da79fdf1ee124f1a55ef68af7fefd14bff9b9e1e27194"
+)
 SWITCHES = {
     "mla-rope": "GIFT_MLA_FUSED_ROPE",
     "dense-pad": "GIFT_FP8_QUANTIZE_WEIGHT_TAIL",
@@ -485,7 +489,10 @@ def main() -> int:
                             "Follow-up GIFT source changed during preflight"
                         )
                     source_digest = snapshot["tracked_and_untracked_sha256"]
-                    if canonical and source_digest != PRODUCTION_GFSDP_SOURCE_SHA256:
+                    if canonical and source_digest not in {
+                        PRODUCTION_GFSDP_SOURCE_SHA256,
+                        BACKWARD_EXPERIMENT_SOURCE_SHA256,
+                    }:
                         raise RuntimeError(
                             "GIFT source differs from the measured GFSDP source: "
                             f"{source_digest} != {PRODUCTION_GFSDP_SOURCE_SHA256}"
@@ -574,7 +581,12 @@ def main() -> int:
         return schedule
 
     native._load = load_schedule
-    return native._run("trace" if args.mode == "trace" else "candidate", args.run_id)
+    result = native._run("trace" if args.mode == "trace" else "candidate", args.run_id)
+    if result == 0 and args.mode == "capture":
+        fixture = native.RAW_ROOT / args.run_id / "component-inputs/rank0.pt"
+        if not fixture.is_file():
+            raise RuntimeError(f"Native capture did not produce {fixture}")
+    return result
 
 
 if __name__ == "__main__":
