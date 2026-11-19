@@ -125,13 +125,28 @@ The shared GFSDP regression suite passed 56 checks and skipped two. It
 covered slot acquisition, incomplete writes, and handoff to reduce-scatter.
 The direct extension now uses the 116-SM sparse DeepGEMM budget recorded in
 both passing control receipts. Its original startup path could read Hopper's
-132-SM default before the trainer set the budget. The standalone native parity
-check uses 116 SMs for both paths. Native Hopper compilation, bitwise
-epilogue parity, and the deployed compiler's slot behavior remain open. The
-first build attempt failed its package identity check because the module
-exposes `2.3.0` while the wheel metadata reports `2.3.0+f093a4c`. The wheel
-owns the imported module and all five pinned CUDA header hashes matched on
-`sr008-gpu1`.
+132-SM default before the trainer set the budget. The attempt at `c401b122d`
+built successfully on `sr008-gpu1` against the verified
+`2.3.0+f093a4c` wheel and pinned headers. On H100 at 116 SMs, the direct
+output matched the legacy BF16 result bitwise after conversion to FP32 for
+both expert weight projections, including empty experts and special values.
+The slot canaries were intact. The full and mixed component cases removed
+576 MiB of peak incremental allocation from their isolated calls.
+
+The standalone 10+10 training run measured 173,964 physical tokens/s.
+The saved fixed control measured 173,889 (+0.04% for direct dW), and the
+more recent compatible control measured 171,488 (+1.44%). That difference
+between saved controls limits the speed conclusion. Peak allocated memory
+was 65.953 GiB, within 0.006 GiB of both controls. The measured window
+recorded a stable observed compiler cache, zero allocator retries, and zero
+OOMs.
+
+At update 21 on both profiled ranks, the control ran 21 expert packing kernels
+in each captured microbatch. Direct dW ran zero and issued 14 rounded-FP32
+weight-gradient GEMMs per microbatch, one for each of the two projections
+in each routed layer. Removing these packing kernels yielded no clear
+training throughput improvement against the saved controls.
+[Direct dW timing and trace receipts](../runs/efsdp-optimizations/direct-dw-receipts.json)
 [Direct dW build and verification](../runs/efsdp-optimizations/direct-dw/README.md)
 
 ## Consolidated rank-0 analysis: observed costs and priorities
