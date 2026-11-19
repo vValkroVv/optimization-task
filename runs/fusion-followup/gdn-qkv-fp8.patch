@@ -1,0 +1,573 @@
+diff --git a/gift/torchtitan/models/common/attention/linear/fla_custom_ops.py b/gift/torchtitan/models/common/attention/linear/fla_custom_ops.py
+index 00b533987298eb78cc9a64dfd4706d23b7ccbcdc..7b61bb72363eb5bb7de764843d68e5b171e4805c 100644
+--- a/gift/torchtitan/models/common/attention/linear/fla_custom_ops.py
++++ b/gift/torchtitan/models/common/attention/linear/fla_custom_ops.py
+@@ -89,6 +89,7 @@ def qkv_conv1d_unpack_op(
+     normalize_qk: bool,
+     eps: float,
+     fuse_backward: bool = False,
++    quantize_backward: bool = False,
+ ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+     """Opaque custom-op wrapper over fla's ``fused_qkv_conv1d_unpack`` (short conv)."""
+     from fla.ops.common.fused_conv_qkv import fused_qkv_conv1d_unpack
+@@ -121,6 +122,7 @@ def _(
+     normalize_qk,
+     eps,
+     fuse_backward=False,
++    quantize_backward=False,
+ ):
+     bs, seqlen = qkv.shape[0], qkv.shape[1]
+     return (
+@@ -163,7 +165,17 @@ _RECOMPUTE["qkv_conv1d"] = _qkv_conv_recompute
+ 
+ 
+ def _qkv_conv_backward(ctx, grad_q, grad_k, grad_v):
+-    nh, nvh, hd, hvd, cu_seqlens, normalize_qk, eps, fuse_backward = ctx.fwd_args
++    (
++        nh,
++        nvh,
++        hd,
++        hvd,
++        cu_seqlens,
++        normalize_qk,
++        eps,
++        fuse_backward,
++        quantize_backward,
++    ) = ctx.fwd_args
+     qkv, weight = ctx.saved_tensors
+     if (
+         fuse_backward
+@@ -175,11 +187,38 @@ def _qkv_conv_backward(ctx, grad_q, grad_k, grad_v):
+     ):
+         from torchtitan.models.common.attention.linear.gdn_short_conv import (
+             gdn_short_conv_backward,
++            gdn_short_conv_backward_fp8,
+         )
+ 
+-        d_qkv, d_weight = gdn_short_conv_backward(
+-            qkv, weight, grad_q, grad_k, grad_v, cu_seqlens, nh, nvh, normalize_qk, eps
++        args = (
++            qkv,
++            weight,
++            grad_q,
++            grad_k,
++            grad_v,
++            cu_seqlens,
++            nh,
++            nvh,
++            normalize_qk,
++            eps,
+         )
++        if quantize_backward:
++            from torchtitan.ops.float8.fp8_tensor import (
++                Float8BlockwiseQTensor,
++                InputLayoutType,
++            )
++
++            data, scales, d_weight = gdn_short_conv_backward_fp8(*args)
++            d_qkv = Float8BlockwiseQTensor(
++                data,
++                scales,
++                qkv.dtype,
++                InputLayoutType.ROWWISE,
++                1,
++                scale_block_first=True,
++            )
++        else:
++            d_qkv, d_weight = gdn_short_conv_backward(*args)
+     else:
+         d_qkv, d_weight = fla_vjp(
+             "qkv_conv1d",
+@@ -189,7 +228,7 @@ def _qkv_conv_backward(ctx, grad_q, grad_k, grad_v):
+             [nh, nvh, hd, hvd, normalize_qk, eps],
+             "",
+         )
+-    return d_qkv, d_weight, None, None, None, None, None, None, None, None
++    return d_qkv, d_weight, None, None, None, None, None, None, None, None, None
+ 
+ 
+ qkv_conv1d_unpack_op.register_autograd(
+diff --git a/gift/torchtitan/models/common/attention/linear/gdn.py b/gift/torchtitan/models/common/attention/linear/gdn.py
+index 6ff4f23ee29fcfffad102261237637ba727b73ea..57601fb05cd9b9aff7ff669d80e29f999605d618 100644
+--- a/gift/torchtitan/models/common/attention/linear/gdn.py
++++ b/gift/torchtitan/models/common/attention/linear/gdn.py
+@@ -47,6 +47,9 @@ class GatedDeltaNet(GatedDeltaAttention):
+     def __init__(self, config: Config):
+         super().__init__(config)
+         self._fuse_short_conv_backward = _env_flag("GIFT_GDN_FUSE_SHORT_CONV_BWD")
++        self._quantize_short_conv_backward = _env_flag(
++            "GIFT_GDN_FUSE_SHORT_CONV_BWD_FP8"
++        )
+         self._output_norm_fp8: type[torch.autograd.Function] | None = None
+         if _env_flag("GIFT_GDN_FUSE_OUTPUT_NORM_FP8"):
+             from torchtitan.models.common.attention.linear.gdn_output_fp8 import (
+@@ -96,6 +99,7 @@ class GatedDeltaNet(GatedDeltaAttention):
+             x,
+             cu_seqlens=cu_seqlens,
+             fuse_conv_backward=self._fuse_short_conv_backward,
++            quantize_conv_backward=self._quantize_short_conv_backward,
+         )
+ 
+         # Decay/gating: ba_proj -> (beta b, decay-input a), each [.., L, num_v_heads].
+diff --git a/gift/torchtitan/models/common/attention/linear/gdn_short_conv.py b/gift/torchtitan/models/common/attention/linear/gdn_short_conv.py
+index eb2cad572d461e48d6a68058229e4315f8cc266c..6d30309bb2061b69899d62629d9a84ce7fb80574 100644
+--- a/gift/torchtitan/models/common/attention/linear/gdn_short_conv.py
++++ b/gift/torchtitan/models/common/attention/linear/gdn_short_conv.py
+@@ -202,6 +202,36 @@ def gdn_short_conv_backward(
+     normalize_qk: bool,
+     eps: float,
+ ) -> tuple[torch.Tensor, torch.Tensor]:
++    grad_qkv, _, grad_weight = _short_conv_backward(
++        qkv,
++        weight,
++        grad_q,
++        grad_k,
++        grad_v,
++        cu_seqlens,
++        num_heads,
++        num_v_heads,
++        normalize_qk,
++        eps,
++        quantize=False,
++    )
++    return grad_qkv, grad_weight
++
++
++def _short_conv_backward(
++    qkv,
++    weight,
++    grad_q,
++    grad_k,
++    grad_v,
++    cu_seqlens,
++    num_heads,
++    num_v_heads,
++    normalize_qk,
++    eps,
++    *,
++    quantize,
++):
+     from fla.ops.common.fused_conv_qkv import _prepare_varlen_metadata
+ 
+     batch, seq_len, qkv_dim = qkv.shape
+@@ -216,9 +246,9 @@ def gdn_short_conv_backward(
+     )
+     x = qkv.contiguous()
+     w = weight.reshape(qkv_dim, 4).contiguous()
+-    grad_qkv = torch.empty_like(x)
+     weight_partials = w.new_empty((batch * chunks, qkv_dim, 4), dtype=torch.float32)
+-    _gdn_short_conv_backward_kernel[(2 * num_heads + num_v_heads, chunks, batch)](
++    grid = (2 * num_heads + num_v_heads, chunks, batch)
++    kernel_inputs = (
+         x,
+         w,
+         grad_q.contiguous(),
+@@ -226,21 +256,47 @@ def gdn_short_conv_backward(
+         grad_v.contiguous(),
+         cu_seqlens,
+         chunk_indices,
+-        grad_qkv,
+-        weight_partials,
+-        seq_len,
+-        qkv_dim,
+-        num_heads,
+-        num_v_heads,
+-        128,
+-        tile_rows,
+-        normalize_qk,
+-        eps,
+-        cu_seqlens is not None,
+-        num_warps=4,
+     )
++    if quantize:
++        from torchtitan.models.common.attention.linear.gdn_short_conv_fp8 import (
++            gdn_short_conv_backward_fp8_kernel,
++        )
++
++        grad_qkv, grad_scales = _allocate_fp8(qkv)
++        gdn_short_conv_backward_fp8_kernel[grid](
++            *kernel_inputs,
++            grad_qkv,
++            grad_scales,
++            weight_partials,
++            seq_len,
++            batch * seq_len,
++            qkv_dim,
++            num_heads,
++            num_v_heads,
++            normalize_qk,
++            eps,
++            cu_seqlens is not None,
++            num_warps=4,
++        )
++    else:
++        grad_qkv, grad_scales = torch.empty_like(x), None
++        _gdn_short_conv_backward_kernel[grid](
++            *kernel_inputs,
++            grad_qkv,
++            weight_partials,
++            seq_len,
++            qkv_dim,
++            num_heads,
++            num_v_heads,
++            128,
++            tile_rows,
++            normalize_qk,
++            eps,
++            cu_seqlens is not None,
++            num_warps=4,
++        )
+     grad_weight = weight_partials.sum(0).to(w.dtype).view_as(weight)
+-    return grad_qkv, grad_weight
++    return grad_qkv, grad_scales, grad_weight
+ 
+ 
+ @gdn_short_conv_backward.register_fake
+@@ -259,3 +315,56 @@ def _(
+     return torch.empty_like(
+         qkv, memory_format=torch.contiguous_format
+     ), torch.empty_like(weight, memory_format=torch.contiguous_format)
++
++
++def _allocate_fp8(qkv):
++    batch, seq_len, features = qkv.shape
++    return (
++        qkv.new_empty(qkv.shape, dtype=torch.float8_e4m3fn),
++        qkv.new_empty((features // 128, batch * seq_len), dtype=torch.float32),
++    )
++
++
++@torch.library.custom_op("torchtitan::gdn_short_conv_backward_fp8", mutates_args=())
++def gdn_short_conv_backward_fp8(
++    qkv: torch.Tensor,
++    weight: torch.Tensor,
++    grad_q: torch.Tensor,
++    grad_k: torch.Tensor,
++    grad_v: torch.Tensor,
++    cu_seqlens: torch.Tensor | None,
++    num_heads: int,
++    num_v_heads: int,
++    normalize_qk: bool,
++    eps: float,
++) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
++    return _short_conv_backward(
++        qkv,
++        weight,
++        grad_q,
++        grad_k,
++        grad_v,
++        cu_seqlens,
++        num_heads,
++        num_v_heads,
++        normalize_qk,
++        eps,
++        quantize=True,
++    )
++
++
++@gdn_short_conv_backward_fp8.register_fake
++def _(
++    qkv,
++    weight,
++    grad_q,
++    grad_k,
++    grad_v,
++    cu_seqlens,
++    num_heads,
++    num_v_heads,
++    normalize_qk,
++    eps,
++):
++    data, scale = _allocate_fp8(qkv)
++    return data, scale, torch.empty_like(weight, memory_format=torch.contiguous_format)
+diff --git a/gift/torchtitan/models/common/attention/linear/gdn_short_conv_fp8.py b/gift/torchtitan/models/common/attention/linear/gdn_short_conv_fp8.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..fbfc34fee76f1fc79c448d7a78676623ef23df2a
+--- /dev/null
++++ b/gift/torchtitan/models/common/attention/linear/gdn_short_conv_fp8.py
+@@ -0,0 +1,234 @@
++"""Width-four GDN backward with a rowwise E4M3 projection gradient."""
++
++from triton.experimental import gluon
++from triton.experimental.gluon import language as gl
++
++
++@gluon.jit
++def _activation_gradient(
++    qkv,
++    weight,
++    incoming,
++    start,
++    length,
++    rows,
++    columns,
++    head,
++    QKV_DIM: gl.constexpr,
++    GRAD_HEADS: gl.constexpr,
++    NORMALIZE: gl.constexpr,
++    EPS: gl.constexpr,
++    LAYOUT: gl.constexpr,
++):
++    activation = gl.full((rows.shape[0], 128), 0, gl.float32, LAYOUT)
++    for tap in gl.static_range(4):
++        source = rows + tap - 3
++        x = gl.load(
++            qkv + (start + source[:, None]) * QKV_DIM + columns[None, :],
++            (source[:, None] >= 0) & (source[:, None] < length),
++            0,
++        ).to(gl.float32)
++        w = gl.load(weight + columns * 4 + tap).to(gl.float32)
++        activation += x * w[None, :]
++    dims = gl.arange(0, 128, layout=gl.SliceLayout(0, LAYOUT))
++    gradient = gl.load(
++        incoming + ((start + rows[:, None]) * GRAD_HEADS + head) * 128 + dims[None, :],
++        rows[:, None] < length,
++        0,
++    ).to(gl.float32)
++    if NORMALIZE:
++        silu = (activation * (1.0 / (1.0 + gl.exp(-activation)))).to(gl.bfloat16)
++        silu = silu.to(gl.float32)
++        rstd = 1.0 / gl.sqrt(gl.sum(silu * silu, axis=1) + EPS)
++        norm = (silu * rstd[:, None]).to(gl.bfloat16).to(gl.float32)
++        dot = gl.sum(gradient * norm, axis=1)
++        gradient = ((gradient - norm * dot[:, None]) * rstd[:, None]).to(gl.bfloat16)
++        gradient = gradient.to(gl.float32)
++    pre_silu = activation.to(gl.bfloat16).to(gl.float32)
++    sigmoid = 1.0 / (1.0 + gl.exp(-pre_silu))
++    grad = gradient * sigmoid * (1.0 + pre_silu * (1.0 - sigmoid))
++    return gl.where(rows[:, None] < length, grad, 0.0)
++
++
++@gluon.jit
++def _fill_gradients(
++    qkv,
++    weight,
++    incoming,
++    dy,
++    start,
++    length,
++    local_chunk,
++    segment,
++    head,
++    QKV_DIM: gl.constexpr,
++    GRAD_HEADS: gl.constexpr,
++    NORMALIZE: gl.constexpr,
++    EPS: gl.constexpr,
++    MAIN: gl.constexpr,
++    HALO: gl.constexpr,
++):
++    main_columns = segment * 128 + gl.arange(0, 128, layout=gl.SliceLayout(0, MAIN))
++    main_rows = local_chunk * 64 + gl.arange(0, 64, layout=gl.SliceLayout(1, MAIN))
++    dy.slice(0, 64).store(
++        _activation_gradient(
++            qkv,
++            weight,
++            incoming,
++            start,
++            length,
++            main_rows,
++            main_columns,
++            head,
++            QKV_DIM,
++            GRAD_HEADS,
++            NORMALIZE,
++            EPS,
++            MAIN,
++        )
++    )
++    halo_columns = segment * 128 + gl.arange(0, 128, layout=gl.SliceLayout(0, HALO))
++    halo_rows = (local_chunk + 1) * 64 + gl.arange(0, 4, layout=gl.SliceLayout(1, HALO))
++    dy.slice(64, 4).store(
++        _activation_gradient(
++            qkv,
++            weight,
++            incoming,
++            start,
++            length,
++            halo_rows,
++            halo_columns,
++            head,
++            QKV_DIM,
++            GRAD_HEADS,
++            NORMALIZE,
++            EPS,
++            HALO,
++        )
++    )
++
++
++@gluon.jit(do_not_specialize=["T", "M"])
++def gdn_short_conv_backward_fp8_kernel(
++    QKV,
++    Weight,
++    GradQ,
++    GradK,
++    GradV,
++    CuSeqLens,
++    ChunkIndices,
++    Codes,
++    Scales,
++    PartialWeight,
++    T,
++    M,
++    QKV_DIM: gl.constexpr,
++    NUM_HEADS: gl.constexpr,
++    NUM_V_HEADS: gl.constexpr,
++    NORMALIZE_QK: gl.constexpr,
++    EPS: gl.constexpr,
++    VARLEN: gl.constexpr,
++):
++    segment, chunk, batch = gl.program_id(0), gl.program_id(1), gl.program_id(2)
++    if VARLEN:
++        sequence = gl.load(ChunkIndices + chunk * 2)
++        local_chunk = gl.load(ChunkIndices + chunk * 2 + 1).to(gl.int32)
++        start = gl.load(CuSeqLens + sequence).to(gl.int64)
++        length = gl.load(CuSeqLens + sequence + 1).to(gl.int64) - start
++        partial = chunk.to(gl.int64)
++    else:
++        local_chunk = chunk
++        start = batch.to(gl.int64) * T
++        length = T
++        partial = batch.to(gl.int64) * gl.num_programs(1) + chunk
++
++    # These are the stock Triton layouts for Q/K reduction and the four dW taps.
++    main: gl.constexpr = gl.BlockedLayout([1, 8], [2, 16], [4, 1], [1, 0])
++    halo: gl.constexpr = gl.BlockedLayout([1, 4], [1, 32], [4, 1], [1, 0])
++    taps: gl.constexpr = gl.BlockedLayout([1, 1], [4, 8], [1, 4], [0, 1])
++    weights: gl.constexpr = gl.BlockedLayout([1], [32], [4], [0])
++    groups: gl.constexpr = NUM_V_HEADS // NUM_HEADS
++    group_width: gl.constexpr = groups + 2
++    head = segment // group_width
++    role = segment % group_width
++
++    # Keep the full-precision derivative in shared memory so the four shifted
++    # taps do not require each thread to hold a whole column of live values.
++    dy = gl.allocate_shared_memory(
++        gl.float32,
++        (128, 128),
++        # The tap layout reads four rows and eight channels per warp.
++        gl.SwizzledSharedLayout(8, 1, 4, [1, 0]),
++    )
++    if role < 2:
++        incoming = GradQ if role == 0 else GradK
++        _fill_gradients(
++            QKV,
++            Weight,
++            incoming,
++            dy,
++            start,
++            length,
++            local_chunk,
++            segment,
++            head,
++            QKV_DIM,
++            NUM_HEADS,
++            NORMALIZE_QK,
++            EPS,
++            main,
++            halo,
++        )
++    else:
++        _fill_gradients(
++            QKV,
++            Weight,
++            GradV,
++            dy,
++            start,
++            length,
++            local_chunk,
++            segment,
++            head * groups + role - 2,
++            QKV_DIM,
++            NUM_V_HEADS,
++            False,
++            EPS,
++            main,
++            halo,
++        )
++
++    main_columns = segment * 128 + gl.arange(0, 128, layout=gl.SliceLayout(0, main))
++    main_rows = local_chunk * 64 + gl.arange(0, 64, layout=gl.SliceLayout(1, main))
++    main_offsets = (start + main_rows[:, None]) * QKV_DIM + main_columns[None, :]
++    weight_columns = segment * 128 + gl.arange(0, 128, layout=weights)
++    partial_ptr = PartialWeight + partial * (QKV_DIM * 4) + weight_columns * 4
++    unshifted = dy.slice(0, 64).load(main)
++    main_x = gl.load(QKV + main_offsets, main_rows[:, None] < length, 0)
++    dw = gl.sum(unshifted * main_x.to(gl.float32), axis=0)
++    gl.store(partial_ptr + 3, gl.convert_layout(dw, weights))
++    w3 = gl.load(Weight + main_columns * 4 + 3).to(gl.float32)
++    dx = gl.convert_layout(unshifted * w3[None, :] + 0.0, taps)
++
++    local_rows = gl.arange(0, 64, layout=gl.SliceLayout(1, taps))
++    tap_columns = segment * 128 + gl.arange(0, 128, layout=gl.SliceLayout(0, taps))
++    x = gl.convert_layout(main_x, taps).to(gl.float32)
++    for shift in gl.static_range(1, 4):
++        indices = (local_rows + shift)[:, None] + gl.full((64, 128), 0, gl.int32, taps)
++        shifted = dy.gather(indices, axis=0)
++        tap = 3 - shift
++        w = gl.load(Weight + tap_columns * 4 + tap).to(gl.float32)
++        dx += shifted * w[None, :]
++        dw = gl.sum(shifted * x, axis=0)
++        gl.store(partial_ptr + tap, gl.convert_layout(dw, weights))
++
++    dx = gl.convert_layout(dx.to(gl.bfloat16), main).to(gl.float32)
++    scale = gl.maximum(gl.div_rn(gl.max(gl.abs(dx), axis=1), 448.0), 1e-30)
++    bits = scale.to(gl.int32, bitcast=True)
++    scale = ((bits + 0x007FFFFF) & 0x7F800000).to(gl.float32, bitcast=True)
++    gl.store(
++        Scales + segment.to(gl.int64) * M + start + main_rows, scale, main_rows < length
++    )
++    gl.store(
++        Codes + main_offsets, dx * (1.0 / scale[:, None]), main_rows[:, None] < length
++    )
+diff --git a/gift/torchtitan/models/common/attention/qkv.py b/gift/torchtitan/models/common/attention/qkv.py
+index d97a1d760cfa80eb895be569244e24d38d332c87..194ebe1548f51f26925eb3642040f749e8d7a3e4 100644
+--- a/gift/torchtitan/models/common/attention/qkv.py
++++ b/gift/torchtitan/models/common/attention/qkv.py
+@@ -154,12 +154,39 @@ class LinearAttnQKV(Module):
+         cu_seqlens: torch.Tensor | None = None,
+         *,
+         fuse_conv_backward: bool = False,
++        quantize_conv_backward: bool = False,
+     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+         from torchtitan.models.common.attention.linear.fla_custom_ops import (
+             qkv_conv1d_unpack_op,
+         )
+ 
+         qkv = self.qkv_proj(x)
++        quantize_backward = False
++        if fuse_conv_backward and quantize_conv_backward:
++            from torchtitan.ops.float8.cuda_gemm import FP8Linear
++            from torchtitan.ops.float8.fp8_utils import check_dim_for_fp8
++
++            # The packed gradient must travel straight to FP8Gemm.backward.
++            projection = self.qkv_proj
++            sharding = projection._sharding_config
++            quantize_backward = (
++                type(projection) is FP8Linear
++                and not projection._forward_pre_hooks
++                and not projection._forward_hooks
++                and not projection._backward_pre_hooks
++                and not projection._backward_hooks
++                and (
++                    sharding is None
++                    or (
++                        sharding.local_map is None
++                        and sharding.out_dst_shardings is None
++                    )
++                )
++                and x.is_cuda
++                and x.dtype == qkv.dtype == torch.bfloat16
++                and check_dim_for_fp8(x)
++                and check_dim_for_fp8(qkv)
++            )
+         # q, k: [.., L, num_k_heads, head_k_dim]; v: [.., L, num_v_heads, head_v_dim].
+         q, k, v = qkv_conv1d_unpack_op(
+             qkv,
+@@ -172,5 +199,6 @@ class LinearAttnQKV(Module):
+             self.normalize_qk,
+             self.eps,
+             fuse_conv_backward,
++            quantize_backward,
+         )
+         return q, k, v
