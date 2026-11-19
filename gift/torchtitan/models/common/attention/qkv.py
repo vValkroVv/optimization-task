@@ -154,12 +154,39 @@ class LinearAttnQKV(Module):
         cu_seqlens: torch.Tensor | None = None,
         *,
         fuse_conv_backward: bool = False,
+        quantize_conv_backward: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         from torchtitan.models.common.attention.linear.fla_custom_ops import (
             qkv_conv1d_unpack_op,
         )
 
         qkv = self.qkv_proj(x)
+        quantize_backward = False
+        if fuse_conv_backward and quantize_conv_backward:
+            from torchtitan.ops.float8.cuda_gemm import FP8Linear
+            from torchtitan.ops.float8.fp8_utils import check_dim_for_fp8
+
+            # The packed gradient must travel straight to FP8Gemm.backward.
+            projection = self.qkv_proj
+            sharding = projection._sharding_config
+            quantize_backward = (
+                type(projection) is FP8Linear
+                and not projection._forward_pre_hooks
+                and not projection._forward_hooks
+                and not projection._backward_pre_hooks
+                and not projection._backward_hooks
+                and (
+                    sharding is None
+                    or (
+                        sharding.local_map is None
+                        and sharding.out_dst_shardings is None
+                    )
+                )
+                and x.is_cuda
+                and x.dtype == qkv.dtype == torch.bfloat16
+                and check_dim_for_fp8(x)
+                and check_dim_for_fp8(qkv)
+            )
         # q, k: [.., L, num_k_heads, head_k_dim]; v: [.., L, num_v_heads, head_v_dim].
         q, k, v = qkv_conv1d_unpack_op(
             qkv,
@@ -172,5 +199,6 @@ class LinearAttnQKV(Module):
             self.normalize_qk,
             self.eps,
             fuse_conv_backward,
+            quantize_backward,
         )
         return q, k, v

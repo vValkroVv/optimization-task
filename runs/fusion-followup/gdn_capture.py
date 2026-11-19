@@ -80,15 +80,25 @@ def install(output_dir):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         nonlocal captured
         args = (
-            qkv, weight, grad_q, grad_k, grad_v, cu_seqlens,
-            num_heads, num_v_heads, normalize_qk, eps,
+            qkv,
+            weight,
+            grad_q,
+            grad_k,
+            grad_v,
+            cu_seqlens,
+            num_heads,
+            num_v_heads,
+            normalize_qk,
+            eps,
         )
         result = original_backward(*args)
         if not active or captured or qkv.shape[-1] != 8192:
             return result
         projection = pending.get(qkv.data_ptr())
         if projection is None or projection[2] != qkv.shape:
-            raise RuntimeError("Could not match the native short-convolution and QKV projection")
+            raise RuntimeError(
+                "Could not match the native short-convolution and QKV projection"
+            )
 
         x, proj_weight, _ = projection
         torch.save(
@@ -129,12 +139,28 @@ def install(output_dir):
 
     @short_conv_backward.register_fake
     def _(
-        qkv, weight, grad_q, grad_k, grad_v, cu_seqlens,
-        num_heads, num_v_heads, normalize_qk, eps,
+        qkv,
+        weight,
+        grad_q,
+        grad_k,
+        grad_v,
+        cu_seqlens,
+        num_heads,
+        num_v_heads,
+        normalize_qk,
+        eps,
     ):
         return original_backward(
-            qkv, weight, grad_q, grad_k, grad_v, cu_seqlens,
-            num_heads, num_v_heads, normalize_qk, eps,
+            qkv,
+            weight,
+            grad_q,
+            grad_k,
+            grad_v,
+            cu_seqlens,
+            num_heads,
+            num_v_heads,
+            normalize_qk,
+            eps,
         )
 
     FP8Gemm.forward = staticmethod(forward)
@@ -144,14 +170,18 @@ def install(output_dir):
         nonlocal active
         Trainer.forward_backward_step = original_step
         if trainer.gradient_accumulation_steps != 32 or trainer.step != 1:
-            raise RuntimeError("GDN capture requires the first native update with accumulation 32")
+            raise RuntimeError(
+                "GDN capture requires the first native update with accumulation 32"
+            )
         active = True
         try:
             result = original_step(trainer, *args, **kwargs)
         finally:
             active = False
         if not captured:
-            raise RuntimeError("The first native microbatch did not capture GDN backward")
+            raise RuntimeError(
+                "The first native microbatch did not capture GDN backward"
+            )
         return result
 
     Trainer.forward_backward_step = first_step

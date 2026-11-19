@@ -67,8 +67,10 @@ def _gdn_short_conv_backward_kernel(
     CuSeqLens,
     ChunkIndices,
     GradQKV,
+    GradScales,
     PartialWeight,
     T,
+    M,
     QKV_DIM: tl.constexpr,
     NUM_HEADS: tl.constexpr,
     NUM_V_HEADS: tl.constexpr,
@@ -77,6 +79,7 @@ def _gdn_short_conv_backward_kernel(
     NORMALIZE_QK: tl.constexpr,
     EPS: tl.constexpr,
     VARLEN: tl.constexpr,
+    QUANTIZE: tl.constexpr,
 ):
     segment, chunk, batch = tl.program_id(0), tl.program_id(1), tl.program_id(2)
     if VARLEN:
@@ -186,6 +189,19 @@ def _gdn_short_conv_backward_kernel(
         dx += shifted * weight[None, :]
         dw = tl.sum(shifted * x, axis=0)
         tl.store(PartialWeight + partial * (QKV_DIM * 4) + columns * 4 + tap, dw)
+    if QUANTIZE:
+        # Preserve the BF16 rounding formerly done by the intermediate store.
+        dx = dx.to(tl.bfloat16).to(tl.float32)
+        amax = tl.max(tl.abs(dx), axis=1)
+        scale = tl.maximum(tl.div_rn(amax, 448.0), 1e-30)
+        bits = scale.to(tl.int32, bitcast=True)
+        scale = ((bits + 0x007FFFFF) & 0x7F800000).to(tl.float32, bitcast=True)
+        tl.store(
+            GradScales + segment.to(tl.int64) * M + start + rows,
+            scale,
+            rows < length,
+        )
+        dx = dx * (1.0 / scale[:, None])
     tl.store(GradQKV + offsets, dx, rows[:, None] < length)
 
 
@@ -202,6 +218,36 @@ def gdn_short_conv_backward(
     normalize_qk: bool,
     eps: float,
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    grad_qkv, _, grad_weight = _short_conv_backward(
+        qkv,
+        weight,
+        grad_q,
+        grad_k,
+        grad_v,
+        cu_seqlens,
+        num_heads,
+        num_v_heads,
+        normalize_qk,
+        eps,
+        quantize=False,
+    )
+    return grad_qkv, grad_weight
+
+
+def _short_conv_backward(
+    qkv,
+    weight,
+    grad_q,
+    grad_k,
+    grad_v,
+    cu_seqlens,
+    num_heads,
+    num_v_heads,
+    normalize_qk,
+    eps,
+    *,
+    quantize,
+):
     from fla.ops.common.fused_conv_qkv import _prepare_varlen_metadata
 
     batch, seq_len, qkv_dim = qkv.shape
@@ -216,7 +262,10 @@ def gdn_short_conv_backward(
     )
     x = qkv.contiguous()
     w = weight.reshape(qkv_dim, 4).contiguous()
-    grad_qkv = torch.empty_like(x)
+    if quantize:
+        grad_qkv, grad_scales = _allocate_fp8(qkv)
+    else:
+        grad_qkv, grad_scales = torch.empty_like(x), None
     weight_partials = w.new_empty((batch * chunks, qkv_dim, 4), dtype=torch.float32)
     _gdn_short_conv_backward_kernel[(2 * num_heads + num_v_heads, chunks, batch)](
         x,
@@ -227,8 +276,10 @@ def gdn_short_conv_backward(
         cu_seqlens,
         chunk_indices,
         grad_qkv,
+        grad_scales,
         weight_partials,
         seq_len,
+        batch * seq_len if quantize else 0,
         qkv_dim,
         num_heads,
         num_v_heads,
@@ -237,10 +288,11 @@ def gdn_short_conv_backward(
         normalize_qk,
         eps,
         cu_seqlens is not None,
+        quantize,
         num_warps=4,
     )
     grad_weight = weight_partials.sum(0).to(w.dtype).view_as(weight)
-    return grad_qkv, grad_weight
+    return grad_qkv, grad_scales, grad_weight
 
 
 @gdn_short_conv_backward.register_fake
@@ -259,3 +311,56 @@ def _(
     return torch.empty_like(
         qkv, memory_format=torch.contiguous_format
     ), torch.empty_like(weight, memory_format=torch.contiguous_format)
+
+
+def _allocate_fp8(qkv):
+    batch, seq_len, features = qkv.shape
+    return (
+        qkv.new_empty(qkv.shape, dtype=torch.float8_e4m3fn),
+        qkv.new_empty((features // 128, batch * seq_len), dtype=torch.float32),
+    )
+
+
+@torch.library.custom_op("torchtitan::gdn_short_conv_backward_fp8", mutates_args=())
+def gdn_short_conv_backward_fp8(
+    qkv: torch.Tensor,
+    weight: torch.Tensor,
+    grad_q: torch.Tensor,
+    grad_k: torch.Tensor,
+    grad_v: torch.Tensor,
+    cu_seqlens: torch.Tensor | None,
+    num_heads: int,
+    num_v_heads: int,
+    normalize_qk: bool,
+    eps: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    return _short_conv_backward(
+        qkv,
+        weight,
+        grad_q,
+        grad_k,
+        grad_v,
+        cu_seqlens,
+        num_heads,
+        num_v_heads,
+        normalize_qk,
+        eps,
+        quantize=True,
+    )
+
+
+@gdn_short_conv_backward_fp8.register_fake
+def _(
+    qkv,
+    weight,
+    grad_q,
+    grad_k,
+    grad_v,
+    cu_seqlens,
+    num_heads,
+    num_v_heads,
+    normalize_qk,
+    eps,
+):
+    data, scale = _allocate_fp8(qkv)
+    return data, scale, torch.empty_like(weight, memory_format=torch.contiguous_format)

@@ -89,6 +89,7 @@ def qkv_conv1d_unpack_op(
     normalize_qk: bool,
     eps: float,
     fuse_backward: bool = False,
+    quantize_backward: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Opaque custom-op wrapper over fla's ``fused_qkv_conv1d_unpack`` (short conv)."""
     from fla.ops.common.fused_conv_qkv import fused_qkv_conv1d_unpack
@@ -121,6 +122,7 @@ def _(
     normalize_qk,
     eps,
     fuse_backward=False,
+    quantize_backward=False,
 ):
     bs, seqlen = qkv.shape[0], qkv.shape[1]
     return (
@@ -163,7 +165,17 @@ _RECOMPUTE["qkv_conv1d"] = _qkv_conv_recompute
 
 
 def _qkv_conv_backward(ctx, grad_q, grad_k, grad_v):
-    nh, nvh, hd, hvd, cu_seqlens, normalize_qk, eps, fuse_backward = ctx.fwd_args
+    (
+        nh,
+        nvh,
+        hd,
+        hvd,
+        cu_seqlens,
+        normalize_qk,
+        eps,
+        fuse_backward,
+        quantize_backward,
+    ) = ctx.fwd_args
     qkv, weight = ctx.saved_tensors
     if (
         fuse_backward
@@ -175,11 +187,38 @@ def _qkv_conv_backward(ctx, grad_q, grad_k, grad_v):
     ):
         from torchtitan.models.common.attention.linear.gdn_short_conv import (
             gdn_short_conv_backward,
+            gdn_short_conv_backward_fp8,
         )
 
-        d_qkv, d_weight = gdn_short_conv_backward(
-            qkv, weight, grad_q, grad_k, grad_v, cu_seqlens, nh, nvh, normalize_qk, eps
+        args = (
+            qkv,
+            weight,
+            grad_q,
+            grad_k,
+            grad_v,
+            cu_seqlens,
+            nh,
+            nvh,
+            normalize_qk,
+            eps,
         )
+        if quantize_backward:
+            from torchtitan.ops.float8.fp8_tensor import (
+                Float8BlockwiseQTensor,
+                InputLayoutType,
+            )
+
+            data, scales, d_weight = gdn_short_conv_backward_fp8(*args)
+            d_qkv = Float8BlockwiseQTensor(
+                data,
+                scales,
+                qkv.dtype,
+                InputLayoutType.ROWWISE,
+                1,
+                scale_block_first=True,
+            )
+        else:
+            d_qkv, d_weight = gdn_short_conv_backward(*args)
     else:
         d_qkv, d_weight = fla_vjp(
             "qkv_conv1d",
@@ -189,7 +228,7 @@ def _qkv_conv_backward(ctx, grad_q, grad_k, grad_v):
             [nh, nvh, hd, hvd, normalize_qk, eps],
             "",
         )
-    return d_qkv, d_weight, None, None, None, None, None, None, None, None
+    return d_qkv, d_weight, None, None, None, None, None, None, None, None, None
 
 
 qkv_conv1d_unpack_op.register_autograd(

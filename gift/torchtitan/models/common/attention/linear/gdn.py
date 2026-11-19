@@ -47,6 +47,9 @@ class GatedDeltaNet(GatedDeltaAttention):
     def __init__(self, config: Config):
         super().__init__(config)
         self._fuse_short_conv_backward = _env_flag("GIFT_GDN_FUSE_SHORT_CONV_BWD")
+        self._quantize_short_conv_backward = _env_flag(
+            "GIFT_GDN_FUSE_SHORT_CONV_BWD_FP8"
+        )
         self._output_norm_fp8: type[torch.autograd.Function] | None = None
         if _env_flag("GIFT_GDN_FUSE_OUTPUT_NORM_FP8"):
             from torchtitan.models.common.attention.linear.gdn_output_fp8 import (
@@ -96,6 +99,7 @@ class GatedDeltaNet(GatedDeltaAttention):
             x,
             cu_seqlens=cu_seqlens,
             fuse_conv_backward=self._fuse_short_conv_backward,
+            quantize_conv_backward=self._quantize_short_conv_backward,
         )
 
         # Decay/gating: ba_proj -> (beta b, decay-input a), each [.., L, num_v_heads].
