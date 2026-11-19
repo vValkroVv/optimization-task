@@ -52,6 +52,10 @@ FUSION_PACK = {
     "direct-dhidden": "GIFT_DIRECT_BF16_DHIDDEN",
     "staged-head-dw": "GIFT_STAGED_HEAD_DW",
 }
+FOLLOWUP_KERNELS = {
+    "swiglu-row16": "GIFT_EXPERT_SWIGLU_BWD_TILE16",
+    "cute-replay-stats": "GIFT_CUTE_NORM_SAC_STATS_ONLY",
+}
 CANONICAL_FUSION_PACK_ARG = "--canonical-fusion-pack"
 FP8_CACHE_FLAG = f"--{GFSDP_CONTROLS['fp8-expert-weights']}"
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
@@ -344,7 +348,7 @@ def install_fp8_rank_measurement(baseline, *, capture_inputs=None, requested_fix
 
 
 def main() -> int:
-    for flag in (FOLDED_CE_ENV, *FUSION_PACK.values()):
+    for flag in (FOLDED_CE_ENV, *FUSION_PACK.values(), *FOLLOWUP_KERNELS.values(), "GIFT_GDN_FUSE_SHORT_CONV_BWD_FP8"):
         os.environ.pop(flag, None)
     if sys.argv[1:2] != ["rank"]:
         os.environ.pop(DIRECT_DW_BUILD_ENV, None)
@@ -383,6 +387,12 @@ def main() -> int:
             requested_fixes.append(name)
             os.environ[FUSION_PACK[name]] = "1"
             print(f"kernel_fusion fix={name}", flush=True)
+        while rank_argv and rank_argv[0].startswith("--followup-kernel="):
+            name = rank_argv.pop(0).removeprefix("--followup-kernel=")
+            if name not in FOLLOWUP_KERNELS or set(requested_fixes) != set(FUSION_PACK):
+                raise ValueError(f"Invalid follow-up kernel or incomplete control: {name}")
+            os.environ[FOLLOWUP_KERNELS[name]] = "1"
+            print(f"kernel_fusion followup_kernel={name}", flush=True)
         if canonical_fusion_pack and requested_fixes:
             raise ValueError("Canonical fusion fixes cannot be combined with an explicit arm")
         print(f"kernel_fusion backward_arm={backward_arm}", flush=True)
@@ -428,7 +438,10 @@ def main() -> int:
     parser.add_argument("--capture-followup", action="store_true", help="Capture current production operands for the four subsequent experiments")
     parser.add_argument("--capture-scan", action="store_true", help="Capture the first native GDN backward for component replay")
     parser.add_argument("--fusion-fix", choices=FUSION_PACK, action="append", default=[])
+    parser.add_argument("--followup-kernel", choices=FOLLOWUP_KERNELS, action="append", default=[])
     args = parser.parse_args()
+    if args.followup_kernel and (set(args.fusion_fix) != set(FUSION_PACK) or args.mode not in {"timing", "trace"}):
+        parser.error("Follow-up kernels require the complete four-fix control and a timing or trace run")
     if (args.variant in {"baseline", PRODUCTION}) != (args.candidate_source is None):
         parser.error("Only historical candidate runs require --candidate-source")
     if args.source_revision is not None and args.variant != PRODUCTION:
@@ -504,7 +517,10 @@ def main() -> int:
             backward_arm = "capture" if args.mode == "capture" else args.backward_optimization
             if canonical or args.capture_followup:
                 command.insert(pos + 3, CANONICAL_FUSION_PACK_ARG)
-            command[pos + 3 : pos + 3] = [f"--fusion-fix={fix}" for fix in args.fusion_fix]
+            command[pos + 3 : pos + 3] = [
+                *(f"--fusion-fix={fix}" for fix in args.fusion_fix),
+                *(f"--followup-kernel={name}" for name in args.followup_kernel),
+            ]
             if args.capture_followup:
                 backward_arm = "followup-capture"
             if args.capture_scan:

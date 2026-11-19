@@ -1,0 +1,373 @@
+{
+  "source": "cca7bb1076670d85f680daa78e9293dd476128bb",
+  "fixture": "runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/swiglu-rank0.pt",
+  "fixture_sha256": "4b3c072c701a76d65ce9360e34acae6ee4271c6a50afd39703bc774636929e0f",
+  "shape": [
+    63616,
+    3072
+  ],
+  "clamp": 0.0,
+  "triton": "3.8.0",
+  "torch": "2.15.0.dev20260822+cu130",
+  "device": "NVIDIA H100 80GB HBM3",
+  "deepgemm_sms": 116,
+  "arms": {
+    "control": {
+      "tile": [
+        32,
+        4
+      ],
+      "bitwise_data_scale_dprobs_dx": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "peak_allocated": 1551876096,
+      "peak_reserved": 1566572544,
+      "device_events": [
+        {
+          "name": "_swiglu_quant_bwd_kernel",
+          "us": 334.014,
+          "registers_per_thread": 128,
+          "grid": [
+            1988,
+            12,
+            1
+          ]
+        },
+        {
+          "name": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+          "us": 6.368,
+          "registers_per_thread": 32,
+          "grid": [
+            994,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "void deep_gemm::transpose_fp32<512u, 64u, 24u, 25u>(float const*, float*, unsigned int)",
+          "us": 6.208,
+          "registers_per_thread": 36,
+          "grid": [
+            994,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 3072u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          "us": 1280.6,
+          "registers_per_thread": 168,
+          "grid": [
+            116,
+            1,
+            1
+          ]
+        }
+      ],
+      "swiglu": [
+        {
+          "event_ms": 0.38707199692726135,
+          "wall_ms": 0.40254399999999996,
+          "submit_ms": 0.08843,
+          "wait_ms": 0.313015,
+          "graph_ms": 0.34206398328145343
+        },
+        {
+          "event_ms": 0.38492798805236816,
+          "wall_ms": 0.400551,
+          "submit_ms": 0.08570499999999999,
+          "wait_ms": 0.314426,
+          "graph_ms": 0.3420586585998535
+        }
+      ],
+      "through_dgrad": [
+        {
+          "event_ms": 1.6879680156707764,
+          "wall_ms": 1.7059579999999999,
+          "submit_ms": 0.170371,
+          "wait_ms": 1.534436,
+          "graph_ms": 1.763746738433838
+        },
+        {
+          "event_ms": 1.869439959526062,
+          "wall_ms": 1.886566,
+          "submit_ms": 0.178974,
+          "wait_ms": 1.719751,
+          "graph_ms": 1.7782799402872722
+        }
+      ]
+    },
+    "row16": {
+      "tile": [
+        16,
+        4
+      ],
+      "bitwise_data_scale_dprobs_dx": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "peak_allocated": 1551876096,
+      "peak_reserved": 1566572544,
+      "device_events": [
+        {
+          "name": "_swiglu_quant_bwd_kernel",
+          "us": 328.156,
+          "registers_per_thread": 95,
+          "grid": [
+            3976,
+            12,
+            1
+          ]
+        },
+        {
+          "name": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+          "us": 5.92,
+          "registers_per_thread": 32,
+          "grid": [
+            994,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "void deep_gemm::transpose_fp32<512u, 64u, 24u, 25u>(float const*, float*, unsigned int)",
+          "us": 6.464,
+          "registers_per_thread": 36,
+          "grid": [
+            994,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 3072u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          "us": 1279.795,
+          "registers_per_thread": 168,
+          "grid": [
+            116,
+            1,
+            1
+          ]
+        }
+      ],
+      "swiglu": [
+        {
+          "event_ms": 0.3792639970779419,
+          "wall_ms": 0.394683,
+          "submit_ms": 0.086939,
+          "wait_ms": 0.307204,
+          "graph_ms": 0.33668800195058185
+        },
+        {
+          "event_ms": 0.37907201051712036,
+          "wall_ms": 0.39419499999999996,
+          "submit_ms": 0.084603,
+          "wait_ms": 0.30952199999999996,
+          "graph_ms": 0.3368266820907593
+        }
+      ],
+      "through_dgrad": [
+        {
+          "event_ms": 1.7898240089416504,
+          "wall_ms": 1.806355,
+          "submit_ms": 0.15933,
+          "wait_ms": 1.650536,
+          "graph_ms": 1.7570907274882
+        },
+        {
+          "event_ms": 1.8458240032196045,
+          "wall_ms": 1.862271,
+          "submit_ms": 0.17202499999999998,
+          "wait_ms": 1.692078,
+          "graph_ms": 1.7908666928609211
+        }
+      ]
+    },
+    "row16_w2": {
+      "tile": [
+        16,
+        2
+      ],
+      "bitwise_data_scale_dprobs_dx": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "peak_allocated": 1551876096,
+      "peak_reserved": 1566572544,
+      "device_events": [
+        {
+          "name": "_swiglu_quant_bwd_kernel",
+          "us": 331.902,
+          "registers_per_thread": 128,
+          "grid": [
+            3976,
+            12,
+            1
+          ]
+        },
+        {
+          "name": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+          "us": 5.984,
+          "registers_per_thread": 32,
+          "grid": [
+            994,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "void deep_gemm::transpose_fp32<512u, 64u, 24u, 25u>(float const*, float*, unsigned int)",
+          "us": 6.4,
+          "registers_per_thread": 36,
+          "grid": [
+            994,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 3072u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          "us": 1282.806,
+          "registers_per_thread": 168,
+          "grid": [
+            116,
+            1,
+            1
+          ]
+        }
+      ],
+      "swiglu": [
+        {
+          "event_ms": 0.382752001285553,
+          "wall_ms": 0.39797699999999997,
+          "submit_ms": 0.08528,
+          "wait_ms": 0.312949,
+          "graph_ms": 0.3396079937616984
+        },
+        {
+          "event_ms": 0.38329601287841797,
+          "wall_ms": 0.398798,
+          "submit_ms": 0.08587499999999999,
+          "wait_ms": 0.312678,
+          "graph_ms": 0.33958399295806885
+        }
+      ],
+      "through_dgrad": [
+        {
+          "event_ms": 1.8152639865875244,
+          "wall_ms": 1.8320489999999998,
+          "submit_ms": 0.157028,
+          "wait_ms": 1.672864,
+          "graph_ms": 1.8600853284200032
+        },
+        {
+          "event_ms": 1.8538240194320679,
+          "wall_ms": 1.8707259999999999,
+          "submit_ms": 0.15964899999999999,
+          "wait_ms": 1.709569,
+          "graph_ms": 1.8167680104573567
+        }
+      ]
+    },
+    "row16_w8": {
+      "tile": [
+        16,
+        8
+      ],
+      "bitwise_data_scale_dprobs_dx": [
+        true,
+        true,
+        false,
+        true
+      ],
+      "peak_allocated": 1551876096,
+      "peak_reserved": 1566572544,
+      "device_events": [
+        {
+          "name": "_swiglu_quant_bwd_kernel",
+          "us": 332.157,
+          "registers_per_thread": 62,
+          "grid": [
+            3976,
+            12,
+            1
+          ]
+        },
+        {
+          "name": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+          "us": 6.336,
+          "registers_per_thread": 32,
+          "grid": [
+            994,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "void deep_gemm::transpose_fp32<512u, 64u, 24u, 25u>(float const*, float*, unsigned int)",
+          "us": 6.432,
+          "registers_per_thread": 36,
+          "grid": [
+            994,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "void deep_gemm::sm90_fp8_gemm_1d2d_impl<(cute::UMMA::Major)0, 0u, 4096u, 3072u, 16u, 128u, 192u, 128u, 128u, 128u, 128u, 4u, 0u, 128u, 256u, 2u, false, 116u, (deep_gemm::GemmType)1, deep_gemm::EpilogueIdentity>(float*, int*, unsigned int, unsigned int, unsigned int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)",
+          "us": 1284.374,
+          "registers_per_thread": 168,
+          "grid": [
+            116,
+            1,
+            1
+          ]
+        }
+      ],
+      "swiglu": [
+        {
+          "event_ms": 0.37990400195121765,
+          "wall_ms": 0.394885,
+          "submit_ms": 0.085121,
+          "wait_ms": 0.309602,
+          "graph_ms": 0.3374026616414388
+        },
+        {
+          "event_ms": 0.3813759982585907,
+          "wall_ms": 0.396986,
+          "submit_ms": 0.086643,
+          "wait_ms": 0.309842,
+          "graph_ms": 0.3373680114746094
+        }
+      ],
+      "through_dgrad": [
+        {
+          "event_ms": 1.8558399677276611,
+          "wall_ms": 1.8726969999999998,
+          "submit_ms": 0.15989399999999998,
+          "wait_ms": 1.7045839999999999,
+          "graph_ms": 1.762495994567871
+        },
+        {
+          "event_ms": 1.7332160472869873,
+          "wall_ms": 1.7494379999999998,
+          "submit_ms": 0.163603,
+          "wait_ms": 1.589462,
+          "graph_ms": 1.7477307319641113
+        }
+      ]
+    }
+  },
+  "native_byte_parity": {
+    "data": true,
+    "scale": true,
+    "dgrad": true
+  }
+}

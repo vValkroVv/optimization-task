@@ -17,6 +17,8 @@ Backward
     128 threads × 128 regs = 16 384 → 4 blocks/SM on H100.
 """
 
+import os
+
 import torch
 import triton
 import triton.language as tl
@@ -56,6 +58,7 @@ STATIC_TRITON_PARAMS_BWD = {
 # Row-block sizes (col block must remain 128 for FP8 blockwise scale layout).
 FWD_ROW_BLOCK = 64
 BWD_ROW_BLOCK = 32
+_USE_ROW16 = os.environ.get("GIFT_EXPERT_SWIGLU_BWD_TILE16") == "1"
 COL_BLOCK = 128
 
 
@@ -413,7 +416,8 @@ class FusedQuantizedSwiGLU(torch.autograd.Function):
         )
 
         token_bucket = total_tokens // _SWIGLU_TOKEN_BUCKET_SIZE
-        grid = (total_tokens // BWD_ROW_BLOCK, blocks_per_row)
+        row_block = 16 if _USE_ROW16 and hid_dim == 1536 else BWD_ROW_BLOCK
+        grid = (total_tokens // row_block, blocks_per_row)
 
         _swiglu_quant_bwd_kernel[grid](
             *tensor_to_kernel_args(grad_output, 2),
@@ -424,7 +428,7 @@ class FusedQuantizedSwiGLU(torch.autograd.Function):
             *tensor_to_kernel_args(grad_probs_partial, 2),
             token_bucket,
             hid_dim,
-            ROW_BLOCK=BWD_ROW_BLOCK,
+            ROW_BLOCK=row_block,
             COL_BLOCK=COL_BLOCK,
             APPLY_CLAMP=swiglu_limit > 0,
             swiglu_limit=float(swiglu_limit),
