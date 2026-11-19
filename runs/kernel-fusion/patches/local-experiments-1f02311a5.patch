@@ -1,0 +1,991 @@
+diff --git a/gift/torchtitan/models/common/attention/softmax/gate.py b/gift/torchtitan/models/common/attention/softmax/gate.py
+index 65dad943e..9569a2ef8 100644
+--- a/gift/torchtitan/models/common/attention/softmax/gate.py
++++ b/gift/torchtitan/models/common/attention/softmax/gate.py
+@@ -6,6 +6,7 @@ it into the attention output (in fp32) before the output projection:
+ """
+ 
+ import torch
++from torch.distributed.tensor import DTensor
+ 
+ from typing import TypeAlias
+ 
+@@ -26,7 +27,29 @@ class SigmoidGate(Module):
+         assert config.gate_proj is not None, "partial SigmoidGate.Config"
+         self.gate_proj = config.gate_proj.build()
+ 
+-    def forward(self, x: torch.Tensor, attn_output: torch.Tensor) -> torch.Tensor:
++    def forward(
++        self,
++        x: torch.Tensor,
++        attn_output: torch.Tensor,
++        *,
++        quantize_mla_output: bool = False,
++    ) -> torch.Tensor:
++        logits = self.gate_proj(x)
++        if quantize_mla_output:
++            if (
++                logits.shape == (2, 4096, 4096)
++                and logits.dtype == torch.bfloat16
++                and logits.device == attn_output.device
++                and logits.is_contiguous()
++                and attn_output.stride(-1) == 1
++                and not isinstance(logits, DTensor)
++            ):
++                from torchtitan.models.common.attention.softmax.mla_gate_fp8 import (
++                    MLAGateFP8,
++                )
++
++                return MLAGateFP8.apply(attn_output, logits)
++            attn_output = attn_output.contiguous().flatten(2)
+         # Gate in fp32, cast back to the attention output dtype.
+-        gate = torch.sigmoid(self.gate_proj(x).float())
++        gate = logits.float().sigmoid()
+         return (attn_output.float() * gate).to(attn_output.dtype)
+diff --git a/gift/torchtitan/models/common/attention/softmax/mla.py b/gift/torchtitan/models/common/attention/softmax/mla.py
+index 2dc5ca05a..d917fbb50 100644
+--- a/gift/torchtitan/models/common/attention/softmax/mla.py
++++ b/gift/torchtitan/models/common/attention/softmax/mla.py
+@@ -13,6 +13,7 @@ from torch.distributed.tensor import DTensor
+ 
+ from torchtitan.config.schema.models.common.attention.softmax.mla import MLAConfig
+ from torchtitan.models.common.attention.const import AttentionMasksType
++from torchtitan.models.common.attention.softmax.gate import SigmoidGate
+ from torchtitan.models.common.attention.softmax.gqa import SoftmaxAttention
+ from torchtitan.models.common.attention.softmax.kernels.sdpa import (
+     ScaledDotProductAttention,
+@@ -117,10 +118,16 @@ class MLA(SoftmaxAttention):
+             and self.alpha_q == 1.0
+             and config.yarn_factor is None
+         )
++        self._fused_gate_fp8 = (
++            os.environ.get("GIFT_MLA_FUSED_GATE_FP8") == "1"
++            and crop
++            and type(self.gate) is SigmoidGate
++        )
+ 
+     def parallelize(self, parallel_dims) -> None:
+         if parallel_dims.tp_enabled or parallel_dims.cp_enabled:
+             self._fused_rope = False
++            self._fused_gate_fp8 = False
+         super().parallelize(parallel_dims)
+ 
+     def _rotate_query(self, q, freqs_cis, positions):
+@@ -226,8 +233,22 @@ class MLA(SoftmaxAttention):
+ 
+         output = self.inner_attention(
+             q, k, v, attention_masks=attention_masks, scale=self.softmax_scale
+-        ).contiguous()
+-        output = output.view(bsz, seqlen, -1)
++        )
++        if (
++            self._fused_gate_fp8
++            and torch.compiler.is_compiling()
++            and attention_masks is None
++            and output.shape == (2, 4096, 32, 128)
++            and output.dtype == torch.bfloat16
++            and output.is_cuda
++            and not isinstance(output, DTensor)
++            and not getattr(self.inner_attention, "_context_parallel_enabled", False)
++        ):
++            from torchtitan.ops.float8.cuda_gemm import FP8Linear
++
++            if isinstance(self.wo, FP8Linear):
++                return self.wo(self.gate(x, output, quantize_mla_output=True))
++        output = output.contiguous().view(bsz, seqlen, -1)
+         if self.gate is not None:
+             output = self.gate(x, output)
+         return self.wo(output)
+diff --git a/gift/torchtitan/models/common/moe/experts/gmm.py b/gift/torchtitan/models/common/moe/experts/gmm.py
+index 3c2987e6e..82933c369 100644
+--- a/gift/torchtitan/models/common/moe/experts/gmm.py
++++ b/gift/torchtitan/models/common/moe/experts/gmm.py
+@@ -5,6 +5,7 @@ single stacked weight and evaluated with ``torch._grouped_mm`` over the
+ per-expert token offsets produced by the token dispatcher.
+ """
+ 
++import os
+ from typing import TYPE_CHECKING, TypeAlias
+ 
+ import torch
+@@ -100,6 +101,10 @@ class GroupedExperts(Module):
+         self._use_float8_grouped_gemm = config.use_float8_grouped_gemm
+         assert config.dim is not None, "partial GroupedExperts.Config"
+         self._sparse_fused_swiglu_quant = config.sparse_fused_swiglu_quant
++        dual_fp8 = os.environ.get("GIFT_FUSE_MOE_SWIGLU_DUAL_FP8", "").strip()
++        if dual_fp8 not in ("", "0", "1"):
++            raise ValueError("GIFT_FUSE_MOE_SWIGLU_DUAL_FP8 must be 0 or 1.")
++        self._fuse_swiglu_dual_fp8 = dual_fp8 == "1"
+         self.swiglu_limit = config.swiglu_limit
+         self.swiglu_clip_counts: torch.Tensor | None = None
+         # (gate, up): the order fused_swiglu chunks the w13 output in.
+@@ -275,6 +280,13 @@ class GroupedExperts(Module):
+ 
+         # fused_swiglu_quant=False return BF16 grads, so we don't need to return edge
+         fused_swiglu_quant = self._sparse_fused_swiglu_quant
++        dual_fp8 = (
++            self._fuse_swiglu_dual_fp8
++            and fused_swiglu_quant
++            and use_edges
++            and w13_E2FD.requires_grad
++        )
++        clip_counts = self._clip_counts()
+         fc1_output, fc1_edge = self.handle1.group_gemm(
+             tensor_groups=payload,
+             weights=w13_E2FD,
+@@ -283,10 +295,14 @@ class GroupedExperts(Module):
+             tensor_groups_sizes_cpu=fp8_state.padded_group_sizes_cpu,
+             tensor_groups_sizes_padded=fp8_state.padded_group_sizes_t,
+             m_indices=m_indices_R,
+-            fp8_grad_output=use_edges and fused_swiglu_quant,
++            fp8_grad_output=use_edges and fused_swiglu_quant and not dual_fp8,
++            swiglu_probs=fp8_state.permuted_probs if dual_fp8 else None,
++            swiglu_limit=self.swiglu_limit,
++            swiglu_clip_counts=clip_counts,
+         )
+-        clip_counts = self._clip_counts()
+-        if fused_swiglu_quant:
++        if dual_fp8:
++            intermediate_edge, intermediate = fc1_edge, fc1_output
++        elif fused_swiglu_quant:
+             intermediate_edge, intermediate = fused_swiglu_quantized_fn(
+                 fc1_edge,
+                 fc1_output,
+@@ -309,9 +325,8 @@ class GroupedExperts(Module):
+             intermediate_edge = None
+         if clip_counts is not None:
+             # The kernels scan the 128-padded rows; count the routed ones.
+-            half_width = fc1_output.shape[-1] // 2
+             clip_counts[2].add_(
+-                num_tokens_per_expert_E.sum(dtype=torch.int64) * half_width
++                num_tokens_per_expert_E.sum(dtype=torch.int64) * intermediate.shape[-1]
+             )
+         routed_output_RD, output_edge = self.handle2.group_gemm(
+             tensor_groups=intermediate,
+diff --git a/gift/torchtitan/ops/float8/grouped_gemm.py b/gift/torchtitan/ops/float8/grouped_gemm.py
+index 73c3dd8d3..5040507c3 100644
+--- a/gift/torchtitan/ops/float8/grouped_gemm.py
++++ b/gift/torchtitan/ops/float8/grouped_gemm.py
+@@ -5,12 +5,18 @@ from torch.fx.experimental.symbolic_shapes import guard_or_false
+ from torchtitan.ops.float8.deep_gemm_handle import _DeepGemmHandle
+ from torchtitan.ops.float8.fp8_tensor import (
+     Float8BlockwiseQTensor,
++    bf16_grad_edge,
+     clear_tensor_data,
+     fp8_grad_edge,
+ )
+ from torchtitan.ops.float8.triton_kernels.block_transpose import (
+     transpose_last_two_dims_fn,
+ )
++from torchtitan.ops.float8.triton_kernels.fused_swiglu_quantization import (
++    _swiglu_quantized_backward,
++    _swiglu_quantized_forward,
++    fused_swiglu_quantized_fn,
++)
+ from torchtitan.ops.float8.triton_kernels.row2col_deepgemm_quantization import (
+     row2col_requantization_deepgemm_layout_fn,
+ )
+@@ -89,6 +95,9 @@ class _GroupedGemm(torch.autograd.Function):
+         tensor_groups_sizes_cpu: torch.Tensor | None,
+         triton_row2col: bool,
+         fp8_grad_output: bool,
++        swiglu_probs: torch.Tensor | None = None,
++        swiglu_limit: float = 0.0,
++        swiglu_clip_counts: torch.Tensor | None = None,
+     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+         ctx.use_edges = grad_edge is not None
+         ctx.fp8_grad_output = fp8_grad_output
+@@ -123,12 +132,23 @@ class _GroupedGemm(torch.autograd.Function):
+         saved = [weights._data, weights._scale]
+         if ctx.needs_wgrad:
+             saved.extend(tensor_groups_quantized)
+-        ctx.save_for_backward(*saved)
+         ctx.list_groups_sizes = list_groups_sizes_padded
+         ctx.tensor_groups_sizes = tensor_groups_sizes_padded
+         ctx.tensor_groups_sizes_cpu = tensor_groups_sizes_cpu
+         ctx.triton_row2col = triton_row2col
+ 
++        ctx.fused_swiglu = swiglu_probs is not None
++        if swiglu_probs is not None:
++            assert ctx.use_edges and ctx.needs_wgrad and not fp8_grad_output
++            ctx.swiglu_limit = swiglu_limit
++            payload, x_c, p_c = _swiglu_quantized_forward(
++                out, swiglu_probs, swiglu_limit, swiglu_clip_counts
++            )
++            ctx.save_for_backward(*saved, x_c, p_c)
++            ctx.mark_non_differentiable(payload)
++            return payload, bf16_grad_edge(*payload.shape, device=out.device)
++
++        ctx.save_for_backward(*saved)
+         if fp8_grad_output:
+             ctx.mark_non_differentiable(out)
+             return out, fp8_grad_edge(out.shape[0], out.shape[1], device=out.device)
+@@ -138,32 +158,47 @@ class _GroupedGemm(torch.autograd.Function):
+     def backward(
+         ctx,
+         grad_output: torch.Tensor | Float8BlockwiseQTensor,
+-        grad_fp8_edge: Float8BlockwiseQTensor | None = None,
++        grad_output_edge: torch.Tensor | None = None,
+     ) -> tuple[torch.Tensor | None, ...]:
+         with record_fn("grouped_gemm::bwd"):
+-            if ctx.fp8_grad_output:
+-                # The value slot took no gradient; the packed edge carries it.
+-                assert grad_fp8_edge is not None
+-                grad_output = grad_fp8_edge
+-            needs_wgrad = ctx.needs_wgrad
+-            w_data, w_scale, *tensor_groups_quantized = ctx.saved_tensors
+-            tensor_groups_quantized = tuple(tensor_groups_quantized)
+-
+-            # DGRAD
+-            is_quantized_grad_output = isinstance(grad_output, Float8BlockwiseQTensor)
+-            if is_quantized_grad_output:
+-                assert isinstance(grad_output, Float8BlockwiseQTensor)
+-                assert grad_output._data.shape[0] == grad_output._scale.shape[0]
+-                assert grad_output._data.shape[1] // 128 == grad_output._scale.shape[1]
+-                grad_output_quantized = (
+-                    grad_output._data.view(torch.float8_e4m3fn),
+-                    grad_output._scale,
++            grad_output_quantized_col = None
++            grad_probs = None
++            w_data, w_scale, *saved = ctx.saved_tensors
++            if ctx.fused_swiglu:
++                assert grad_output_edge is not None
++                x_data, x_scale, swiglu_input, swiglu_probs = saved
++                del saved
++                if not torch.compiler.is_compiling():
++                    ctx.maybe_clear_saved_tensors()
++                tensor_groups_quantized = (x_data, x_scale)
++                grad_output_quantized, grad_probs, grad_output_quantized_col = (
++                    _swiglu_quantized_backward(
++                        grad_output_edge,
++                        swiglu_input,
++                        swiglu_probs,
++                        ctx.swiglu_limit,
++                        ctx.m_indices,
++                        ctx.tensor_groups_sizes,
++                    )
+                 )
++                # Match the separate SwiGLU node's activation lifetime.
++                del swiglu_input, swiglu_probs
+             else:
+-                with record_fn("grouped_gemm::bwd::row_quantization_1x128_fn"):
+-                    grad_output_quantized = row_quantization_1x128_fn(
+-                        grad_output.contiguous()
++                tensor_groups_quantized = tuple(saved)
++                if ctx.fp8_grad_output:
++                    # The value slot took no gradient; the packed edge carries it.
++                    assert grad_output_edge is not None
++                    grad_output = grad_output_edge
++                if isinstance(grad_output, Float8BlockwiseQTensor):
++                    grad_output_quantized = (
++                        grad_output._data.view(torch.float8_e4m3fn),
++                        grad_output._scale,
+                     )
++                else:
++                    with record_fn("grouped_gemm::bwd::row_quantization_1x128_fn"):
++                        grad_output_quantized = row_quantization_1x128_fn(
++                            grad_output.contiguous()
++                        )
+ 
+             assert (
+                 grad_output_quantized[0].shape[0] == grad_output_quantized[1].shape[0]
+@@ -188,9 +223,14 @@ class _GroupedGemm(torch.autograd.Function):
+ 
+                 clear_tensor_data(*weights_quantized)
+ 
++            if grad_output_quantized_col is not None:
++                # Only dgrad consumes the fused rowwise output. Release it
++                # before allocating the columnwise form of the saved input.
++                clear_tensor_data(*grad_output_quantized)
++
+             # WGRAD (skipped entirely when weights are frozen)
+             wgrad = None
+-            if needs_wgrad:
++            if ctx.needs_wgrad:
+                 with record_fn(
+                     "grouped_gemm::bwd::row2col_requantization_deepgemm_layout_fn"
+                 ):
+@@ -209,14 +249,14 @@ class _GroupedGemm(torch.autograd.Function):
+                     )
+                     clear_tensor_data(*tensor_groups_quantized)
+ 
+-                    grad_output_quantized_col = row2col_fn(
+-                        grad_output_quantized[0],
+-                        ctx.m_indices,
+-                        ctx.tensor_groups_sizes,
+-                        grad_output_quantized[1],
+-                    )
+-
+-                    clear_tensor_data(*grad_output_quantized)
++                    if grad_output_quantized_col is None:
++                        grad_output_quantized_col = row2col_fn(
++                            grad_output_quantized[0],
++                            ctx.m_indices,
++                            ctx.tensor_groups_sizes,
++                            grad_output_quantized[1],
++                        )
++                        clear_tensor_data(*grad_output_quantized)
+ 
+                 # TODO: replace with torch.empty
+                 wgrad = torch.zeros(
+@@ -246,7 +286,7 @@ class _GroupedGemm(torch.autograd.Function):
+             else:
+                 clear_tensor_data(*grad_output_quantized)
+ 
+-        return (
++        gradients = (
+             dgrad if ctx.use_edges else None,  # grad_edge
+             None if ctx.use_edges else dgrad,  # tensor_groups
+             None,  # list_groups_sizes_padded
+@@ -256,7 +296,11 @@ class _GroupedGemm(torch.autograd.Function):
+             None,  # tensor_groups_sizes_cpu
+             None,  # triton_row2col
+             None,  # fp8_grad_output
++            grad_probs,  # swiglu_probs
++            None,  # swiglu_limit
++            None,  # swiglu_clip_counts
+         )
++        return gradients[: len(ctx.needs_input_grad)]
+ 
+ 
+ class GroupedGemmFp8Wrapper:
+@@ -275,12 +319,17 @@ class GroupedGemmFp8Wrapper:
+         triton_row2col: bool = False,
+         grad_edge: torch.Tensor | None = None,
+         fp8_grad_output: bool = False,
++        *,
++        swiglu_probs: torch.Tensor | None = None,
++        swiglu_limit: float = 0.0,
++        swiglu_clip_counts: torch.Tensor | None = None,
+     ) -> tuple[torch.Tensor, torch.Tensor | None]:
+         """Grouped fp8 GEMM over padded, expert-major token groups.
+ 
+         Returns ``(output, packed_edge)``; the edge is ``None`` unless
+         ``fp8_grad_output`` asked for one, so the caller reads the same pair
+-        either way.
++        either way. With ``swiglu_probs``, the output is the SwiGLU FP8
++        payload, and the edge carries its BF16 gradient.
+         """
+         payload = (
+             tensor_groups._data
+@@ -292,6 +341,18 @@ class GroupedGemmFp8Wrapper:
+         # traced graph then takes the general path, whose kernels skip an empty
+         # grid on their own.
+         if guard_or_false(payload.numel() == 0):
++            if swiglu_probs is not None:
++                empty, packed_edge = _EmptyGroupGemm.apply(
++                    grad_edge, tensor_groups, weights, True
++                )
++                swiglu_edge, swiglu_payload = fused_swiglu_quantized_fn(
++                    packed_edge,
++                    empty,
++                    swiglu_probs,
++                    swiglu_limit=swiglu_limit,
++                    clip_counts=swiglu_clip_counts,
++                )
++                return swiglu_payload, swiglu_edge
+             empty = _EmptyGroupGemm.apply(
+                 grad_edge, tensor_groups, weights, fp8_grad_output
+             )
+@@ -307,5 +368,8 @@ class GroupedGemmFp8Wrapper:
+             tensor_groups_sizes_cpu,
+             triton_row2col,
+             fp8_grad_output,
++            swiglu_probs,
++            swiglu_limit,
++            swiglu_clip_counts,
+         )
+-        return out if fp8_grad_output else (out, None)
++        return out if fp8_grad_output or swiglu_probs is not None else (out, None)
+diff --git a/gift/torchtitan/ops/float8/triton_kernels/fused_swiglu_quantization.py b/gift/torchtitan/ops/float8/triton_kernels/fused_swiglu_quantization.py
+index c048ccaf1..a58fcee96 100644
+--- a/gift/torchtitan/ops/float8/triton_kernels/fused_swiglu_quantization.py
++++ b/gift/torchtitan/ops/float8/triton_kernels/fused_swiglu_quantization.py
+@@ -161,6 +161,71 @@ def _swiglu_quant_fwd_kernel(
+ # ── backward kernel ────────────────────────────────────────────────────────────
+ 
+ 
++@triton.jit
++def _store_swiglu_grad(
++    grad,
++    row_offsets,
++    col_offsets,
++    scale_block,
++    row_ptr,
++    row_stride,
++    col_stride,
++    row_scale_ptr,
++    row_scale_stride,
++    scale_col_stride,
++):
++    row_scale, row_inv_scale = _fp8_scale_inv_from_amax(tl.max(tl.abs(grad), axis=1))
++    row_fp8 = (grad * row_inv_scale[:, None]).to(row_ptr.dtype.element_ty)
++    tl.store(
++        row_ptr + row_offsets[:, None] * row_stride + col_offsets[None, :] * col_stride,
++        row_fp8,
++    )
++    tl.store(
++        row_scale_ptr + row_offsets * row_scale_stride + scale_block * scale_col_stride,
++        row_scale,
++    )
++    return row_fp8, row_scale
++
++
++@triton.jit
++def _store_column_grad(
++    row_fp8,
++    row_scale,
++    row_offsets,
++    col_offsets,
++    column_data_ptr,
++    column_scale_ptr,
++    group_start,
++    group_size,
++    WIDTH: tl.constexpr,
++):
++    # The previous row-to-column kernel requantized the rounded E4M3
++    # payload. Reconstruct that same value before reducing the columns.
++    reconstructed = row_fp8.to(tl.float32) * row_scale[:, None]
++    scale_pre = tl.maximum(tl.max(tl.abs(reconstructed), 0) / 448.0, MIN_SCALE)
++    # CudaCherry rounds positive scales upward using the IEEE exponent field.
++    scale_bits = scale_pre.to(tl.int32, bitcast=True)
++    rounded = (scale_bits + 0x007FFFFF) & -0x00800000
++    column_scale = rounded.to(tl.float32, bitcast=True)
++    column_fp8 = (reconstructed * (1.0 / column_scale)[None, :]).to(
++        column_data_ptr.dtype.element_ty
++    )
++    # DeepGEMM packs each expert's transposed operand contiguously.
++    group_base = group_start * WIDTH
++    row_in_group = row_offsets - group_start
++    tl.store(
++        column_data_ptr
++        + group_base
++        + col_offsets[:, None] * group_size
++        + row_in_group[None, :],
++        tl.trans(column_fp8),
++    )
++    tl.store(
++        column_scale_ptr + tl.program_id(0).to(tl.int64) * WIDTH + col_offsets,
++        column_scale,
++    )
++
++
+ @triton.jit
+ def _swiglu_quant_bwd_kernel(
+     grad_output_ptr,
+@@ -193,15 +258,22 @@ def _swiglu_quant_bwd_kernel(
+     grad_probs_partial_size_col,
+     grad_token_bucket,
+     hid_dim: tl.constexpr,
+-    ROW_BLOCK: tl.constexpr,  # 32
++    ROW_BLOCK: tl.constexpr,  # 32 for rowwise, 128 for dual layout
+     COL_BLOCK: tl.constexpr,  # 128
+     APPLY_CLAMP: tl.constexpr,
+     swiglu_limit: tl.constexpr,
++    column_data_ptr,
++    column_scale_ptr,
++    m_indices_ptr,
++    group_sizes_ptr,
++    NUM_GROUPS: tl.constexpr,
++    GROUP_BLOCK: tl.constexpr,
++    STORE_COLUMN: tl.constexpr,
+ ):
+     pid_token = tl.program_id(axis=0)
+     pid_hid = tl.program_id(axis=1)
+ 
+-    row_offsets = (pid_token * ROW_BLOCK + tl.arange(0, ROW_BLOCK)).to(tl.int64)
++    row_offsets = pid_token.to(tl.int64) * ROW_BLOCK + tl.arange(0, ROW_BLOCK)
+     gate_col_offsets = pid_hid * COL_BLOCK + tl.arange(0, COL_BLOCK)
+     up_col_offsets = hid_dim + gate_col_offsets
+ 
+@@ -244,22 +316,18 @@ def _swiglu_quant_bwd_kernel(
+     if APPLY_CLAMP:
+         grad_up = tl.where(up_clamp_mask, grad_up, 0.0)
+ 
+-    up_amax = tl.max(tl.abs(grad_up), axis=1)
+-    up_sf, up_inv_sf = _fp8_scale_inv_from_amax(up_amax)
+-
+-    tl.store(
+-        grad_input_ptr
+-        + row_offsets[:, None] * grad_input_stride_row
+-        + up_col_offsets[None, :] * grad_input_stride_col,
+-        (grad_up * up_inv_sf[:, None]).to(grad_input_ptr.dtype.element_ty),
++    up_fp8, up_scale = _store_swiglu_grad(
++        grad_up,
++        row_offsets,
++        up_col_offsets,
++        blocks_per_row + pid_hid,
++        grad_input_ptr,
++        grad_input_stride_row,
++        grad_input_stride_col,
++        grad_input_sf_ptr,
++        grad_input_sf_stride_row,
++        grad_input_sf_stride_col,
+     )
+-    tl.store(
+-        grad_input_sf_ptr
+-        + row_offsets * grad_input_sf_stride_row
+-        + (blocks_per_row + pid_hid) * grad_input_sf_stride_col,
+-        up_sf.to(grad_input_sf_ptr.dtype.element_ty),
+-    )
+-    # grad_up, up_sf, up_inv_sf, up_amax registers are now free
+ 
+     # ── grad_probs partial (uses grad_out, silu_g, up_block — already live) ──
+     partial_grad_probs = tl.sum(grad_out * silu_g * up_block, axis=1)
+@@ -277,40 +345,208 @@ def _swiglu_quant_bwd_kernel(
+     if APPLY_CLAMP:
+         grad_gate = tl.where(gate_clamp_mask, grad_gate, 0.0)
+ 
+-    gate_amax = tl.max(tl.abs(grad_gate), axis=1)
+-    gate_sf, gate_inv_sf = _fp8_scale_inv_from_amax(gate_amax)
++    gate_fp8, gate_scale = _store_swiglu_grad(
++        grad_gate,
++        row_offsets,
++        gate_col_offsets,
++        pid_hid,
++        grad_input_ptr,
++        grad_input_stride_row,
++        grad_input_stride_col,
++        grad_input_sf_ptr,
++        grad_input_sf_stride_row,
++        grad_input_sf_stride_col,
++    )
+ 
+-    tl.store(
+-        grad_input_ptr
+-        + row_offsets[:, None] * grad_input_stride_row
+-        + gate_col_offsets[None, :] * grad_input_stride_col,
+-        (grad_gate * gate_inv_sf[:, None]).to(grad_input_ptr.dtype.element_ty),
++    # Finish both rowwise gradients before starting the column reductions.
++    if STORE_COLUMN:
++        # All rows of one 128-row tile belong to the same padded expert.
++        group_index = tl.load(m_indices_ptr + pid_token.to(tl.int64) * ROW_BLOCK)
++        if group_index < 0:
++            return
++        group_ids = tl.arange(0, GROUP_BLOCK)
++        sizes = tl.load(
++            group_sizes_ptr + group_ids, group_ids < NUM_GROUPS, other=0
++        ).to(tl.int64)
++        group_start = tl.multiple_of(
++            tl.sum(tl.where(group_ids < group_index, sizes, 0), axis=0),
++            ROW_BLOCK,
++        )
++        group_size = tl.multiple_of(
++            tl.load(group_sizes_ptr + group_index).to(tl.int64),
++            ROW_BLOCK,
++        )
++        _store_column_grad(
++            up_fp8,
++            up_scale,
++            row_offsets,
++            up_col_offsets,
++            column_data_ptr,
++            column_scale_ptr,
++            group_start,
++            group_size,
++            2 * hid_dim,
++        )
++        _store_column_grad(
++            gate_fp8,
++            gate_scale,
++            row_offsets,
++            gate_col_offsets,
++            column_data_ptr,
++            column_scale_ptr,
++            group_start,
++            group_size,
++            2 * hid_dim,
++        )
++
++
++def _make_qtensor(data: torch.Tensor, scale: torch.Tensor) -> Float8BlockwiseQTensor:
++    return Float8BlockwiseQTensor(
++        data=data.contiguous(),
++        scale=scale.contiguous(),
++        orig_dtype=torch.bfloat16,
++        input_layout_type=InputLayoutType.ROWWISE,
++        block_scaling_dim=1,
++        scale_block_first=False,
+     )
+-    tl.store(
+-        grad_input_sf_ptr
+-        + row_offsets * grad_input_sf_stride_row
+-        + pid_hid * grad_input_sf_stride_col,
+-        gate_sf.to(grad_input_sf_ptr.dtype.element_ty),
++
++
++def _swiglu_quantized_forward(
++    input_tensor: torch.Tensor,
++    probs: torch.Tensor,
++    swiglu_limit: float,
++    clip_counts: torch.Tensor | None,
++) -> tuple[Float8BlockwiseQTensor, torch.Tensor, torch.Tensor]:
++    total_tokens = input_tensor.shape[0]
++    hid_dim = input_tensor.shape[1] // 2
++    assert total_tokens % FWD_ROW_BLOCK == 0 and hid_dim % COL_BLOCK == 0
++
++    blocks_per_row = hid_dim // COL_BLOCK
++    out = torch.empty(
++        (total_tokens, hid_dim),
++        device=input_tensor.device,
++        dtype=torch.float8_e4m3fn,
++    )
++    out_sf = torch.empty(
++        (total_tokens, blocks_per_row),
++        device=input_tensor.device,
++        dtype=torch.float32,
++    )
++
++    x_c = input_tensor.contiguous()
++    p_c = probs.reshape(-1).contiguous()
++
++    # clip_counts is an int64[2] persistent buffer owned by the caller;
++    # the caller must zero it before each forward call.
++    monitor_on = clip_counts is not None and swiglu_limit > 0
++
++    token_bucket = total_tokens // _SWIGLU_TOKEN_BUCKET_SIZE
++    grid = (total_tokens // FWD_ROW_BLOCK, blocks_per_row)
++
++    _swiglu_quant_fwd_kernel[grid](
++        *tensor_to_kernel_args(x_c, 2),
++        *tensor_to_kernel_args(p_c, 1),
++        *tensor_to_kernel_args(out, 2),
++        *tensor_to_kernel_args(out_sf, 2),
++        token_bucket,
++        hid_dim,
++        ROW_BLOCK=FWD_ROW_BLOCK,
++        COL_BLOCK=COL_BLOCK,
++        APPLY_CLAMP=swiglu_limit > 0,
++        swiglu_limit=float(swiglu_limit),
++        clip_counts_ptr=clip_counts,
++        ACTIVATION_MONITOR_ON=monitor_on,
++        **params_to_kernel_kwargs(
++            STATIC_TRITON_PARAMS_FWD, hid_dim, num_warps=4, maxnreg=160
++        ),
++    )
++
++    return _make_qtensor(out, out_sf), x_c, p_c
++
++
++def _swiglu_quantized_backward(
++    grad_output: torch.Tensor,
++    x_c: torch.Tensor,
++    p_c: torch.Tensor,
++    swiglu_limit: float,
++    m_indices: torch.Tensor | None = None,
++    group_sizes: torch.Tensor | None = None,
++) -> tuple[
++    tuple[torch.Tensor, torch.Tensor],
++    torch.Tensor,
++    tuple[torch.Tensor, torch.Tensor] | None,
++]:
++    total_tokens = x_c.shape[0]
++    hid_dim = x_c.shape[1] // 2
++    blocks_per_row = hid_dim // COL_BLOCK
++    device = x_c.device
++
++    assert isinstance(grad_output, torch.Tensor)
++    grad_output = grad_output.contiguous()
++
++    grad_in = torch.empty(
++        (total_tokens, 2 * hid_dim), device=device, dtype=torch.float8_e4m3fn
++    )
++    grad_in_sf = torch.empty(
++        (total_tokens, 2 * blocks_per_row), device=device, dtype=torch.float32
++    )
++    grad_probs_partial = torch.empty(
++        (total_tokens, blocks_per_row), device=device, dtype=torch.float32
++    )
++
++    token_bucket = total_tokens // _SWIGLU_TOKEN_BUCKET_SIZE
++    column_data = column_scale = None
++    if group_sizes is not None:
++        assert m_indices is not None
++        row_block = COL_BLOCK
++        num_groups = group_sizes.numel()
++        column_data = torch.empty(
++            total_tokens * 2 * hid_dim, device=device, dtype=torch.float8_e4m3fn
++        )
++        column_scale = torch.empty(
++            (total_tokens // row_block, 2 * hid_dim), device=device, dtype=torch.float32
++        )
++        launch_params = {"num_warps": 16, "maxnreg": 128}
++    else:
++        row_block = BWD_ROW_BLOCK
++        num_groups = 0
++        launch_params = params_to_kernel_kwargs(
++            STATIC_TRITON_PARAMS_BWD, hid_dim, num_warps=4, maxnreg=128
++        )
++    grid = (total_tokens // row_block, blocks_per_row)
++
++    _swiglu_quant_bwd_kernel[grid](
++        *tensor_to_kernel_args(grad_output, 2),
++        *tensor_to_kernel_args(p_c, 1),
++        *tensor_to_kernel_args(x_c, 2),
++        *tensor_to_kernel_args(grad_in, 2),
++        *tensor_to_kernel_args(grad_in_sf, 2),
++        *tensor_to_kernel_args(grad_probs_partial, 2),
++        token_bucket,
++        hid_dim,
++        ROW_BLOCK=row_block,
++        COL_BLOCK=COL_BLOCK,
++        APPLY_CLAMP=swiglu_limit > 0,
++        swiglu_limit=float(swiglu_limit),
++        column_data_ptr=column_data,
++        column_scale_ptr=column_scale,
++        m_indices_ptr=m_indices,
++        group_sizes_ptr=group_sizes,
++        NUM_GROUPS=num_groups,
++        GROUP_BLOCK=triton.next_power_of_2(num_groups) if num_groups else 0,
++        STORE_COLUMN=group_sizes is not None,
++        **launch_params,
+     )
+ 
++    grad_probs = grad_probs_partial.sum(dim=-1)
++    columnwise = (column_data, column_scale) if column_data is not None else None
++    return (grad_in, grad_in_sf), grad_probs, columnwise
++
+ 
+ # ── autograd Function ──────────────────────────────────────────────────────────
+ 
+ 
+ class FusedQuantizedSwiGLU(torch.autograd.Function):
+-    @staticmethod
+-    def _make_qtensor(
+-        data: torch.Tensor, scale: torch.Tensor
+-    ) -> Float8BlockwiseQTensor:
+-        return Float8BlockwiseQTensor(
+-            data=data.contiguous(),
+-            scale=scale.contiguous(),
+-            orig_dtype=torch.bfloat16,
+-            input_layout_type=InputLayoutType.ROWWISE,
+-            block_scaling_dim=1,
+-            scale_block_first=False,
+-        )
+-
+     @staticmethod
+     def forward(
+         ctx,
+@@ -326,60 +562,17 @@ class FusedQuantizedSwiGLU(torch.autograd.Function):
+         # is the edge.
+         ctx.use_edges = fp8_edge is not None
+         del fp8_edge  # only its gradient matters
+-        ctx.input_tensor_shape = input_tensor.shape
+-        ctx.probs_shape = probs.shape
+         ctx.swiglu_limit = swiglu_limit
+ 
+-        total_tokens = input_tensor.shape[0]
+-        hid_dim = input_tensor.shape[1] // 2
+-        assert total_tokens % FWD_ROW_BLOCK == 0 and hid_dim % COL_BLOCK == 0
+-
+-        blocks_per_row = hid_dim // COL_BLOCK
+-        out = torch.empty(
+-            (total_tokens, hid_dim),
+-            device=input_tensor.device,
+-            dtype=torch.float8_e4m3fn,
+-        )
+-        out_sf = torch.empty(
+-            (total_tokens, blocks_per_row),
+-            device=input_tensor.device,
+-            dtype=torch.float32,
+-        )
+-
+-        x_c = input_tensor.contiguous()
+-        p_c = probs.reshape(-1).contiguous()
+-
+-        # clip_counts is an int64[2] persistent buffer owned by the caller;
+-        # the caller must zero it before each forward call.
+-        monitor_on = clip_counts is not None and swiglu_limit > 0
+-
+-        token_bucket = total_tokens // _SWIGLU_TOKEN_BUCKET_SIZE
+-        grid = (total_tokens // FWD_ROW_BLOCK, blocks_per_row)
+-
+-        _swiglu_quant_fwd_kernel[grid](
+-            *tensor_to_kernel_args(x_c, 2),
+-            *tensor_to_kernel_args(p_c, 1),
+-            *tensor_to_kernel_args(out, 2),
+-            *tensor_to_kernel_args(out_sf, 2),
+-            token_bucket,
+-            hid_dim,
+-            ROW_BLOCK=FWD_ROW_BLOCK,
+-            COL_BLOCK=COL_BLOCK,
+-            APPLY_CLAMP=swiglu_limit > 0,
+-            swiglu_limit=float(swiglu_limit),
+-            clip_counts_ptr=clip_counts,
+-            ACTIVATION_MONITOR_ON=monitor_on,
+-            **params_to_kernel_kwargs(
+-                STATIC_TRITON_PARAMS_FWD, hid_dim, num_warps=4, maxnreg=160
+-            ),
++        payload, x_c, p_c = _swiglu_quantized_forward(
++            input_tensor, probs, swiglu_limit, clip_counts
+         )
+ 
+         ctx.save_for_backward(x_c, p_c)
+-        payload = FusedQuantizedSwiGLU._make_qtensor(out, out_sf)
+         if not ctx.use_edges:
+             return payload
+         ctx.mark_non_differentiable(payload)
+-        total_tokens, hid_dim = out.shape[0], out.shape[1]
++        total_tokens, hid_dim = payload.shape
+         return (
+             bf16_grad_edge(total_tokens, hid_dim, device=input_tensor.device),
+             payload,
+@@ -393,48 +586,10 @@ class FusedQuantizedSwiGLU(torch.autograd.Function):
+     ):
+         del grad_payload  # the payload is not differentiable
+         x_c, p_c = ctx.saved_tensors
+-        total_tokens = ctx.input_tensor_shape[0]
+-        hid_dim = ctx.input_tensor_shape[1] // 2
+-        blocks_per_row = hid_dim // COL_BLOCK
+-        device = x_c.device
+-        swiglu_limit = ctx.swiglu_limit
+-
+-        assert isinstance(grad_output, torch.Tensor)
+-        grad_output = grad_output.contiguous()
+-
+-        grad_in = torch.empty(
+-            (total_tokens, 2 * hid_dim), device=device, dtype=torch.float8_e4m3fn
+-        )
+-        grad_in_sf = torch.empty(
+-            (total_tokens, 2 * blocks_per_row), device=device, dtype=torch.float32
+-        )
+-        grad_probs_partial = torch.empty(
+-            (total_tokens, blocks_per_row), device=device, dtype=torch.float32
++        grad_in, grad_probs, _ = _swiglu_quantized_backward(
++            grad_output, x_c, p_c, ctx.swiglu_limit
+         )
+-
+-        token_bucket = total_tokens // _SWIGLU_TOKEN_BUCKET_SIZE
+-        grid = (total_tokens // BWD_ROW_BLOCK, blocks_per_row)
+-
+-        _swiglu_quant_bwd_kernel[grid](
+-            *tensor_to_kernel_args(grad_output, 2),
+-            *tensor_to_kernel_args(p_c, 1),
+-            *tensor_to_kernel_args(x_c, 2),
+-            *tensor_to_kernel_args(grad_in, 2),
+-            *tensor_to_kernel_args(grad_in_sf, 2),
+-            *tensor_to_kernel_args(grad_probs_partial, 2),
+-            token_bucket,
+-            hid_dim,
+-            ROW_BLOCK=BWD_ROW_BLOCK,
+-            COL_BLOCK=COL_BLOCK,
+-            APPLY_CLAMP=swiglu_limit > 0,
+-            swiglu_limit=float(swiglu_limit),
+-            **params_to_kernel_kwargs(
+-                STATIC_TRITON_PARAMS_BWD, hid_dim, num_warps=4, maxnreg=128
+-            ),
+-        )
+-
+-        grad_probs = grad_probs_partial.sum(dim=-1)
+-        grad_in_packed = FusedQuantizedSwiGLU._make_qtensor(grad_in, grad_in_sf)
++        grad_in_packed = _make_qtensor(*grad_in)
+         return (
+             grad_in_packed if ctx.use_edges else None,
+             None if ctx.use_edges else grad_in_packed,
+diff --git a/gift/torchtitan/models/common/attention/softmax/mla_gate_fp8.py b/gift/torchtitan/models/common/attention/softmax/mla_gate_fp8.py
+new file mode 100644
+index 000000000..72abb0bbb
+--- /dev/null
++++ b/gift/torchtitan/models/common/attention/softmax/mla_gate_fp8.py
+@@ -0,0 +1,101 @@
++"""Fuse the compiled MLA sigmoid gate and CudaCherry's rowwise FP8 input format."""
++
++import torch
++import triton
++import triton.language as tl
++
++from torchtitan.ops.float8.fp8_tensor import Float8BlockwiseQTensor, InputLayoutType
++
++
++@triton.jit
++def _mla_gate_quantize(
++    attn,
++    logits,
++    quantized,
++    scales,
++    BATCH_STRIDE: tl.constexpr,
++    SEQ_STRIDE: tl.constexpr,
++    HEAD_STRIDE: tl.constexpr,
++    ROWS: tl.constexpr,
++):
++    # 2 * 4096 * 32 * 128 elements fit in int32. Input strides may differ.
++    token = tl.program_id(0) * ROWS + tl.arange(0, ROWS)
++    head = tl.program_id(1)
++    dim = tl.arange(0, 128)
++    attn_row = (
++        (token // 4096).to(tl.int64) * BATCH_STRIDE
++        + (token % 4096).to(tl.int64) * SEQ_STRIDE
++        + head.to(tl.int64) * HEAD_STRIDE
++    )
++    row = token * 4096 + head * 128
++    value = tl.load(attn + attn_row[:, None] + dim[None, :]).to(tl.float32)
++    gate_logits = tl.load(logits + row[:, None] + dim[None, :]).to(tl.float32)
++    gate = tl.sigmoid(gate_logits)
++    value = (value * gate).to(tl.bfloat16).to(tl.float32)
++
++    max_abs = tl.max(tl.abs(value), axis=1)
++    scale = tl.maximum(tl.div_rn(max_abs, 448.0), 1.0e-30)
++    # Ceil to a power of two by discarding the rounded-up FP32 mantissa.
++    bits = scale.to(tl.int32, bitcast=True)
++    scale = ((bits + 0x007FFFFF) & 0x7F800000).to(tl.float32, bitcast=True)
++    value = value * (1.0 / scale[:, None])
++    tl.store(quantized + row[:, None] + dim[None, :], value)
++    tl.store(scales + head * 8192 + token, scale)
++
++
++def _allocate_operand(logits):
++    return (
++        logits.new_empty(logits.shape, dtype=torch.float8_e4m3fn),
++        logits.new_empty((32, 8192), dtype=torch.float32),
++    )
++
++
++@torch.library.custom_op(
++    "torchtitan::mla_gate_quantize", mutates_args=(), device_types="cuda"
++)
++def _quantize(
++    attention: torch.Tensor, logits: torch.Tensor
++) -> tuple[torch.Tensor, torch.Tensor]:
++    data, scale = _allocate_operand(logits)
++    _mla_gate_quantize[(8192 // 8, 32)](
++        attention,
++        logits,
++        data,
++        scale,
++        *attention.stride()[:3],
++        ROWS=8,
++        num_warps=4,
++    )
++    return data, scale
++
++
++@_quantize.register_fake
++def _quantize_fake(attention, logits):
++    return _allocate_operand(logits)
++
++
++@torch._dynamo.allow_in_graph
++class MLAGateFP8(torch.autograd.Function):
++    @staticmethod
++    def forward(ctx, attention, logits):
++        ctx.save_for_backward(attention, logits)
++        data, scale = _quantize(attention, logits)
++        return Float8BlockwiseQTensor(
++            data,
++            scale,
++            torch.bfloat16,
++            InputLayoutType.ROWWISE,
++            1,
++            scale_block_first=True,
++        )
++
++    @staticmethod
++    def backward(ctx, grad_output):
++        attention, logits = ctx.saved_tensors
++        # Recompute the FP32 sigmoid from the saved BF16 projection output.
++        # This avoids retaining the FP32 sigmoid between forward and backward.
++        grad = grad_output.reshape(attention.shape).float()
++        gate = logits.view(attention.shape).float().sigmoid()
++        d_attention = (grad * gate).to(attention.dtype)
++        d_logits = torch.ops.aten.sigmoid_backward(grad * attention.float(), gate)
++        return d_attention, d_logits.view(logits.shape).to(logits.dtype)

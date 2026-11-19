@@ -212,6 +212,8 @@ more idle and 3.197 ms more device busy time across all streams.
 
 ### MoE dual-layout SwiGLU backward
 
+The [historical source patch](patches/local-experiments-1f02311a5.patch) reproduces the local MLA gate and MoE dual-layout experiments against `1f02311a5`. It is archived separately from the active training source. The later [16-row staged SwiGLU experiment](../fusion-followup/report.md) used a different backward implementation.
+
 The trace confirms removal of all 21 standalone `w13` gradient
 requantization launches, which take 3.247 ms in the control. The
 21 SwiGLU backward kernels rise from 6.668 to 12.737 ms, so the

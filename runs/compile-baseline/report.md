@@ -9,6 +9,10 @@ difference. The cuDNN, FlashQLA, CuTe, and cross-entropy kernels were present
 in both arms. The strongest remaining custom-kernel candidate is the MLA
 rotary and Q/K packing path.
 
+[Full layer and kernel comparison](matched-blocks.md) links the historical
+PyTorch code to the matched launches, records the selected five fusions,
+and ranks the opportunities identified at that point. The [profile PDF](../../docs/compile-fusion-profile.pdf) accompanies this historical analysis. For the current selection, use the [production recipe](../../docs/baseline.md#current-final-task-baseline).
+
 ## Comparison contract
 
 Both arms ran the selected S plus GPU capacity selector recipe on one node with
@@ -128,7 +132,7 @@ speedup of the transport kernel. The longer eager GPU span and smaller
 communication/compute overlap are consistent with the launch gaps in
 the table above.
 
-## Kernel work worth testing
+## Initial custom-kernel targets before the five fusions
 
 The following budgets are measured in the compile trace across all three
 microbatches. Each budget is the sum of the named device kernels. A replacement

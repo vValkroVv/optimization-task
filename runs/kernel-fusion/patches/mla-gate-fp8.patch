@@ -1,0 +1,235 @@
+diff --git a/gift/torchtitan/models/common/attention/softmax/mla.py b/gift/torchtitan/models/common/attention/softmax/mla.py
+--- a/gift/torchtitan/models/common/attention/softmax/mla.py
++++ b/gift/torchtitan/models/common/attention/softmax/mla.py
+@@ -5,14 +5,19 @@
+ """
+ 
+ import math
++import os
++from typing import TypeAlias
+ 
+ import torch
+-
+-from typing import TypeAlias
++from torch.distributed.tensor import DTensor
+ 
+ from torchtitan.config.schema.models.common.attention.softmax.mla import MLAConfig
+ from torchtitan.models.common.attention.const import AttentionMasksType
++from torchtitan.models.common.attention.softmax.gate import SigmoidGate
+ from torchtitan.models.common.attention.softmax.gqa import SoftmaxAttention
++from torchtitan.models.common.attention.softmax.kernels.sdpa import (
++    ScaledDotProductAttention,
++)
+ from torchtitan.models.common.embeddings.rope import (
+     apply_rotary_emb_complex,
+ )
+@@ -98,6 +103,24 @@
+ 
+         self.inner_attention = config.inner_attention.build()
+ 
++        crop = (
++            type(self.inner_attention) is ScaledDotProductAttention
++            and self.n_heads == 32
++            and self.qk_nope_head_dim == 128
++            and self.qk_rope_head_dim == 64
++            and self.v_head_dim == 128
++        )
++        self._fused_gate_fp8 = (
++            os.environ.get("GIFT_MLA_FUSED_GATE_FP8") == "1"
++            and crop
++            and type(self.gate) is SigmoidGate
++        )
++
++    def parallelize(self, parallel_dims) -> None:
++        if parallel_dims.tp_enabled or parallel_dims.cp_enabled:
++            self._fused_gate_fp8 = False
++        super().parallelize(parallel_dims)
++
+     def forward(
+         self,
+         x: torch.Tensor,
+@@ -151,8 +174,22 @@
+ 
+         output = self.inner_attention(
+             q, k, v, attention_masks=attention_masks, scale=self.softmax_scale
+-        ).contiguous()
+-        output = output.view(bsz, seqlen, -1)
++        )
++        if (
++            self._fused_gate_fp8
++            and torch.compiler.is_compiling()
++            and attention_masks is None
++            and output.shape == (2, 4096, 32, 128)
++            and output.dtype == torch.bfloat16
++            and output.is_cuda
++            and not isinstance(output, DTensor)
++            and not getattr(self.inner_attention, "_context_parallel_enabled", False)
++        ):
++            from torchtitan.ops.float8.cuda_gemm import FP8Linear
++
++            if isinstance(self.wo, FP8Linear):
++                return self.wo(self.gate(x, output, quantize_mla_output=True))
++        output = output.contiguous().view(bsz, seqlen, -1)
+         if self.gate is not None:
+             output = self.gate(x, output)
+         return self.wo(output)
+diff --git a/gift/torchtitan/distributed/context_parallel.py b/gift/torchtitan/distributed/context_parallel.py
+--- a/gift/torchtitan/distributed/context_parallel.py
++++ b/gift/torchtitan/distributed/context_parallel.py
+@@ -146,6 +146,7 @@
+                 return cp_forward
+ 
+             mod.forward = _make_cp_forward(original_forward, cp_mesh)
++            mod._context_parallel_enabled = True
+ 
+     logger.info("Applied Context Parallel (forward wrapping) to the model")
+ 
+diff --git a/gift/torchtitan/models/common/attention/softmax/gate.py b/gift/torchtitan/models/common/attention/softmax/gate.py
+--- a/gift/torchtitan/models/common/attention/softmax/gate.py
++++ b/gift/torchtitan/models/common/attention/softmax/gate.py
+@@ -6,6 +6,7 @@
+ """
+ 
+ import torch
++from torch.distributed.tensor import DTensor
+ 
+ from typing import TypeAlias
+ 
+@@ -26,7 +27,29 @@
+         assert config.gate_proj is not None, "partial SigmoidGate.Config"
+         self.gate_proj = config.gate_proj.build()
+ 
+-    def forward(self, x: torch.Tensor, attn_output: torch.Tensor) -> torch.Tensor:
++    def forward(
++        self,
++        x: torch.Tensor,
++        attn_output: torch.Tensor,
++        *,
++        quantize_mla_output: bool = False,
++    ) -> torch.Tensor:
++        logits = self.gate_proj(x)
++        if quantize_mla_output:
++            if (
++                logits.shape == (2, 4096, 4096)
++                and logits.dtype == torch.bfloat16
++                and logits.device == attn_output.device
++                and logits.is_contiguous()
++                and attn_output.stride(-1) == 1
++                and not isinstance(logits, DTensor)
++            ):
++                from torchtitan.models.common.attention.softmax.mla_gate_fp8 import (
++                    MLAGateFP8,
++                )
++
++                return MLAGateFP8.apply(attn_output, logits)
++            attn_output = attn_output.contiguous().flatten(2)
+         # Gate in fp32, cast back to the attention output dtype.
+-        gate = torch.sigmoid(self.gate_proj(x).float())
++        gate = logits.float().sigmoid()
+         return (attn_output.float() * gate).to(attn_output.dtype)
+diff --git a/gift/torchtitan/models/common/attention/softmax/mla_gate_fp8.py b/gift/torchtitan/models/common/attention/softmax/mla_gate_fp8.py
+new file mode 100644
+--- /dev/null
++++ b/gift/torchtitan/models/common/attention/softmax/mla_gate_fp8.py
+@@ -0,0 +1,101 @@
++"""Fuse the compiled MLA sigmoid gate and CudaCherry's rowwise FP8 input format."""
++
++import torch
++import triton
++import triton.language as tl
++
++from torchtitan.ops.float8.fp8_tensor import Float8BlockwiseQTensor, InputLayoutType
++
++
++@triton.jit
++def _mla_gate_quantize(
++    attn,
++    logits,
++    quantized,
++    scales,
++    BATCH_STRIDE: tl.constexpr,
++    SEQ_STRIDE: tl.constexpr,
++    HEAD_STRIDE: tl.constexpr,
++    ROWS: tl.constexpr,
++):
++    # 2 * 4096 * 32 * 128 elements fit in int32. Input strides may differ.
++    token = tl.program_id(0) * ROWS + tl.arange(0, ROWS)
++    head = tl.program_id(1)
++    dim = tl.arange(0, 128)
++    attn_row = (
++        (token // 4096).to(tl.int64) * BATCH_STRIDE
++        + (token % 4096).to(tl.int64) * SEQ_STRIDE
++        + head.to(tl.int64) * HEAD_STRIDE
++    )
++    row = token * 4096 + head * 128
++    value = tl.load(attn + attn_row[:, None] + dim[None, :]).to(tl.float32)
++    gate_logits = tl.load(logits + row[:, None] + dim[None, :]).to(tl.float32)
++    gate = tl.sigmoid(gate_logits)
++    value = (value * gate).to(tl.bfloat16).to(tl.float32)
++
++    max_abs = tl.max(tl.abs(value), axis=1)
++    scale = tl.maximum(tl.div_rn(max_abs, 448.0), 1.0e-30)
++    # Ceil to a power of two by discarding the rounded-up FP32 mantissa.
++    bits = scale.to(tl.int32, bitcast=True)
++    scale = ((bits + 0x007FFFFF) & 0x7F800000).to(tl.float32, bitcast=True)
++    value = value * (1.0 / scale[:, None])
++    tl.store(quantized + row[:, None] + dim[None, :], value)
++    tl.store(scales + head * 8192 + token, scale)
++
++
++def _allocate_operand(logits):
++    return (
++        logits.new_empty(logits.shape, dtype=torch.float8_e4m3fn),
++        logits.new_empty((32, 8192), dtype=torch.float32),
++    )
++
++
++@torch.library.custom_op(
++    "torchtitan::mla_gate_quantize", mutates_args=(), device_types="cuda"
++)
++def _quantize(
++    attention: torch.Tensor, logits: torch.Tensor
++) -> tuple[torch.Tensor, torch.Tensor]:
++    data, scale = _allocate_operand(logits)
++    _mla_gate_quantize[(8192 // 8, 32)](
++        attention,
++        logits,
++        data,
++        scale,
++        *attention.stride()[:3],
++        ROWS=8,
++        num_warps=4,
++    )
++    return data, scale
++
++
++@_quantize.register_fake
++def _quantize_fake(attention, logits):
++    return _allocate_operand(logits)
++
++
++@torch._dynamo.allow_in_graph
++class MLAGateFP8(torch.autograd.Function):
++    @staticmethod
++    def forward(ctx, attention, logits):
++        ctx.save_for_backward(attention, logits)
++        data, scale = _quantize(attention, logits)
++        return Float8BlockwiseQTensor(
++            data,
++            scale,
++            torch.bfloat16,
++            InputLayoutType.ROWWISE,
++            1,
++            scale_block_first=True,
++        )
++
++    @staticmethod
++    def backward(ctx, grad_output):
++        attention, logits = ctx.saved_tensors
++        # Recompute the FP32 sigmoid from the saved BF16 projection output.
++        # This avoids retaining the FP32 sigmoid between forward and backward.
++        grad = grad_output.reshape(attention.shape).float()
++        gate = logits.view(attention.shape).float().sigmoid()
++        d_attention = (grad * gate).to(attention.dtype)
++        d_logits = torch.ops.aten.sigmoid_backward(grad * attention.float(), gate)
++        return d_attention, d_logits.view(logits.shape).to(logits.dtype)

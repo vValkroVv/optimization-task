@@ -1,0 +1,306 @@
+diff --git a/gift/torchtitan/models/common/attention/softmax/mla.py b/gift/torchtitan/models/common/attention/softmax/mla.py
+--- a/gift/torchtitan/models/common/attention/softmax/mla.py
++++ b/gift/torchtitan/models/common/attention/softmax/mla.py
+@@ -5,14 +5,18 @@
+ """
+ 
+ import math
++import os
++from typing import TypeAlias
+ 
+ import torch
+-
+-from typing import TypeAlias
++from torch.distributed.tensor import DTensor
+ 
+ from torchtitan.config.schema.models.common.attention.softmax.mla import MLAConfig
+ from torchtitan.models.common.attention.const import AttentionMasksType
+ from torchtitan.models.common.attention.softmax.gqa import SoftmaxAttention
++from torchtitan.models.common.attention.softmax.kernels.sdpa import (
++    ScaledDotProductAttention,
++)
+ from torchtitan.models.common.embeddings.rope import (
+     apply_rotary_emb_complex,
+ )
+@@ -98,6 +102,36 @@
+ 
+         self.inner_attention = config.inner_attention.build()
+ 
++        crop = (
++            type(self.inner_attention) is ScaledDotProductAttention
++            and self.n_heads == 32
++            and self.qk_nope_head_dim == 128
++            and self.qk_rope_head_dim == 64
++            and self.v_head_dim == 128
++        )
++        self._fused_rope = (
++            os.environ.get("GIFT_MLA_FUSED_ROPE") == "1"
++            and crop
++            and self.kv_lora_rank == 512
++            and self.q_lora_rank == 0
++            and self.alpha_q == 1.0
++            and config.yarn_factor is None
++        )
++
++    def parallelize(self, parallel_dims) -> None:
++        if parallel_dims.tp_enabled or parallel_dims.cp_enabled:
++            self._fused_rope = False
++        super().parallelize(parallel_dims)
++
++    def _rotate_query(self, q, freqs_cis, positions):
++        q_nope, q_pe = torch.split(
++            q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
++        )
++        (q_pe,) = apply_rotary_emb_complex(
++            q_pe, freqs_cis=freqs_cis, positions=positions
++        )
++        return torch.cat([q_nope, q_pe], dim=-1)
++
+     def forward(
+         self,
+         x: torch.Tensor,
+@@ -121,21 +155,41 @@
+                 )
+             q = self.wq_b(q_latent)
+         q = q.view(bsz, seqlen, -1, self.qk_head_dim)
+-        q_nope, q_pe = torch.split(
+-            q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
+-        )
+-        (q_pe,) = apply_rotary_emb_complex(
+-            q_pe, freqs_cis=freqs_cis, positions=positions
+-        )
+-        q = torch.cat([q_nope, q_pe], dim=-1)
++        use_fused_rope = (
++            self._fused_rope
++            and torch.compiler.is_compiling()
++            and attention_masks is None
++            and q.shape == (2, 4096, 32, 192)
++            and q.is_cuda
++            and q.dtype == torch.bfloat16
++            and q.is_contiguous()
++            and freqs_cis.shape == (4096, 32)
++            and freqs_cis.dtype == torch.complex64
++            and not freqs_cis.requires_grad
++            and freqs_cis.device == q.device
++            and freqs_cis.is_contiguous()
++            and positions is not None
++            and positions.shape == (2, 4096)
++            and positions.dtype == torch.int32
++            and positions.device == q.device
++            and positions.is_contiguous()
++            and not isinstance(q, DTensor)
++            and not isinstance(freqs_cis, DTensor)
++            and not isinstance(positions, DTensor)
++            # CP alone can wrap inner attention without calling parallelize().
++            and not getattr(self.inner_attention, "_context_parallel_enabled", False)
++        )
++        if not use_fused_rope:
++            q = self._rotate_query(q, freqs_cis, positions)
+ 
+         # Key-value projection
+         kv = self.wkv_a(x)
+         kv, k_pe = torch.split(kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
+ 
+-        (k_pe,) = apply_rotary_emb_complex(
+-            k_pe.unsqueeze(2), freqs_cis=freqs_cis, positions=positions
+-        )
++        if not use_fused_rope:
++            (k_pe,) = apply_rotary_emb_complex(
++                k_pe.unsqueeze(2), freqs_cis=freqs_cis, positions=positions
++            )
+ 
+         if self.training and self._mla_kv_latent_z_loss_coef != 0.0:
+             kv = AddAuxiliaryLoss.apply(
+@@ -147,7 +201,28 @@
+         kv = self.wkv_b(kv)
+         kv = kv.view(bsz, seqlen, -1, self.qk_nope_head_dim + self.v_head_dim)
+         k_nope, v = torch.split(kv, [self.qk_nope_head_dim, self.v_head_dim], dim=-1)
+-        k = torch.cat([k_nope, k_pe.expand(-1, -1, self.n_heads, -1)], dim=-1)
++        if (
++            use_fused_rope
++            and k_nope.shape == (2, 4096, 32, 128)
++            and k_nope.stride() == (4096 * 8192, 8192, 256, 1)
++            and k_pe.stride() == (4096 * 576, 576, 1)
++            and k_nope.device == k_pe.device == q.device
++            and k_nope.dtype == k_pe.dtype == torch.bfloat16
++            and not isinstance(k_nope, DTensor)
++            and not isinstance(k_pe, DTensor)
++        ):
++            from torchtitan.models.common.attention.softmax.mla_rope_pack import (
++                MLARoPEPack,
++            )
++
++            q, k = MLARoPEPack.apply(q, k_nope, k_pe, freqs_cis, positions)
++        else:
++            if use_fused_rope:
++                q = self._rotate_query(q, freqs_cis, positions)
++                (k_pe,) = apply_rotary_emb_complex(
++                    k_pe.unsqueeze(2), freqs_cis=freqs_cis, positions=positions
++                )
++            k = torch.cat([k_nope, k_pe.expand(-1, -1, self.n_heads, -1)], dim=-1)
+ 
+         output = self.inner_attention(
+             q, k, v, attention_masks=attention_masks, scale=self.softmax_scale
+diff --git a/gift/torchtitan/distributed/context_parallel.py b/gift/torchtitan/distributed/context_parallel.py
+--- a/gift/torchtitan/distributed/context_parallel.py
++++ b/gift/torchtitan/distributed/context_parallel.py
+@@ -146,6 +146,7 @@
+                 return cp_forward
+ 
+             mod.forward = _make_cp_forward(original_forward, cp_mesh)
++            mod._context_parallel_enabled = True
+ 
+     logger.info("Applied Context Parallel (forward wrapping) to the model")
+ 
+diff --git a/gift/torchtitan/models/common/attention/softmax/mla_rope_pack.py b/gift/torchtitan/models/common/attention/softmax/mla_rope_pack.py
+new file mode 100644
+--- /dev/null
++++ b/gift/torchtitan/models/common/attention/softmax/mla_rope_pack.py
+@@ -0,0 +1,147 @@
++"""Fused partial RoPE and Q/K packing for the compiled MLA crop."""
++
++import torch
++import triton
++import triton.language as tl
++
++
++_SHAPE = (2, 4096, 32, 192)
++_ROWS = 16
++_TOKENS = _SHAPE[0] * _SHAPE[1]
++_QUERY_TILES = _TOKENS * _SHAPE[2] // _ROWS
++
++
++@triton.jit
++def _rotate(re, im, cos, sin):
++    return tl.fma(re, cos, -im * sin), tl.fma(re, sin, im * cos)
++
++
++@triton.jit
++def _coefficients(cache, positions, token, pair, CACHE_LENGTH: tl.constexpr):
++    position = tl.load(positions + token)
++    valid = (position >= 0) & (position < CACHE_LENGTH)
++    tl.device_assert(valid, "MLA RoPE position outside the cache")
++    offset = position[:, None] * 64 + 2 * pair[None, :]
++    cos = tl.load(cache + offset, mask=valid[:, None], other=float("nan"))
++    sin = tl.load(cache + offset + 1, mask=valid[:, None], other=float("nan"))
++    return cos, sin
++
++
++@triton.jit
++def _mla_rope_pack(
++    query, key, key_rope, cache, positions, out_q, out_k, ROWS: tl.constexpr
++):
++    # The fixed input views span at most 2 * 4096 * 32 * 256 elements.
++    row = tl.program_id(0) * ROWS + tl.arange(0, ROWS)
++    token = row // 32
++    head = row % 32
++    plain = tl.arange(0, 128)
++    pair = tl.arange(0, 32)
++    cos, sin = _coefficients(cache, positions, token, pair, 4096)
++    if tl.program_id(1) == 0:
++        val = tl.load(query + row[:, None] * 192 + plain[None, :])
++        rotary = query + row[:, None] * 192 + 128 + 2 * pair[None, :]
++        out = out_q
++    else:
++        val = tl.load(key + (token * 8192 + head * 256)[:, None] + plain[None, :])
++        rotary = key_rope + token[:, None] * 576 + 2 * pair[None, :]
++        out = out_k
++    re = tl.load(rotary).to(tl.float32)
++    im = tl.load(rotary + 1).to(tl.float32)
++    yr, yi = _rotate(re, im, cos, sin)
++    tl.store(out + row[:, None] * 192 + plain[None, :], val)
++    tl.store(
++        out + row[:, None] * 192 + 128 + tl.arange(0, 64)[None, :],
++        tl.interleave(yr, yi),
++    )
++
++
++@triton.jit
++def _mla_rope_unpack(
++    grad_q,
++    grad_k,
++    cache,
++    positions,
++    dq,
++    dk_rope,
++    ROWS: tl.constexpr,
++    QUERY_TILES: tl.constexpr,
++):
++    if tl.program_id(0) < QUERY_TILES:
++        row = tl.program_id(0) * ROWS + tl.arange(0, ROWS)
++        plain = tl.arange(0, 128)
++        pair = tl.arange(0, 32)
++        cos, sin = _coefficients(cache, positions, row // 32, pair, 4096)
++        val = tl.load(grad_q + row[:, None] * 192 + plain[None, :])
++        rotary = grad_q + row[:, None] * 192 + 128 + 2 * pair[None, :]
++        re = tl.load(rotary).to(tl.float32)
++        im = tl.load(rotary + 1).to(tl.float32)
++        yr, yi = _rotate(re, im, cos, -sin)
++        tl.store(dq + row[:, None] * 192 + plain[None, :], val)
++        tl.store(
++            dq + row[:, None] * 192 + 128 + tl.arange(0, 64)[None, :],
++            tl.interleave(yr, yi),
++        )
++    else:
++        token = tl.program_id(0) - QUERY_TILES
++        head = tl.arange(0, 32)
++        dim = tl.arange(0, 64)
++        key_rotary = grad_k + token * 6144 + head[:, None] * 192 + 128 + dim[None, :]
++        # The compiled expand backward keeps the shared-K head sum in FP32
++        # through the inverse rotation, rounding only on the final store.
++        grad = tl.sum(tl.load(key_rotary).to(tl.float32), axis=0)
++        key_re, key_im = tl.split(tl.reshape(grad, (32, 2)))
++        key_cos, key_sin = _coefficients(
++            cache, positions, token + tl.arange(0, 1), tl.arange(0, 32), 4096
++        )
++        key_real, key_imag = _rotate(
++            key_re,
++            key_im,
++            tl.reshape(key_cos, (32,)),
++            -tl.reshape(key_sin, (32,)),
++        )
++        tl.store(dk_rope + token * 64 + dim, tl.interleave(key_real, key_imag))
++
++
++class MLARoPEPack(torch.autograd.Function):
++    @staticmethod
++    def forward(ctx, query, key, key_rope, cache, positions):
++        out_q, out_k = torch.empty_like(query), torch.empty_like(query)
++        cache = torch.view_as_real(cache)
++        _mla_rope_pack[(_QUERY_TILES, 2)](
++            query,
++            key,
++            key_rope,
++            cache,
++            positions,
++            out_q,
++            out_k,
++            ROWS=_ROWS,
++            num_warps=4,
++            enable_fp_fusion=False,
++            debug=True,
++        )
++        ctx.save_for_backward(cache, positions)
++        return out_q, out_k
++
++    @staticmethod
++    def backward(ctx, grad_q, grad_k):
++        cache, positions = ctx.saved_tensors
++        grad_q = grad_q.contiguous()
++        grad_k = grad_k.contiguous()
++        dq = torch.empty_like(grad_q)
++        dk_rope = grad_q.new_empty((*_SHAPE[:2], 64))
++        _mla_rope_unpack[(_QUERY_TILES + _TOKENS,)](
++            grad_q,
++            grad_k,
++            cache,
++            positions,
++            dq,
++            dk_rope,
++            ROWS=_ROWS,
++            QUERY_TILES=_QUERY_TILES,
++            num_warps=4,
++            enable_fp_fusion=False,
++            debug=True,
++        )
++        return dq, grad_k[..., :128], dk_rope, None, None
