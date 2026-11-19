@@ -14,8 +14,11 @@ directory from the hybrid-ep-overlap checkout. Its DeepGEMM revision is
 `f3fde58372d33e9a5650ba7b80fc48b3b49d40c8`, and fmt is
 `553ec11ec06fbe0beebfbb45f9dc3c9eabd83d28`. The build checks the staged
 donor hash and the five corresponding headers from installed DeepGEMM
-`2.3.0+f093a4c`. It compiles only the focused host binding. The source slice
-can stage without Torch or CUDA by adding `--stage-only`.
+`2.3.0+f093a4c`. It validates that exact installed `deep-gemm` distribution
+version and matches its recorded `deep_gemm/__init__.py` path to the imported
+module; the build receipt records both the distribution version and the
+module's exposed version. It compiles only the focused host binding. The source
+slice can stage without Torch or CUDA by adding `--stage-only`.
 
 ```bash
 python direct_dw.py --donor "$direct_dw_donor" --build-root "$direct_dw_build"

@@ -1,6 +1,7 @@
 """Build and load the task-local Hopper dW extension."""
 
 import argparse
+import importlib.metadata
 import importlib.util
 import json
 import shutil
@@ -11,6 +12,7 @@ from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parent
 MODULE_NAME = "efsdp_direct_dw"
+DEEP_GEMM_DISTRIBUTION = "deep-gemm"
 DONOR_REVISION = "f093a4cd643bc06a7894a90dee852ec70e989a53"
 EXPECTED_VERSION = "2.3.0+f093a4c"
 DONOR_CONTENT = "4adadea0eabaa060908512d488a313274b468377014995d49217285539dea3e3"
@@ -62,24 +64,46 @@ def stage(donor, source_output):
     shutil.copyfile(SOURCE / "direct_dw.cpp", source_output / "direct_dw.cpp")
 
 
-def verify_baseline():
+def _verify_baseline():
     import deep_gemm
 
-    root = Path(deep_gemm.__file__).resolve().parent
-    if deep_gemm.__version__ != EXPECTED_VERSION:
-        raise RuntimeError(f"Unexpected DeepGEMM version {deep_gemm.__version__} at {root}")
+    distribution = importlib.metadata.distribution(DEEP_GEMM_DISTRIBUTION)
+    distribution_version = distribution.version
+    if distribution_version != EXPECTED_VERSION:
+        raise RuntimeError(
+            f"Unexpected DeepGEMM distribution version {distribution_version}; "
+            f"expected {EXPECTED_VERSION}"
+        )
+    recorded_init = next(
+        (path for path in distribution.files or () if path.as_posix() == "deep_gemm/__init__.py"),
+        None,
+    )
+    if recorded_init is None:
+        raise RuntimeError("Pinned DeepGEMM distribution does not record deep_gemm/__init__.py")
+    module_init = Path(deep_gemm.__file__).resolve()
+    distribution_init = Path(distribution.locate_file(recorded_init)).resolve()
+    if module_init != distribution_init:
+        raise RuntimeError(
+            f"DeepGEMM module path {module_init} does not match pinned distribution file "
+            f"{distribution_init}"
+        )
     for name, expected in BASELINE_HEADER_DIGESTS.items():
-        path = root / "include/deep_gemm" / name
+        path = module_init.parent / "include/deep_gemm" / name
         if file_digest(path) != expected:
             raise RuntimeError(f"Installed header differs from the pinned donor: {path}")
-    return deep_gemm
+    return deep_gemm, distribution_version
+
+
+def verify_baseline():
+    baseline, _ = _verify_baseline()
+    return baseline
 
 
 def build(stage_directory, build_root):
     import torch
     from torch.utils.cpp_extension import CUDA_HOME, load
 
-    baseline = verify_baseline()
+    baseline, baseline_distribution_version = _verify_baseline()
     if CUDA_HOME is None:
         raise RuntimeError("CUDA_HOME must identify the Hopper CUDA toolkit")
     toolkit = Path(CUDA_HOME)
@@ -105,7 +129,8 @@ def build(stage_directory, build_root):
         "donor_content_sha256": DONOR_CONTENT,
         "patch_sha256": file_digest(SOURCE / "deepgemm-rounded-f32.patch"),
         "binding_sha256": file_digest(stage_directory / "direct_dw.cpp"),
-        "baseline_version": baseline.__version__,
+        "baseline_distribution_version": baseline_distribution_version,
+        "baseline_module_version": baseline.__version__,
         "baseline_module": baseline.__file__,
         "baseline_cuda_headers": BASELINE_HEADER_DIGESTS,
         "torch_version": torch.__version__,
