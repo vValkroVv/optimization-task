@@ -43,6 +43,17 @@ class GatedNormStatsOnlyPass(CustomGraphPass):
                         _forward_stats._opoverload, node.args[:5]
                     )
                 stats.meta = {**node.meta, "val": outputs[1:]}
+                if "eager_input_vals" in stats.meta:
+                    args, kwargs = stats.meta["eager_input_vals"]
+                    # Inductor uses these values to preserve input layout constraints.
+                    stats.meta["eager_input_vals"] = (
+                        args[:5],
+                        {
+                            name: value
+                            for name, value in kwargs.items()
+                            if name not in ("gating_weight", "residual")
+                        },
+                    )
                 for user in users:
                     index = user.args[1]
                     if index == 0:
