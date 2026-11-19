@@ -65,8 +65,9 @@ FFN/embedding changes and GFSDP schedule repairs. The owner selected all three
 expert GFSDP optimizations for the current production launch on this same
 topology. Earlier expert GFSDP comparisons used the fixed baseline with those
 three flags off as their control. Production now also enables folded CE and
-the four backward optimizations below. Their combined throughput and peak
-memory remain unmeasured.
+the four backward optimizations below. In one native 10+10 window the complete
+recipe measured 179,761 physical tokens/s, 60.308 GiB peak allocated and
+62.186 GiB peak reserved across eight ranks. [Measurement](../runs/fusion-followup/report.md)
 [Throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
 
 | Part | Selected setting |

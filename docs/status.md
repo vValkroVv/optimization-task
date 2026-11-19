@@ -87,7 +87,7 @@ measured 178,067 tokens/s. Hidden z-loss, direct GDN backward and BF16 dHidden
 assembly together measured 179,279 (+0.681%) with peaks down 382/240 MiB
 (allocated/reserved). Staged LM-head dW on its own measured 179,034 (+0.543%)
 with peaks down 1,003/1,000 MiB. The owner selected all four optimizations together for production.
-Combined TPS and both peak-memory figures remain unmeasured. [Component and native results](../runs/fusion-pack/report.md)
+A fresh 10+10 window on all four together measured 179,761 TPS with 60.308 GiB peak allocated and 62.186 GiB peak reserved. [Original component and native results](../runs/fusion-pack/report.md) · [Current four-fix control and follow-ups](../runs/fusion-followup/report.md)
 
 ### Fixed-recipe control for expert GFSDP candidates
 
