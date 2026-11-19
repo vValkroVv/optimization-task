@@ -9,8 +9,8 @@ Update this file when new evidence changes a conclusion.
 
 The owner accepted **S + GPU capacity selector + five Hopper fusions** on
 19 November 2026 as the fixed baseline for the eight-layer crop on eight
-H100s. The active production launch adds the three expert GFSDP flags on
-the same topology. [Recipe and launcher](baseline.md#current-final-task-baseline)
+H100s. The active production launch adds the three expert GFSDP flags, folded
+CE and all four backward optimizations on the same topology. [Recipe and launcher](baseline.md#current-final-task-baseline)
 
 TPS counts global physical input tokens per second. Memory is the maximum
 PyTorch allocator peak across eight ranks within the measurement window.
@@ -86,8 +86,8 @@ The next same-source 10+10 comparison used folded CE in every arm. Its control
 measured 178,067 tokens/s. Hidden z-loss, direct GDN backward and BF16 dHidden
 assembly together measured 179,279 (+0.681%) with peaks down 382/240 MiB
 (allocated/reserved). Staged LM-head dW on its own measured 179,034 (+0.543%)
-with peaks down 1,003/1,000 MiB. Both variants remain opt-in. The four-way
-combination is unmeasured. [Component and native results](../runs/fusion-pack/report.md)
+with peaks down 1,003/1,000 MiB. The owner selected all four optimizations together for production.
+Combined TPS and both peak-memory figures remain unmeasured. [Component and native results](../runs/fusion-pack/report.md)
 
 ### Fixed-recipe control for expert GFSDP candidates
 

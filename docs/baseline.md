@@ -63,8 +63,10 @@ fixed baseline on 19 November 2026 for the eight-layer 100B-dev crop on eight
 H100s. S builds on the four fixes and FlashQLA `external_gate`, then adds the
 FFN/embedding changes and GFSDP schedule repairs. The owner selected all three
 expert GFSDP optimizations for the current production launch on this same
-topology. The fixed baseline remains the all-off control for measuring these
-three changes.
+topology. Earlier expert GFSDP comparisons used the fixed baseline with those
+three flags off as their control. Production now also enables folded CE and
+the four backward optimizations below. Their combined throughput and peak
+memory remain unmeasured.
 [Throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
 
 | Part | Selected setting |
@@ -77,6 +79,7 @@ three changes.
 | GPU capacity selector | Set `branchless_capacity_drop: true` under `model.config.blocks.<block>.moe.experts.token_dispatcher.token_drop` for `gdn_moe` and `mla_moe`. Keep fixed capacity 50,000, group-capacity dropping, and the original 128-counter all-reduce. |
 | Hopper fusions | Enable GDN output norm → FP8, MLA RoPE + Q/K packing, CuTe norm + residual add, GDN short-conv backward, and the Dense FP8 weight tail. |
 | Folded CE backward | Each main/MTP loss writes its gradient into the folded BF16 logits gradient for its head. The chunk schedule, FP32 CE arithmetic, two backward GEMMs and FP32 weight-gradient accumulation are retained. |
+| Four backward optimizations | Enable fused hidden z-loss, FlashQLA external-gate direct backward, direct BF16 dHidden assembly, and staged LM-head dW together. Retain the existing eligibility checks and native fallbacks. |
 | Expert GFSDP production flags | Enable the FP8 expert-weight cache, rounded direct dW into the existing FP32 buffer, and tail weight retention. The FP8 cache replaces the previous BF16 cache for eligible expert groups. |
 | Measurement | Logical epoch size 102,400, LR horizon 65,000 updates, and LR warmup 2,000 updates. The final comparison measured optimizer updates 41–140 after 40 warmup updates. Initial follow-up comparisons can use 10+10. |
 
@@ -96,10 +99,12 @@ original capacity overlay.
 Use `timing` for 10+10, `timing-140` for 40+100, or `trace` for an update-21
 capture. The default `production` invocation verifies the measured GIFT source
 fingerprint, checks the resolved recipe against the saved control, and enables
-folded CE backward, all three expert GFSDP flags and the five switches below. Each expert GFSDP
+folded CE backward, all three expert GFSDP flags, the five Hopper fusions and
+the four backward optimizations. Each expert GFSDP
 flag has standalone 10+10 and trace evidence. The three-on EP8/eFSDP1
 control also completed a native 10+10 and an update-21 trace. Multi-rank
 expert-FSDP coverage remains open.
+[Four backward optimizations and available measurements](../runs/fusion-pack/report.md)
 [Combined control and folded CE comparison](../runs/backward-components/report.md)
 [Standalone results and evidence](status.md#expert-gfsdp-standalone-results)
 [Direct dW build instructions](../runs/efsdp-optimizations/direct-dw/README.md)
@@ -107,7 +112,8 @@ expert-FSDP coverage remains open.
 An explicit `--source-revision "$(git rev-parse HEAD)"` selects the follow-up
 path. With that argument alone, the runner uses the all-off expert GFSDP
 control. Add one or more `--gfsdp-optimization` options to select the exact
-subset for a follow-up. A subset with direct dW requires the same verified
+subset for a follow-up. Explicit-source experiments select their exact backward
+fixes with repeatable `--fusion-fix` arguments. A subset with direct dW requires the same verified
 build argument.
 
 ```bash
@@ -116,6 +122,10 @@ GIFT_MLA_FUSED_ROPE=1
 GIFT_CUTE_NORM_FUSE_RESIDUAL=1
 GIFT_GDN_FUSE_SHORT_CONV_BWD=1
 GIFT_FP8_QUANTIZE_WEIGHT_TAIL=1
+GIFT_FUSED_HIDDEN_Z_LOSS=1
+GIFT_FLASH_QLA_DIRECT_BACKWARD=1
+GIFT_DIRECT_BF16_DHIDDEN=1
+GIFT_STAGED_HEAD_DW=1
 ```
 
 The source for the five fusions is in commit `fe5950b56`. The S bridge loads

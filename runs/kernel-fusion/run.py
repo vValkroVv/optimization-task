@@ -52,6 +52,7 @@ FUSION_PACK = {
     "direct-dhidden": "GIFT_DIRECT_BF16_DHIDDEN",
     "staged-head-dw": "GIFT_STAGED_HEAD_DW",
 }
+CANONICAL_FUSION_PACK_ARG = "--canonical-fusion-pack"
 FP8_CACHE_FLAG = f"--{GFSDP_CONTROLS['fp8-expert-weights']}"
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
 FIXED_TRACE_CONTROL = "efsdp-control-ep8-002-trace"
@@ -353,6 +354,16 @@ def main() -> int:
             raise RuntimeError(f"Expected {expected} but rank sees {actual}")
         print(f"kernel_fusion variant={variant} switches={sorted(actual)}", flush=True)
         rank_argv = sys.argv[3:]
+        canonical_fusion_pack = CANONICAL_FUSION_PACK_ARG in rank_argv
+        if canonical_fusion_pack:
+            if variant != PRODUCTION or rank_argv.count(CANONICAL_FUSION_PACK_ARG) != 1:
+                raise ValueError("Canonical fusion fixes require the production recipe")
+            rank_argv.remove(CANONICAL_FUSION_PACK_ARG)
+            for switch in FUSION_PACK.values():
+                os.environ[switch] = "1"
+            print(
+                f"kernel_fusion fusion_fixes={','.join(FUSION_PACK)}", flush=True
+            )
         backward_arm = "folded-ce" if variant == PRODUCTION else "control"
         if rank_argv and rank_argv[0].startswith("--backward-arm="):
             backward_arm = rank_argv.pop(0).removeprefix("--backward-arm=")
@@ -360,12 +371,16 @@ def main() -> int:
                 raise ValueError(f"Invalid production backward arm: {backward_arm}")
         if variant == PRODUCTION and backward_arm != "unfolded-ce":
             os.environ[FOLDED_CE_ENV] = "1"
+        requested_fixes = []
         while rank_argv and rank_argv[0].startswith("--fusion-fix="):
             name = rank_argv.pop(0).removeprefix("--fusion-fix=")
             if variant != PRODUCTION or name not in FUSION_PACK:
                 raise ValueError(f"Invalid production fusion fix: {name}")
+            requested_fixes.append(name)
             os.environ[FUSION_PACK[name]] = "1"
             print(f"kernel_fusion fix={name}", flush=True)
+        if canonical_fusion_pack and requested_fixes:
+            raise ValueError("Canonical fusion fixes cannot be combined with an explicit arm")
         print(f"kernel_fusion backward_arm={backward_arm}", flush=True)
         if (
             variant == PRODUCTION
@@ -375,7 +390,7 @@ def main() -> int:
             install_fp8_rank_measurement(
                 baseline,
                 capture_inputs=backward_arm if backward_arm in {"capture", "scan-capture"} else None,
-                requested_fixes=tuple(key for key, env in FUSION_PACK.items() if os.environ.get(env) == "1"),
+                requested_fixes=tuple(requested_fixes),
             )
         if direct_dw_build := os.environ.get(DIRECT_DW_BUILD_ENV):
             num_sms = require_positive_int(
@@ -480,6 +495,8 @@ def main() -> int:
                 args.variant,
             ]
             backward_arm = "capture" if args.mode == "capture" else args.backward_optimization
+            if canonical:
+                command.insert(pos + 3, CANONICAL_FUSION_PACK_ARG)
             command[pos + 3 : pos + 3] = [f"--fusion-fix={fix}" for fix in args.fusion_fix]
             if args.capture_scan:
                 backward_arm = "scan-capture"

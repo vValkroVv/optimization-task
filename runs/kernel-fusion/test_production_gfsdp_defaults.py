@@ -112,7 +112,9 @@ def cli(monkeypatch, tmp_path):
 @pytest.mark.parametrize(
     ("mode", "arguments", "expected"),
     [
+        ("timing", (), (True, True, True)),
         ("timing-140", (), (True, True, True)),
+        ("trace", (), (True, True, True)),
         ("timing", ("--source-revision", HEAD), (False, False, False)),
         (
             "trace",
@@ -125,11 +127,19 @@ def cli(monkeypatch, tmp_path):
             (False, False, True),
         ),
     ],
-    ids=["canonical", "explicit-control", "explicit-fp8", "explicit-direct"],
+    ids=[
+        "canonical-10",
+        "canonical-140",
+        "canonical-trace",
+        "explicit-control",
+        "explicit-fp8",
+        "explicit-direct",
+    ],
 )
 def test_production_routes_exact_gfsdp_flags(cli, mode, arguments, expected):
     if arguments:
         cli.snapshot["tracked_and_untracked_sha256"] = "b" * 64
+    canonical = "--source-revision" not in arguments
     if expected[-1]:
         arguments = (*arguments, "--direct-dw-build", str(cli.manifest.parent))
 
@@ -151,6 +161,10 @@ def test_production_routes_exact_gfsdp_flags(cli, mode, arguments, expected):
     command = cli.emitted["command"]
     rank = command.index(str(RUNNER))
     assert command[rank + 1 : rank + 3] == ["rank", "production"]
+    if canonical:
+        assert runner.CANONICAL_FUSION_PACK_ARG in command
+    else:
+        assert runner.CANONICAL_FUSION_PACK_ARG not in command
     _, overrides = runner.training_overrides(command)
     assert overrides["--compile.enable"] == "true"
     assert [overrides[f"--{field}"] for field in FIELDS] == [
@@ -281,6 +295,11 @@ def test_canonical_production_rejects_uncommitted_runner_or_gift_changes(cli):
     ("options", "expected_folded", "expected_fixes"),
     [
         ([], "1", set()),
+        (
+            ["--canonical-fusion-pack"],
+            "1",
+            {"hidden-z-loss", "gdn-direct-backward", "direct-dhidden", "staged-head-dw"},
+        ),
         (["--backward-arm=unfolded-ce"], None, set()),
         (["--fusion-fix=hidden-z-loss", "--fusion-fix=direct-dhidden"], "1", {"hidden-z-loss", "direct-dhidden"}),
     ],
@@ -301,3 +320,75 @@ def test_production_rank_applies_only_requested_fixes(monkeypatch, options, expe
     child.assert_called_once_with(["true", "config"])
     assert os.getenv(runner.FOLDED_CE_ENV) == expected_folded
     assert {name for name, flag in runner.FUSION_PACK.items() if os.getenv(flag)} == expected_fixes
+
+
+def test_canonical_fusion_pack_skips_one_shot_proof_wrappers(monkeypatch):
+    spec = spec_from_file_location("_canonical_fusion_proof_route", RUNNER)
+    runner = module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    for name in runner.variant_switches("production"):
+        monkeypatch.setenv(name, "1")
+    monkeypatch.delenv(runner.DIRECT_DW_BUILD_ENV, raising=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(RUNNER),
+            "rank",
+            "production",
+            runner.CANONICAL_FUSION_PACK_ARG,
+            "--",
+            "config",
+            "--dump_folder",
+            "out",
+            runner.FP8_CACHE_FLAG,
+            "true",
+        ],
+    )
+    child = Mock()
+    install_proof = Mock()
+    monkeypatch.setattr(runner, "load", lambda *args: SimpleNamespace(run_rank=child))
+    monkeypatch.setattr(runner, "install_fp8_rank_measurement", install_proof)
+
+    assert runner.main() == 0
+
+    assert {
+        name for name, flag in runner.FUSION_PACK.items() if os.getenv(flag) == "1"
+    } == set(runner.FUSION_PACK)
+    install_proof.assert_called_once()
+    assert install_proof.call_args.kwargs["requested_fixes"] == ()
+
+
+def test_explicit_fusion_arm_keeps_one_shot_proof_request(monkeypatch):
+    spec = spec_from_file_location("_explicit_fusion_proof_route", RUNNER)
+    runner = module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    for name in runner.variant_switches("production"):
+        monkeypatch.setenv(name, "1")
+    monkeypatch.delenv(runner.DIRECT_DW_BUILD_ENV, raising=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(RUNNER),
+            "rank",
+            "production",
+            "--fusion-fix=hidden-z-loss",
+            "--",
+            "config",
+            "--dump_folder",
+            "out",
+            runner.FP8_CACHE_FLAG,
+            "true",
+        ],
+    )
+    child = Mock()
+    install_proof = Mock()
+    monkeypatch.setattr(runner, "load", lambda *args: SimpleNamespace(run_rank=child))
+    monkeypatch.setattr(runner, "install_fp8_rank_measurement", install_proof)
+
+    assert runner.main() == 0
+
+    assert os.getenv(runner.FUSION_PACK["hidden-z-loss"]) == "1"
+    install_proof.assert_called_once()
+    assert install_proof.call_args.kwargs["requested_fixes"] == ("hidden-z-loss",)

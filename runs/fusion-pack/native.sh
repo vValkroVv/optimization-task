@@ -18,10 +18,8 @@ export PYTHONDONTWRITEBYTECODE=1
 [[ $(nvidia-smi --query-gpu=name --format=csv,noheader | grep -c H100) -eq 8 ]]
 [[ -z $(nvidia-smi --query-compute-apps=pid --format=csv,noheader) ]]
 build=runs/kernel-fusion/artifacts/raw/efsdp-direct-dw-ep8-003-campaign/build
-options=()
-if [[ $mode != timing || $# -gt 0 ]]; then
-    options=(--source-revision "$(git rev-parse HEAD)" --gfsdp-optimization retain-tail-weights
-        --gfsdp-optimization fp8-expert-weights --gfsdp-optimization direct-expert-dw)
-fi
+# This is the historical comparison wrapper; an empty --fusion-fix list is its control arm.
+options=(--source-revision "$(git rev-parse HEAD)" --gfsdp-optimization retain-tail-weights
+    --gfsdp-optimization fp8-expert-weights --gfsdp-optimization direct-expert-dw)
 /opt/torchtitan-venv/bin/python3.12 -Bu runs/kernel-fusion/run.py production "$mode" "$tag" \
     --direct-dw-build "$build" "${options[@]}" "$@"
