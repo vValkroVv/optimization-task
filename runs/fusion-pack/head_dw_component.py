@@ -12,29 +12,16 @@ import time
 
 import torch
 import triton
-import triton.language as tl
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "runs/backward-components"))
 from folded_ce import FLAG, CompileConfig, MTPLoss, load_fixture, sha256  # noqa: E402
+from torchtitan.distributed.gfsdp._staged_head_dw import merge_head_dw  # noqa: E402
 
 VOCAB = 128256
 WIDTH = 4096
 TOKENS = 8192
 FIXTURE_SHA256 = "15227882b1da44c2881b63622b6249bcddd307d90575216290f29ab9f720c727"
-
-
-@triton.jit
-def merge_head_dw(staged, output, width: tl.constexpr):
-    row = tl.program_id(0)
-    column = tl.arange(0, width)
-    base = row.to(tl.int64) * width
-    first = tl.load(staged + 2 * base + column).to(tl.float32)
-    second = tl.load(staged + 2 * base + width + column).to(tl.float32)
-    # Every warp must finish reading both BF16 halves before any FP32 store
-    # can overwrite another warp's input. Distinct rows occupy disjoint bytes.
-    tl.debug_barrier()
-    tl.store(output + base + column, first + second)
 
 
 def bits_equal(left, right):
@@ -271,6 +258,13 @@ def summarize_trace(path):
     owner_by_id = {
         e["args"]["External id"]: e for e in host if "External id" in e.get("args", {})
     }
+    launch_by_correlation = {
+        e["args"]["correlation"]: e
+        for e in events
+        if e.get("cat") in {"cuda_driver", "cuda_runtime"}
+        and "LaunchKernel" in e["name"]
+        and "correlation" in e.get("args", {})
+    }
     summary = {}
     for label in ("control", "pitched"):
         submit = next(e for e in host if e["name"] == f"head_dw_submit_{label}")
@@ -281,15 +275,18 @@ def summarize_trace(path):
             if category not in {"kernel", "gpu_memset", "gpu_memcpy"}:
                 continue
             owner = owner_by_id.get(event["args"].get("External id"))
-            if (
-                owner is None
-                or not submit["ts"] <= owner["ts"] < submit["ts"] + submit["dur"]
+            launch = owner or launch_by_correlation.get(
+                event["args"].get("correlation")
+            )
+            if launch is None or (
+                (launch["pid"], launch["tid"]) != (submit["pid"], submit["tid"])
+                or not submit["ts"] <= launch["ts"] < submit["ts"] + submit["dur"]
             ):
                 continue
             device.append(
                 {
                     "category": category,
-                    "owner": owner["name"],
+                    "owner": launch["name"],
                     "name": event["name"],
                     "stream": event["args"]["stream"],
                     "grid": event["args"].get("grid"),
@@ -306,6 +303,9 @@ def summarize_trace(path):
             raise ValueError(
                 f"Expected two mm kernels on one stream for {label}: {device}"
             )
+        merge_kernels = [e for e in device if e["name"] == "merge_head_dw"]
+        if len(merge_kernels) != (label == "pitched"):
+            raise ValueError(f"Unexpected merge launches for {label}: {device}")
         span = (
             max(e["start_us"] + e["duration_us"] for e in device)
             - device[0]["start_us"]
@@ -318,6 +318,7 @@ def summarize_trace(path):
             "device_span_us": span,
             "device_kernel_us": kernel_sum,
             "device_gemm_us": sum(e["duration_us"] for e in gemms),
+            "device_combine_us": kernel_sum - sum(e["duration_us"] for e in gemms),
             "device_memcpy_memset_us": copy_sum,
             "device_inter_event_gap_us": span - kernel_sum - copy_sum,
             "gemm_signatures": [

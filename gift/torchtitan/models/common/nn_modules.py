@@ -14,9 +14,10 @@ Norms live in :mod:`torchtitan.models.common.norms` and embeddings in
 :mod:`torchtitan.models.common.embeddings`; import them from there.
 """
 
-import torch.nn as nn
+from typing import TYPE_CHECKING, TypeAlias
 
-from typing import TypeAlias
+import torch.nn as nn
+from torch import Tensor
 
 from torchtitan.config.schema.models.common.nn_modules import (
     Conv1dConfig,
@@ -27,6 +28,9 @@ from torchtitan.config.schema.models.common.nn_modules import (
     SiLUConfig,
 )
 from torchtitan.protocols.module import Module
+
+if TYPE_CHECKING:
+    from torchtitan.distributed.gfsdp._staged_head_dw import StagedHeadDw
 
 
 class Conv1d(nn.Conv1d, Module):
@@ -93,6 +97,13 @@ class Linear(nn.Linear, Module):
     def __init__(self, config: Config):
         in_features, out_features = config.require_features()
         super().__init__(in_features, out_features, bias=config.bias)
+
+    def forward(
+        self, input: Tensor, *, _staged_head_dw: "StagedHeadDw | None" = None
+    ) -> Tensor:
+        if _staged_head_dw is not None:
+            return _staged_head_dw.linear(input, self.weight)
+        return super().forward(input)
 
 
 class SiLU(nn.SiLU, Module):

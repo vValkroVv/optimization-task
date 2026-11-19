@@ -155,7 +155,8 @@ def pairs(events, phase):
         e
         for e in events
         if e.get("cat") in ("cuda_runtime", "cuda_driver")
-        and (e["pid"], e["tid"]) == (region["pid"], region["tid"])
+        # PyTorch can submit backward kernels from an autograd worker thread.
+        and e["pid"] == region["pid"]
         and region["ts"] <= e["ts"] < region["ts"] + region["dur"]
     ]
     ids = {e.get("args", {}).get("correlation") for e in host} - {None}

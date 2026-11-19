@@ -25,6 +25,7 @@ from ._param import ParamModuleInfo, ShardedState, GFSDPParam
 
 if TYPE_CHECKING:
     from torchtitan.ops.float8.direct_expert_dw import DirectExpertDwLease
+    from ._staged_head_dw import StagedHeadDw
 
     try:
         import yccl
@@ -189,6 +190,7 @@ class GFSDPCommContext:
 
 
 class GFSDPParamGroup:
+    _staged_head_dw: "StagedHeadDw | None" = None
     orig_dtype: torch.dtype
     param_dtype: torch.dtype | None
     reduce_dtype: torch.dtype | None
@@ -1266,7 +1268,10 @@ class GFSDPParamGroup:
         was_in_backward = self._training_state == TrainingState.PRE_BACKWARD
         self._training_state = TrainingState.POST_BACKWARD
         grad_buffer_ctx = self.grad_buffer_ctx
-        if self._direct_expert_dw_lease is not None:
+        if self._staged_head_dw is not None:
+            if self._staged_head_dw.post_backward(was_in_backward):
+                return
+        elif self._direct_expert_dw_lease is not None:
             self._finish_direct_expert_dw(self._direct_expert_dw_lease)
         elif grad_buffer_ctx is not None:
             if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:

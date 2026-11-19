@@ -428,7 +428,9 @@ class GradAccumulator:
             local = reference
 
         # DTensor partial gradients retain their original accumulation contract.
-        self._direct = direct_bf16 and self._device_mesh is None and local.dtype == torch.bfloat16
+        self._direct = (
+            direct_bf16 and self._device_mesh is None and local.dtype == torch.bfloat16
+        )
         if self._direct:
             self._buffer = torch.empty_like(local)
         else:
@@ -582,6 +584,12 @@ class ChunkedCELoss(BaseLoss):
         self._direct_bf16_dhidden = direct_bf16 == "1"
         if self._direct_bf16_dhidden:
             logger.info("Chunked loss direct BF16 dHidden enabled")
+        staged_head_dw_env = "GIFT_STAGED_HEAD_DW"
+        staged_head_dw_mode = os.environ.get(staged_head_dw_env) or "0"
+        if staged_head_dw_mode not in ("0", "1"):
+            raise ValueError(f"{staged_head_dw_env} must be 0 or 1")
+        self._staged_head_dw_enabled = staged_head_dw_mode == "1"
+        self._staged_head_dw_logged = False
         self.num_chunks = config.num_chunks
         self.num_chunks_on_monitoring_steps = config.num_chunks_on_monitoring_steps
         self.lm_head: nn.Module | None = None
@@ -727,6 +735,21 @@ class ChunkedCELoss(BaseLoss):
             c.detach().requires_grad_(requires_grad) for c in _chunk(hidden_states)
         ]
         label_chunks = list(_chunk(labels))
+        staged_dw = None
+        if self._staged_head_dw_enabled and requires_grad and not shape_probe:
+            from torchtitan.distributed.gfsdp._staged_head_dw import (
+                select_staged_head_dw,
+            )
+
+            staged_dw = select_staged_head_dw(lm_head, h_chunks)
+            if not self._staged_head_dw_logged:
+                if staged_dw is not None:
+                    logger.info("GFSDP staged LM-head dW active")
+                else:
+                    logger.warning(
+                        "GFSDP staged LM-head dW is ineligible for this head or input"
+                    )
+                self._staged_head_dw_logged = True
 
         grad_accumulator = GradAccumulator(
             hidden_states,
@@ -748,6 +771,8 @@ class ChunkedCELoss(BaseLoss):
             lm_head.set_is_last_backward(False)
 
         try:
+            if staged_dw is not None:
+                staged_dw.begin()
             last_idx = len(h_chunks) - 1
             for i, (h_chunk, label_chunk) in enumerate(zip(h_chunks, label_chunks)):
                 # torch FSDP: sync unconditionally, as before the gfsdp
@@ -759,7 +784,11 @@ class ChunkedCELoss(BaseLoss):
                         # the sync setter also arms AR, so override it last
                         lm_head.set_requires_all_reduce(sync_all_reduce, recurse=False)
 
-                logits = lm_head(h_chunk)
+                logits = (
+                    lm_head(h_chunk, _staged_head_dw=staged_dw)
+                    if staged_dw is not None
+                    else lm_head(h_chunk)
+                )
                 if argmax_sink is not None:
                     # Greedy predictions for the acceptance counters, taken from
                     # the logits this loop already materializes; cat over the
@@ -784,7 +813,11 @@ class ChunkedCELoss(BaseLoss):
                     assert h_chunk.grad is not None
                     grad_accumulator.add(h_chunk.grad)
                     h_chunk.grad = None
+            if staged_dw is not None:
+                staged_dw.check_reduced()
         finally:
+            if staged_dw is not None:
+                staged_dw.close()
             if fsdp_enabled:
                 lm_head.set_is_last_backward(was_last_backward)
                 lm_head.set_reshard_after_forward(True)
