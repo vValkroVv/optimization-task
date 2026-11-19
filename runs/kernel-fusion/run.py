@@ -55,6 +55,7 @@ FUSION_PACK = {
     "hidden-z-loss": "GIFT_FUSED_HIDDEN_Z_LOSS",
     "gdn-direct-backward": "GIFT_FLASH_QLA_DIRECT_BACKWARD",
     "direct-dhidden": "GIFT_DIRECT_BF16_DHIDDEN",
+    "staged-head-dw": "GIFT_STAGED_HEAD_DW",
 }
 FP8_CACHE_FLAG = f"--{GFSDP_CONTROLS['fp8-expert-weights']}"
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"

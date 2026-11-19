@@ -278,3 +278,28 @@ def test_canonical_production_rejects_uncommitted_runner_or_gift_changes(cli):
 
     cli.fixed_recipe.assert_not_called()
     assert not cli.emitted
+
+@pytest.mark.parametrize(
+    ("options", "expected_folded", "expected_fixes"),
+    [
+        ([], "1", set()),
+        (["--backward-arm=unfolded-ce"], None, set()),
+        (["--fusion-fix=hidden-z-loss", "--fusion-fix=direct-dhidden"], "1", {"hidden-z-loss", "direct-dhidden"}),
+    ],
+)
+def test_production_rank_applies_only_requested_fixes(monkeypatch, options, expected_folded, expected_fixes):
+    spec = spec_from_file_location("_production_fix_rank", RUNNER)
+    runner = module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    for name in runner.variant_switches("production"):
+        monkeypatch.setenv(name, "1")
+    for flag in runner.FUSION_PACK.values():
+        monkeypatch.setenv(flag, "1")
+    monkeypatch.delenv(runner.DIRECT_DW_BUILD_ENV, raising=False)
+    monkeypatch.setattr(sys, "argv", [str(RUNNER), "rank", "production", *options, "config"])
+    child = Mock()
+    monkeypatch.setattr(runner, "load", lambda *args: SimpleNamespace(run_rank=child))
+    assert runner.main() == 0
+    child.assert_called_once_with(["true", "config"])
+    assert os.getenv(runner.FOLDED_CE_ENV) == expected_folded
+    assert {name for name, flag in runner.FUSION_PACK.items() if os.getenv(flag)} == expected_fixes

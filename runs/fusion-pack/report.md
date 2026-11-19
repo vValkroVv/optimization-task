@@ -1,0 +1,14 @@
+# Memory-neutral backward optimizations on Hopper
+
+The control uses the production eight-layer crop on eight H100s with S, GPU capacity selection, the five Hopper fusions, all three expert GFSDP switches and folded CE. The folded head sees two sequence chunks, two loss heads and the production vocabulary of 128256. The native campaign retains EP8/eFSDP1, dense FSDP8, B2/S4096, accumulation 32, MTP weight 0.3, model and loss compilation, selective activation checkpointing, EMA, tokenizer, data-002 and the D compiler cache. [Production recipe](../../docs/baseline.md)
+
+## Component evidence
+
+All times use the production shapes. Device event spans and host-inclusive times are kept separate from summed trace kernel durations. Component comparisons run before timing the complete recipe.
+
+- **Hidden gradient assembly.** The existing FP32 destination receives disjoint BF16 slices and is cast back to BF16. A fully written BF16 destination removes initialization and both conversions. Ordinary DTensor accumulation retains its existing placement and reduction path. The native folded-head replay supplied both actual gradient chunks. All 67,108,864 gradient elements matched bitwise. Median CUDA-event span was 0.665 ms with FP32 storage and 0.193 ms with BF16 storage. Median wall time was 0.688 and 0.219 ms. Over three calls the trace shows 18 versus six GPU operations and 1.957 versus 0.514 ms of device work. Peak allocated fell by 256 MiB with identical reserved peaks. [Replay](dhidden_component.py)
+- **Head weight gradient.** The isolated replay starts from native hidden states, weights, labels, positions and the update denominator. It captures the two inputs to each actual eager LM-head weight-gradient GEMM. cuBLAS can describe a padded leading dimension, so the experimental writer places each BF16 GEMM result in half of each row of the existing FP32 gradient buffer. The merge loads both halves before overwriting the row. Both BF16 chunk results and the final FP32 gradient matched bitwise over 525,336,576 elements each. Initial event medians were 25.216 and 25.499 ms for identical controls and 23.332 ms for the candidate. Peak allocated and reserved each fell by 1,002 MiB. [Replay](head_dw_component.py) · [cuBLAS matrix layout](https://docs.nvidia.com/cuda/cublas/index.html#cublasltmatrixlayoutattribute-t)
+
+## Reproduction
+
+The synchronized checkout on `sr008-gpu1` is `/workspace-SR008.nfs2/vkropotin/optimization-task`. The retained head fixture is `runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt` (SHA-256 `15227882b1da44c2881b63622b6249bcddd307d90575216290f29ab9f720c727`). The scan input comes from rank zero in `fusion-pack-scan-acquire-002`, one native update at `7f4377592` with folded CE enabled. This acquisition preserves a real external-gate VJP input, output and upstream gradient. It is separate from timing.
