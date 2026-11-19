@@ -95,7 +95,7 @@ original capacity overlay.
 Use `timing` for 10+10, `timing-140` for 40+100, or `trace` for an update-21
 capture. The default `production` invocation verifies the measured GIFT source
 fingerprint, checks the resolved recipe against the saved control, and enables
-all three expert GFSDP flags and the five switches below. Each expert GFSDP
+folded CE backward, all three expert GFSDP flags and the five switches below. Each expert GFSDP
 flag has standalone 10+10 and trace evidence. The three-on EP8/eFSDP1
 control also completed a native 10+10 and an update-21 trace. Multi-rank
 expert-FSDP coverage remains open.

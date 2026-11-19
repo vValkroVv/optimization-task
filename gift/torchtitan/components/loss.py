@@ -408,6 +408,7 @@ class GradAccumulator:
         num_chunks: int,
         seq_dim: int = 1,
         dtype: torch.dtype,
+        direct_bf16: bool = False,
     ):
         from torch.distributed.device_mesh import DeviceMesh
         from torch.distributed.tensor import DTensor, Placement
@@ -426,7 +427,12 @@ class GradAccumulator:
         else:
             local = reference
 
-        self._buffer = torch.zeros_like(local, dtype=dtype)
+        # DTensor partial gradients retain their original accumulation contract.
+        self._direct = direct_bf16 and self._device_mesh is None and local.dtype == torch.bfloat16
+        if self._direct:
+            self._buffer = torch.empty_like(local)
+        else:
+            self._buffer = torch.zeros_like(local, dtype=dtype)
 
     def add(self, chunk_grad: torch.Tensor) -> None:
         """Add the next chunk gradient sequentially.
@@ -481,6 +487,8 @@ class GradAccumulator:
         """
         from torch.distributed.tensor import DTensor
 
+        if self._direct and self._next_seq_offset != self._buffer.shape[self.seq_dim]:
+            raise ValueError("Chunk writes did not cover the hidden gradient")
         if self._device_mesh is not None:
             if self._placements is None:
                 raise ValueError(
@@ -568,6 +576,12 @@ class ChunkedCELoss(BaseLoss):
 
         self.fn: LossFunction = stable_ce
         self._maybe_compile(compile_config)
+        direct_bf16 = os.environ.get("GIFT_DIRECT_BF16_DHIDDEN") or "0"
+        if direct_bf16 not in ("0", "1"):
+            raise ValueError("GIFT_DIRECT_BF16_DHIDDEN must be 0 or 1")
+        self._direct_bf16_dhidden = direct_bf16 == "1"
+        if self._direct_bf16_dhidden:
+            logger.info("Chunked loss direct BF16 dHidden enabled")
         self.num_chunks = config.num_chunks
         self.num_chunks_on_monitoring_steps = config.num_chunks_on_monitoring_steps
         self.lm_head: nn.Module | None = None
@@ -718,6 +732,7 @@ class ChunkedCELoss(BaseLoss):
             hidden_states,
             num_chunks=num_chunks,
             dtype=torch.float32,
+            direct_bf16=self._direct_bf16_dhidden,
         )
 
         total_loss = hidden_states.new_zeros((), dtype=torch.float32)

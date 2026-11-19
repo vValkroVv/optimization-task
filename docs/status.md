@@ -73,7 +73,7 @@ currently constrained to EP8/eFSDP1.
 
 ### Folded CE and expert wgrad conversion
 
-On the current production recipe, the opt-in folded CE arm measured 178,274
+Folded CE is selected for the production baseline. At its selection, it measured 178,274
 tokens/s against 177,002 for its same-revision control (+0.72%) in one matched
 10+10 pair. Peak allocated/reserved memory moved from 62.577/64.314 to
 61.654/63.338 GiB. The full-shape H100 replay matched losses, dLogits,

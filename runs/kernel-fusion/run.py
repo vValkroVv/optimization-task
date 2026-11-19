@@ -21,7 +21,7 @@ PRODUCTION_SOURCE_SHA256 = (
 PRODUCTION_GFSDP_SOURCE_SHA256 = (
     "a23ffa3ae00c204a881902afdb16c80d3eeaab0453b73a08ab1378a2786465cf"
 )
-# Folded CE is opt-in. Canonical production clears its switch on every rank.
+# Source used to verify folded CE before its production selection.
 BACKWARD_EXPERIMENT_SOURCE_SHA256 = (
     "3534324cba0ec666754da79fdf1ee124f1a55ef68af7fefd14bff9b9e1e27194"
 )
@@ -51,6 +51,11 @@ GFSDP_CONTROLS = {
 DIRECT_DW_BUILD_ENV = "GIFT_DIRECT_EXPERT_DW_BUILD"
 DIRECT_DW_NUM_SMS_ENV = "GIFT_DIRECT_EXPERT_DW_NUM_SMS"
 FOLDED_CE_ENV = "GIFT_STABLE_CE_FOLDED_BACKWARD"
+FUSION_PACK = {
+    "hidden-z-loss": "GIFT_FUSED_HIDDEN_Z_LOSS",
+    "gdn-direct-backward": "GIFT_FLASH_QLA_DIRECT_BACKWARD",
+    "direct-dhidden": "GIFT_DIRECT_BF16_DHIDDEN",
+}
 FP8_CACHE_FLAG = f"--{GFSDP_CONTROLS['fp8-expert-weights']}"
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
 FIXED_TRACE_CONTROL = "efsdp-control-ep8-002-trace"
@@ -329,7 +334,8 @@ def install_fp8_rank_measurement(baseline, *, capture_inputs=False) -> None:
 
 
 def main() -> int:
-    os.environ.pop(FOLDED_CE_ENV, None)
+    for flag in (FOLDED_CE_ENV, *FUSION_PACK.values()):
+        os.environ.pop(flag, None)
     if sys.argv[1:2] != ["rank"]:
         os.environ.pop(DIRECT_DW_BUILD_ENV, None)
         os.environ.pop(DIRECT_DW_NUM_SMS_ENV, None)
@@ -342,13 +348,19 @@ def main() -> int:
             raise RuntimeError(f"Expected {expected} but rank sees {actual}")
         print(f"kernel_fusion variant={variant} switches={sorted(actual)}", flush=True)
         rank_argv = sys.argv[3:]
-        backward_arm = "control"
+        backward_arm = "folded-ce" if variant == PRODUCTION else "control"
         if rank_argv and rank_argv[0].startswith("--backward-arm="):
             backward_arm = rank_argv.pop(0).removeprefix("--backward-arm=")
             if backward_arm not in {"capture", "folded-ce"} or variant != PRODUCTION:
                 raise ValueError(f"Invalid production backward arm: {backward_arm}")
-            if backward_arm == "folded-ce":
-                os.environ[FOLDED_CE_ENV] = "1"
+        if variant == PRODUCTION:
+            os.environ[FOLDED_CE_ENV] = "1"
+        while rank_argv and rank_argv[0].startswith("--fusion-fix="):
+            name = rank_argv.pop(0).removeprefix("--fusion-fix=")
+            if variant != PRODUCTION or name not in FUSION_PACK:
+                raise ValueError(f"Invalid production fusion fix: {name}")
+            os.environ[FUSION_PACK[name]] = "1"
+            print(f"kernel_fusion fix={name}", flush=True)
         print(f"kernel_fusion backward_arm={backward_arm}", flush=True)
         if (
             variant == PRODUCTION
@@ -385,6 +397,7 @@ def main() -> int:
         type=Path,
         help="Verified task-local build required by canonical production or direct-expert-dw",
     )
+    parser.add_argument("--fusion-fix", choices=FUSION_PACK, action="append", default=[])
     args = parser.parse_args()
     if (args.variant in {"baseline", PRODUCTION}) != (args.candidate_source is None):
         parser.error("Only historical candidate runs require --candidate-source")
@@ -394,10 +407,10 @@ def main() -> int:
         parser.error("GFSDP optimizations require a committed --source-revision")
     canonical = args.variant == PRODUCTION and args.source_revision is None
     enabled_optimizations = set(GFSDP_CONTROLS if canonical else args.gfsdp_optimization)
-    if args.mode == "capture" or args.backward_optimization:
+    if args.mode == "capture" or args.backward_optimization or args.fusion_fix:
         if args.source_revision is None or enabled_optimizations != set(GFSDP_CONTROLS):
             parser.error("Backward experiments require an explicit revision and all three GFSDP flags")
-        if args.mode == "capture" and args.backward_optimization:
+        if args.mode == "capture" and (args.backward_optimization or args.fusion_fix):
             parser.error("Capture uses the production control")
     direct_dw_requested = "direct-expert-dw" in enabled_optimizations
     if direct_dw_requested and args.direct_dw_build is None:
@@ -455,6 +468,7 @@ def main() -> int:
                 args.variant,
             ]
             backward_arm = "capture" if args.mode == "capture" else args.backward_optimization
+            command[pos + 3 : pos + 3] = [f"--fusion-fix={fix}" for fix in args.fusion_fix]
             if backward_arm:
                 command.insert(pos + 3, f"--backward-arm={backward_arm}")
             command.extend(("--compile.enable", "true"))

@@ -149,6 +149,20 @@ class TestLoss(unittest.TestCase):
 
 
 class TestGradAccumulator(unittest.TestCase):
+    def test_direct_bf16_requires_complete_disjoint_coverage(self):
+        reference = torch.randn(2, 7, 16, dtype=torch.bfloat16)
+        chunks = reference.chunk(3, dim=1)
+        acc = GradAccumulator(
+            reference, num_chunks=3, dtype=torch.float32, direct_bf16=True
+        )
+        acc.add(chunks[0])
+        with self.assertRaisesRegex(ValueError, "cover"):
+            acc.result()
+        for chunk in chunks[1:]:
+            acc.add(chunk)
+        self.assertEqual(acc.result().dtype, torch.bfloat16)
+        self.assertTrue(torch.equal(acc.result().view(torch.int16), reference.view(torch.int16)))
+
     def test_accumulate_matches_cat(self):
         """Verify GradAccumulator produces the same result as torch.cat."""
         torch.manual_seed(42)
