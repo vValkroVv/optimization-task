@@ -40,7 +40,10 @@ def magnitude_logsumexp(hidden: torch.Tensor) -> torch.Tensor:
     width = hidden.shape[-1]
     exp = torch.empty_like(hidden, dtype=torch.float32)
     shift = exp.new_empty(hidden.shape[:-1])
-    _shifted_exp_kernel[(shift.numel(),)](hidden, exp, shift, width, num_warps=4)
+    # Match the native CUDA exp contract, including subnormal arithmetic.
+    _shifted_exp_kernel[(shift.numel(),)](
+        hidden, exp, shift, width, num_warps=4, enable_reflect_ftz=False
+    )
     # Keep ATen's FP32 summation tree. A Triton sum can change the rounded LSE,
     # which propagates to every activation gradient in the row.
     return exp.sum(dim=-1).log_().add_(shift)
@@ -59,7 +62,13 @@ def _magnitude_logsumexp_backward(
 ) -> torch.Tensor:
     grad = torch.empty_like(hidden)
     _magnitude_grad_kernel[(lse.numel(),)](
-        hidden, lse, upstream.contiguous(), grad, hidden.shape[-1], num_warps=4
+        hidden,
+        lse,
+        upstream.contiguous(),
+        grad,
+        hidden.shape[-1],
+        num_warps=4,
+        enable_reflect_ftz=False,
     )
     return grad
 

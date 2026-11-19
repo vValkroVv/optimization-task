@@ -84,12 +84,31 @@ def hook(hidden, upstream):
 
 
 def check(hidden):
+    from torchtitan.ops.hidden_z_loss import magnitude_logsumexp
+
     unit = torch.ones((), device=hidden.device)
     zero = torch.zeros_like(unit)
     cases = {
         "native": compare(hidden, unit),
         "native_zero_upstream": compare(hidden, zero),
     }
+    with torch.no_grad():
+        ref_lse = hidden.float().abs().logsumexp(dim=-1)
+        cases["native_row_logsumexp_bits"] = same_bits(
+            ref_lse, magnitude_logsumexp(hidden)
+        )
+    assert cases["native_row_logsumexp_bits"]
+    # An input near exp underflow exercises BF16 subnormal gradient stores.
+    small = torch.zeros((1, 4096), device=hidden.device, dtype=hidden.dtype)
+    small[0, 0] = 90.0
+    small[0, 1] = 0.5
+    small.requires_grad_()
+    reference = small.float().abs().logsumexp(dim=-1).sum()
+    ref_grad = gradient(reference, small)
+    grad = gradient(magnitude_logsumexp(small).sum(), small)
+    cases["subnormal_gradient_bits"] = same_bits(ref_grad, grad)
+    assert 0 < ref_grad[0, 1].abs() < torch.finfo(torch.bfloat16).tiny
+    assert cases["subnormal_gradient_bits"]
     edges = torch.zeros((3, 4096), dtype=hidden.dtype, device=hidden.device)
     edges[0, :4] = torch.tensor([0.0, -0.0, 3.0e38, -3.0e38], device=hidden.device)
     edges[1, :3] = torch.tensor([0.0, -0.0, 1.5], device=hidden.device)
