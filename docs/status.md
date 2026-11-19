@@ -69,15 +69,29 @@ weight-quantization launches and 21 expert gradient-accumulation launches.
 [Control capture receipt](../runs/efsdp-optimizations/control-profile.json)
 [Active campaign and acceptance](../planning/README.md#active-assignment-expert-gfsdp-optimizations)
 
-The tail-retention and FP8 expert-weight candidates are opt-in. The tail
-callback and shared-buffer checks passed locally. FP8 layout, write fences,
+The opt-in tail-retention candidate passed its first same-source 10+10 pair
+and separate update-21 profile after SSH access returned. At `a0602a887`,
+the flag-off and flag-on runs measured 171,401 and 172,834 physical tokens/s
+respectively (+0.84%). Maximum-rank peak allocation was 65.952 and 65.953
+GiB, with peak reservation of 67.814 and 67.834 GiB. Both runs recorded zero
+allocator retries and OOMs, and their observed compiler cache was stable.
+The fresh flag-off control was 1.43% below the earlier control across the
+outage. A second matched pair is needed before promoting the candidate.
+
+On both profiled ranks and all three captured microbatches, tail retention
+reduced expert logical unshards from 14 to 12. Layers 6 and 7 each dropped
+from two to one. Both dense MTP DP8 BF16 all-gathers between LM-head
+callbacks disappeared, and the two forward gathers remained. The expert
+unshards are singleton work in this architecture.
+[Tail timing and trace receipts](../runs/efsdp-optimizations/tail-receipts.json)
+
+The FP8 expert-weight candidate is opt-in. FP8 layout, write fences,
 and prepared GEMM tests passed with CPU doubles, including two generations
 of the zero-stride BF16 gradient anchor through compiled forward and SAC
 backward. A standalone native FP8 check compares both production weight
 projections bitwise against the BF16 input path across two cache generations.
-The initial native candidate launch hit a connection error on `sr008-gpu1`.
-Native correctness, timing, and peak-memory comparisons remain open for both
-candidates.
+The current native FP8 campaign starts with this check before its timing and
+profile arms.
 [FP8 native parity check](../runs/efsdp-optimizations/verify_fp8_expert_weights.py)
 
 Direct expert dW is also opt-in. CPU Inductor with selective checkpointing
@@ -88,9 +102,8 @@ covered slot acquisition, incomplete writes, and handoff to reduce-scatter.
 The direct extension now uses the 116-SM sparse DeepGEMM budget recorded in
 both passing control receipts. Its original startup path could read Hopper's
 132-SM default before the trainer set the budget. The standalone native parity
-check uses 116 SMs for both paths. The server connection still failed before
-any candidate launch. Native Hopper compilation, bitwise epilogue parity,
-and the deployed compiler's slot behavior remain open.
+check uses 116 SMs for both paths. Native Hopper compilation, bitwise
+epilogue parity, and the deployed compiler's slot behavior remain open.
 [Direct dW build and verification](../runs/efsdp-optimizations/direct-dw/README.md)
 
 ## Consolidated rank-0 analysis: observed costs and priorities
