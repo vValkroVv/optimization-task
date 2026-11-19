@@ -375,6 +375,7 @@ def main() -> int:
             print(
                 f"kernel_fusion fusion_fixes={','.join(FUSION_PACK)}", flush=True
             )
+            os.environ[FOLLOWUP_KERNELS["cute-replay-stats"]] = "1"
         backward_arm = "folded-ce" if variant == PRODUCTION else "control"
         if rank_argv and rank_argv[0].startswith("--backward-arm="):
             backward_arm = rank_argv.pop(0).removeprefix("--backward-arm=")
@@ -398,6 +399,16 @@ def main() -> int:
             print(f"kernel_fusion followup_kernel={name}", flush=True)
         if canonical_fusion_pack and requested_fixes:
             raise ValueError("Canonical fusion fixes cannot be combined with an explicit arm")
+        cute_stats_only = (
+            os.environ.get(FOLLOWUP_KERNELS["cute-replay-stats"]) == "1"
+        )
+        swiglu_row16 = os.environ.get(FOLLOWUP_KERNELS["swiglu-row16"]) == "1"
+        print(
+            "kernel_fusion selectors "
+            f"cute_sac_stats_only={int(cute_stats_only)} "
+            f"swiglu_bwd_tile16={int(swiglu_row16)}",
+            flush=True,
+        )
         print(f"kernel_fusion backward_arm={backward_arm}", flush=True)
         if (
             variant == PRODUCTION

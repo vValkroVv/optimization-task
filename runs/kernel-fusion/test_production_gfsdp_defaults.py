@@ -278,6 +278,37 @@ def test_backward_experiment_uses_complete_production_recipe(
     _, overrides = cli.runner.training_overrides(command)
     assert overrides["--training.steps"] == str(steps)
     assert all(overrides[f"--{field}"] == "true" for field in FIELDS)
+    assert cli.runner.CANONICAL_FUSION_PACK_ARG not in command
+
+
+def test_capture_followup_uses_current_production_fusion_pack(
+    cli, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(cli.runner, "HERE", tmp_path)
+    fixtures = tmp_path / "artifacts/raw/test-run/component-inputs"
+    fixtures.mkdir(parents=True)
+    for name in ("swiglu-rank0.pt", "cute-rank0.pt", "gdn-qkv-rank0.pt"):
+        (fixtures / name).touch()
+    flags = [
+        value
+        for key in cli.runner.GFSDP_CONTROLS
+        for value in ("--gfsdp-optimization", key)
+    ]
+
+    assert cli.invoke(
+        "production",
+        "capture",
+        "--source-revision",
+        HEAD,
+        *flags,
+        "--direct-dw-build",
+        str(cli.manifest.parent),
+        "--capture-followup",
+    ) == 0
+
+    command = cli.emitted["command"]
+    assert cli.runner.CANONICAL_FUSION_PACK_ARG in command
+    assert "--backward-arm=followup-capture" in command
 
 
 def test_canonical_production_rejects_uncommitted_runner_or_gift_changes(cli):
@@ -322,11 +353,13 @@ def test_production_rank_applies_only_requested_fixes(monkeypatch, options, expe
     assert {name for name, flag in runner.FUSION_PACK.items() if os.getenv(flag)} == expected_fixes
 
 
-def test_canonical_fusion_pack_skips_one_shot_proof_wrappers(monkeypatch):
+def test_canonical_fusion_pack_skips_one_shot_proof_wrappers(monkeypatch, capsys):
     spec = spec_from_file_location("_canonical_fusion_proof_route", RUNNER)
     runner = module_from_spec(spec)
     spec.loader.exec_module(runner)
     for name in runner.variant_switches("production"):
+        monkeypatch.setenv(name, "1")
+    for name in runner.FOLLOWUP_KERNELS.values():
         monkeypatch.setenv(name, "1")
     monkeypatch.delenv(runner.DIRECT_DW_BUILD_ENV, raising=False)
     monkeypatch.setattr(
@@ -355,6 +388,12 @@ def test_canonical_fusion_pack_skips_one_shot_proof_wrappers(monkeypatch):
     assert {
         name for name, flag in runner.FUSION_PACK.items() if os.getenv(flag) == "1"
     } == set(runner.FUSION_PACK)
+    assert os.environ[runner.FOLLOWUP_KERNELS["cute-replay-stats"]] == "1"
+    assert runner.FOLLOWUP_KERNELS["swiglu-row16"] not in os.environ
+    assert (
+        "kernel_fusion selectors cute_sac_stats_only=1 swiglu_bwd_tile16=0"
+        in capsys.readouterr().out
+    )
     install_proof.assert_called_once()
     assert install_proof.call_args.kwargs["requested_fixes"] == ()
 
@@ -395,7 +434,7 @@ def test_explicit_fusion_arm_keeps_one_shot_proof_request(monkeypatch):
 
 
 @pytest.mark.parametrize("arm", [None, "swiglu-row16", "cute-replay-stats"])
-def test_followup_rank_clears_inherited_selectors(monkeypatch, arm):
+def test_followup_rank_clears_inherited_selectors(monkeypatch, capsys, arm):
     spec = spec_from_file_location("_followup_rank", RUNNER)
     runner = module_from_spec(spec)
     spec.loader.exec_module(runner)
@@ -413,3 +452,8 @@ def test_followup_rank_clears_inherited_selectors(monkeypatch, arm):
     assert all(os.getenv(flag) == "1" for flag in runner.FUSION_PACK.values())
     selected = {name for name, flag in runner.FOLLOWUP_KERNELS.items() if os.getenv(flag)}
     assert selected == ({arm} if arm is not None else set())
+    assert (
+        "kernel_fusion selectors "
+        f"cute_sac_stats_only={int(arm == 'cute-replay-stats')} "
+        f"swiglu_bwd_tile16={int(arm == 'swiglu-row16')}"
+    ) in capsys.readouterr().out
