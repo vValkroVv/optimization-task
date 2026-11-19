@@ -88,10 +88,19 @@ unshards are singleton work in this architecture.
 The FP8 expert-weight candidate is opt-in. FP8 layout, write fences,
 and prepared GEMM tests passed with CPU doubles, including two generations
 of the zero-stride BF16 gradient anchor through compiled forward and SAC
-backward. A standalone native FP8 check compares both production weight
-projections bitwise against the BF16 input path across two cache generations.
-The current native FP8 campaign starts with this check before its timing and
-profile arms.
+backward. A standalone H100 check passed for both weight projections across
+two cache generations. The FP8 bytes and FP32 scale bits matched the BF16
+input path.
+
+In the first full-training attempt, all eight ranks completed 20 updates and
+recorded the 10+10 timing window. Rank 0 logged active FP8 caches for all seven
+routed layers. The legacy post-training receipt rejected the attempt because
+it expected an active BF16 expert cache. The preserved rank measurements give
+a provisional 173,619 physical tokens/s against the same-source control at
+171,895 (+1.00%), and peak allocation of 62.580 against 65.949 GiB (−3.369
+GiB). A passing rerun with FP8-specific activation verification and a separate
+profile remain open.
+[FP8 parity and first timing attempt](../runs/efsdp-optimizations/fp8-first-attempt.json)
 [FP8 native parity check](../runs/efsdp-optimizations/verify_fp8_expert_weights.py)
 
 Direct expert dW is also opt-in. CPU Inductor with selective checkpointing
@@ -103,7 +112,11 @@ The direct extension now uses the 116-SM sparse DeepGEMM budget recorded in
 both passing control receipts. Its original startup path could read Hopper's
 132-SM default before the trainer set the budget. The standalone native parity
 check uses 116 SMs for both paths. Native Hopper compilation, bitwise
-epilogue parity, and the deployed compiler's slot behavior remain open.
+epilogue parity, and the deployed compiler's slot behavior remain open. The
+first build attempt failed its package identity check because the module
+exposes `2.3.0` while the wheel metadata reports `2.3.0+f093a4c`. The wheel
+owns the imported module and all five pinned CUDA header hashes matched on
+`sr008-gpu1`.
 [Direct dW build and verification](../runs/efsdp-optimizations/direct-dw/README.md)
 
 ## Consolidated rank-0 analysis: observed costs and priorities
