@@ -210,9 +210,13 @@ def gdn_short_conv_backward_fp8_kernel(
         rows = local_chunk * 64 + local_rows
         offsets = (start + rows[:, None]) * QKV_DIM + columns[None, :]
         x = gl.load(QKV + offsets, rows[:, None] < length, 0).to(gl.float32)
-        shifted = dy.gather(
-            gl.broadcast_to((local_rows + shift)[:, None], (64, 128)), axis=0
-        )
+        if shift == 0:
+            shifted = dy.slice(0, 64).load(main)
+        else:
+            indices = (local_rows + shift)[:, None] + gl.full(
+                (64, 128), 0, gl.int32, tap_layout
+            )
+            shifted = dy.gather(indices, axis=0)
         tap = 3 - shift
         w = gl.load(Weight + columns * 4 + tap).to(gl.float32)
         dx += (
