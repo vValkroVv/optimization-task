@@ -168,6 +168,12 @@ def parallelize_gift_moe(
     _validate_tail_weight_retention_request(parallelism)
     if parallelism.gfsdp_fp8_expert_weights and parallelism.fsdp_backend != "gfsdp2":
         raise ValueError("gfsdp_fp8_expert_weights requires fsdp_backend='gfsdp2'")
+    if parallelism.gfsdp_direct_expert_dw and (
+        parallelism.fsdp_backend != "gfsdp2"
+        or (parallel_dims.ep, parallel_dims.tp, parallel_dims.pp, parallel_dims.cp)
+        != (8, 1, 1, 1)
+    ):
+        raise ValueError("gfsdp_direct_expert_dw requires GFSDP2 and EP8/TP1/PP1/CP1")
 
     # CP: wrap inner attention forward BEFORE parallelize() so CP logic
     # runs inside the local_map boundary on local tensors.
@@ -248,6 +254,7 @@ def parallelize_gift_moe(
             dp_mesh,
             reuse_bf16_expert_weights=(parallelism.gfsdp_reuse_bf16_expert_weights),
             fp8_expert_weights=parallelism.gfsdp_fp8_expert_weights,
+            direct_expert_dw=parallelism.gfsdp_direct_expert_dw,
             row_owner_embeddings=parallelism.gfsdp_row_owner_embeddings,
             row_owner_embedding_optimizations=(
                 parallelism.gfsdp_row_owner_embedding_optimizations
@@ -292,6 +299,7 @@ def apply_gfsdp(
     enable_symm_mem: bool = False,
     reuse_bf16_expert_weights: bool = False,
     fp8_expert_weights: bool = False,
+    direct_expert_dw: bool = False,
     row_owner_embeddings: bool = False,
     row_owner_embedding_optimizations: bool = False,
     row_owner_embedding_optimization_stages: tuple[str, ...] | None = None,
@@ -385,9 +393,10 @@ def apply_gfsdp(
     )
     cache_requested_groups = 0
     fp8_requested_groups = 0
+    direct_dw_groups = 0
 
     def shard_block_unit(unit: nn.Module, block: nn.Module, fqn: str) -> None:
-        nonlocal cache_requested_groups, fp8_requested_groups
+        nonlocal cache_requested_groups, fp8_requested_groups, direct_dw_groups
         if not block.moe_enabled:
             split = getattr(unit, "_ffn_overlap_regions", None) is not None
             if split:
@@ -437,7 +446,11 @@ def apply_gfsdp(
             for param_group in gfsdp_unit._get_fsdp_state()._fsdp_param_groups
         ):
             cache_requested_groups += 1
-        if fp8_expert_weights and not pp_enabled and expert_params is not None:
+        if (
+            (fp8_expert_weights or direct_expert_dw)
+            and not pp_enabled
+            and expert_params is not None
+        ):
             from torchtitan.models.common.moe.dispatch.hybridep import (
                 HybridEPTokenDispatcher,
             )
@@ -454,8 +467,12 @@ def apply_gfsdp(
                         param._module_info.module is experts
                         for param in group.fsdp_params
                     ):
-                        group.enable_fp8_weight_cache()
-                        fp8_requested_groups += 1
+                        if fp8_expert_weights:
+                            group.enable_fp8_weight_cache()
+                            fp8_requested_groups += 1
+                        if direct_expert_dw:
+                            group._direct_expert_dw_requested = True
+                            direct_dw_groups += 1
 
     if getattr(model, "enable_weight_tying", False):
         raise ValueError("gfsdp2 does not support weight tying")
@@ -497,6 +514,8 @@ def apply_gfsdp(
         logger.warning(
             "No GIFT HybridEP FP8 expert group could request GFSDP FP8 weights"
         )
+    if direct_expert_dw and direct_dw_groups == 0:
+        raise ValueError("No GIFT HybridEP FP8 expert group could use direct dW")
 
     if reuse_bf16_expert_weights and cache_requested_groups == 0:
         logger.warning(

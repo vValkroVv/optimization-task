@@ -92,7 +92,7 @@ def summarize(path: Path, update: int, rank: int):
         if len(callbacks) != 3:
             raise ValueError("Expected two head callbacks followed by decoder backward")
         head_begin, head_end = callbacks[0].end, callbacks[1].start
-        dense_gathers, packing, quantization, refresh = [], [], [], []
+        dense_gathers, packing, quantization, refresh, direct_dw = [], [], [], [], []
         for event, launch in launches.items():
             if not marker.start <= launch.start < marker.end:
                 continue
@@ -116,6 +116,8 @@ def summarize(path: Path, update: int, rank: int):
             packed = owner(scopes, "FSDP::post_backward_accumulate (")
             if packed and packed.endswith("[efsdp]"):
                 packing.append(event)
+            if "sm90_k_grouped_fp8_gemm_rounded_f32" in event.name:
+                direct_dw.append(event)
             if "_block_quantization_kernel" in event.name:
                 if any(scope.name == "GFSDP::fp8_expert_refresh" for scope in scopes):
                     refresh.append(event)
@@ -135,6 +137,7 @@ def summarize(path: Path, update: int, rank: int):
                 "expert_post_backward_accumulate": analyzer.metrics(packing),
                 "expert_block_quantization": analyzer.metrics(quantization),
                 "expert_fp8_cache_refresh": analyzer.metrics(refresh),
+                "direct_rounded_f32_wgrad": analyzer.metrics(direct_dw),
             }
         )
     return {

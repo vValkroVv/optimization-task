@@ -39,7 +39,9 @@ COMBINED_VARIANTS = (
 GFSDP_CONTROLS = {
     "retain-tail-weights": "parallelism.gfsdp_retain_tail_weights",
     "fp8-expert-weights": "parallelism.gfsdp_fp8_expert_weights",
+    "direct-expert-dw": "parallelism.gfsdp_direct_expert_dw",
 }
+DIRECT_DW_BUILD_ENV = "GIFT_DIRECT_EXPERT_DW_BUILD"
 FIXED_TIMING_CONTROL = "efsdp-control-ep8-001-timing"
 FIXED_TRACE_CONTROL = "efsdp-control-ep8-002-trace"
 
@@ -186,6 +188,20 @@ def enforce_fixed_recipe(base, control: Path, controls: dict[str, bool], mode: s
     base._verify_resolved_config = verify_config
 
 
+def configure_direct_dw_rank(build: str) -> None:
+    import torch
+
+    from torchtitan.ops.float8.direct_expert_dw import configure_direct_expert_dw
+
+    component = load(
+        ROOT / "runs/efsdp-optimizations/direct-dw/direct_dw.py",
+        "_direct_expert_dw_build",
+    )
+    torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+    native = component.load_direct_dw(build)
+    configure_direct_expert_dw(native.k_grouped_fp8_gemm_nt_contiguous_rounded_f32)
+
+
 def main() -> int:
     baseline = load(ROOT / "runs/compile-baseline/run.py", "_kernel_fusion_compile")
     if sys.argv[1:2] == ["rank"]:
@@ -195,6 +211,8 @@ def main() -> int:
         if actual != expected:
             raise RuntimeError(f"Expected {expected} but rank sees {actual}")
         print(f"kernel_fusion variant={variant} switches={sorted(actual)}", flush=True)
+        if direct_dw_build := os.environ.get(DIRECT_DW_BUILD_ENV):
+            configure_direct_dw_rank(direct_dw_build)
         baseline.run_rank(["true", *sys.argv[3:]])
         return 0
 
@@ -211,6 +229,7 @@ def main() -> int:
     parser.add_argument(
         "--gfsdp-optimization", choices=GFSDP_CONTROLS, action="append", default=[]
     )
+    parser.add_argument("--direct-dw-build", type=Path)
     args = parser.parse_args()
     if (args.variant in {"baseline", PRODUCTION}) != (args.candidate_source is None):
         parser.error("Only historical candidate runs require --candidate-source")
@@ -218,6 +237,19 @@ def main() -> int:
         parser.error("Follow-up revisions require the production recipe")
     if args.gfsdp_optimization and not args.source_revision:
         parser.error("GFSDP optimizations require a committed --source-revision")
+    direct_dw_requested = "direct-expert-dw" in args.gfsdp_optimization
+    if direct_dw_requested != (args.direct_dw_build is not None):
+        parser.error("--direct-dw-build is required for the direct-expert-dw arm")
+    os.environ.pop(DIRECT_DW_BUILD_ENV, None)
+    direct_dw_manifest = None
+    if direct_dw_requested:
+        build_root = args.direct_dw_build.resolve(strict=True)
+        direct_dw_manifest = build_root / "manifest.json"
+        if not build_root.is_relative_to(ROOT) or not direct_dw_manifest.is_file():
+            parser.error(
+                "--direct-dw-build needs a verified build inside the task checkout"
+            )
+        os.environ[DIRECT_DW_BUILD_ENV] = str(build_root)
     if args.source_revision:
         verify_follow_up_revision(args.source_revision)
     controls = (
@@ -304,12 +336,17 @@ def main() -> int:
                         config_hashes = base._config_hashes
 
                         def follow_up_hashes():
-                            return {
+                            hashes = {
                                 **config_hashes(),
                                 "kernel_fusion_runner_sha256": native._sha256(
                                     Path(__file__)
                                 ),
                             }
+                            if direct_dw_manifest is not None:
+                                hashes["direct_dw_build_manifest_sha256"] = (
+                                    native._sha256(direct_dw_manifest)
+                                )
+                            return hashes
 
                         base._config_hashes = follow_up_hashes
                     return base

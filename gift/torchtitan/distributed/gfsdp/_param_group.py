@@ -24,6 +24,8 @@ from ._fp8_expert_weight_cache import (
 from ._param import ParamModuleInfo, ShardedState, GFSDPParam
 
 if TYPE_CHECKING:
+    from torchtitan.ops.float8.direct_expert_dw import DirectExpertDwLease
+
     try:
         import yccl
     except ImportError:
@@ -286,6 +288,10 @@ class GFSDPParamGroup:
         self._fp8_cache_requested = False
         self._fp8_cache_layout: ExpertWeightLayout | None = None
         self._fp8_cache: ExpertFP8WeightCache | None = None
+        self._direct_expert_dw_requested = False
+        self._direct_expert_dw_slot: torch.Tensor | None = None
+        self._direct_expert_dw_offsets = (0, 0)
+        self._direct_expert_dw_lease: DirectExpertDwLease | None = None
 
         self._init_mp_dtypes()
         self._requires_grad = any(param.requires_grad for param in params)
@@ -833,6 +839,8 @@ class GFSDPParamGroup:
         self._register_state_dict_hooks()
         if self._fp8_cache_layout is not None:
             self._init_fp8_weight_cache(self._fp8_cache_layout)
+            if self._direct_expert_dw_requested:
+                self._init_direct_expert_dw()
             return
         if not self._bf16_cache_requested:
             self._init_unsharded_params()
@@ -883,6 +891,90 @@ class GFSDPParamGroup:
                 self._init_reduce_scatter_output(all_gather_dtype, fsdp_params)
         else:
             self._bf16_cache_finalized = True
+        if self._direct_expert_dw_requested:
+            self._init_direct_expert_dw()
+
+    def _init_direct_expert_dw(self) -> None:
+        params = self._all_gather_dtype_to_fsdp_params.get(None, ())
+        if (
+            self.device.type != "cuda"
+            or self.orig_dtype != torch.float32
+            or self.param_dtype != torch.bfloat16
+            or self.reduce_dtype != torch.float32
+            or set(self._all_gather_dtype_to_fsdp_params) != {None}
+            or self._reduce_scatter_process_group.size() != 1
+            or self._all_reduce_process_group is not None
+            or self.grad_buffer_ctx is None
+            or self.grad_buffer_ctx.yccl_handles.get(None) is not None
+            or len(params) != 2
+        ):
+            raise ValueError(
+                f"{self} does not have the required EP8 FP32 gradient slot"
+            )
+        by_name = {param._module_info.param_name: param for param in params}
+        if by_name.keys() != {"w13_E2FD", "w2_EDF"}:
+            raise ValueError(
+                f"{self} does not contain the two routed-expert projections"
+            )
+        w13, w2 = by_name["w13_E2FD"], by_name["w2_EDF"]
+        if w13._orig_size != (16, 2, 1536, 4096) or w2._orig_size != (16, 4096, 1536):
+            raise ValueError(
+                f"{self} does not match the Hopper direct expert dW shapes"
+            )
+        slot = self._reduce_scatter_input[None]
+        w13_grad, w2_grad = (
+            w13._unsharded_accumulated_grad,
+            w2._unsharded_accumulated_grad,
+        )
+        assert slot is not None and w13_grad is not None and w2_grad is not None
+        if slot.numel() != w13_grad.numel() + w2_grad.numel():
+            raise ValueError(f"{self} has padding in its direct expert dW slot")
+        self._direct_expert_dw_offsets = (
+            w13_grad.storage_offset() - slot.storage_offset(),
+            w2_grad.storage_offset() - slot.storage_offset(),
+        )
+        self._direct_expert_dw_slot = slot
+        experts = w13._module_info.module
+        experts._gfsdp_direct_dw_slot = slot
+        experts._gfsdp_direct_dw_offsets = self._direct_expert_dw_offsets
+        logger.info("%s", self._with_fqn("GFSDP direct expert dW active"))
+
+    def _acquire_direct_expert_dw(self, slot: torch.Tensor) -> None:
+        from torchtitan.ops.float8.direct_expert_dw import acquire_direct_expert_dw
+
+        if not self.reduce_grads or self._direct_expert_dw_lease is not None:
+            raise RuntimeError(f"{self} requires one direct dW lease per reduction")
+        grad_buffer_ctx = self.grad_buffer_ctx
+        assert grad_buffer_ctx is not None
+        if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
+            raise RuntimeError(
+                f"{self} tried to acquire a gradient slot owned by {owner}"
+            )
+        grad_buffer_ctx.wait_for_release(self.device_handle.current_stream())
+        self._direct_expert_dw_lease = acquire_direct_expert_dw(
+            slot, self._direct_expert_dw_offsets
+        )
+        grad_buffer_ctx.owner = self
+
+    def _finish_direct_expert_dw(self, lease: "DirectExpertDwLease") -> None:
+        grad_buffer_ctx = self.grad_buffer_ctx
+        assert grad_buffer_ctx is not None and grad_buffer_ctx.owner is self
+        try:
+            if any(
+                param.unsharded_param.grad is not None
+                or param.unsharded_accumulated_grad is not None
+                for param in self.fsdp_params
+            ):
+                raise RuntimeError(f"{self} received another gradient during direct dW")
+            lease.finish()
+        except BaseException:
+            lease.abort()
+            grad_buffer_ctx.release(self, self.device_handle.current_stream())
+            raise
+        finally:
+            self._direct_expert_dw_lease = None
+        for param in self.fsdp_params:
+            param.unsharded_accumulated_grad = param._unsharded_accumulated_grad
 
     @torch.no_grad()
     def setup_ema_buffer(self) -> None:
@@ -1164,6 +1256,8 @@ class GFSDPParamGroup:
             self.wait_for_unshard()
             if default_prefetch:
                 self._backward_prefetch()
+            if self._direct_expert_dw_slot is not None:
+                self._acquire_direct_expert_dw(self._direct_expert_dw_slot)
 
     def post_backward(self, *unused: Any) -> None:  # noqa: PLR0912
         # This method should be idempotent and safe to call even when this
@@ -1171,7 +1265,10 @@ class GFSDPParamGroup:
         logger.debug("%s", self._with_fqn("GFSDP::post_backward"))
         was_in_backward = self._training_state == TrainingState.PRE_BACKWARD
         self._training_state = TrainingState.POST_BACKWARD
-        if (grad_buffer_ctx := self.grad_buffer_ctx) is not None:
+        grad_buffer_ctx = self.grad_buffer_ctx
+        if self._direct_expert_dw_lease is not None:
+            self._finish_direct_expert_dw(self._direct_expert_dw_lease)
+        elif grad_buffer_ctx is not None:
             if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
                 raise RuntimeError(
                     f"{self} tried to acquire its gradient buffer, but it is in use by {owner}."

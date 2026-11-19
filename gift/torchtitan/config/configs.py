@@ -154,6 +154,9 @@ class ParallelismConfig:
     gfsdp_fp8_expert_weights: bool = False
     """Cache GFSDP routed-expert weight shards as E4M3 with FP32 block scales."""
 
+    gfsdp_direct_expert_dw: bool = False
+    """Write Hopper EP8 expert gradients directly into the FP32 reduce-scatter slot."""
+
     gfsdp_split_layer0_ffn: bool = False
     """Give layers.0's dense w1/w2/w3 FFN its own compiled GFSDP boundary."""
 

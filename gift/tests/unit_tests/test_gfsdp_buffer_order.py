@@ -326,6 +326,7 @@ def _post_backward_group(*, training_state, has_grad, reduce_grads, reshard_afte
     group._all_gather_dtype_to_fsdp_params = {torch.float32: [fsdp_param]}
     group.grad_buffer_ctx = _FakeBufferContext()
     group.data_buffer_ctx = _FakeBufferContext()
+    group._direct_expert_dw_lease = None
     group.device_handle = SimpleNamespace(current_stream=lambda: stream)
     group.device = torch.device("cpu")
     group.orig_dtype = torch.float32
@@ -345,6 +346,40 @@ def _post_backward_group(*, training_state, has_grad, reduce_grads, reshard_afte
     group._post_backward_prefetch_target = object()
     group.data_buffer_ctx.owner = group
     return group, stream
+
+
+def test_direct_expert_write_flows_into_existing_reduce_scatter(monkeypatch):
+    import torchtitan.distributed.gfsdp._param_group as param_group_module
+
+    group, _ = _post_backward_group(
+        training_state=TrainingState.PRE_BACKWARD,
+        has_grad=False,
+        reduce_grads=True,
+        reshard_after_backward=False,
+    )
+    expert = group.fsdp_params[0]
+    slot = group._reduce_scatter_input[torch.float32]
+    expert._unsharded_accumulated_grad = slot[:2]
+    slot[:2].fill_(7)
+    finished = []
+    group._direct_expert_dw_lease = SimpleNamespace(finish=lambda: finished.append(True))
+    group.grad_buffer_ctx.owner = group
+    reduce_event = object()
+
+    def reduce_scatter(params, params_with_grad, persistent_grad, original_slot, *_args):
+        assert finished == [True]
+        assert params == params_with_grad == [expert]
+        assert persistent_grad is group._padded_sharded_param_grad[torch.float32]
+        assert original_slot is slot
+        assert torch.equal(original_slot, torch.tensor([7.0, 7.0, 0.0, 0.0]))
+        return reduce_event
+
+    monkeypatch.setattr(param_group_module, "reduce_scatter", reduce_scatter)
+    group.post_backward()
+    assert group._direct_expert_dw_lease is None
+    assert expert.unsharded_accumulated_grad is None
+    assert group.grad_buffer_ctx.owner is None
+    assert group.grad_buffer_ctx.release_event is reduce_event
 
 
 @pytest.mark.parametrize(

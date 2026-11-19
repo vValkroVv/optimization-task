@@ -77,6 +77,16 @@ backward. The initial native candidate launch hit a connection error on
 `sr008-gpu1`. Native correctness, timing, and peak-memory comparisons remain
 open for both candidates.
 
+Direct expert dW is also opt-in. CPU Inductor with selective checkpointing
+kept both writes on the original FP32 slot with a mock native writer. The
+producer suite passed 34 checks across the standalone and combined paths.
+The shared GFSDP regression suite passed 56 checks and skipped two. It
+covered slot acquisition, incomplete writes, and handoff to reduce-scatter.
+The server connection still failed before any candidate launch. Native
+Hopper compilation, bitwise epilogue parity, and the deployed compiler's
+slot behavior remain open.
+[Direct dW build and verification](../runs/efsdp-optimizations/direct-dw/README.md)
+
 ## Consolidated rank-0 analysis: observed costs and priorities
 
 This section consolidates the studied S trace, source/grid arithmetic and prior

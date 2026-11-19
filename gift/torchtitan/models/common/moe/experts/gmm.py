@@ -102,6 +102,8 @@ class GroupedExperts(Module):
         self._gfsdp_fp8_weights: (
             tuple[PreparedExpertWeight, PreparedExpertWeight] | None
         ) = None
+        self._gfsdp_direct_dw_slot: torch.Tensor | None = None
+        self._gfsdp_direct_dw_offsets = (0, 0)
         assert config.dim is not None, "partial GroupedExperts.Config"
         self._sparse_fused_swiglu_quant = config.sparse_fused_swiglu_quant
         self.swiglu_limit = config.swiglu_limit
@@ -255,7 +257,7 @@ class GroupedExperts(Module):
 
         if self._gfsdp_fp8_weights is not None:
             prepared_w13, prepared_w2 = self._gfsdp_fp8_weights
-            # Keep the original parameter edges for BF16 gradients. The GEMMs
+            # Keep the original parameter edges for autograd. The GEMMs
             # resolve the prepared values only while the GFSDP slot is live.
             w13_E2FD, w2_EDF = self._local_expert_weights()
         else:
@@ -286,6 +288,8 @@ class GroupedExperts(Module):
 
         # fused_swiglu_quant=False return BF16 grads, so we don't need to return edge
         fused_swiglu_quant = self._sparse_fused_swiglu_quant
+        direct_dw_slot = self._gfsdp_direct_dw_slot
+        w13_dw_offset, w2_dw_offset = self._gfsdp_direct_dw_offsets
         fc1_output, fc1_edge = self.handle1.group_gemm(
             tensor_groups=payload,
             weights=w13_E2FD,
@@ -296,6 +300,8 @@ class GroupedExperts(Module):
             m_indices=m_indices_R,
             fp8_grad_output=use_edges and fused_swiglu_quant,
             prepared_weight=prepared_w13,
+            direct_dw_slot=direct_dw_slot,
+            direct_dw_offset=w13_dw_offset,
         )
         clip_counts = self._clip_counts()
         if fused_swiglu_quant:
@@ -335,6 +341,8 @@ class GroupedExperts(Module):
             m_indices=m_indices_R,
             fp8_grad_output=use_edges,
             prepared_weight=prepared_w2,
+            direct_dw_slot=direct_dw_slot,
+            direct_dw_offset=w2_dw_offset,
         )
         if use_edges:
             fp8_state.output_fp8_edge = output_edge
