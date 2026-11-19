@@ -76,7 +76,11 @@ respectively (+0.84%). Maximum-rank peak allocation was 65.952 and 65.953
 GiB, with peak reservation of 67.814 and 67.834 GiB. Both runs recorded zero
 allocator retries and OOMs, and their observed compiler cache was stable.
 The fresh flag-off control was 1.43% below the earlier control across the
-outage. A second matched pair is needed before promoting the candidate.
+outage. A second same-source pair at `52ce399fa` measured 171,895 tokens/s
+off and 172,875 on (+0.57%). Peak allocation changed from 65.949 to 65.958
+GiB and peak reservation from 67.814 to 67.854 GiB in the second pair.
+The observed compiler cache stayed stable in both repeat arms. Promotion
+remains subject to the combined comparison.
 
 On both profiled ranks and all three captured microbatches, tail retention
 reduced expert logical unshards from 14 to 12. Layers 6 and 7 each dropped
