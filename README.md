@@ -1,11 +1,13 @@
 # GIFT training optimization
 
 The selected production stack for the eight-layer 100B-dev crop on eight H100s
-is **S + GPU capacity selector + five Hopper fusions**. The final 40+100 run
-measured 166,519 global physical tokens/s, with peak allocated and reserved
-memory of 66.986 and 69.162 GiB. See the
-[launch recipe](docs/baseline.md#launch-the-selected-recipe) and the
-[throughput and memory matrix](docs/status.md#production-baseline-and-measured-throughput).
+includes S + the GPU capacity selector + five Hopper fusions, the three expert
+GFSDP flags, folded CE, four backward optimizations, and CuTe statistics-only
+SAC replay. Its one native 10+10 follow-up measured 180,393.28 global physical
+tokens/s, with 60.3078 GiB peak allocated and 62.2051 GiB peak reserved. The
+four-fix control measured 179,761.44 tokens/s before CuTe stats-only SAC was
+promoted. See the [launch recipe](docs/baseline.md#launch-the-selected-recipe)
+and [current state](docs/status.md#production-baseline-and-measured-throughput).
 
 | Read | Purpose |
 | --- | --- |

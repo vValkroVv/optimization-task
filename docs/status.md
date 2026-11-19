@@ -10,7 +10,8 @@ Update this file when new evidence changes a conclusion.
 The owner accepted **S + GPU capacity selector + five Hopper fusions** on
 19 November 2026 as the fixed baseline for the eight-layer crop on eight
 H100s. The active production launch adds the three expert GFSDP flags, folded
-CE and all four backward optimizations on the same topology. [Recipe and launcher](baseline.md#current-final-task-baseline)
+CE, all four backward optimizations, and CuTe statistics-only SAC on the same
+topology. SwiGLU row16 remains experimental and disabled. [Recipe and launcher](baseline.md#current-final-task-baseline)
 
 TPS counts global physical input tokens per second. Memory is the maximum
 PyTorch allocator peak across eight ranks within the measurement window.
@@ -28,7 +29,8 @@ The 40+100 rows cover updates 41–140 and 209,715,200 physical tokens each.
 | S · selector control | 10+10 | 170,321 | 12.313 | 65.887 | 67.580 | — |
 | S + GPU selector · selector candidate | 10+10 | 171,475 | 12.230 | 65.889 | 67.561 | — |
 | S + GPU selector · fusion control | 40+100 | 164,537 | 12.746 | 66.998 | 69.260 | +9.96% |
-| **S + GPU selector + five fusions · fixed baseline** | **40+100** | **166,519** | **12.594** | **66.986** | **69.162** | **+11.28%** |
+| **S + GPU selector + five fusions · historical 40+100 baseline** | **40+100** | **166,519** | **12.594** | **66.986** | **69.162** | **+11.28%** |
+| **Current production (includes CuTe stats-only SAC)** | **10+10** | **180,393.28** | **11.6254** | **60.3078** | **62.2051** | — |
 
 The five fusions gained **1.20% TPS** in the matched 40+100 pair and lowered
 peak allocated by **12.46 MiB** and reserved by **100 MiB**. The selector gained
@@ -40,7 +42,8 @@ data, tokenizer, seed, runtime versions and pre-fusion GIFT bytes. Their
 training configs differ only in enabling the GPU selector.
 [A–SE-fused results](../runs/schedule-embedding/timing-results-140.md) ·
 [Selector pair and trace](../runs/capacity-selector/report.md) ·
-[Fusion pair and audit](../runs/kernel-fusion/report.md#combined-five-at-40100)
+[Fusion pair and audit](../runs/kernel-fusion/report.md#combined-five-at-40100) ·
+[Current 10+10 follow-up](../runs/fusion-followup/report.md)
 
 ### Expert GFSDP standalone results
 
@@ -86,8 +89,15 @@ The next same-source 10+10 comparison used folded CE in every arm. Its control
 measured 178,067 tokens/s. Hidden z-loss, direct GDN backward and BF16 dHidden
 assembly together measured 179,279 (+0.681%) with peaks down 382/240 MiB
 (allocated/reserved). Staged LM-head dW on its own measured 179,034 (+0.543%)
-with peaks down 1,003/1,000 MiB. The owner selected all four optimizations together for production.
-A fresh 10+10 window on all four together measured 179,761 TPS with 60.308 GiB peak allocated and 62.186 GiB peak reserved. [Original component and native results](../runs/fusion-pack/report.md) · [Current four-fix control and follow-ups](../runs/fusion-followup/report.md)
+with peaks down 1,003/1,000 MiB. The owner selected all four optimizations
+together for production. The resulting 179,761.44 TPS and 60.3085/62.1855 GiB
+allocated/reserved peaks are now the historical four-fix control. Before
+promotion, the CuTe stats-only SAC candidate measured 180,393.28 TPS and
+60.3078/62.2051 GiB peaks, respectively: +0.351% TPS, −0.0007 GiB allocated
+and +0.0195 GiB reserved. The owner then selected it for production, and the
+canonical launcher enables it by default. SwiGLU row16 remains experimental
+and disabled. [Original component and native results](../runs/fusion-pack/report.md) · [Native follow-up and receipts](../runs/fusion-followup/report.md)
+[Original component and native results](../runs/fusion-pack/report.md) · [Native follow-up and receipts](../runs/fusion-followup/report.md)
 
 ### Fixed-recipe control for expert GFSDP candidates
 

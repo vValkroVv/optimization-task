@@ -65,9 +65,15 @@ FFN/embedding changes and GFSDP schedule repairs. The owner selected all three
 expert GFSDP optimizations for the current production launch on this same
 topology. Earlier expert GFSDP comparisons used the fixed baseline with those
 three flags off as their control. Production now also enables folded CE and
-the four backward optimizations below. In one native 10+10 window the complete
-recipe measured 179,761 physical tokens/s, 60.308 GiB peak allocated and
-62.186 GiB peak reserved across eight ranks. [Measurement](../runs/fusion-followup/report.md)
+the four backward optimizations below, plus CuTe statistics-only SAC replay.
+The historical four-fix control measured 179,761.44 physical tokens/s, with
+60.3085 GiB peak allocated and 62.1855 GiB peak reserved. Before promotion, a
+CuTe stats-only SAC candidate arm measured 180,393.28 tokens/s, with 60.3078
+GiB peak allocated and 62.2051 GiB peak reserved. Against that control, peak
+allocation changed by −0.0007 GiB and peak reservation by +0.0195 GiB. The owner
+later selected CuTe stats-only SAC, and the canonical production launcher now
+enables it by default. SwiGLU row16 remains experimental and disabled.
+[Measurement and receipts](../runs/fusion-followup/report.md)
 [Throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
 
 | Part | Selected setting |
@@ -82,6 +88,8 @@ recipe measured 179,761 physical tokens/s, 60.308 GiB peak allocated and
 | Folded CE backward | Each main/MTP loss writes its gradient into the folded BF16 logits gradient for its head. The chunk schedule, FP32 CE arithmetic, two backward GEMMs and FP32 weight-gradient accumulation are retained. |
 | Four backward optimizations | Enable fused hidden z-loss, FlashQLA external-gate direct backward, direct BF16 dHidden assembly, and staged LM-head dW together. Retain the existing eligibility checks and native fallbacks. |
 | Expert GFSDP production flags | Enable the FP8 expert-weight cache, rounded direct dW into the existing FP32 buffer, and tail weight retention. The FP8 cache replaces the previous BF16 cache for eligible expert groups. |
+| CuTe SAC statistics-only replay | Selected for production; the canonical production launcher enables `GIFT_CUTE_NORM_SAC_STATS_ONLY=1` for eligible dead-activation replays. |
+| SwiGLU row16 | Experimental candidate only; disabled in the canonical production recipe. |
 | Measurement | Logical epoch size 102,400, LR horizon 65,000 updates, and LR warmup 2,000 updates. The final comparison measured optimizer updates 41–140 after 40 warmup updates. Initial follow-up comparisons can use 10+10. |
 
 ### Launch the selected recipe
@@ -101,7 +109,8 @@ Use `timing` for 10+10, `timing-140` for 40+100, or `trace` for an update-21
 capture. The default `production` invocation verifies the measured GIFT source
 fingerprint, checks the resolved recipe against the saved control, and enables
 folded CE backward, all three expert GFSDP flags, the five Hopper fusions and
-the four backward optimizations. Each expert GFSDP
+the four backward optimizations. It also enables CuTe statistics-only SAC
+replay. It leaves SwiGLU row16 disabled. Each expert GFSDP
 flag has standalone 10+10 and trace evidence. The three-on EP8/eFSDP1
 control also completed a native 10+10 and an update-21 trace. Multi-rank
 expert-FSDP coverage remains open.
@@ -121,6 +130,7 @@ build argument.
 GIFT_GDN_FUSE_OUTPUT_NORM_FP8=1
 GIFT_MLA_FUSED_ROPE=1
 GIFT_CUTE_NORM_FUSE_RESIDUAL=1
+GIFT_CUTE_NORM_SAC_STATS_ONLY=1
 GIFT_GDN_FUSE_SHORT_CONV_BWD=1
 GIFT_FP8_QUANTIZE_WEIGHT_TAIL=1
 GIFT_FUSED_HIDDEN_Z_LOSS=1

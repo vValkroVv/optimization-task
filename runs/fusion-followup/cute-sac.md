@@ -7,6 +7,10 @@ compiled forward and backward CUDA Graph replay fell from 364.802 to 303.931 µs
 for the plain norm and from 409.370 to 331.060 µs for the residual norm. Both
 allocator peaks stayed flat in each component. [Replay results](results/cute-sac.json)
 
+The owner selected this replay for the canonical production launch after the
+native candidate run. See the [native follow-up report](report.md) for its
+pre-promotion result, provenance and measurement limits.
+
 ## Native graph uses
 
 The [liveness analyzer](cute_liveness.py) matches each profiled
@@ -29,7 +33,7 @@ residual and 0.747 ms of plain output-stage kernel time on the dead-output
 calls. These durations sum device kernels within the profile window. They do
 not measure elapsed step time or the exposed cost in the native schedule.
 
-The opt-in `GIFT_CUTE_NORM_SAC_STATS_ONLY=1` pass runs after AOTAutograd fixes
+The `GIFT_CUTE_NORM_SAC_STATS_ONLY=1` pass runs after AOTAutograd fixes
 the forward and backward graph interfaces. It keeps the full op for a live
 `y` or an opaque tuple consumer. The replacement keeps the existing weight
 preparation, F1, FP32 split reduction and six inputs to the VJP. Its finalizer
@@ -37,7 +41,9 @@ does not allocate `y`, stage residual data or run the gate/output epilogue.
 The original `B2/S4096/H4096` BF16 allocation for `y` is 64 MiB at each eligible
 replay. It was transient in the component and did not set the allocator peak.
 The rewrite adds no saved activation or communication. The output rounding and
-residual identity gradient remain in their original paths.
+residual identity gradient remain in their original paths. The canonical
+production launcher enables this pass by default; the run report retains the
+explicit historical comparison path.
 [Graph pass](../../gift/torchtitan/models/common/norms/cute_gated_norm/compiler.py) ·
 [CuTe kernels](../../gift/torchtitan/models/common/norms/cute_gated_norm/forward.py) ·
 [Pinned TorchInductor pass sequence](https://github.com/pytorch/pytorch/blob/8b353065ce260336c5fdfa74d754e8bd9b91b062/torch/_inductor/fx_passes/post_grad.py)
