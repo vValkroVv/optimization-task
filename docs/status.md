@@ -107,8 +107,14 @@ against 171,488 for the same-source control (+1.24%). Peak allocation fell
 from 65.950 to 62.581 GiB (−3.368 GiB), and peak reservation fell from 67.854
 to 64.338 GiB (−3.516 GiB). All eight ranks reported active FP8 caches for the
 seven routed layers. Both runs recorded a stable observed compiler cache,
-zero allocator retries, and zero OOMs. The update-21 FP8 trace is pending.
-[FP8 timing receipt](../runs/efsdp-optimizations/fp8-receipts.json)
+zero allocator retries, and zero OOMs.
+
+On both profiled ranks at update 21, the control ran 26 expert weight quantizers
+in each of the first three microbatches. FP8 cached weights ran 14 refresh
+quantizers in the first microbatch and zero in the next two. All eight ranks
+reported the expected cache generation for every routed layer. Logical expert
+unshards stayed at 14 per microbatch on these singleton groups.
+[FP8 timing and trace receipts](../runs/efsdp-optimizations/fp8-receipts.json)
 [FP8 parity and first timing attempt](../runs/efsdp-optimizations/fp8-first-attempt.json)
 [FP8 native parity check](../runs/efsdp-optimizations/verify_fp8_expert_weights.py)
 
