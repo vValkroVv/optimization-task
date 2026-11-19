@@ -8,7 +8,8 @@ otherwise desyncs the SAC recompute replay (``Autograd not support dtype: Int``)
 the ops are also on the SAC MUST_SAVE list (see ``distributed/activation_checkpoint.py``).
 
 A custom op is opaque to autograd, so each registers its own backward via
-:func:`vjp_via_recompute`. ``fla`` is imported lazily inside the op bodies.
+``fla_vjp``. Backends can install a direct VJP for a kernel whose backward
+does not need the recomputed forward output. ``fla`` is imported lazily.
 """
 
 from collections.abc import Callable
@@ -27,6 +28,7 @@ __all__ = [
 
 _RECOMPUTE: dict[str, "Callable"] = {}
 """kernel name -> ``(static_args) -> forward closure over the differentiable inputs``."""
+_DIRECT_VJP: dict[str, Callable] = {}
 
 
 @torch.library.custom_op("torchtitan::fla_vjp", mutates_args=())
@@ -46,6 +48,9 @@ def fla_vjp(
     custom op keeps each a single node. The static args a kernel needs arrive
     split by type, because a custom-op schema cannot hold a mixed tuple.
     """
+    direct = _DIRECT_VJP.get(kernel)
+    if direct is not None:
+        return direct(leaves, grad_outputs, static, scalars, text)
     forward_fn = _RECOMPUTE[kernel](static, scalars, text)
     return list(vjp_via_recompute(forward_fn, leaves, grad_outputs))
 

@@ -53,7 +53,7 @@ case "$kind" in
         (( $# > 0 ))
         for arm in "$@"; do
             case "$arm" in
-                control) extra=() ;;
+                control) extra=(--backward-optimization unfolded-ce) ;;
                 folded-ce) extra=(--backward-optimization "$arm") ;;
                 *) echo "Unknown backward arm: $arm"; exit 2 ;;
             esac

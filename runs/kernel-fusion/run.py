@@ -294,7 +294,7 @@ def install_fp8_cache_receipt(base) -> None:
     base.WindowMeasurement = FP8WindowMeasurement
 
 
-def install_fp8_rank_measurement(baseline, *, capture_inputs=False) -> None:
+def install_fp8_rank_measurement(baseline, *, capture_inputs=None) -> None:
     load_bridge = baseline.load
 
     def load_schedule_measurement(path, name):
@@ -308,13 +308,13 @@ def install_fp8_rank_measurement(baseline, *, capture_inputs=False) -> None:
 
                 def capture_bootstrap(**kwargs):
                     receipt = bootstrap(**kwargs)
-                    capture = load(
-                        ROOT / "runs/backward-components/capture.py",
-                        "_backward_component_capture",
-                    )
-                    capture.install_capture(
-                        Path(kwargs["measurement"]).parent / "component-inputs"
-                    )
+                    output = Path(kwargs["measurement"]).parent / "component-inputs"
+                    if capture_inputs == "scan-capture":
+                        capture = load(ROOT / "runs/fusion-pack/scan_capture.py", "_scan_capture")
+                        capture.install(output)
+                    else:
+                        capture = load(ROOT / "runs/backward-components/capture.py", "_backward_component_capture")
+                        capture.install_capture(output)
                     return receipt
 
                 flash._write_bootstrap_receipt = capture_bootstrap
@@ -351,9 +351,9 @@ def main() -> int:
         backward_arm = "folded-ce" if variant == PRODUCTION else "control"
         if rank_argv and rank_argv[0].startswith("--backward-arm="):
             backward_arm = rank_argv.pop(0).removeprefix("--backward-arm=")
-            if backward_arm not in {"capture", "folded-ce"} or variant != PRODUCTION:
+            if backward_arm not in {"capture", "scan-capture", "folded-ce", "unfolded-ce"} or variant != PRODUCTION:
                 raise ValueError(f"Invalid production backward arm: {backward_arm}")
-        if variant == PRODUCTION:
+        if variant == PRODUCTION and backward_arm != "unfolded-ce":
             os.environ[FOLDED_CE_ENV] = "1"
         while rank_argv and rank_argv[0].startswith("--fusion-fix="):
             name = rank_argv.pop(0).removeprefix("--fusion-fix=")
@@ -367,7 +367,7 @@ def main() -> int:
             and FP8_CACHE_FLAG in rank_argv
             and training_overrides(rank_argv)[1].get(FP8_CACHE_FLAG) == "true"
         ):
-            install_fp8_rank_measurement(baseline, capture_inputs=backward_arm == "capture")
+            install_fp8_rank_measurement(baseline, capture_inputs=backward_arm if backward_arm in {"capture", "scan-capture"} else None)
         if direct_dw_build := os.environ.get(DIRECT_DW_BUILD_ENV):
             num_sms = require_positive_int(
                 os.environ.get(DIRECT_DW_NUM_SMS_ENV), DIRECT_DW_NUM_SMS_ENV
@@ -391,12 +391,13 @@ def main() -> int:
     parser.add_argument(
         "--gfsdp-optimization", choices=GFSDP_CONTROLS, action="append", default=[]
     )
-    parser.add_argument("--backward-optimization", choices=("folded-ce",))
+    parser.add_argument("--backward-optimization", choices=("folded-ce", "unfolded-ce"))
     parser.add_argument(
         "--direct-dw-build",
         type=Path,
         help="Verified task-local build required by canonical production or direct-expert-dw",
     )
+    parser.add_argument("--capture-scan", action="store_true", help="Capture the first native GDN backward for component replay")
     parser.add_argument("--fusion-fix", choices=FUSION_PACK, action="append", default=[])
     args = parser.parse_args()
     if (args.variant in {"baseline", PRODUCTION}) != (args.candidate_source is None):
@@ -412,6 +413,8 @@ def main() -> int:
             parser.error("Backward experiments require an explicit revision and all three GFSDP flags")
         if args.mode == "capture" and (args.backward_optimization or args.fusion_fix):
             parser.error("Capture uses the production control")
+    if args.capture_scan and args.mode != "capture":
+        parser.error("--capture-scan requires capture mode")
     direct_dw_requested = "direct-expert-dw" in enabled_optimizations
     if direct_dw_requested and args.direct_dw_build is None:
         parser.error("--direct-dw-build is required for the direct-expert-dw arm")
@@ -469,6 +472,8 @@ def main() -> int:
             ]
             backward_arm = "capture" if args.mode == "capture" else args.backward_optimization
             command[pos + 3 : pos + 3] = [f"--fusion-fix={fix}" for fix in args.fusion_fix]
+            if args.capture_scan:
+                backward_arm = "scan-capture"
             if backward_arm:
                 command.insert(pos + 3, f"--backward-arm={backward_arm}")
             command.extend(("--compile.enable", "true"))
@@ -597,7 +602,7 @@ def main() -> int:
     native._load = load_schedule
     result = native._run("trace" if args.mode == "trace" else "candidate", args.run_id)
     if result == 0 and args.mode == "capture":
-        fixture = native.RAW_ROOT / args.run_id / "component-inputs/rank0.pt"
+        fixture = native.RAW_ROOT / args.run_id / "component-inputs" / ("fixture-01.pt" if args.capture_scan else "rank0.pt")
         if not fixture.is_file():
             raise RuntimeError(f"Native capture did not produce {fixture}")
     return result

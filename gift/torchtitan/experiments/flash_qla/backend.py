@@ -1,4 +1,4 @@
-"""Opt-in raw-gate GDN backends preserving the native opaque op and recompute VJP."""
+"""Opt-in raw-gate GDN backends for the native opaque GDN op."""
 from __future__ import annotations
 
 from functools import cache
@@ -158,9 +158,38 @@ def run_gdn(variant, q, k, v, raw_g, beta, A_log, dt_bias,
     return _FusedGate.apply(q, k, v, raw_g, beta, A_log, dt_bias, cu_seqlens, scale), None
 
 
+def _external_gate_backward(leaves, grad_outputs, static, _scalars, _text):
+    from fla.ops.gated_delta_rule.gate import gdn_gate_bwd, gdn_gate_fwd
+
+    (do,) = grad_outputs
+    (cu,) = static
+    q, k, v, raw_g, beta, A_log, dt_bias = (t.contiguous() for t in leaves)
+    cu = cu.contiguous() if cu is not None else None
+    qla = _qla()
+    with torch.cuda.device(q.device):
+        # Match the public gate and scan input guards and recompute only the
+        # intermediates consumed by the stateless, CP-disabled native backward.
+        g = gdn_gate_fwd(g=raw_g, A_log=A_log, dt_bias=dt_bias, output_dtype=torch.float32)
+        g = qla.chunk_local_cumsum(g=g, cu_seqlens=cu, chunk_size=qla.CHUNK_SIZE)
+        A = qla.kkt_solve(k=k, b=beta, cu_seqlens=cu, chunk_size=qla.CHUNK_SIZE)
+        dq, dk, dv, db, dg, _ = qla.chunk_gated_delta_rule_bwd(
+            q=q, k=k, v=v, g=g, beta=beta, A=A, do=do.contiguous(),
+            scale=k.shape[-1] ** -0.5, cu_seqlens=cu, auto_cp=False,
+        )
+        # The native backward returns the natural-log gradient in FP32.
+        dr, dA, dt = gdn_gate_bwd(g=raw_g, A_log=A_log, dt_bias=dt_bias, dyg=dg)
+    return [dq.to(q), dk.to(k), dv.to(v), dr, db.to(beta), dA, dt]
+
+
 def install_backend(variant: str) -> dict:
     """Explicitly select a strict priority-zero backend for native GDN dispatch."""
     _variant(variant)
+    direct_backward = os.environ.get("GIFT_FLASH_QLA_DIRECT_BACKWARD") or "0"
+    if direct_backward not in ("0", "1"):
+        raise ValueError("GIFT_FLASH_QLA_DIRECT_BACKWARD must be 0 or 1")
+    direct_backward = direct_backward == "1"
+    if direct_backward and variant != "external_gate":
+        raise ValueError("GIFT_FLASH_QLA_DIRECT_BACKWARD=1 requires external_gate")
     if os.environ.get("FLA_DISABLE_BACKEND_DISPATCH") == "1":
         raise RuntimeError("FLA_DISABLE_BACKEND_DISPATCH=1 prevents explicit GDN selection")
     _stage_sources()
@@ -169,10 +198,13 @@ def install_backend(variant: str) -> dict:
 
     if dispatch._DISPATCH_DISABLED:
         raise RuntimeError("FLA dispatch was disabled when imported")
+    from torchtitan.models.common.attention.linear.fla_custom_ops import _DIRECT_VJP
+
     gift = Path(__file__).resolve().parents[3]
     fla = importlib.import_module("fla.ops.gated_delta_rule.chunk")
     identity = {
         "variant": variant,
+        "direct_backward": direct_backward,
         "fla_upstream_revision": "1d2281ff1b7988d8070f00dba5ffa9747ae3a60e",
         "flash_qla_upstream_revision": "a14dbf3474514e1674526431e960325f72081e9f",
         "task_head": subprocess.check_output(
@@ -210,4 +242,8 @@ def install_backend(variant: str) -> dict:
             return run_gdn(variant, q, k, v, g, beta, A_log, dt_bias, cu_seqlens, scale)
 
     gdr_registry.register(SelectedBackend())
+    if direct_backward:
+        _DIRECT_VJP["gdn_chunk"] = _external_gate_backward
+    else:
+        _DIRECT_VJP.pop("gdn_chunk", None)
     return identity
