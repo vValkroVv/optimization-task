@@ -1,0 +1,699 @@
+{
+  "decision": "Rejected for production speed. Measured source preserved as an opt-in patch.",
+  "host": "sr008-gpu1",
+  "runtime_root": "/workspace-SR008.nfs2/vkropotin/optimization-task",
+  "native": {
+    "fixture": "runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/gdn-qkv-rank0.pt",
+    "receipt": {
+      "fixture_sha256": "7e244453fe8d7de975438cc9584a112e687832fd06896bf4db47bc63eb4c52f3",
+      "rank": 0,
+      "world_size": 8,
+      "source_revision": "0f0bf5604f43d8150065f90f90216fd4ba3e5ec1",
+      "qkv_shape": [
+        2,
+        4096,
+        8192
+      ],
+      "weight_shape": [
+        8192,
+        4096
+      ]
+    },
+    "device": "NVIDIA H100 80GB HBM3",
+    "visible_devices": "2",
+    "torch": "2.15.0.dev20260822+cu130",
+    "cuda": "13.0",
+    "revision": "da67a369b26c307e424131a1a0c630d5c2675784",
+    "capture_projection_bitwise": true,
+    "epilogue_bits": {
+      "codes": {
+        "bitwise": true
+      },
+      "scales": {
+        "bitwise": true
+      },
+      "conv_weight_gradient": {
+        "bitwise": true
+      }
+    },
+    "kernels": [
+      {
+        "name": "_gdn_short_conv_backward_kernel",
+        "registers": 255,
+        "spills": 130,
+        "shared_bytes": 32768,
+        "warps": 4
+      },
+      {
+        "name": "gdn_short_conv_backward_fp8_kernel",
+        "registers": 255,
+        "spills": 8,
+        "shared_bytes": 81920,
+        "warps": 4
+      }
+    ],
+    "backward_bits": {
+      "input_gradient": {
+        "bitwise": true
+      },
+      "projection_weight_gradient": {
+        "bitwise": true
+      },
+      "conv_weight_gradient": {
+        "bitwise": true
+      }
+    },
+    "module_bits": {
+      "eager": {
+        "q": {
+          "bitwise": true
+        },
+        "k": {
+          "bitwise": true
+        },
+        "v": {
+          "bitwise": true
+        },
+        "input_gradient": {
+          "bitwise": true
+        },
+        "projection_weight_gradient": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": true
+        }
+      },
+      "compiled_sac": {
+        "q": {
+          "bitwise": true
+        },
+        "k": {
+          "bitwise": true
+        },
+        "v": {
+          "bitwise": true
+        },
+        "input_gradient": {
+          "bitwise": true
+        },
+        "projection_weight_gradient": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": true
+        }
+      },
+      "amp_frozen_projection": {
+        "q": {
+          "bitwise": true
+        },
+        "k": {
+          "bitwise": true
+        },
+        "v": {
+          "bitwise": true
+        },
+        "input_gradient": {
+          "bitwise": true
+        },
+        "projection_weight_gradient": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": true
+        }
+      }
+    },
+    "backward_graph_and_synchronized_calls": {
+      "baseline": {
+        "graph_us": {
+          "samples": [
+            1756.4224243164062,
+            1784.8175048828125,
+            1785.0879669189453,
+            1774.4991302490234,
+            1787.718391418457,
+            1774.295997619629,
+            1778.1440734863281
+          ],
+          "median": 1778.1440734863281
+        },
+        "event_elapsed_us": {
+          "samples": [
+            2160.3519916534424,
+            1868.3199882507324,
+            1870.2720403671265,
+            1843.4879779815674,
+            1870.8159923553467,
+            1848.7999439239502,
+            1869.3759441375732
+          ],
+          "median": 1869.3759441375732
+        },
+        "host_call_us": {
+          "samples": [
+            1230.1988899707794,
+            371.91901355981827,
+            332.06213265657425,
+            317.69974157214165,
+            317.0650452375412,
+            355.68978637456894,
+            331.7869268357754
+          ],
+          "median": 332.06213265657425
+        },
+        "event_record_wait_us": {
+          "samples": [
+            935.0278414785862,
+            1502.9190108180046,
+            1544.5537865161896,
+            1532.257068902254,
+            1560.3317879140377,
+            1499.732956290245,
+            1543.9786948263645
+          ],
+          "median": 1532.257068902254
+        },
+        "wall_us": {
+          "samples": [
+            2165.2267314493656,
+            1874.8380243778229,
+            1876.6159191727638,
+            1849.9568104743958,
+            1877.396833151579,
+            1855.422742664814,
+            1875.76562166214
+          ],
+          "median": 1875.76562166214
+        }
+      },
+      "candidate": {
+        "graph_us": {
+          "samples": [
+            1791.7104721069336,
+            1884.9760055541992,
+            1850.2368927001953,
+            1843.270492553711,
+            1850.4751205444336,
+            1844.0383911132812,
+            1849.5328903198242
+          ],
+          "median": 1849.5328903198242
+        },
+        "event_elapsed_us": {
+          "samples": [
+            1882.5600147247314,
+            1991.968035697937,
+            1923.7120151519775,
+            1904.3519496917725,
+            1919.424057006836,
+            1929.6640157699585,
+            1941.2800073623657
+          ],
+          "median": 1923.7120151519775
+        },
+        "host_call_us": {
+          "samples": [
+            386.4392638206482,
+            392.77970790863037,
+            322.944950312376,
+            307.5748682022095,
+            328.8448788225651,
+            360.7841208577156,
+            452.1012306213379
+          ],
+          "median": 360.7841208577156
+        },
+        "event_record_wait_us": {
+          "samples": [
+            1502.5436878204346,
+            1605.8883629739285,
+            1607.4092127382755,
+            1603.0492261052132,
+            1596.9239175319672,
+            1574.9959275126457,
+            1495.6346713006496
+          ],
+          "median": 1596.9239175319672
+        },
+        "wall_us": {
+          "samples": [
+            1888.9829516410828,
+            1998.6680708825588,
+            1930.3541630506516,
+            1910.6240943074226,
+            1925.7687963545322,
+            1935.7800483703613,
+            1947.7359019219875
+          ],
+          "median": 1930.3541630506516
+        }
+      },
+      "control": {
+        "graph_us": {
+          "samples": [
+            1754.0576934814453,
+            1775.8367538452148,
+            1779.083251953125,
+            1790.6240463256836,
+            1773.6400604248047,
+            1792.2927856445312,
+            1776.0831832885742
+          ],
+          "median": 1776.0831832885742
+        },
+        "event_elapsed_us": {
+          "samples": [
+            1853.8880348205566,
+            1906.5279960632324,
+            1845.5040454864502,
+            1867.1040534973145,
+            1894.0479755401611,
+            1856.6720485687256,
+            1847.6799726486206
+          ],
+          "median": 1856.6720485687256
+        },
+        "host_call_us": {
+          "samples": [
+            406.19075298309326,
+            357.5356677174568,
+            342.43427217006683,
+            317.8669139742851,
+            410.5730913579464,
+            342.461746186018,
+            316.8536350131035
+          ],
+          "median": 342.461746186018
+        },
+        "event_record_wait_us": {
+          "samples": [
+            1454.3230645358562,
+            1555.3352423012257,
+            1509.327907115221,
+            1555.8856539428234,
+            1489.9689704179764,
+            1520.4339288175106,
+            1537.3071655631065
+          ],
+          "median": 1520.4339288175106
+        },
+        "wall_us": {
+          "samples": [
+            1860.5138175189495,
+            1912.8709100186825,
+            1851.7621792852879,
+            1873.7525679171085,
+            1900.5420617759228,
+            1862.8956750035286,
+            1854.16080057621
+          ],
+          "median": 1862.8956750035286
+        }
+      }
+    },
+    "backward_memory": {
+      "baseline": {
+        "start_allocated_bytes": 606209024,
+        "start_reserved_bytes": 612368384,
+        "peak_allocated_bytes": 980616192,
+        "peak_reserved_bytes": 998244352
+      },
+      "candidate": {
+        "start_allocated_bytes": 606209024,
+        "start_reserved_bytes": 612368384,
+        "peak_allocated_bytes": 913507328,
+        "peak_reserved_bytes": 952107008
+      }
+    },
+    "compiled_sac_memory": {
+      "baseline": {
+        "start_allocated_bytes": 774112768,
+        "start_reserved_bytes": 782237696,
+        "peak_allocated_bytes": 1228342784,
+        "peak_reserved_bytes": 1321205760
+      },
+      "candidate": {
+        "start_allocated_bytes": 774112768,
+        "start_reserved_bytes": 782237696,
+        "peak_allocated_bytes": 1163331072,
+        "peak_reserved_bytes": 1254096896
+      }
+    },
+    "raw_result": {
+      "path": "runs/fusion-followup/artifacts/raw/gdn-native-006/result.json",
+      "sha256": "e9b7f88993b320ba3b3e56155bc6a658913c8c3975dab2a81a63b8a804035a2f"
+    },
+    "compiled_sac_trace": {
+      "baseline": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-followup/artifacts/raw/gdn-native-006/compiled-baseline.json",
+        "sha256": "969b017e85db91f5332fc63a60579152cf37af7a67f682c818144c3077bdaa37",
+        "counts": {
+          "kernel": 16,
+          "gpu_memset": 4
+        },
+        "device_span_us": 3029.51708984375,
+        "device_gap_us": 143.87396875,
+        "kernel_time_us": 2882.507,
+        "copy_and_memset_time_us": 3.136,
+        "convolution_and_gemms": [
+          {
+            "name": "void (anonymous namespace)::quantize_vec128_kernel",
+            "device_us": 33.92
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            "device_us": 412.582
+          },
+          {
+            "name": "void (anonymous namespace)::quantize_vec128_kernel",
+            "device_us": 36.416
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            "device_us": 412.679
+          },
+          {
+            "name": "_gdn_short_conv_backward_kernel",
+            "device_us": 638.249
+          },
+          {
+            "name": "void (anonymous namespace)::quantize_vec128_kernel",
+            "device_us": 71.585
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            "device_us": 405.19
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            "device_us": 513.224
+          }
+        ]
+      },
+      "candidate": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-followup/artifacts/raw/gdn-native-006/compiled-candidate.json",
+        "sha256": "9e2b84a77a03f6115d8da36cc4e705f420ccc7fceb2993ca931b579f052b8b30",
+        "counts": {
+          "kernel": 15,
+          "gpu_memset": 4
+        },
+        "device_span_us": 3062.65966796875,
+        "device_gap_us": 125.18761328125,
+        "kernel_time_us": 2934.304,
+        "copy_and_memset_time_us": 3.168,
+        "convolution_and_gemms": [
+          {
+            "name": "void (anonymous namespace)::quantize_vec128_kernel",
+            "device_us": 33.248
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            "device_us": 412.384
+          },
+          {
+            "name": "void (anonymous namespace)::quantize_vec128_kernel",
+            "device_us": 36.672
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            "device_us": 411.073
+          },
+          {
+            "name": "gdn_short_conv_backward_fp8_kernel",
+            "device_us": 767.552
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            "device_us": 404.928
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            "device_us": 514.081
+          }
+        ]
+      }
+    },
+    "backward_trace": {
+      "baseline": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-followup/artifacts/raw/gdn-native-006/backward-baseline.json",
+        "sha256": "e2880c6f7915309c4fc1a2f1e0c32da9cd66f6fc5a1021c95ffaceebe662f6c7",
+        "counts": {
+          "kernel": 9,
+          "gpu_memset": 2
+        },
+        "device_span_us": 1783.732421875,
+        "device_gap_us": 15.710527343749954,
+        "kernel_time_us": 1766.422,
+        "copy_and_memset_time_us": 1.6,
+        "convolution_and_gemms": [
+          {
+            "name": "_gdn_short_conv_backward_kernel",
+            "device_us": 641.628
+          },
+          {
+            "name": "void (anonymous namespace)::quantize_vec128_kernel",
+            "device_us": 71.039
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            "device_us": 406.75
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            "device_us": 516.317
+          }
+        ]
+      },
+      "candidate": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-followup/artifacts/raw/gdn-native-006/backward-candidate.json",
+        "sha256": "c7f552fa6f3f1f42823acbe391fb0089e1f29d7e51a3820d8d2685d7a4d6b7a5",
+        "counts": {
+          "kernel": 8,
+          "gpu_memset": 2
+        },
+        "device_span_us": 1839.55029296875,
+        "device_gap_us": 14.688105468750052,
+        "kernel_time_us": 1823.2939999999999,
+        "copy_and_memset_time_us": 1.568,
+        "convolution_and_gemms": [
+          {
+            "name": "gdn_short_conv_backward_fp8_kernel",
+            "device_us": 775.871
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            "device_us": 406.816
+          },
+          {
+            "name": "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            "device_us": 514.367
+          }
+        ]
+      }
+    }
+  },
+  "synthetic_boundaries": {
+    "receipt": {
+      "seed": 23,
+      "scope": "synthetic packed-boundary diagnostics"
+    },
+    "kernels": [
+      {
+        "name": "_gdn_short_conv_backward_kernel",
+        "registers": 255,
+        "spills": 130,
+        "shared_bytes": 32768,
+        "warps": 4
+      },
+      {
+        "name": "gdn_short_conv_backward_fp8_kernel",
+        "registers": 255,
+        "spills": 0,
+        "shared_bytes": 81920,
+        "warps": 4
+      }
+    ],
+    "module_bits": {
+      "eager": {
+        "q": {
+          "bitwise": true
+        },
+        "k": {
+          "bitwise": true
+        },
+        "v": {
+          "bitwise": true
+        },
+        "input_gradient": {
+          "bitwise": true
+        },
+        "projection_weight_gradient": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": true
+        }
+      },
+      "compiled_sac": {
+        "q": {
+          "bitwise": true
+        },
+        "k": {
+          "bitwise": true
+        },
+        "v": {
+          "bitwise": true
+        },
+        "input_gradient": {
+          "bitwise": true
+        },
+        "projection_weight_gradient": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": true
+        }
+      },
+      "amp_frozen_projection": {
+        "q": {
+          "bitwise": true
+        },
+        "k": {
+          "bitwise": true
+        },
+        "v": {
+          "bitwise": true
+        },
+        "input_gradient": {
+          "bitwise": true
+        },
+        "projection_weight_gradient": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": true
+        }
+      },
+      "misaligned_fallback": {
+        "q": {
+          "bitwise": true
+        },
+        "k": {
+          "bitwise": true
+        },
+        "v": {
+          "bitwise": true
+        },
+        "input_gradient": {
+          "bitwise": true
+        },
+        "projection_weight_gradient": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": true
+        }
+      }
+    },
+    "backward_bits": {
+      "input_gradient": {
+        "bitwise": true
+      },
+      "projection_weight_gradient": {
+        "bitwise": true
+      },
+      "conv_weight_gradient": {
+        "bitwise": true
+      }
+    },
+    "revision": "da67a369b26c307e424131a1a0c630d5c2675784",
+    "raw_result": {
+      "path": "runs/fusion-followup/artifacts/raw/gdn-smoke-002/result.json",
+      "sha256": "da184829d1a5d6b09fda63ed16e0aa52e4a87005807c86766e06503432741ee9"
+    }
+  },
+  "earlier_variants": {
+    "implicit_layout": {
+      "revision": "cca7bb1076670d85f680daa78e9293dd476128bb",
+      "epilogue_bits": {
+        "codes": {
+          "bitwise": false,
+          "different_bytes": 48
+        },
+        "scales": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": false,
+          "different_bytes": 16
+        }
+      },
+      "kernels": [
+        {
+          "name": "_gdn_short_conv_backward_kernel",
+          "registers": 255,
+          "spills": 130,
+          "shared_bytes": 32768,
+          "warps": 4
+        },
+        {
+          "name": "_gdn_short_conv_backward_kernel",
+          "registers": 255,
+          "spills": 100,
+          "shared_bytes": 32768,
+          "warps": 4
+        }
+      ],
+      "raw_result": {
+        "path": "runs/fusion-followup/artifacts/raw/gdn-native-001/result.json",
+        "sha256": "398a69c9bca87c071333a2a28ec7733cecec6f7ac20f1f58ea8b5faeff1eac7f"
+      }
+    },
+    "shared_staging": {
+      "revision": "7f8f40c1fbcb83334407adacd6e137bfdc52e57d",
+      "epilogue_bits": {
+        "codes": {
+          "bitwise": true
+        },
+        "scales": {
+          "bitwise": true
+        },
+        "conv_weight_gradient": {
+          "bitwise": true
+        }
+      },
+      "kernels": [
+        {
+          "name": "_gdn_short_conv_backward_kernel",
+          "registers": 255,
+          "spills": 130,
+          "shared_bytes": 32768,
+          "warps": 4
+        },
+        {
+          "name": "gdn_short_conv_backward_fp8_kernel",
+          "registers": 255,
+          "spills": 6,
+          "shared_bytes": 81920,
+          "warps": 4
+        }
+      ],
+      "graph_median_us": {
+        "baseline": 1778.428840637207,
+        "candidate": 1908.795166015625,
+        "control": 1778.4112930297852
+      },
+      "raw_result": {
+        "path": "runs/fusion-followup/artifacts/raw/gdn-native-005/result.json",
+        "sha256": "7c2efd59f0b601b59a602dcf92451b3c5a029955faccab097125895d1fe20b76"
+      }
+    },
+    "gluon_compile_failures": {
+      "gdn-native-002": "Pinned Gluon exports broadcast without broadcast_to.",
+      "gdn-native-003": "Static unrolling disallows reassigning a constexpr.",
+      "gdn-native-004": "The CUDA backend requires power-of-two shared descriptor extents."
+    }
+  }
+}
