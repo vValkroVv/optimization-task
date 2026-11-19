@@ -82,6 +82,13 @@ also matched all consumed FP8 operands and direct expert dW bits, but slowed
 the standalone w13 and w2 paths by 16.0% and 20.6%. Production keeps CudaCherry.
 [Backward component experiments](../runs/backward-components/report.md)
 
+The next same-source 10+10 comparison used folded CE in every arm. Its control
+measured 178,067 tokens/s. Hidden z-loss, direct GDN backward and BF16 dHidden
+assembly together measured 179,279 (+0.681%) with peaks down 382/240 MiB
+(allocated/reserved). Staged LM-head dW on its own measured 179,034 (+0.543%)
+with peaks down 1,003/1,000 MiB. Both variants remain opt-in. The four-way
+combination is unmeasured. [Component and native results](../runs/fusion-pack/report.md)
+
 ### Fixed-recipe control for expert GFSDP candidates
 
 On 19 November 2026, the fixed production recipe at `1f02311a5` passed the
