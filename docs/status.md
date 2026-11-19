@@ -8,8 +8,9 @@ Update this file when new evidence changes a conclusion.
 ## Production baseline and measured throughput
 
 The owner accepted **S + GPU capacity selector + five Hopper fusions** on
-19 November 2026 as the current production baseline for the eight-layer
-crop on eight H100s. [Recipe and launcher](baseline.md#current-final-task-baseline)
+19 November 2026 as the fixed baseline for the eight-layer crop on eight
+H100s. The active production launch adds the three expert GFSDP flags on
+the same topology. [Recipe and launcher](baseline.md#current-final-task-baseline)
 
 TPS counts global physical input tokens per second. Memory is the maximum
 PyTorch allocator peak across eight ranks within the measurement window.
@@ -27,7 +28,7 @@ The 40+100 rows cover updates 41–140 and 209,715,200 physical tokens each.
 | S · selector control | 10+10 | 170,321 | 12.313 | 65.887 | 67.580 | — |
 | S + GPU selector · selector candidate | 10+10 | 171,475 | 12.230 | 65.889 | 67.561 | — |
 | S + GPU selector · fusion control | 40+100 | 164,537 | 12.746 | 66.998 | 69.260 | +9.96% |
-| **S + GPU selector + five fusions · production** | **40+100** | **166,519** | **12.594** | **66.986** | **69.162** | **+11.28%** |
+| **S + GPU selector + five fusions · fixed baseline** | **40+100** | **166,519** | **12.594** | **66.986** | **69.162** | **+11.28%** |
 
 The five fusions gained **1.20% TPS** in the matched 40+100 pair and lowered
 peak allocated by **12.46 MiB** and reserved by **100 MiB**. The selector gained
@@ -40,6 +41,33 @@ training configs differ only in enabling the GPU selector.
 [A–SE-fused results](../runs/schedule-embedding/timing-results-140.md) ·
 [Selector pair and trace](../runs/capacity-selector/report.md) ·
 [Fusion pair and audit](../runs/kernel-fusion/report.md#combined-five-at-40100)
+
+### Expert GFSDP standalone results
+
+The four-arm series on the same eight H100s used EP8/eFSDP1, dense FSDP8,
+TP/PP/CP1 and revision `c401b122d`. Each unprofiled arm completed 10 warmup
+and 10 measured updates. The window covered 20,971,520 physical input tokens.
+The three candidates enabled exactly one new flag each.
+
+| Arm | Physical tokens/s | TPS vs same-series control | Max-rank peak allocated, GiB | Max-rank peak reserved, GiB |
+| --- | ---: | ---: | ---: | ---: |
+| S + GPU selector + five fusions | 171,206 | — | 65.942 | 67.795 |
+| FP8 expert-weight cache | 173,472 | +1.32% | 62.583 | 64.318 |
+| Direct expert dW | 174,186 | +1.74% | 65.950 | 67.791 |
+| Tail weight retention | 172,809 | +0.94% | 65.953 | 67.795 |
+
+All ranks completed the measured window. There were zero allocator retries and
+OOMs in all four arms. The compiler-cache observer reported stable state in
+its observed scope. The table reports the standalone effects in this series.
+
+The default production launcher now enables the three flags together for this
+recipe and checks the same source fingerprint and fixed config. The combined
+native 10+10 and trace remain open. The FP8 multi-rank collective and expert
+tail retention with eFSDP greater than one also remain open. Direct dW is
+currently constrained to EP8/eFSDP1.
+[Four-arm receipts](../runs/efsdp-optimizations/four-standalone-receipts.json)
+[Production launch](baseline.md#launch-the-selected-recipe)
+[Topology audit and refactor](../planning/README.md#follow-up-ep-and-gfsdp-topology-audit)
 
 ### Fixed-recipe control for expert GFSDP candidates
 
@@ -69,7 +97,7 @@ weight-quantization launches and 21 expert gradient-accumulation launches.
 [Control capture receipt](../runs/efsdp-optimizations/control-profile.json)
 [Active campaign and acceptance](../planning/README.md#active-assignment-expert-gfsdp-optimizations)
 
-The opt-in tail-retention candidate passed its first same-source 10+10 pair
+The standalone tail-retention candidate passed its first same-source 10+10 pair
 and separate update-21 profile after SSH access returned. At `a0602a887`,
 the flag-off and flag-on runs measured 171,401 and 172,834 physical tokens/s
 respectively (+0.84%). Maximum-rank peak allocation was 65.952 and 65.953
@@ -89,7 +117,7 @@ callbacks disappeared, and the two forward gathers remained. The expert
 unshards are singleton work in this architecture.
 [Tail timing and trace receipts](../runs/efsdp-optimizations/tail-receipts.json)
 
-The FP8 expert-weight candidate is opt-in. FP8 layout, write fences,
+The FP8 expert-weight flag remains individually selectable for comparisons. FP8 layout, write fences,
 and prepared GEMM tests passed with CPU doubles, including two generations
 of the zero-stride BF16 gradient anchor through compiled forward and SAC
 backward. A standalone H100 check passed for both weight projections across
@@ -118,7 +146,7 @@ unshards stayed at 14 per microbatch on these singleton groups.
 [FP8 parity and first timing attempt](../runs/efsdp-optimizations/fp8-first-attempt.json)
 [FP8 native parity check](../runs/efsdp-optimizations/verify_fp8_expert_weights.py)
 
-Direct expert dW is also opt-in. CPU Inductor with selective checkpointing
+Direct expert dW is also individually selectable for comparisons. CPU Inductor with selective checkpointing
 kept both writes on the original FP32 slot with a mock native writer. The
 producer suite passed 34 checks across the standalone and combined paths.
 The shared GFSDP regression suite passed 56 checks and skipped two. It

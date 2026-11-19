@@ -1,6 +1,6 @@
 # Agreed 100B-dev crop baseline
 
-The current production baseline is the [selected recipe](#current-final-task-baseline)
+The [selected production recipe](#current-final-task-baseline) builds on the fixed baseline
 applied to the task-local [crop YAML](../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml)
 and [model preset](../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml).
 The [throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
@@ -59,10 +59,13 @@ additional compute.
 ## Current final task baseline
 
 The owner accepted **S + GPU capacity selector + five Hopper fusions** as the
-current production baseline on 19 November 2026. This is the final recipe for
-the eight-layer 100B-dev crop on eight H100s. S builds on the four fixes and
-FlashQLA `external_gate`, then adds the FFN/embedding changes and GFSDP schedule
-repairs. [Throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
+fixed baseline on 19 November 2026 for the eight-layer 100B-dev crop on eight
+H100s. S builds on the four fixes and FlashQLA `external_gate`, then adds the
+FFN/embedding changes and GFSDP schedule repairs. The owner selected all three
+expert GFSDP optimizations for the current production launch on this same
+topology. The fixed baseline remains the all-off control for measuring these
+three changes.
+[Throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
 
 | Part | Selected setting |
 | --- | --- |
@@ -73,22 +76,36 @@ repairs. [Throughput and memory matrix](status.md#production-baseline-and-measur
 | Embeddings and GFSDP (S) | Split the MTP and layer-0 FFN groups, use row-owner input embeddings, and enable the S GFSDP scheduling repairs. Use S embedding settings, with the SE stages off. |
 | GPU capacity selector | Set `branchless_capacity_drop: true` under `model.config.blocks.<block>.moe.experts.token_dispatcher.token_drop` for `gdn_moe` and `mla_moe`. Keep fixed capacity 50,000, group-capacity dropping, and the original 128-counter all-reduce. |
 | Hopper fusions | Enable GDN output norm → FP8, MLA RoPE + Q/K packing, CuTe norm + residual add, GDN short-conv backward, and the Dense FP8 weight tail. |
+| Expert GFSDP production flags | Enable the FP8 expert-weight cache, rounded direct dW into the existing FP32 buffer, and tail weight retention. The FP8 cache replaces the previous BF16 cache for eligible expert groups. |
 | Measurement | Logical epoch size 102,400, LR horizon 65,000 updates, and LR warmup 2,000 updates. The final comparison measured optimizer updates 41–140 after 40 warmup updates. Initial follow-up comparisons can use 10+10. |
 
 ### Launch the selected recipe
 
 On the verified SR008 eight-H100 allocation, run from the synchronized task
-`main` with a fresh run ID. The launcher uses the production-tokenizer `data-002`
-input, the saved D cache, compile, the S bridge and the original capacity overlay.
+`main` with a fresh run ID and a verified task-local direct dW build.
+The example uses the build that passed on `sr008-gpu1`. The launcher uses the
+production-tokenizer `data-002` input, saved D cache, compile, S bridge and
+original capacity overlay.
 
 ```bash
-/opt/torchtitan-venv/bin/python3.12 -B runs/kernel-fusion/run.py production timing-140 <run-id>
+/opt/torchtitan-venv/bin/python3.12 -B runs/kernel-fusion/run.py production timing-140 <run-id> \
+  --direct-dw-build runs/kernel-fusion/artifacts/raw/efsdp-direct-dw-ep8-003-campaign/build
 ```
 
-Use `timing` for 10+10 or `trace` for the update-21 diagnostic. The `production`
-variant verifies the measured GIFT source fingerprint and activates these five
-switches before starting any rank. The MLA gate → FP8 and MoE dual-layout
-SwiGLU experiments are disabled in this recipe.
+Use `timing` for 10+10, `timing-140` for 40+100, or `trace` for an update-21
+capture. The default `production` invocation verifies the measured GIFT source
+fingerprint, checks the resolved recipe against the saved control, and enables
+all three expert GFSDP flags and the five switches below. Each expert GFSDP
+flag has standalone 10+10 and trace evidence. Combined GPU execution, peak
+memory, throughput and multi-rank expert-FSDP coverage remain open.
+[Standalone results and evidence](status.md#expert-gfsdp-standalone-results)
+[Direct dW build instructions](../runs/efsdp-optimizations/direct-dw/README.md)
+
+An explicit `--source-revision "$(git rev-parse HEAD)"` selects the follow-up
+path. With that argument alone, the runner uses the all-off expert GFSDP
+control. Add one or more `--gfsdp-optimization` options to select the exact
+subset for a follow-up. A subset with direct dW requires the same verified
+build argument.
 
 ```bash
 GIFT_GDN_FUSE_OUTPUT_NORM_FP8=1

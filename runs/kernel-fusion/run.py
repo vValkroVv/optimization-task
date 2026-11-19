@@ -18,6 +18,9 @@ PRODUCTION_REVISION = "1f02311a52ef979a84e164836583e73c1c5e6767"
 PRODUCTION_SOURCE_SHA256 = (
     "44176fbe151220d6f1d511104e71ad43d6f520773076cedd2fb1ddf9fbf92850"
 )
+PRODUCTION_GFSDP_SOURCE_SHA256 = (
+    "a23ffa3ae00c204a881902afdb16c80d3eeaab0453b73a08ab1378a2786465cf"
+)
 SWITCHES = {
     "mla-rope": "GIFT_MLA_FUSED_ROPE",
     "dense-pad": "GIFT_FP8_QUANTIZE_WEIGHT_TAIL",
@@ -79,11 +82,11 @@ def timing_140(command: list[str]) -> list[str]:
     return command
 
 
-def verify_follow_up_revision(revision: str) -> None:
+def verify_follow_up_revision(revision: str | None) -> str:
     head = subprocess.check_output(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
     ).strip()
-    if revision != head:
+    if revision is not None and revision != head:
         raise ValueError(
             f"Expected the full follow-up revision {revision}, found {head}"
         )
@@ -114,6 +117,7 @@ def verify_follow_up_revision(revision: str) -> None:
     )
     if status:
         raise ValueError(f"Follow-up source has uncommitted changes:\n{status}")
+    return head
 
 
 def training_overrides(command: list[str]) -> tuple[Path, dict[str, str]]:
@@ -339,48 +343,53 @@ def main() -> int:
     parser.add_argument("run_id")
     parser.add_argument("--candidate-source", type=Path)
     parser.add_argument(
-        "--source-revision", help="Full committed HEAD for a production follow-up"
+        "--source-revision",
+        help="Full committed HEAD for an experiment. Omit for canonical production.",
     )
     parser.add_argument(
         "--gfsdp-optimization", choices=GFSDP_CONTROLS, action="append", default=[]
     )
-    parser.add_argument("--direct-dw-build", type=Path)
+    parser.add_argument(
+        "--direct-dw-build",
+        type=Path,
+        help="Verified task-local build required by canonical production or direct-expert-dw",
+    )
     args = parser.parse_args()
     if (args.variant in {"baseline", PRODUCTION}) != (args.candidate_source is None):
         parser.error("Only historical candidate runs require --candidate-source")
-    if args.source_revision and args.variant != PRODUCTION:
+    if args.source_revision is not None and args.variant != PRODUCTION:
         parser.error("Follow-up revisions require the production recipe")
-    if args.gfsdp_optimization and not args.source_revision:
+    if args.gfsdp_optimization and args.source_revision is None:
         parser.error("GFSDP optimizations require a committed --source-revision")
-    direct_dw_requested = "direct-expert-dw" in args.gfsdp_optimization
-    if direct_dw_requested != (args.direct_dw_build is not None):
+    canonical = args.variant == PRODUCTION and args.source_revision is None
+    enabled_optimizations = set(GFSDP_CONTROLS if canonical else args.gfsdp_optimization)
+    direct_dw_requested = "direct-expert-dw" in enabled_optimizations
+    if direct_dw_requested and args.direct_dw_build is None:
         parser.error("--direct-dw-build is required for the direct-expert-dw arm")
+    if args.direct_dw_build is not None and not direct_dw_requested:
+        parser.error("--direct-dw-build requires direct-expert-dw")
     direct_dw_manifest = None
-    if direct_dw_requested:
-        build_root = args.direct_dw_build.resolve(strict=True)
+    if args.direct_dw_build is not None:
+        build_root = args.direct_dw_build.resolve()
         direct_dw_manifest = build_root / "manifest.json"
         if not build_root.is_relative_to(ROOT) or not direct_dw_manifest.is_file():
             parser.error(
                 "--direct-dw-build needs a verified build inside the task checkout"
             )
         os.environ[DIRECT_DW_BUILD_ENV] = str(build_root)
-    if args.source_revision:
-        verify_follow_up_revision(args.source_revision)
-    controls = (
-        {
-            field: name in args.gfsdp_optimization
+    source_revision = None
+    controls = {}
+    if args.variant == PRODUCTION:
+        source_revision = verify_follow_up_revision(args.source_revision)
+        controls = {
+            field: name in enabled_optimizations
             for name, field in GFSDP_CONTROLS.items()
         }
-        if args.source_revision
-        else {}
-    )
     activate(args.variant)
     os.environ.pop("TORCH_COMPILE_DISABLE", None)
     os.environ["TORCHDYNAMO_DISABLE"] = "0"
     native = load(ROOT / "runs/capacity-selector/native.py", "_kernel_fusion_native")
     native.RAW_ROOT = HERE / "artifacts/raw"
-    if args.variant == PRODUCTION:
-        native.S_SOURCE_SHA256 = PRODUCTION_SOURCE_SHA256
     if args.mode == "timing-140":
         native_args = native._native_args
         native._native_args = lambda mode, run_id: timing_140(native_args(mode, run_id))
@@ -428,41 +437,44 @@ def main() -> int:
 
             def load_base_runner():
                 base = load_base()
-                if args.variant == PRODUCTION:
-                    if args.source_revision:
-                        snapshot = base.source_snapshot(ROOT)
-                        if (
-                            snapshot["head"] != args.source_revision
-                            or snapshot["untracked_file_count"]
-                        ):
-                            raise RuntimeError(
-                                "Follow-up GIFT source changed during preflight"
-                            )
-                        native.S_SOURCE_SHA256 = snapshot[
-                            "tracked_and_untracked_sha256"
-                        ]
-                        control = native.RAW_ROOT / (
-                            FIXED_TRACE_CONTROL
-                            if args.mode == "trace"
-                            else FIXED_TIMING_CONTROL
+                if source_revision is not None:
+                    snapshot = base.source_snapshot(ROOT)
+                    if (
+                        snapshot["head"] != source_revision
+                        or snapshot["untracked_file_count"]
+                    ):
+                        raise RuntimeError(
+                            "Follow-up GIFT source changed during preflight"
                         )
-                        enforce_fixed_recipe(base, control, controls, args.mode)
-                        config_hashes = base._config_hashes
+                    source_digest = snapshot["tracked_and_untracked_sha256"]
+                    if canonical and source_digest != PRODUCTION_GFSDP_SOURCE_SHA256:
+                        raise RuntimeError(
+                            "GIFT source differs from the measured GFSDP source: "
+                            f"{source_digest} != {PRODUCTION_GFSDP_SOURCE_SHA256}"
+                        )
+                    native.S_SOURCE_SHA256 = source_digest
+                    control = native.RAW_ROOT / (
+                        FIXED_TRACE_CONTROL
+                        if args.mode == "trace"
+                        else FIXED_TIMING_CONTROL
+                    )
+                    enforce_fixed_recipe(base, control, controls, args.mode)
+                    config_hashes = base._config_hashes
 
-                        def follow_up_hashes():
-                            hashes = {
-                                **config_hashes(),
-                                "kernel_fusion_runner_sha256": native._sha256(
-                                    Path(__file__)
-                                ),
-                            }
-                            if direct_dw_manifest is not None:
-                                hashes["direct_dw_build_manifest_sha256"] = (
-                                    native._sha256(direct_dw_manifest)
-                                )
-                            return hashes
+                    def follow_up_hashes():
+                        hashes = {
+                            **config_hashes(),
+                            "kernel_fusion_runner_sha256": native._sha256(
+                                Path(__file__)
+                            ),
+                        }
+                        if direct_dw_manifest is not None:
+                            hashes["direct_dw_build_manifest_sha256"] = native._sha256(
+                                direct_dw_manifest
+                            )
+                        return hashes
 
-                        base._config_hashes = follow_up_hashes
+                    base._config_hashes = follow_up_hashes
                     return base
                 base.verify_task_root(source)
                 baseline_snapshot = base.source_snapshot(ROOT)

@@ -24,13 +24,13 @@ matching control. Candidate flags are the only training configuration changes.
 3. Preserve tail expert weights across nonfinal LM-head backward callbacks and
    verify the dense MTP re-gathers separately.
 
-Use one completed timing window per hypothesis, with 10 warmup updates and
-10 measured updates, and capture an update-21 trace. Reuse the saved matching
-S + GPU capacity selector + five Hopper fusions control. Keep existing results
-from tail retention and FP8 weights and finish only their missing evidence.
-The campaign ends with the three standalone results and traces. Commit and
-push reviewed milestones to `main`, then fast-forward the server checkout
-for the pending measurements.
+The standalone campaign completed one final 10+10 timing window per hypothesis
+against a fresh S + GPU capacity selector + five Hopper fusions control.
+Separate update-21 traces establish the mechanism for each hypothesis.
+The current production launcher enables all three flags on this same recipe.
+The combined native check remains open.
+[Standalone results](../docs/status.md#expert-gfsdp-standalone-results)
+[Production launch](../docs/baseline.md#launch-the-selected-recipe)
 [Candidate designs](../docs/profile-my-ideas.md#fp8-all-gather-for-sharded-routed-expert-weights)
 
 For tail retention, adapt the pinned
@@ -63,6 +63,31 @@ existing singleton collective, FP32 shard accumulation, and release event.
 Verify aligned output views, special values, and the compiled backward's
 mutation and data lifetimes before timing the shortened packing path.
 [NVIDIA TMA semantics](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-reduce-async-bulk-tensor)
+
+### Follow-up: EP and GFSDP topology audit
+
+Design future EP and GFSDP changes for the combinations of EP, expert and dense
+FSDP, replication, TP, PP and CP supported by the target training path. Derive
+rank counts, process groups, experts per rank, tensor shapes, alignment, padding
+and shared-buffer ranges from the resolved mesh and model layout. Keep GPU
+counts and benchmark-specific settings in presets and benchmark fixtures.
+Retain capability guards for actual hardware, layout and collective
+requirements, with the standard execution path for unsupported cases.
+
+Audit the existing EP and GFSDP optimizations for assumptions tied to a single
+topology, including fixed world sizes and the direct dW specialization for
+16 experts per EP rank. Refactor the affected guards, buffer views and native
+bindings as needed. For direct dW, preserve the BF16 rounding boundary, FP32
+sharded accumulation and slot lifetime through the native reduce-scatter. For
+the FP8 cache and tail retention, verify the multi-rank expert collective,
+receive-buffer ownership and reuse before broadening their validation scope.
+
+Keep the EP8/eFSDP1 regression case. Add representative supported EP/eFSDP
+combinations with a real multi-rank expert group, including EP4/eFSDP2 when
+authorized and the relevant larger production mesh. Verify activation, loss
+and shard updates, collective order, compile/SAC, and optimizer semantics.
+Measure throughput and memory against matched controls and revisit scaling with
+model depth. The current production launcher targets the fixed eight-H100 crop.
 
 <a id="active-assignment-seven-configuration-timings-profiles-and-drift"></a>
 ## Completed assignment: seven-configuration timings, profiles and drift
