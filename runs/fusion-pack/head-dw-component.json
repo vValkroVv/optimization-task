@@ -1,0 +1,274 @@
+{
+  "campaign_id": "head-dw-component-001",
+  "host": "sr008-gpu1",
+  "gpu_uuid": "GPU-d301e485-f414-e72f-bcf7-3a33cc425d40",
+  "source_revision": "d845c3734ead469311105b8be30817e54c33ea40",
+  "original_component_sha256": "4d36ec52fc27e67b3954e178d8233a10afc97136e108d11dca925f084c120b7c",
+  "raw_directory": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-pack/artifacts/raw/head-dw-component-001",
+  "raw_trace_sha256": "b46718b053848573125e4b34b707d5b0c83798f14ca22849d76b90b95ec38423",
+  "raw_result_sha256": "8fff721b7d11040d4e2490820fdfea28b82bb1fed24da4f75a626814d35a0838",
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "fixture_sha256": "15227882b1da44c2881b63622b6249bcddd307d90575216290f29ab9f720c727",
+  "capture": {
+    "fixture_capture": {
+      "rank": 0,
+      "world_size": 8,
+      "update": 1,
+      "microbatch": 1,
+      "gradient_accumulation": 32,
+      "source_revision": "8c223c7202ba3fdedb8c50b6b3313db5c5c86c79",
+      "capture_sha256": "e8db9079aed9458c95d8daf404da5b846727f199cc04562a0ae4b28a9af5db31",
+      "resolved_config": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "459c283ec8daebb6493198fca4cba6e23e168324a097f79e948ea72ba5b2ed3d",
+      "cuda_device": "NVIDIA H100 80GB HBM3",
+      "torch_version": "2.15.0.dev20260822+cu130",
+      "cuda_version": "13.0",
+      "compile_backend": "inductor",
+      "num_sms": 116,
+      "lm_head_class": "torchtitan.distributed.gfsdp.fully_shard.GFSDPLinear",
+      "lm_head_bias": false,
+      "lm_head_compiled_in_native": false,
+      "diagnostic_only": true
+    },
+    "folded_ce_switch": "1",
+    "loss": 0.059884000569581985,
+    "denominator": 2096640.0,
+    "operands": [
+      [
+        {
+          "shape": [
+            128256,
+            8192
+          ],
+          "stride": [
+            1,
+            128256
+          ],
+          "dtype": "torch.bfloat16"
+        },
+        {
+          "shape": [
+            8192,
+            4096
+          ],
+          "stride": [
+            4096,
+            1
+          ],
+          "dtype": "torch.bfloat16"
+        }
+      ],
+      [
+        {
+          "shape": [
+            128256,
+            8192
+          ],
+          "stride": [
+            1,
+            128256
+          ],
+          "dtype": "torch.bfloat16"
+        },
+        {
+          "shape": [
+            8192,
+            4096
+          ],
+          "stride": [
+            4096,
+            1
+          ],
+          "dtype": "torch.bfloat16"
+        }
+      ]
+    ]
+  },
+  "torch_version": "2.15.0.dev20260822+cu130",
+  "torch_git": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+  "cuda": "13.0",
+  "triton": "3.8.0",
+  "gpu": "NVIDIA H100 80GB HBM3",
+  "cuda_visible_devices": "2",
+  "cuda_matmul_allow_bf16_reduced_precision_reduction": true,
+  "shape": {
+    "vocab": 128256,
+    "width": 4096,
+    "tokens_per_chunk": 8192
+  },
+  "destination": {
+    "slot_bytes": 2101346304,
+    "bf16_pitch": 8192
+  },
+  "eager_scope": "Two GEMMs and native foreach copy/add or pitched FP32 merge, no dX, loss or collectives. Event span includes submission gaps. Wall span includes the host wait.",
+  "graph_scope": "Same device work with allocated output and captured allocator/dispatch operations excluded from replay. Warm-cache diagnostic with shared real inputs.",
+  "trace_scope": "CPU submission and wait regions, GPU GEMM, kernels, copies/memsets and same-stream inter-event gaps; no communication.",
+  "warmups_per_arm": 10,
+  "numerical": {
+    "parity_reference": "eager bias-free Linear backward, native BF16 dW with FP32 foreach copy and add",
+    "elements_per_chunk": 525336576,
+    "control_fp32_bitwise": true,
+    "each_pitched_bf16_chunk_bitwise": [
+      true,
+      true
+    ],
+    "pitched_fp32_bitwise": true,
+    "merge_ptx_cta_barrier": true,
+    "passed": true
+  },
+  "memory": {
+    "control": {
+      "starting_allocated_bytes": 6505365504,
+      "starting_reserved_bytes": 6505365504,
+      "peak_allocated_bytes": 7556038656,
+      "peak_reserved_bytes": 7556038656,
+      "allocation_retries": 0,
+      "ooms": 0
+    },
+    "pitched": {
+      "starting_allocated_bytes": 6505365504,
+      "starting_reserved_bytes": 6505365504,
+      "peak_allocated_bytes": 6505365504,
+      "peak_reserved_bytes": 6505365504,
+      "allocation_retries": 0,
+      "ooms": 0
+    }
+  },
+  "gate": {
+    "numeric": true,
+    "memory": true,
+    "elapsed": true,
+    "trace": true,
+    "passed": true
+  },
+  "samples_per_arm": 30,
+  "reproduction": "CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=2 /opt/torchtitan-venv/bin/python3.12 -Bu runs/fusion-pack/head_dw_component.py --fixture <rank0.pt> --output <fresh-output.json>",
+  "eager": {
+    "median_ms": {
+      "control": {
+        "cuda_event_ms": 25.215791702270508,
+        "wall_ms": 25.244034499999998,
+        "host_enqueue_ms": 0.0790765,
+        "host_wait_ms": 25.152158999999997
+      },
+      "control_repeat": {
+        "cuda_event_ms": 25.499024391174316,
+        "wall_ms": 25.517381,
+        "host_enqueue_ms": 0.079072,
+        "host_wait_ms": 25.421279
+      },
+      "pitched": {
+        "cuda_event_ms": 23.331823348999023,
+        "wall_ms": 23.3516825,
+        "host_enqueue_ms": 0.061786,
+        "host_wait_ms": 23.27025
+      }
+    },
+    "median_pitched_minus_control_midpoint_event_ms": -2.009079933166504,
+    "median_absolute_control_pair_event_delta_ms": 0.5601606369018555
+  },
+  "graph": {
+    "median_ms": {
+      "control": {
+        "cuda_event_ms": 25.81760025024414,
+        "wall_ms": 25.8693105,
+        "host_enqueue_ms": 0.021755499999999997,
+        "host_wait_ms": 25.8398065
+      },
+      "control_repeat": {
+        "cuda_event_ms": 25.773231506347656,
+        "wall_ms": 25.793844,
+        "host_enqueue_ms": 0.019949,
+        "host_wait_ms": 25.7660045
+      },
+      "pitched": {
+        "cuda_event_ms": 23.769023895263672,
+        "wall_ms": 23.786774,
+        "host_enqueue_ms": 0.023913,
+        "host_wait_ms": 23.7616065
+      }
+    },
+    "median_pitched_minus_control_midpoint_event_ms": -2.026151657104492,
+    "median_absolute_control_pair_event_delta_ms": 0.36278438568115234
+  },
+  "trace": {
+    "control": {
+      "host_submit_us": 2728.973,
+      "host_wait_us": 23723.155,
+      "device_span_us": 24094.125,
+      "device_kernel_us": 24054.413,
+      "device_gemm_us": 20749.158000000003,
+      "device_combine_us": 3305.2549999999974,
+      "device_memcpy_memset_us": 2.175,
+      "device_inter_event_gap_us": 37.53699999999954,
+      "gemm_signatures": [
+        {
+          "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+          "grid": [
+            2,
+            66,
+            1
+          ],
+          "block": [
+            384,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+          "grid": [
+            2,
+            66,
+            1
+          ],
+          "block": [
+            384,
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "pitched": {
+      "host_submit_us": 261.618,
+      "host_wait_us": 22237.202,
+      "device_span_us": 22433.2587890625,
+      "device_kernel_us": 22418.281,
+      "device_gemm_us": 21017.671000000002,
+      "device_combine_us": 1400.609999999997,
+      "device_memcpy_memset_us": 1.472,
+      "device_inter_event_gap_us": 13.505789062500961,
+      "gemm_signatures": [
+        {
+          "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+          "grid": [
+            2,
+            66,
+            1
+          ],
+          "block": [
+            384,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "nvjet_sm90_tst_320x128_64x3_1x2_h_bz_coopB_NTT",
+          "grid": [
+            2,
+            66,
+            1
+          ],
+          "block": [
+            384,
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "same_gemm_signatures": true
+  },
+  "trace_summary_correction": "The original result omitted the Triton launch because it lacks a CPU External id. The corrected summary links the existing CUPTI Driver API correlation to the 1.401 ms merge. The benchmark was unchanged."
+}

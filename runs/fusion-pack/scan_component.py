@@ -56,12 +56,15 @@ def elapsed_calls(fn, samples):
     }
 
 
-def device_graph(make_call, samples):
+def device_graph(make_call, leaves, samples):
     # Autograd runs backward on the stream that ran forward for its node.
     stream = torch.cuda.Stream()
     stream.wait_stream(torch.cuda.current_stream())
     with torch.cuda.stream(stream):
-        fn = make_call()
+        # Share immutable fixture storage with fresh leaf identities so their
+        # AccumulateGrad nodes cannot inherit the default stream from eager timing.
+        graph_leaves = tuple(t.detach().requires_grad_(True) for t in leaves)
+        fn = make_call(graph_leaves)
         for _ in range(5):
             fn()
     stream.synchronize()
@@ -175,20 +178,20 @@ def run(args):
 
     compiled_sac = torch.compile(sac, fullgraph=True)
 
-    def results(model=eager):
-        out = model(*leaves)
-        return (out, *torch.autograd.grad(out, leaves, incoming))
+    def results(model=eager, inputs=leaves):
+        out = model(*inputs)
+        return (out, *torch.autograd.grad(out, inputs, incoming))
 
-    def backward_call():
-        out = eager(*leaves)
+    def backward_call(inputs):
+        out = eager(*inputs)
 
         def run_backward():
-            return torch.autograd.grad(out, leaves, incoming, retain_graph=True)
+            return torch.autograd.grad(out, inputs, incoming, retain_graph=True)
 
         return run_backward
 
-    def compiled_sac_call():
-        return partial(results, compiled_sac)
+    def compiled_sac_call(inputs):
+        return partial(results, compiled_sac, inputs)
 
     def activate(mode):
         os.environ[SWITCH] = str(int(mode == "direct"))
@@ -222,16 +225,19 @@ def run(args):
         blocks = []
         for position, mode in enumerate(("baseline", "direct", "direct", "baseline")):
             activate(mode)
-            fn = make_call()
+            fn = make_call(leaves)
             for _ in range(5):
                 fn()
             row = {"mode": mode, **elapsed_calls(fn, args.samples), **memory(fn)}
             if position in (0, 1):
                 traces[f"{scope}_{mode}"] = trace(fn, args.output / f"{scope}_{mode}_trace.json")
             try:
-                row["cuda_graph_replay_ms"] = device_graph(make_call, args.samples)
+                row["cuda_graph_replay_ms"] = device_graph(make_call, leaves, args.samples)
             except RuntimeError as exc:
-                errors = ("stream is capturing", "not permitted during capture", "not supported during capture")
+                errors = (
+                    "stream is capturing", "not permitted during capture",
+                    "not supported during capture", "stale reference to the default stream",
+                )
                 if not any(error in str(exc).lower() for error in errors):
                     raise
                 row["cuda_graph_capture_error"] = str(exc)
