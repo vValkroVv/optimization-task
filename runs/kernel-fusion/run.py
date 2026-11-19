@@ -315,7 +315,11 @@ def install_fp8_rank_measurement(baseline, *, capture_inputs=None, requested_fix
                 def capture_bootstrap(**kwargs):
                     receipt = bootstrap(**kwargs)
                     output = Path(kwargs["measurement"]).parent / "component-inputs"
-                    if capture_inputs == "scan-capture":
+                    if capture_inputs == "followup-capture":
+                        for target in ("swiglu", "cute", "gdn"):
+                            capture = load(ROOT / f"runs/fusion-followup/{target}_capture.py", f"_capture_{target}")
+                            capture.install(output)
+                    elif capture_inputs == "scan-capture":
                         capture = load(ROOT / "runs/fusion-pack/scan_capture.py", "_scan_capture")
                         capture.install(output)
                     else:
@@ -367,7 +371,7 @@ def main() -> int:
         backward_arm = "folded-ce" if variant == PRODUCTION else "control"
         if rank_argv and rank_argv[0].startswith("--backward-arm="):
             backward_arm = rank_argv.pop(0).removeprefix("--backward-arm=")
-            if backward_arm not in {"capture", "scan-capture", "folded-ce", "unfolded-ce"} or variant != PRODUCTION:
+            if backward_arm not in {"capture", "scan-capture", "followup-capture", "folded-ce", "unfolded-ce"} or variant != PRODUCTION:
                 raise ValueError(f"Invalid production backward arm: {backward_arm}")
         if variant == PRODUCTION and backward_arm != "unfolded-ce":
             os.environ[FOLDED_CE_ENV] = "1"
@@ -389,7 +393,7 @@ def main() -> int:
         ):
             install_fp8_rank_measurement(
                 baseline,
-                capture_inputs=backward_arm if backward_arm in {"capture", "scan-capture"} else None,
+                capture_inputs=backward_arm if backward_arm in {"capture", "scan-capture", "followup-capture"} else None,
                 requested_fixes=tuple(requested_fixes),
             )
         if direct_dw_build := os.environ.get(DIRECT_DW_BUILD_ENV):
@@ -421,6 +425,7 @@ def main() -> int:
         type=Path,
         help="Verified task-local build required by canonical production or direct-expert-dw",
     )
+    parser.add_argument("--capture-followup", action="store_true", help="Capture current production operands for the four subsequent experiments")
     parser.add_argument("--capture-scan", action="store_true", help="Capture the first native GDN backward for component replay")
     parser.add_argument("--fusion-fix", choices=FUSION_PACK, action="append", default=[])
     args = parser.parse_args()
@@ -437,6 +442,8 @@ def main() -> int:
             parser.error("Backward experiments require an explicit revision and all three GFSDP flags")
         if args.mode == "capture" and (args.backward_optimization or args.fusion_fix):
             parser.error("Capture uses the production control")
+    if args.capture_followup and (args.mode != "capture" or args.capture_scan):
+        parser.error("--capture-followup requires a dedicated capture run")
     if args.capture_scan and args.mode != "capture":
         parser.error("--capture-scan requires capture mode")
     direct_dw_requested = "direct-expert-dw" in enabled_optimizations
@@ -495,9 +502,11 @@ def main() -> int:
                 args.variant,
             ]
             backward_arm = "capture" if args.mode == "capture" else args.backward_optimization
-            if canonical:
+            if canonical or args.capture_followup:
                 command.insert(pos + 3, CANONICAL_FUSION_PACK_ARG)
             command[pos + 3 : pos + 3] = [f"--fusion-fix={fix}" for fix in args.fusion_fix]
+            if args.capture_followup:
+                backward_arm = "followup-capture"
             if args.capture_scan:
                 backward_arm = "scan-capture"
             if backward_arm:
@@ -625,9 +634,15 @@ def main() -> int:
     native._load = load_schedule
     result = native._run("trace" if args.mode == "trace" else "candidate", args.run_id)
     if result == 0 and args.mode == "capture":
-        fixture = native.RAW_ROOT / args.run_id / "component-inputs" / ("fixture-01.pt" if args.capture_scan else "rank0.pt")
-        if not fixture.is_file():
-            raise RuntimeError(f"Native capture did not produce {fixture}")
+        names = (
+            ("swiglu-rank0.pt", "cute-rank0.pt", "gdn-qkv-rank0.pt")
+            if args.capture_followup
+            else ("fixture-01.pt" if args.capture_scan else "rank0.pt",)
+        )
+        for name in names:
+            fixture = native.RAW_ROOT / args.run_id / "component-inputs" / name
+            if not fixture.is_file():
+                raise RuntimeError(f"Native capture did not produce {fixture}")
     return result
 
 
