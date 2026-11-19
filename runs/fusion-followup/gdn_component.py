@@ -364,6 +364,9 @@ def run(args):
         gdn_short_conv_backward,
         gdn_short_conv_backward_fp8,
     )
+    from torchtitan.models.common.attention.linear.gdn_short_conv_fp8 import (
+        gdn_short_conv_backward_fp8_kernel,
+    )
     from torchtitan.ops.float8._cudacherry import quantize_vec128
 
     if args.smoke:
@@ -421,7 +424,8 @@ def run(args):
             "shared_bytes": kernel.metadata.shared,
             "warps": kernel.metadata.num_warps,
         }
-        for device in _gdn_short_conv_backward_kernel.device_caches.values()
+        for fn in (_gdn_short_conv_backward_kernel, gdn_short_conv_backward_fp8_kernel)
+        for device in fn.device_caches.values()
         for kernel in device[0].values()
     ]
     save()
