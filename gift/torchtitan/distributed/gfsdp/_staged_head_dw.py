@@ -53,6 +53,8 @@ class StagedHeadDw:
         self.group._staged_head_dw = self
 
     def close(self) -> None:
+        # Only cancel before handoff. If reduction itself fails, GFSDP retains
+        # ownership for the failed run because a collective may still read it.
         if self.group._staged_head_dw is self:
             self.group._staged_head_dw = None
             if self.stream is not None:

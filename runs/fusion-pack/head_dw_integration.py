@@ -5,12 +5,14 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import torch
 import torch.distributed as dist
 from torch.distributed.device_mesh import init_device_mesh
 
 from head_dw_component import (
+    FLAG,
     FIXTURE_SHA256,
     ROOT,
     CompileConfig,
@@ -19,7 +21,9 @@ from head_dw_component import (
     load_fixture,
     sha256,
 )
+from torchtitan.distributed import ParallelDims
 from torchtitan.distributed.gfsdp import MixedPrecisionPolicy, fully_shard
+from torchtitan.models.common.decoder_blocks.sharding import set_decoder_sharding_config
 from torchtitan.models.common.nn_modules import Linear
 
 STAGED_DW = "GIFT_STAGED_HEAD_DW"
@@ -78,9 +82,26 @@ def run_checks(fixture_path):
     vocab = fixture["weight"].size(0)
     device = torch.device("cuda", torch.cuda.current_device())
     mesh = init_device_mesh("cuda", (dist.get_world_size(),), mesh_dim_names=("fsdp",))
+    dims = ParallelDims(
+        dp_replicate=1,
+        dp_shard=dist.get_world_size(),
+        cp=1,
+        tp=1,
+        pp=1,
+        ep=1,
+        world_size=dist.get_world_size(),
+    )
+    dims.build_mesh()
+    decoder = SimpleNamespace(
+        tok_embeddings=SimpleNamespace(),
+        norm=SimpleNamespace(),
+        lm_head=Linear.Config(in_features=width, out_features=vocab, bias=False),
+    )
+    set_decoder_sharding_config(decoder, loss_parallel=True, enable_sp=True)
     with torch.device("meta"):
-        head = Linear(Linear.Config(in_features=width, out_features=vocab, bias=False))
+        head = decoder.lm_head.build()
     head.weight = torch.nn.Parameter(fixture["weight"].to(torch.float32))
+    head.parallelize(dims)
     head = fully_shard(
         head,
         mesh=mesh,
@@ -106,6 +127,10 @@ def run_checks(fixture_path):
     scratch_stream = torch.cuda.Stream(device=device)
     observed = []
 
+    @torch.no_grad()
+    def local_dw():
+        return head.weight.grad.to_local()
+
     def run(loss, label, *, abort=False):
         return run_gfsdp(head, loss, fixture, context, observed, label, abort=abort)
 
@@ -120,7 +145,7 @@ def run_checks(fixture_path):
 
     expected = [run(control, f"control:{idx}") for idx in range(2)]
     torch.cuda.synchronize()
-    expected_dw = head.weight.grad.to_local().clone()
+    expected_dw = local_dw().clone()
     head.weight.grad = None
 
     actual = []
@@ -130,7 +155,7 @@ def run_checks(fixture_path):
     torch.cuda.synchronize()
     for a, b in zip(expected, actual, strict=True):
         assert all(bits_equal(x, y) for x, y in zip(a, b, strict=True))
-    assert bits_equal(expected_dw, head.weight.grad.to_local())
+    assert bits_equal(expected_dw, local_dw())
 
     expected_deferred = None
     for label, loss in (("control", control), ("staged", candidate)):
@@ -145,9 +170,16 @@ def run_checks(fixture_path):
         assert param.unsharded_accumulated_grad is None
         torch.cuda.synchronize()
         if expected_deferred is None:
-            expected_deferred = head.weight.grad.to_local().clone()
+            expected_deferred = local_dw().clone()
         else:
-            assert bits_equal(expected_deferred, head.weight.grad.to_local())
+            assert bits_equal(expected_deferred, local_dw())
+
+    hook_calls = []
+    with param.unsharded_param.register_hook(
+        lambda grad: hook_calls.append(grad.shape)
+    ):
+        run(candidate, "staged:weight-hook")
+    assert hook_calls == [torch.Size((vocab, width))] * 2
 
     head.weight.grad = None
     try:
@@ -178,6 +210,8 @@ def main():
     torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.manual_seed(2048)
+    os.environ[FLAG] = "1"
+    os.environ["GIFT_DIRECT_BF16_DHIDDEN"] = "0"
     if sha256(args.fixture) != FIXTURE_SHA256:
         raise ValueError("The production fixture SHA-256 did not match")
     dist.init_process_group("nccl")
@@ -193,11 +227,13 @@ def main():
             "world_size": dist.get_world_size(),
             "rank": dist.get_rank(),
             "fixture_sha256": FIXTURE_SHA256,
+            "folded_ce": True,
             "active_routes": observed,
             "checks": [
                 "Bitwise loss, dHidden, and accumulated sharded FP32 dW",
                 "Live owner protects both chunks and subsequent asynchronous scratch borrowing",
                 "Incoming no-sync and prior unsharded gradients use native callbacks",
+                "Unsharded weight hooks still receive both native chunk gradients",
                 "Aborted first stage releases its lease and the next pair succeeds",
             ],
         }
