@@ -24,13 +24,13 @@ matching control. Candidate flags are the only training configuration changes.
 3. Preserve tail expert weights across nonfinal LM-head backward callbacks and
    verify the dense MTP re-gathers separately.
 
-For each candidate, document pinned implementation research and cost, run
-focused correctness checks, then collect a separate 10+10 run and matched
-profile against the fixed EP8 control. Measure a combined arm and promote only the
-candidates with a verified gain. Commit and push reviewed milestones to `main`,
-then fast-forward the server checkout and measure there. Continue profiling
-and validating additional optimizations after the three-candidate campaign,
-prioritizing throughput gains that persist as model depth grows.
+Use one completed timing window per hypothesis, with 10 warmup updates and
+10 measured updates, and capture an update-21 trace. Reuse the saved matching
+S + GPU capacity selector + five Hopper fusions control. Keep existing results
+from tail retention and FP8 weights and finish only their missing evidence.
+The campaign ends with the three standalone results and traces. Commit and
+push reviewed milestones to `main`, then fast-forward the server checkout
+for the pending measurements.
 [Candidate designs](../docs/profile-my-ideas.md#fp8-all-gather-for-sharded-routed-expert-weights)
 
 For tail retention, adapt the pinned

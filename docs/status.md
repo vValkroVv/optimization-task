@@ -79,8 +79,8 @@ The fresh flag-off control was 1.43% below the earlier control across the
 outage. A second same-source pair at `52ce399fa` measured 171,895 tokens/s
 off and 172,875 on (+0.57%). Peak allocation changed from 65.949 to 65.958
 GiB and peak reservation from 67.814 to 67.854 GiB in the second pair.
-The observed compiler cache stayed stable in both repeat arms. Promotion
-remains subject to the combined comparison.
+The observed compiler cache stayed stable in both repeat arms. The same-source
+pair with the trace supplies the tail-retention result for this campaign.
 
 On both profiled ranks and all three captured microbatches, tail retention
 reduced expert logical unshards from 14 to 12. Layers 6 and 7 each dropped
@@ -102,8 +102,13 @@ routed layers. The legacy post-training receipt rejected the attempt because
 it expected an active BF16 expert cache. The preserved rank measurements give
 a provisional 173,619 physical tokens/s against the same-source control at
 171,895 (+1.00%), and peak allocation of 62.580 against 65.949 GiB (−3.369
-GiB). A passing rerun with FP8-specific activation verification and a separate
-profile remain open.
+GiB). The valid 10+10 run at `663ce3ad` measured 173,614 physical tokens/s
+against 171,488 for the same-source control (+1.24%). Peak allocation fell
+from 65.950 to 62.581 GiB (−3.368 GiB), and peak reservation fell from 67.854
+to 64.338 GiB (−3.516 GiB). All eight ranks reported active FP8 caches for the
+seven routed layers. Both runs recorded a stable observed compiler cache,
+zero allocator retries, and zero OOMs. The update-21 FP8 trace is pending.
+[FP8 timing receipt](../runs/efsdp-optimizations/fp8-receipts.json)
 [FP8 parity and first timing attempt](../runs/efsdp-optimizations/fp8-first-attempt.json)
 [FP8 native parity check](../runs/efsdp-optimizations/verify_fp8_expert_weights.py)
 
