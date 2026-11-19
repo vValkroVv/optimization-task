@@ -200,6 +200,12 @@ def run(args):
     checks = {}
     identity = {"baseline": activate("baseline")}
     baseline_eager = results()
+    if manifest.get("vjp") == "external_gate baseline":
+        captured_output = to_device(fixture["output"])
+        if not torch.equal(baseline_eager[0].view(torch.uint8), captured_output.contiguous().view(torch.uint8)):
+            raise ValueError("Baseline replay differs from the captured native external-gate output")
+        checks["baseline_matches_captured_output_bits"] = True
+        del captured_output
     baseline_sac = results(compiled_sac)
     checks["baseline_compiled_sac_vs_eager"] = compare_bits(baseline_sac, baseline_eager)
     identity["direct"] = activate("direct")
@@ -220,10 +226,16 @@ def run(args):
             for _ in range(5):
                 fn()
             row = {"mode": mode, **elapsed_calls(fn, args.samples), **memory(fn)}
-            row["cuda_graph_replay_ms"] = device_graph(make_call, args.samples)
-            blocks.append(row)
             if position in (0, 1):
                 traces[f"{scope}_{mode}"] = trace(fn, args.output / f"{scope}_{mode}_trace.json")
+            try:
+                row["cuda_graph_replay_ms"] = device_graph(make_call, args.samples)
+            except RuntimeError as exc:
+                errors = ("stream is capturing", "not permitted during capture", "not supported during capture")
+                if not any(error in str(exc).lower() for error in errors):
+                    raise
+                row["cuda_graph_capture_error"] = str(exc)
+            blocks.append(row)
             del fn
         before = kernel_signatures(traces[f"{scope}_baseline"])
         after = kernel_signatures(traces[f"{scope}_direct"])
@@ -232,16 +244,26 @@ def run(args):
             raise ValueError(f"Expected exactly one removed output scan in {scope}: {before} -> {after}")
         measurements[scope] = blocks
 
+    import tilelang
+    import triton
+    from fla.ops.gated_delta_rule import gate
+
     return {
         "fixture": str(args.fixture.resolve()),
         "fixture_sha256": digest,
         "manifest": manifest,
         "identity": identity,
         "torch": torch.__version__,
+        "cuda": torch.version.cuda,
+        "triton": triton.__version__,
+        "tilelang": tilelang.__version__,
+        "fla_gate_source_sha256": sha256(Path(gate.__file__)),
+        "harness_sha256": sha256(Path(__file__)),
         "device": torch.cuda.get_device_name(),
         "visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "command": sys.argv,
         "inputs": {name: tensor_meta(fixture[name]) for name in (*NAMES, "grad_out")},
+        "cu_seqlens": None if cu is None else tensor_meta(cu),
         "checks": checks,
         "measurements": measurements,
         "traces": traces,

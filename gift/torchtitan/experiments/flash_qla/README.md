@@ -20,14 +20,20 @@ cumsum and reduces GVA gradients, then applies the FLA gate backward.
 Upstream revisions and actual source paths/hashes are returned by installation;
 the task HEAD is recorded separately from the upstream pins.
 
+| Environment variable | Default | Effect |
+| --- | --- | --- |
+| `GIFT_FLASH_QLA_DIRECT_BACKWARD` | `0` | `1` enables the direct VJP for `external_gate`. It recomputes the gate, cumsum and KKT for native backward, omitting the discarded output scan. |
+
 ## Runtime costs and validation limits
 
 The external variant retains a separate FP32 gate intermediate and gate kernel.
 The fused variant retains cumulative FP32 gates and KKT output for autograd,
 avoiding the separate per-token gate output. Backward still recomputes FlashQLA
-states; the native opaque-op VJP still repeats the forward. Checkpoint replay
-therefore retains the native 2F+B or 3F+B execution pattern. No collectives,
-device scalar reads, or new device synchronization are added. Activation logging
+states. The default opaque-op VJP repeats the forward. The direct external-gate
+VJP omits one output scan per backward and uses the same native backward,
+including FP32 cumulative gates and gradients. The same outer checkpoint
+policy applies. No collectives, device scalar reads, or new device synchronization
+are added. Activation logging
 occurs once per variant and grad mode; source validation and kernel module
 loading are cached, with no repeated filesystem I/O in the hot path.
 

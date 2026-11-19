@@ -12,7 +12,8 @@ def _shifted_exp_kernel(Hidden, Exponentials, Maxima, WIDTH: tl.constexpr):
     cols = tl.arange(0, WIDTH)
     offsets = row.to(tl.int64) * WIDTH + cols
     magnitude = tl.abs(tl.load(Hidden + offsets).to(tl.float32))
-    maximum = tl.max(magnitude, axis=0, propagate_nan=tl.PropagateNan.ALL)
+    # A NaN exponential propagates through ATen's sum even if max ignores NaNs.
+    maximum = tl.max(magnitude, axis=0)
     # ATen uses zero as the shift for an infinite row maximum.
     shift = tl.where(maximum == float("inf"), 0.0, maximum)
     tl.store(Exponentials + offsets, libdevice.exp(magnitude - shift))
@@ -78,7 +79,9 @@ def _backward(ctx, upstream):
     if torch.is_grad_enabled():
         # Keep the differentiable ATen expression for higher-order gradients.
         value = hidden.float()
-        magnitude_grad = upstream.unsqueeze(-1) * (value.abs() - lse.unsqueeze(-1)).exp()
+        magnitude_grad = (
+            upstream.unsqueeze(-1) * (value.abs() - lse.unsqueeze(-1)).exp()
+        )
         return (magnitude_grad * value.sign()).to(hidden.dtype)
     return _magnitude_logsumexp_backward(hidden, lse, upstream)
 

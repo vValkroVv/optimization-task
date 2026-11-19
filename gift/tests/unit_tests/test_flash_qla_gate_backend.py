@@ -12,13 +12,17 @@ from torchtitan.experiments.flash_qla import backend
 def registry():
     backend._stage_sources()
     from fla.ops.gated_delta_rule.backends import gdr_registry
+    from torchtitan.models.common.attention.linear.fla_custom_ops import _DIRECT_VJP
 
     saved = dict(gdr_registry._backends)
+    saved_vjp = dict(_DIRECT_VJP)
     try:
         yield gdr_registry
     finally:
         gdr_registry._backends = saved
         gdr_registry._update_active_backend()
+        _DIRECT_VJP.clear()
+        _DIRECT_VJP.update(saved_vjp)
 
 
 def inputs():
@@ -63,6 +67,82 @@ def test_import_time_disabled_dispatch_fails(registry, monkeypatch):
     monkeypatch.setattr(dispatch, "_DISPATCH_DISABLED", True)
     with pytest.raises(RuntimeError, match="disabled when imported"):
         backend.install_backend("fla")
+
+
+def test_direct_backward_requires_external_gate(registry, monkeypatch):
+    monkeypatch.setenv("GIFT_FLASH_QLA_DIRECT_BACKWARD", "true")
+    with pytest.raises(ValueError, match="GIFT_FLASH_QLA_DIRECT_BACKWARD must be 0 or 1"):
+        backend.install_backend("external_gate")
+    monkeypatch.setenv("GIFT_FLASH_QLA_DIRECT_BACKWARD", "1")
+    with pytest.raises(ValueError, match="requires external_gate"):
+        backend.install_backend("fused_gate")
+
+
+def test_direct_external_gate_vjp_orchestration(registry, monkeypatch):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from fla.ops.gated_delta_rule import gate
+    from torchtitan.models.common.attention.linear.fla_custom_ops import fla_vjp
+
+    q, k, v, raw, beta, decay, bias = (
+        torch.empty(*tensor.shape, 2, dtype=tensor.dtype)[..., 0] for tensor in inputs()
+    )
+    grad_o = torch.empty(*v.shape, 2, dtype=v.dtype)[..., 0]
+    cu = torch.tensor([0, -1, 2, -1], dtype=torch.int32)[::2]
+    gate_values = torch.zeros_like(raw, dtype=torch.float32)
+    cumulative = torch.ones_like(gate_values)
+    kkt = torch.empty(0)
+    natural_dg = torch.full_like(gate_values, 2.0)
+    calls = []
+
+    def gate_forward(**kw):
+        assert all(kw[name].is_contiguous() for name in ("g", "A_log", "dt_bias"))
+        assert kw["output_dtype"] == torch.float32
+        calls.append("gate")
+        return gate_values
+
+    def cumsum(**kw):
+        assert kw["g"] is gate_values and kw["chunk_size"] == 64
+        assert kw["cu_seqlens"].is_contiguous() and torch.equal(kw["cu_seqlens"], cu)
+        calls.append("cumsum")
+        return cumulative
+
+    def solve(**kw):
+        assert kw["chunk_size"] == 64 and kw["k"].is_contiguous() and kw["b"].is_contiguous()
+        calls.append("kkt")
+        return kkt
+
+    def scan_backward(**kw):
+        assert kw["g"] is cumulative and kw["A"] is kkt and not kw["auto_cp"]
+        assert kw["scale"] == 128 ** -0.5
+        assert all(kw[name].is_contiguous() for name in ("q", "k", "v", "beta", "do"))
+        calls.append("scan_backward")
+        return tuple(torch.zeros_like(t, dtype=torch.float32) for t in (q, k, v, beta)) + (natural_dg, None)
+
+    def gate_backward(**kw):
+        assert kw["dyg"] is natural_dg
+        calls.append("gate_backward")
+        return torch.ones_like(raw), torch.ones_like(decay), torch.ones_like(bias)
+
+    root = Path(backend.__file__).resolve().parents[3]
+    qla = SimpleNamespace(
+        __file__=str(root / "contrib/flash-qla/flash_qla/ops/gated_delta_rule/chunk/__init__.py"),
+        __name__="flash_qla.ops.gated_delta_rule.chunk",
+        CHUNK_SIZE=64, chunk_local_cumsum=cumsum, kkt_solve=solve,
+        chunk_gated_delta_rule_bwd=scan_backward,
+    )
+    monkeypatch.setattr(backend, "_qla", lambda: qla)
+    monkeypatch.setattr(torch.cuda, "device", lambda _device: nullcontext())
+    monkeypatch.setattr(gate, "gdn_gate_fwd", gate_forward)
+    monkeypatch.setattr(gate, "gdn_gate_bwd", gate_backward)
+    monkeypatch.setenv("GIFT_FLASH_QLA_DIRECT_BACKWARD", "1")
+    assert backend.install_backend("external_gate")["direct_backward"]
+    leaves = [q, k, v, raw, beta, decay, bias]
+    output = fla_vjp("gdn_chunk", leaves, [grad_o], [cu], [], "")
+    assert calls == ["gate", "cumsum", "kkt", "scan_backward", "gate_backward"]
+    for actual, leaf, value in zip(output, leaves, (0, 0, 0, 1, 0, 1, 1), strict=True):
+        assert actual.dtype == leaf.dtype and torch.equal(actual, torch.full_like(leaf, value))
 
 
 @pytest.mark.parametrize("variant", ["fla", "external_gate", "fused_gate"])

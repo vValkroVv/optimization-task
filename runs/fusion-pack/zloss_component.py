@@ -30,7 +30,9 @@ def load_hidden(fixture: Path, rank: int):
     tensors, receipt = load_fixture(fixture, rank)
     hidden = tensors["mtp"]["hidden"]
     if hidden.dtype != torch.bfloat16 or not hidden.is_contiguous():
-        raise ValueError(f"Unexpected native final-norm input {hidden.dtype}, {hidden.stride()}")
+        raise ValueError(
+            f"Unexpected native final-norm input {hidden.dtype}, {hidden.stride()}"
+        )
     return hidden.cuda().requires_grad_(), receipt
 
 
@@ -84,13 +86,20 @@ def hook(hidden, upstream):
 def check(hidden):
     unit = torch.ones((), device=hidden.device)
     zero = torch.zeros_like(unit)
-    cases = {"native": compare(hidden, unit), "native_zero_upstream": compare(hidden, zero)}
+    cases = {
+        "native": compare(hidden, unit),
+        "native_zero_upstream": compare(hidden, zero),
+    }
     edges = torch.zeros((3, 4096), dtype=hidden.dtype, device=hidden.device)
-    edges[0, :4] = torch.tensor([0.0, -0.0, 3.4e38, -3.4e38], device=hidden.device)
+    edges[0, :4] = torch.tensor([0.0, -0.0, 3.0e38, -3.0e38], device=hidden.device)
     edges[1, :3] = torch.tensor([0.0, -0.0, 1.5], device=hidden.device)
-    cases["zero_and_large"] = compare(edges.requires_grad_(), unit, allow_nan_payload=True)
+    cases["zero_and_large"] = compare(
+        edges.requires_grad_(), unit, allow_nan_payload=True
+    )
     special = edges.detach().clone()
-    special[0, :3] = torch.tensor([0.0, float("inf"), -float("inf")], device=hidden.device)
+    special[0, :3] = torch.tensor(
+        [0.0, float("inf"), -float("inf")], device=hidden.device
+    )
     special[1, 0] = float("nan")
     cases["nonfinite"] = compare(special.requires_grad_(), unit, allow_nan_payload=True)
     cases["nonfinite_zero_upstream"] = compare(special, zero, allow_nan_payload=True)
@@ -101,7 +110,9 @@ def check(hidden):
     ref_grad, ref_total = hook(hook_input, upstream)
     os.environ[SWITCH] = "1"
     grad, total = hook(hook_input, upstream)
-    cases["input_hook_total_and_gradient_bits"] = same_bits(ref_grad, grad) and same_bits(ref_total, total)
+    cases["input_hook_total_and_gradient_bits"] = same_bits(
+        ref_grad, grad
+    ) and same_bits(ref_total, total)
     assert cases["input_hook_total_and_gradient_bits"]
     if not (cases["native"]["loss_isfinite"] and cases["native"]["gradient_isfinite"]):
         raise AssertionError("Native hidden z-loss fixture must be finite")
@@ -118,17 +129,21 @@ def summarize(samples):
 
 def pairs(events, phase):
     """Summarize the serial device stream by correlated CPU launch range."""
-    region, = (e for e in events if e.get("cat") == "user_annotation" and e["name"] == phase)
+    (region,) = (
+        e for e in events if e.get("cat") == "user_annotation" and e["name"] == phase
+    )
     host = [
-        e for e in events
-        if e.get("cat") == "cuda_runtime"
+        e
+        for e in events
+        if e.get("cat") in ("cuda_runtime", "cuda_driver")
         and (e["pid"], e["tid"]) == (region["pid"], region["tid"])
         and region["ts"] <= e["ts"] < region["ts"] + region["dur"]
     ]
     ids = {e.get("args", {}).get("correlation") for e in host} - {None}
     device = sorted(
         (
-            e for e in events
+            e
+            for e in events
             if e.get("cat") in ("kernel", "gpu_memcpy", "gpu_memset")
             and e.get("args", {}).get("correlation") in ids
         ),
@@ -136,7 +151,9 @@ def pairs(events, phase):
     )
     streams = {(e["pid"], e["args"]["stream"]) for e in device}
     if len(streams) != 1:
-        raise ValueError(f"Expected one correlated device stream for {phase}, saw {streams}")
+        raise ValueError(
+            f"Expected one correlated device stream for {phase}, saw {streams}"
+        )
     kernels = [e for e in device if e["cat"] == "kernel"]
     copies = [e for e in device if e["cat"] != "kernel"]
     return {
@@ -150,32 +167,56 @@ def pairs(events, phase):
             for left, right in zip(device, device[1:])
         ),
         "kernel_launches": [
-            {"name": e["name"], "duration_us": e["dur"], "grid": e["args"]["grid"], "block": e["args"]["block"]}
+            {
+                "name": e["name"],
+                "duration_us": e["dur"],
+                "grid": e["args"]["grid"],
+                "block": e["args"]["block"],
+            }
             for e in kernels
         ],
     }
 
 
-def benchmark(hidden, trace_path):
+def benchmark(hidden, trace_path, *, fused):
     for _ in range(10):
         full_step(hidden)
     torch.cuda.synchronize()
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
-    start = {"allocated": torch.cuda.memory_allocated(), "reserved": torch.cuda.memory_reserved()}
+    start = {
+        "allocated": torch.cuda.memory_allocated(),
+        "reserved": torch.cuda.memory_reserved(),
+    }
     with torch.profiler.profile(
-        activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA]
+        activities=[
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ]
     ) as prof:
         with torch.profiler.record_function("hidden_z_loss_forward"):
             value = loss(hidden)
         with torch.profiler.record_function("hidden_z_loss_backward"):
             grad = gradient(value, hidden)
         torch.cuda.synchronize()
-    peaks = {"allocated": torch.cuda.max_memory_allocated(), "reserved": torch.cuda.max_memory_reserved()}
+    peaks = {
+        "allocated": torch.cuda.max_memory_allocated(),
+        "reserved": torch.cuda.max_memory_reserved(),
+    }
     del value, grad
     prof.export_chrome_trace(str(trace_path))
     events = json.loads(trace_path.read_text())["traceEvents"]
-    trace = {phase: pairs(events, f"hidden_z_loss_{phase}") for phase in ("forward", "backward")}
+    trace = {
+        phase: pairs(events, f"hidden_z_loss_{phase}")
+        for phase in ("forward", "backward")
+    }
+    for phase, name in (
+        ("forward", "_shifted_exp_kernel"),
+        ("backward", "_magnitude_grad_kernel"),
+    ):
+        launches = trace[phase]["kernel_launches"]
+        if any(name in e["name"] for e in launches) != fused:
+            raise AssertionError(f"Unexpected CUDA kernel dispatch in {phase}")
 
     eager_ms = []
     for _ in range(10):
@@ -193,7 +234,10 @@ def benchmark(hidden, trace_path):
         graph.replay()
     graph_ms = []
     for _ in range(10):
-        start_event, end_event = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+        start_event, end_event = (
+            torch.cuda.Event(enable_timing=True),
+            torch.cuda.Event(enable_timing=True),
+        )
         start_event.record()
         for _ in range(20):
             graph.replay()
@@ -202,7 +246,10 @@ def benchmark(hidden, trace_path):
         graph_ms.append(start_event.elapsed_time(end_event) / 20)
     del graph_grad
     return {
-        "profile_memory_bytes": {"baseline_live": start, "forward_backward_peak": peaks},
+        "profile_memory_bytes": {
+            "baseline_live": start,
+            "forward_backward_peak": peaks,
+        },
         "trace_us": trace,
         "eager_wall_ms_per_call": summarize(eager_ms),
         "cuda_graph_event_ms_per_replay": summarize(graph_ms),
@@ -223,7 +270,9 @@ def main():
     hidden, receipt = load_hidden(args.fixture, args.rank)
     info = {
         "mode": args.mode,
-        "source_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "source_head": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
         "fixture": str(args.fixture),
         "fixture_rank": args.rank,
         "fixture_source_head": receipt["source_head"],
@@ -243,7 +292,13 @@ def main():
         info["checks"] = check(hidden)
     else:
         os.environ[SWITCH] = "1" if args.mode == "fused" else "0"
-        info.update(benchmark(hidden, args.output.with_suffix(".trace.json")))
+        info.update(
+            benchmark(
+                hidden,
+                args.output.with_suffix(".trace.json"),
+                fused=args.mode == "fused",
+            )
+        )
     args.output.write_text(json.dumps(info, indent=2) + "\n")
 
 
