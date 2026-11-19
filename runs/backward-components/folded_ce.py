@@ -14,6 +14,7 @@ import time
 
 import torch
 import triton
+from component_trace import MICROBATCHES, summarize as summarize_trace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "gift"))
@@ -23,7 +24,6 @@ from torchtitan.config import CompileConfig  # noqa: E402
 from torchtitan.models.common.nn_modules import Linear  # noqa: E402
 
 FLAG = "GIFT_STABLE_CE_FOLDED_BACKWARD"
-FOLDED_OP = "four_fusion::stable_ce_folded_backward"
 
 
 def sha256(path):
@@ -366,40 +366,23 @@ def benchmark(replay, loss, warmup, samples):
     }
 
 
-def trace(replay, loss, path):
+def trace(replay, loss, path, variant):
     with torch.profiler.profile(
         activities=[
             torch.profiler.ProfilerActivity.CPU,
             torch.profiler.ProfilerActivity.CUDA,
         ]
     ) as prof:
-        for index in range(3):
+        for index in range(MICROBATCHES):
             with torch.profiler.record_function(f"mtp_head_microbatch_{index}"):
                 replay.run(loss)
         torch.cuda.synchronize()
     prof.export_chrome_trace(str(path))
-    counts = {event.key: event.count for event in prof.key_averages()}
-    return {
-        "path": str(path),
-        "microbatches": 3,
-        "stable_ce_backward_calls": counts.get("four_fusion::stable_ce_backward", 0),
-        "stable_ce_folded_backward_calls": counts.get(FOLDED_OP, 0),
-        "split_backward_calls": counts.get("SplitBackward0", 0),
-        "op_counts": {
-            key: value
-            for key, value in counts.items()
-            if any(
-                pattern in key
-                for pattern in (
-                    "stable_ce",
-                    "backward_kernel",
-                    "cat",
-                    "contiguous",
-                    "copy_",
-                )
-            )
-        },
-    }
+    batch, seq_len = replay.labels.shape
+    try:
+        return summarize_trace(path, variant, batch * (seq_len // replay.num_chunks))
+    except ValueError as error:
+        return {"path": str(path), "passed": False, "error": str(error)}
 
 
 def main():
@@ -449,6 +432,7 @@ def main():
                 "gift/torchtitan/components/loss.py",
                 "gift/torchtitan/experiments/four_fusion/stable_ce.py",
                 "gift/torchtitan/models/common/nn_modules.py",
+                "runs/backward-components/component_trace.py",
                 "runs/backward-components/folded_ce.py",
             )
         },
@@ -484,20 +468,9 @@ def main():
         report["timing"] = benchmark(replay, loss, args.warmup, args.samples)
         if args.trace:
             report["trace"] = trace(
-                replay, loss, args.output.with_suffix(".trace.json")
+                replay, loss, args.output.with_suffix(".trace.json"), args.variant
             )
-            expected = (12, 0, 6) if args.variant == "base" else (0, 6, 0)
-            report["passed"] = (
-                tuple(
-                    report["trace"][name]
-                    for name in (
-                        "stable_ce_backward_calls",
-                        "stable_ce_folded_backward_calls",
-                        "split_backward_calls",
-                    )
-                )
-                == expected
-            )
+            report["passed"] = report["trace"]["passed"]
         else:
             report["passed"] = True
     args.output.write_text(json.dumps(report, indent=2) + "\n")
