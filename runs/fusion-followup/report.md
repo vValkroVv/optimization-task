@@ -1,6 +1,32 @@
 # Four kernel experiments on the fixed Hopper training recipe
 
-This is the 19 November 2026 follow-up record. Its control was the then-current eight-GPU [production recipe](../../docs/baseline.md#current-final-task-baseline) with all four backward fixes from `ab62730a9`. The CuTe candidate ran before promotion with the same selectors; afterward, the canonical production launcher enabled it by default. No native timing was rerun after that default changed. The experiments preserve S, the GPU capacity selector, the five Hopper fusions, folded CE, the three expert GFSDP switches, EP8/eFSDP1, dense FSDP8, accumulation 32, compile, SAC and the real training data. HybridEP dispatch and combine both use 16 SMs.
+This follow-up first used the eight-GPU [production recipe](../../docs/baseline.md#current-final-task-baseline) with all four backward fixes from `ab62730a9`. The CuTe candidate ran before promotion. The canonical launcher then enabled it by default, and the full production recipe was compared with the original A baseline. The component and single-change runs preserve S, the GPU capacity selector, the five Hopper fusions, folded CE, the three expert GFSDP switches, EP8/eFSDP1, dense FSDP8, accumulation 32, compile, SAC and the real training data. HybridEP dispatch and combine both use 16 SMs.
+
+## Original A versus promoted production
+
+Each protocol ran production first and A second on the same eight H100 80 GB GPUs on `sr008-gpu1`, with the same `data-002` input and seed 2048. A used `e9b7cdbb4`, with native FLA, original routing and original CE. Production used `2c67c182e`, with the canonical switches, including CuTe statistics-only SAC and SwiGLU row16 disabled. Both ran the eight-layer crop with global batch 512, sequence length 4,096 and accumulation 32. The timer covers complete measured updates, with 20,971,520 physical tokens for updates 11–20 and 209,715,200 for updates 41–140. Memory peaks are the maximum across all eight ranks. The [comparison receipt](results/original-a-vs-production.json) preserves both raw receipt locations and hashes, configuration and source identities, and per-rank checks.
+
+| Protocol | A tokens/s | Production tokens/s | TPS change | Peak allocated A → production, GiB | Peak reserved A → production, GiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 10+10 | 154,918.74 | 180,325.21 | +16.40% | 69.149 → 60.309 | 69.732 → 62.186 |
+| 40+100 | 148,462.22 | 172,685.52 | +16.32% | 68.545 → 61.390 | 69.805 → 64.041 |
+
+In the longer pair, mean update time fell from 14.126 to 12.144 seconds and peaks fell by 7.155 GiB allocated and 5.764 GiB reserved. Both arms passed, reused their own compiler cache, and had zero allocator retries or OOMs. The compiler observer was stable in its covered scope. In 10+10, A used a fresh cache and production reused its cache. An earlier A launch stopped during loader startup because its Unix socket path was too long and supplied no timing samples. Both pairs ran in fixed order. Their gains describe the full recipe against A on this topology.
+
+### Depth scaling estimate
+
+For a 40-layer model with the same repeated GDN/MLA pattern, token shapes, microbatch count, and per-layer execution costs, the planning estimate is **about +15% TPS versus A**, with a sensitivity range of **+14–16%**. The estimates below use separate timings and trace scopes to allocate the 1.981 seconds saved on the measured eight-layer step.
+
+| Depth-independent change | Estimated saving per eight-layer update, seconds | Evidence |
+| --- | ---: | --- |
+| CPU prefetch | 0.20–0.32 | The lower end uses observed host loader waits on current inputs. The upper end uses a separately timed historical pair. [Current trace](../production-data-abcd/trace-analysis.md#ba-the-combined-four-changes) · [Prefetch timing](../v2-prefetch-baseline/report.md#matched-tps-results) |
+| D0 and S | 0.24 | The embedding, first FFN and MTP boundary occur once per microbatch. [C through S timings](../schedule-embedding/timing-results-140.md) · [Schedule scope](../schedule-embedding/report.md#selected-approach-and-preimplementation-cost-review) |
+| Tail retention | 0.07–0.11 | It avoids gathers at the end of the decoder and around MTP. [Timing receipts](../efsdp-optimizations/tail-receipts.json) · [Tail mechanism](../../docs/profile-my-ideas.md#keep-tail-weights-live-across-chunked-lm-head-backward) |
+| Stable CE, folded CE, staged head dW, direct dHidden and hidden z-loss | About 0.23 | The same output heads and loss scopes execute at the same shapes. [Stable CE trace](../four-fusion/ce-trace-analysis.md#complete-headloss-guard-and-downstream-work) · [Folded CE timing](../backward-components/report.md#native-1010-comparison) · [Backward components](../fusion-pack/report.md#profile-budget-and-candidate-selection) |
+
+The total depth-independent saving is approximately 0.73–0.91 seconds. In the central scenario, 0.82 seconds stay fixed and the remaining 1.16 seconds grow by 5.56×, based on the measured GDN/MLA mix as the MoE count grows from 7 to 39. The model uses about 4.2 seconds of fixed production work, estimated from the first dense layer, embeddings, MTP, the heads and final norm in the historical trace, adjusted for the later fixes. Thus `production_40 = 4.2 + 5.56 × (12.144 − 4.2) ≈ 48.37 s` and `A_40 = production_40 + 0.82 + 5.56 × (1.981 − 0.82) ≈ 55.65 s`. Their ratio gives about +15%. The sensitivity range varies fixed production time between 4.1 and 4.4 seconds and the fixed savings across the table's range. These are modeled times and combine evidence from different timing scopes. [Layer timings](../compile-baseline/matched-blocks.md#full-layer-coverage) · [Layer pattern](../../gift/configs/presets/models/gift_moe/gift_3_5/100b_crop8.yaml)
+
+If only direct expert dW is unavailable, removing its isolated 0.21-second crop saving before scaling puts the same model at about +12% TPS. The current direct dW path requires a singleton reduce-scatter group and the Hopper layout with 16 local experts. FP8 expert cache and tail retention need separate timing on a multi-rank expert mesh, where collective traffic and overlap change. [Standalone GFSDP receipts](../efsdp-optimizations/four-standalone-receipts.json) · [Direct dW guard](../../gift/torchtitan/distributed/gfsdp/_param_group.py#L899) · [Topology follow-up](../../planning/README.md#follow-up-ep-and-gfsdp-topology-audit)
 
 ## Native 10+10 results
 

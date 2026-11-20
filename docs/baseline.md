@@ -74,6 +74,7 @@ allocation changed by −0.0007 GiB and peak reservation by +0.0195 GiB. The own
 later selected CuTe stats-only SAC, and the canonical production launcher now
 enables it by default. SwiGLU row16 remains experimental and disabled.
 [Measurement and receipts](../runs/fusion-followup/report.md)
+[Post-promotion comparison against original A](../runs/fusion-followup/report.md#original-a-versus-promoted-production)
 [Throughput and memory matrix](status.md#production-baseline-and-measured-throughput)
 
 | Part | Selected setting |

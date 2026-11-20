@@ -1,6 +1,6 @@
 # Current state
 
-Updated: 19 November 2026. This file owns integrated results, observed costs,
+Updated: 20 November 2026. This file owns integrated results, observed costs,
 evidence-based priorities and unknowns. [SOTA ideas](sota-ideas.md) owns
 hypotheses/proposals; [the plan](../planning/README.md) owns future execution.
 Update this file when new evidence changes a conclusion.
@@ -30,7 +30,13 @@ The 40+100 rows cover updates 41–140 and 209,715,200 physical tokens each.
 | S + GPU selector · selector candidate | 10+10 | 171,475 | 12.230 | 65.889 | 67.561 | — |
 | S + GPU selector · fusion control | 40+100 | 164,537 | 12.746 | 66.998 | 69.260 | +9.96% |
 | **S + GPU selector + five fusions · historical 40+100 baseline** | **40+100** | **166,519** | **12.594** | **66.986** | **69.162** | **+11.28%** |
-| **Current production (includes CuTe stats-only SAC)** | **10+10** | **180,393.28** | **11.6254** | **60.3078** | **62.2051** | — |
+
+The separate post-promotion 40+100 pair used the original A baseline and the
+current production launcher with CuTe statistics-only SAC. Production reached
+**172,686 versus 148,462 tokens/s (+16.32%)**, with peak allocated memory down
+**7.155 GiB** and peak reserved memory down **5.764 GiB**. The dedicated report
+owns both post-promotion pairs and the conditional 40-layer scaling estimate.
+[Original A versus promoted production](../runs/fusion-followup/report.md#original-a-versus-promoted-production)
 
 The five fusions gained **1.20% TPS** in the matched 40+100 pair and lowered
 peak allocated by **12.46 MiB** and reserved by **100 MiB**. The selector gained
@@ -97,7 +103,6 @@ promotion, the CuTe stats-only SAC candidate measured 180,393.28 TPS and
 and +0.0195 GiB reserved. The owner then selected it for production, and the
 canonical launcher enables it by default. SwiGLU row16 remains experimental
 and disabled. [Original component and native results](../runs/fusion-pack/report.md) · [Native follow-up and receipts](../runs/fusion-followup/report.md)
-[Original component and native results](../runs/fusion-pack/report.md) · [Native follow-up and receipts](../runs/fusion-followup/report.md)
 
 ### Fixed-recipe control for expert GFSDP candidates
 
