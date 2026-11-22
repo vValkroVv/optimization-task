@@ -4,9 +4,9 @@ The grad-only auxiliary-loss splice (:class:`AddAuxiliaryLoss`), the hidden
 z-loss on activation magnitudes, and tanh soft-capping of logits.
 """
 
-from dataclasses import dataclass
-
+import os
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 import torch
 import torch.distributed as dist
@@ -230,6 +230,23 @@ def hidden_z_loss(h: torch.Tensor, *, coef: float) -> torch.Tensor:
     round/overflow in bf16 at large feature dims). Padding is not excluded --
     unlike the router losses, which mask it.
     """
+    fused = os.getenv("GIFT_FUSED_HIDDEN_Z_LOSS", "")
+    if fused not in ("", "0", "1"):
+        raise ValueError(f"GIFT_FUSED_HIDDEN_Z_LOSS must be 0 or 1, got {fused!r}")
+    if (
+        fused == "1"
+        and type(h) is torch.Tensor
+        and h.is_cuda
+        and torch.version.hip is None
+        and h.dtype == torch.bfloat16
+        and h.ndim > 0
+        and h.shape[-1] == 4096
+        and h.numel() > 0
+        and h.is_contiguous()
+    ):
+        from torchtitan.ops.hidden_z_loss import magnitude_logsumexp
+
+        return (coef * magnitude_logsumexp(h).square()).mean()
     return (coef * torch.logsumexp(h.float().abs(), dim=-1).square()).mean()
 
 

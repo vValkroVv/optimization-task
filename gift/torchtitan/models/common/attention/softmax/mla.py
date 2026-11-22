@@ -5,10 +5,11 @@ DeepSeek-V3 style low-rank Q/KV compression with a decoupled RoPE head. Shared b
 """
 
 import math
+import os
+from typing import TypeAlias
 
 import torch
-
-from typing import TypeAlias
+from torch.distributed.tensor import DTensor
 
 from torchtitan.config.schema.models.common.attention.softmax.mla import MLAConfig
 from torchtitan.models.common.attention.const import AttentionMasksType
@@ -98,6 +99,26 @@ class MLA(SoftmaxAttention):
 
         self.inner_attention = config.inner_attention.build()
 
+        fused_rope = os.getenv("GIFT_MLA_FUSED_ROPE", "")
+        if fused_rope not in ("", "0", "1"):
+            raise ValueError(f"GIFT_MLA_FUSED_ROPE must be 0 or 1, got {fused_rope!r}")
+        self._fused_rope = fused_rope == "1"
+
+    def _rotate_query(self, q, freqs_cis, positions):
+        q_nope, q_pe = torch.split(
+            q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
+        )
+        (q_pe,) = apply_rotary_emb_complex(
+            q_pe, freqs_cis=freqs_cis, positions=positions
+        )
+        return torch.cat([q_nope, q_pe], dim=-1)
+
+    def _rotate_shared_key(self, k_pe, freqs_cis, positions):
+        (k_pe,) = apply_rotary_emb_complex(
+            k_pe.unsqueeze(2), freqs_cis=freqs_cis, positions=positions
+        )
+        return k_pe
+
     def forward(
         self,
         x: torch.Tensor,
@@ -121,21 +142,44 @@ class MLA(SoftmaxAttention):
                 )
             q = self.wq_b(q_latent)
         q = q.view(bsz, seqlen, -1, self.qk_head_dim)
-        q_nope, q_pe = torch.split(
-            q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
+
+        use_fused_rope = (
+            self._fused_rope
+            and torch.compiler.is_compiling()
+            and q.is_cuda
+            and q.numel() > 0
+            and q.dtype in (torch.bfloat16, torch.float16, torch.float32)
+            and self.qk_rope_head_dim > 0
+            and self.qk_rope_head_dim % 2 == 0
+            and freqs_cis.device == q.device
+            and freqs_cis.dtype == torch.complex64
+            and freqs_cis.ndim == 2
+            and freqs_cis.shape[1] == self.qk_rope_head_dim // 2
+            and not freqs_cis.requires_grad
+            and not isinstance(q, DTensor)
+            and not isinstance(freqs_cis, DTensor)
+            and (
+                freqs_cis.shape[0] >= seqlen
+                if positions is None
+                else (
+                    positions.device == q.device
+                    and positions.dtype in (torch.int32, torch.int64)
+                    and positions.ndim == 2
+                    and positions.shape[0] in (1, bsz)
+                    and positions.shape[1] == seqlen
+                    and not isinstance(positions, DTensor)
+                )
+            )
         )
-        (q_pe,) = apply_rotary_emb_complex(
-            q_pe, freqs_cis=freqs_cis, positions=positions
-        )
-        q = torch.cat([q_nope, q_pe], dim=-1)
+        if not use_fused_rope:
+            q = self._rotate_query(q, freqs_cis, positions)
 
         # Key-value projection
         kv = self.wkv_a(x)
         kv, k_pe = torch.split(kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
 
-        (k_pe,) = apply_rotary_emb_complex(
-            k_pe.unsqueeze(2), freqs_cis=freqs_cis, positions=positions
-        )
+        if not use_fused_rope:
+            k_pe = self._rotate_shared_key(k_pe, freqs_cis, positions)
 
         if self.training and self._mla_kv_latent_z_loss_coef != 0.0:
             kv = AddAuxiliaryLoss.apply(
@@ -147,7 +191,24 @@ class MLA(SoftmaxAttention):
         kv = self.wkv_b(kv)
         kv = kv.view(bsz, seqlen, -1, self.qk_nope_head_dim + self.v_head_dim)
         k_nope, v = torch.split(kv, [self.qk_nope_head_dim, self.v_head_dim], dim=-1)
-        k = torch.cat([k_nope, k_pe.expand(-1, -1, self.n_heads, -1)], dim=-1)
+        if (
+            use_fused_rope
+            and k_nope.device == k_pe.device == q.device
+            and k_nope.dtype == k_pe.dtype == q.dtype
+            and k_nope.shape[:3] == q.shape[:3]
+            and not isinstance(k_nope, DTensor)
+            and not isinstance(k_pe, DTensor)
+        ):
+            from torchtitan.models.common.attention.softmax.mla_rope_pack import (
+                MLARoPEPack,
+            )
+
+            q, k = MLARoPEPack.apply(q, k_nope, k_pe, freqs_cis, positions)
+        else:
+            if use_fused_rope:
+                q = self._rotate_query(q, freqs_cis, positions)
+                k_pe = self._rotate_shared_key(k_pe, freqs_cis, positions)
+            k = torch.cat([k_nope, k_pe.expand(-1, -1, self.n_heads, -1)], dim=-1)
 
         output = self.inner_attention(
             q, k, v, attention_masks=attention_masks, scale=self.softmax_scale

@@ -1,0 +1,196 @@
+diff --git a/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh b/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh
+--- a/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh
++++ b/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh
+@@ -17,6 +17,14 @@
+ namespace deep_gemm {
+
+ using namespace deep_gemm::sm90;
++
++__device__ __forceinline__ float2 round_like_bf16_tma_add_zero(float x, float y) {
++    const auto packed = static_cast<uint32_t>(cast_into_bf16_and_pack(x, y));
++    uint32_t reduced;
++    // The legacy epilogue adds the rounded BF16 lanes to positive zero.
++    asm("add.rn.bf16x2 %0, %1, %2;" : "=r"(reduced) : "r"(packed), "r"(0u));
++    return {__uint_as_float(reduced << 16), __uint_as_float(reduced & 0xffff0000u)};
++}
+
+ template <uint32_t SHAPE_M, uint32_t SHAPE_N, uint32_t SHAPE_K,
+           uint32_t kNumGroups,
+@@ -26,7 +34,8 @@
+           uint32_t kNumTMAThreads, uint32_t kNumMathThreads,
+           uint32_t kNumTMAMulticast, bool kIsTMAMulticastOnA,
+           uint32_t kNumSMs,
+-          GemmType kGemmType, bool kWithAccumulation, typename cd_dtype_t>
++          GemmType kGemmType, bool kWithAccumulation, typename cd_dtype_t,
++          bool kRoundToBF16 = false>
+ __global__ __launch_bounds__(kNumTMAThreads + kNumMathThreads, 1) void
+ sm90_fp8_gemm_1d1d_impl(__nv_fp8_e4m3* gmem_a_ptr, __nv_fp8_e4m3* gmem_b_ptr,
+                         int* grouped_layout,
+@@ -43,6 +52,10 @@
+     DG_STATIC_ASSERT(BLOCK_K == 128, "Only support per-128-channel FP8 scaling");
+     DG_STATIC_ASSERT(cute::is_same_v<cd_dtype_t, float> or cute::is_same_v<cd_dtype_t, cutlass::bfloat16_t>, "Invalid C/D data dtype");
+     DG_STATIC_ASSERT(kGemmType == GemmType::Normal or kGemmType == GemmType::KGroupedContiguous, "Invalid GEMM type");
++
++    DG_STATIC_ASSERT(not kRoundToBF16 or
++        (kGemmType == GemmType::KGroupedContiguous and not kWithAccumulation and cute::is_same_v<cd_dtype_t, float>),
++        "Rounded FP32 output must overwrite a K-grouped destination");
+
+     // Types
+     using WGMMA = typename FP8MMASelector<BLOCK_N>::type;
+@@ -353,8 +366,13 @@
+                 const auto& smem_d_1 = reinterpret_cast<float2*>(smem_d + r_1 * BLOCK_N + col_idx * 2);
+                 #pragma unroll
+                 for (auto i = 0; i < WGMMA::kNumAccum / 4; ++ i) {
+-                    st_shared(smem_d_0 + i * 4, {final_accum[i * 4 + 0], final_accum[i * 4 + 1]});
+-                    st_shared(smem_d_1 + i * 4, {final_accum[i * 4 + 2], final_accum[i * 4 + 3]});
++                    if constexpr (kRoundToBF16) {
++                        st_shared(smem_d_0 + i * 4, round_like_bf16_tma_add_zero(final_accum[i * 4 + 0], final_accum[i * 4 + 1]));
++                        st_shared(smem_d_1 + i * 4, round_like_bf16_tma_add_zero(final_accum[i * 4 + 2], final_accum[i * 4 + 3]));
++                    } else {
++                        st_shared(smem_d_0 + i * 4, {final_accum[i * 4 + 0], final_accum[i * 4 + 1]});
++                        st_shared(smem_d_1 + i * 4, {final_accum[i * 4 + 2], final_accum[i * 4 + 3]});
++                    }
+                 }
+             } else {
+                 #pragma unroll
+diff --git a/csrc/jit_kernels/impls/sm90_fp8_gemm_1d1d.hpp b/csrc/jit_kernels/impls/sm90_fp8_gemm_1d1d.hpp
+--- a/csrc/jit_kernels/impls/sm90_fp8_gemm_1d1d.hpp
++++ b/csrc/jit_kernels/impls/sm90_fp8_gemm_1d1d.hpp
+@@ -19,6 +19,7 @@
+         const std::string& compiled_dims;
+
+         GemmConfig gemm_config;
++        bool round_to_bf16 = false;
+         LaunchArgs launch_args;
+
+         void *gmem_a_ptr;
+@@ -34,6 +35,7 @@
+
+     static std::string generate_impl(const Args& args) {
+         return fmt::format(R"(
++{}
+ #include <deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh>
+
+ using namespace deep_gemm;
+@@ -48,10 +50,12 @@
+         {}, {},
+         {}, {},
+         {},
+-        {}, {}, {}
++        {}, {}, {}{}
+     >);
+ }};
+ )",
++        args.round_to_bf16 ?
++            "#define sm90_fp8_gemm_1d1d_impl sm90_k_grouped_fp8_gemm_rounded_f32_impl" : "",
+         get_compiled_dim(args.m, 'm', args.compiled_dims), get_compiled_dim(args.n, 'n', args.compiled_dims), get_compiled_dim(args.k, 'k', args.compiled_dims),
+         args.num_groups,
+         args.gemm_config.block_m, args.gemm_config.block_n, args.gemm_config.block_k,
+@@ -61,7 +65,8 @@
+         args.gemm_config.multicast_config.num_multicast, args.gemm_config.multicast_config.is_multicast_on_a,
+         args.gemm_config.num_sms, to_string(args.gemm_config.gemm_type),
+         args.gemm_config.with_accumulation,
+-        to_string(args.gemm_config.cd_dtype));
++        to_string(args.gemm_config.cd_dtype),
++        args.round_to_bf16 ? ", true" : "");
+     }
+
+     static void launch_impl(const KernelHandle& kernel, const LaunchConfigHandle& config, Args args) {
+@@ -148,20 +153,36 @@
+                                          const std::vector<int>& ks, const torch::Tensor& ks_tensor,
+                                          const torch::Tensor& tensor_map_buffer,
+                                          const cute::UMMA::Major& major_a, const cute::UMMA::Major& major_b,
+-                                         const std::string& compiled_dims) {
++                                         const std::string& compiled_dims,
++                                         const bool round_to_bf16 = false) {
+     DG_HOST_ASSERT(d.scalar_type() == torch::kFloat or d.scalar_type() == torch::kBFloat16);
+-    DG_HOST_ASSERT(c.has_value());
++    DG_HOST_ASSERT(round_to_bf16 ? (not c.has_value() and d.scalar_type() == torch::kFloat) : c.has_value());
+     DG_HOST_ASSERT(major_a == cute::UMMA::Major::K and major_b == cute::UMMA::Major::K);
+
+     // Get config using max K for better performance
+     const auto& num_groups = static_cast<int>(ks.size());
+     const auto& max_k = *std::max_element(ks.begin(), ks.end());
+-    const auto& config = get_best_config<SM90ArchSpec>(
++    auto config = get_best_config<SM90ArchSpec>(
+         GemmType::KGroupedContiguous, KernelType::Kernel1D1D,
+         m, n, max_k, num_groups, major_a, major_b,
+         a.scalar_type(), b.scalar_type(),
+-        d.scalar_type(), c.has_value(),
++        round_to_bf16 ? torch::kBFloat16 : d.scalar_type(), round_to_bf16 or c.has_value(),
+         device_runtime->get_num_sms());
++    if (round_to_bf16) {
++        // Preserve the BF16 WGMMA tile and fit the wider store into shared memory.
++        config.cd_dtype = torch::kFloat;
++        config.with_accumulation = false;
++        while (config.num_stages > 0) {
++            config.smem_config = get_smem_config<SM90ArchSpec>(
++                config.gemm_type, config.kernel_type, m, n, max_k, config.block_m, config.block_n, config.block_k,
++                major_a, major_b, config.mma_kind, config.cd_dtype, config.num_stages, config.multicast_config);
++            if (config.smem_config.smem_size <= SM90ArchSpec::smem_capacity)
++                break;
++            --config.num_stages;
++        }
++        DG_HOST_ASSERT(config.num_stages > 0);
++        config.num_last_stages = ceil_div(max_k, config.block_k) % config.num_stages;
++    }
+
+     // Requires no TMA splits
+     DG_HOST_ASSERT(config.smem_config.swizzle_a_mode == config.block_k);
+@@ -198,6 +219,7 @@
+         .num_groups = num_groups,
+         .compiled_dims = compiled_dims,
+         .gemm_config = config,
++        .round_to_bf16 = round_to_bf16,
+         .launch_args = LaunchArgs(config.num_sms, config.thread_config.num_threads,
+                                   config.smem_config.smem_size,
+                                   config.multicast_config.num_multicast),
+@@ -212,7 +234,7 @@
+         .tensor_map_cd = tensor_map_cd,
+     };
+     const auto& code = SM90FP8Gemm1D1DRuntime::generate(args);
+-    const auto& runtime = compiler->build("sm90_fp8_gemm_1d1d", code);
++    const auto& runtime = compiler->build(round_to_bf16 ? "sm90_k_grouped_fp8_gemm_rounded_f32" : "sm90_fp8_gemm_1d1d", code);
+
+     SM90FP8Gemm1D1DRuntime::launch(runtime, args);
+ }
+diff --git a/csrc/jit/compiler.hpp b/csrc/jit/compiler.hpp
+--- a/csrc/jit/compiler.hpp
++++ b/csrc/jit/compiler.hpp
+@@ -55,6 +55,7 @@
+
+     std::string signature, flags;
+     std::filesystem::path cache_dir_path;
++    bool use_shared_cache = true;
+
+     Compiler() {
+         // Check `prepare_init`
+@@ -180,7 +181,7 @@
+             return runtime;
+         }
+
+-        const auto shared_cache_dir_path = get_env<std::string>("DG_JIT_SHARED_CACHE_DIR");
++        const auto shared_cache_dir_path = use_shared_cache ? get_env<std::string>("DG_JIT_SHARED_CACHE_DIR") : "";
+         const auto shared_dir_path = std::filesystem::path(shared_cache_dir_path) / "cache" / dir_path.filename();
+         if (not shared_cache_dir_path.empty() and KernelRuntime::check_validity(shared_dir_path)
+             and copy_kernel_dir(shared_dir_path, dir_path)) {
+diff --git a/csrc/jit/device_runtime.hpp b/csrc/jit/device_runtime.hpp
+--- a/csrc/jit/device_runtime.hpp
++++ b/csrc/jit/device_runtime.hpp
+@@ -21,14 +21,8 @@
+     cublasLtHandle_t cublaslt_handle{};
+     std::shared_ptr<torch::Tensor> cublaslt_workspace;
+
+-    explicit DeviceRuntime() {
+-        cublaslt_workspace = std::make_shared<torch::Tensor>(torch::empty({kCublasLtWorkspaceSize}, dtype(torch::kByte).device(at::kCUDA)));
+-        DG_CUBLASLT_CHECK(cublasLtCreate(&cublaslt_handle));
+-    }
+-
+-    ~DeviceRuntime() noexcept(false) {
+-        DG_CUBLASLT_CHECK(cublasLtDestroy(cublaslt_handle));
+-    }
++    // The standalone SM90 extension never calls cuBLASLt.
++    explicit DeviceRuntime() = default;
+
+     cublasLtHandle_t get_cublaslt_handle() const {
+         return cublaslt_handle;

@@ -7,8 +7,13 @@ lazily. RoPE unused.
 TODO: training path only (chunk mode; no SP/CP, no cache).
 """
 
+import os
+from collections.abc import Callable
+from functools import partial
+
 import torch
 from torch import nn
+from torch.nn.modules import module as nn_module
 
 from typing import TypeAlias
 
@@ -23,8 +28,35 @@ from torchtitan.models.common.attention.varlen_meta import (
     unflatten_varlen_batch,
     VarlenMetadata,
 )
+from torchtitan.ops.float8.cuda_gemm import FP8Linear
 
 __all__ = ["GatedDeltaNet"]
+
+
+def _env_flag(name: str) -> bool:
+    value = os.getenv(name, "")
+    if value not in ("", "0", "1"):
+        raise ValueError(f"{name} must be 0 or 1, got {value!r}")
+    return value == "1"
+
+
+def _has_output_hooks(norm: nn.Module, projection: nn.Module) -> bool:
+    # A norm hook needs the native norm call, and a projection hook can see
+    # the unpadded BF16 input that would otherwise be an FP8 wrapper.
+    if (
+        nn_module._global_forward_hooks
+        or nn_module._global_forward_pre_hooks
+        or nn_module._global_backward_hooks
+        or nn_module._global_backward_pre_hooks
+    ):
+        return True
+    return any(
+        module._forward_hooks
+        or module._forward_pre_hooks
+        or module._backward_hooks
+        or module._backward_pre_hooks
+        for module in (norm, projection)
+    )
 
 
 class GatedDeltaNet(GatedDeltaAttention):
@@ -36,6 +68,19 @@ class GatedDeltaNet(GatedDeltaAttention):
 
     def __init__(self, config: Config):
         super().__init__(config)
+        self._direct_fla_backward = _env_flag("GIFT_GDN_DIRECT_FLA_BACKWARD")
+        self._fuse_short_conv_backward = _env_flag("GIFT_GDN_FUSE_SHORT_CONV_BWD")
+        self._output_norm_fp8: Callable[..., torch.Tensor] | None = None
+        if _env_flag("GIFT_GDN_FUSE_OUTPUT_NORM_FP8"):
+            from torchtitan.models.common.attention.linear.gdn_output_fp8 import (
+                gdn_output_norm_fp8,
+            )
+
+            self._output_norm_fp8 = gdn_output_norm_fp8
+            if _env_flag("GIFT_GDN_DIRECT_OUTPUT_NORM_BWD"):
+                self._output_norm_fp8 = partial(
+                    gdn_output_norm_fp8, direct_backward=True
+                )
         ba_proj, z_proj = config._gating_projections()
         self.ba_proj = ba_proj.build()
         self.z_proj = z_proj.build()
@@ -74,7 +119,11 @@ class GatedDeltaNet(GatedDeltaAttention):
         b_, s_, _ = x.shape
 
         # q, k: [.., L, num_k_heads, head_k_dim]; v: [.., L, num_v_heads, head_v_dim].
-        q, k, v = self.qkv(x, cu_seqlens=cu_seqlens)
+        q, k, v = self.qkv(
+            x,
+            cu_seqlens=cu_seqlens,
+            fuse_conv_backward=self._fuse_short_conv_backward,
+        )
 
         # Decay/gating: ba_proj -> (beta b, decay-input a), each [.., L, num_v_heads].
         ba = self.ba_proj(x).view(
@@ -107,10 +156,29 @@ class GatedDeltaNet(GatedDeltaAttention):
             self.A_log,
             self.dt_bias,
             cu_seqlens,
+            self._direct_fla_backward,
         )
 
-        o = self.o_norm(o, z) * self.o_norm_output_multiplier
-        o = o.reshape(b_, s_, self.value_dim)
+        if (
+            self._output_norm_fp8 is not None
+            and isinstance(self.o_proj, FP8Linear)
+            and b_ * s_ > 0
+            and o.is_cuda
+            and o.dtype == torch.bfloat16
+            and not _has_output_hooks(self.o_norm, self.o_proj)
+        ):
+            o = self._output_norm_fp8(
+                o,
+                z,
+                self.o_norm.weight,
+                self.o_norm.eps,
+                self.o_norm.activation,
+                self.o_norm.zero_centered,
+                self.o_norm_output_multiplier,
+            )
+        else:
+            o = self.o_norm(o, z) * self.o_norm_output_multiplier
+            o = o.reshape(b_, s_, self.value_dim)
         o = self.o_proj(o)
         if cu_seqlens is not None:
             o = unflatten_varlen_batch(o, bsz, seqlen)

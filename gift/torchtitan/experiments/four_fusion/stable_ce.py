@@ -3,6 +3,8 @@
 # b983803337dfcc34fdd571b38aaf5e01df583bbe (see root LICENSE).
 """Stable first-order SUM CE; keep the row maximum separate from log(sum(exp))."""
 
+from collections.abc import Callable, Sequence
+
 import torch
 import torch.nn.functional as F
 import triton
@@ -118,15 +120,14 @@ def _forward_fake(logits, labels):
     )
 
 
-@torch.library.custom_op("four_fusion::stable_ce_backward", mutates_args=())
-def _backward(
+def _launch_backward(
     logits: torch.Tensor,
     labels: torch.Tensor,
     maximum: torch.Tensor,
     log_denominator: torch.Tensor,
     scale: torch.Tensor,
-) -> torch.Tensor:
-    grad = torch.empty_like(logits)
+    grad: torch.Tensor,
+) -> None:
     backward_kernel[(logits.shape[0],)](
         logits,
         labels,
@@ -139,6 +140,18 @@ def _backward(
         num_warps=4,
         enable_fp_fusion=False,
     )
+
+
+@torch.library.custom_op("four_fusion::stable_ce_backward", mutates_args=())
+def _backward(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    maximum: torch.Tensor,
+    log_denominator: torch.Tensor,
+    scale: torch.Tensor,
+) -> torch.Tensor:
+    grad = torch.empty_like(logits)
+    _launch_backward(logits, labels, maximum, log_denominator, scale, grad)
     return grad
 
 
@@ -161,6 +174,144 @@ def _autograd_backward(ctx, scale, _maximum_grad, _log_denominator_grad):
 
 
 _forward.register_autograd(_autograd_backward, setup_context=_setup_context)
+
+
+@torch.library.custom_op("four_fusion::stable_ce_folded_backward", mutates_args=())
+def _folded_backward(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    maxima: Sequence[torch.Tensor],
+    log_denominators: Sequence[torch.Tensor],
+    scales: Sequence[torch.Tensor],
+) -> torch.Tensor:
+    # Each launch receives an output view whose pointer starts at its head's
+    # first row. The LM head consumes the full allocation directly.
+    grad = torch.empty_like(logits)
+    _write_folded_backward(logits, labels, maxima, log_denominators, scales, grad)
+    return grad
+
+
+def _write_folded_backward(logits, labels, maxima, log_denominators, scales, grad):
+    num_heads = len(scales)
+    for inputs in zip(
+        logits.chunk(num_heads),
+        labels.chunk(num_heads),
+        maxima,
+        log_denominators,
+        scales,
+        grad.chunk(num_heads),
+        strict=True,
+    ):
+        _launch_backward(*inputs)
+
+
+@_folded_backward.register_fake
+def _folded_backward_fake(logits, labels, maxima, log_denominators, scales):
+    return torch.empty_like(logits)
+
+
+class _FoldedCrossEntropy(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, logits, labels, num_heads):
+        return _save_folded_statistics(ctx, logits, labels, num_heads, _forward)
+
+    @staticmethod
+    def backward(ctx, *scales):
+        if torch.is_grad_enabled():
+            raise ValueError("Stable CE supports first-order gradients only")
+        logits, labels, *stats = ctx.saved_tensors
+        num_heads = len(scales)
+        grad = _folded_backward(
+            logits, labels, stats[:num_heads], stats[num_heads:], list(scales)
+        )
+        return grad, None, None
+
+
+def _save_folded_statistics(ctx, logits, labels, num_heads, forward):
+    # Keep the existing per-head launch shapes and FP32 sum reductions.
+    losses, maxima, log_denominators = zip(
+        *(
+            forward(head_logits, head_labels)
+            for head_logits, head_labels in zip(
+                logits.chunk(num_heads), labels.chunk(num_heads), strict=True
+            )
+        ),
+        strict=True,
+    )
+    ctx.save_for_backward(logits, labels, *maxima, *log_denominators)
+    return losses
+
+
+class _ConsumeFoldedCrossEntropy(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, logits, labels, num_heads, forward):
+        return _save_folded_statistics(ctx, logits, labels, num_heads, forward)
+
+    @staticmethod
+    def backward(ctx, *scales):
+        if torch.is_grad_enabled():
+            raise ValueError("Stable CE supports first-order gradients only")
+        logits, labels, *stats = ctx.saved_tensors
+        num_heads = len(scales)
+        # Each program reads and overwrites one row. The staged Linear saved only
+        # its input and weight, and the loss reads argmax before calling backward.
+        _write_folded_backward(
+            logits, labels, stats[:num_heads], stats[num_heads:], scales, logits
+        )
+        torch.autograd.graph.increment_version(logits)
+        return logits, None, None, None
+
+
+def supports_folded_cross_entropy(logits: torch.Tensor, labels: torch.Tensor) -> bool:
+    return (
+        not isinstance(logits, DTensor)
+        and not isinstance(labels, DTensor)
+        and logits.is_cuda
+        and logits.dtype in (torch.bfloat16, torch.float16, torch.float32)
+        and logits.numel() > 0
+        and logits.is_contiguous()
+        and labels.is_contiguous()
+    )
+
+
+def _flatten_folded_cross_entropy(
+    logits: torch.Tensor, labels: torch.Tensor, num_heads: int
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if labels.dtype != torch.int64:
+        raise ValueError("Cross-entropy targets must have dtype int64")
+    if logits.shape[:-1] != labels.shape or logits.device != labels.device:
+        raise ValueError(
+            "Cross-entropy logits and targets must have compatible shapes and device"
+        )
+    if num_heads < 1 or logits.shape[0] % num_heads:
+        raise ValueError("Folded CE requires equal batch rows per head")
+    return logits.view(-1, logits.shape[-1]), labels.view(-1)
+
+
+def folded_cross_entropy(
+    logits: torch.Tensor, labels: torch.Tensor, num_heads: int
+) -> tuple[torch.Tensor, ...]:
+    """Compute a sum per head and return one contiguous logit gradient."""
+    flat, labels = _flatten_folded_cross_entropy(logits, labels, num_heads)
+    return _FoldedCrossEntropy.apply(flat, labels, num_heads)
+
+
+def make_consuming_folded_cross_entropy(
+    backend: str | Callable | None,
+) -> Callable[[torch.Tensor, torch.Tensor, int], tuple[torch.Tensor, ...]]:
+    # Compile the statistics boundary and keep the one-shot storage mutation
+    # in eager backward, outside the compiler's functionalization.
+    forward = _forward
+    if backend is not None:
+        forward = torch.compile(_forward, backend=backend, fullgraph=True)
+
+    def consume(logits, labels, num_heads):
+        if logits.dtype != torch.bfloat16:
+            raise ValueError("Consuming Folded CE requires BF16 logits")
+        flat, labels = _flatten_folded_cross_entropy(logits, labels, num_heads)
+        return _ConsumeFoldedCrossEntropy.apply(flat, labels, num_heads, forward)
+
+    return consume
 
 
 def cross_entropy_loss(pred: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:

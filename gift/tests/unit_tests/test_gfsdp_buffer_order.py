@@ -32,8 +32,17 @@ pytest.importorskip("torch")
 
 import torch  # noqa: E402
 
-from torchtitan.distributed.gfsdp._param_group import GFSDPParamGroup  # noqa: E402
+from torchtitan.distributed.gfsdp._common import (  # noqa: E402
+    DataParallelMeshInfo,
+    TrainingState,
+)
+from torchtitan.distributed.gfsdp._param import ShardedState  # noqa: E402
+from torchtitan.distributed.gfsdp._param_group import (  # noqa: E402
+    GFSDPBufferContext,
+    GFSDPParamGroup,
+)
 from torchtitan.distributed.gfsdp._state import (  # noqa: E402
+    GFSDPState,
     _forward_ordered_states,
     _grad_buffer_ctx_idx_map,
     get_buffer_ctx2ctx_using_param_groups_map,
@@ -277,7 +286,339 @@ def test_a_buffer_the_target_already_owns_is_not_an_obstacle():
     target.data_buffer_ctx.owner = target
 
     GFSDPParamGroup._prefetch_unshard(target, "forward")
+    assert target.unsharded
 
+
+class _FakeStream:
+    def __init__(self):
+        self.events = []
+
+    def record_event(self):
+        event = object()
+        self.events.append(event)
+        return event
+
+
+class _FakeBufferContext:
+    def __init__(self):
+        self.owner = None
+        self.release_event = None
+        self.yccl_handles = {torch.float32: None}
+
+    def conflicting_owner(self, owner):
+        return (
+            self.owner if self.owner is not None and self.owner is not owner else None
+        )
+
+    def wait_for_release(self, _stream):
+        return None
+
+
+def _post_backward_group(
+    *, training_state, has_grad, reduce_grads, reshard_after_backward
+):
+    group = object.__new__(GFSDPParamGroup)
+    stream = _FakeStream()
+    param = torch.nn.Parameter(torch.ones(2))
+    param.grad = torch.ones_like(param) if has_grad else None
+    fsdp_param = SimpleNamespace(
+        unsharded_param=param,
+        unsharded_accumulated_grad=None,
+        _unsharded_accumulated_grad=torch.zeros_like(param),
+        unsharded_grad_data=param.grad,
+        sharded_param=SimpleNamespace(grad=None, requires_grad=True),
+    )
+    group._training_state = training_state
+    group._module_fqn = "test.group"
+    group._with_fqn = lambda name: name
+    group.fsdp_params = [fsdp_param]
+    group._all_gather_dtype_to_fsdp_params = {torch.float32: [fsdp_param]}
+    group.grad_buffer_ctx = _FakeBufferContext()
+    group.data_buffer_ctx = _FakeBufferContext()
+    group.device_handle = SimpleNamespace(current_stream=lambda: stream)
+    group.device = torch.device("cpu")
+    group.orig_dtype = torch.float32
+    group.param_dtype = torch.float32
+    group.reduce_dtype = torch.float32
+    group.gradient_divide_factor = None
+    group.force_sum_reduction_for_comms = False
+    group.mp_policy = SimpleNamespace(bit32_acc_for_bit16_reduce_scatter=False)
+    group._reduce_scatter_input = {torch.float32: torch.zeros(4)}
+    group._padded_sharded_param_grad = {torch.float32: torch.zeros(2)}
+    group.mesh_info = object.__new__(DataParallelMeshInfo)
+    group.mesh_info.shard_process_group = object()
+    group.comm_ctx = SimpleNamespace(
+        reduce_scatter_stream=stream, retain_tail_weights=False
+    )
+    group.reduce_grads = reduce_grads
+    group.reshard_after_backward = reshard_after_backward
+    group._post_reduce_event = object()  # Must not count as a new reduction.
+    group._post_backward_prefetch_target = object()
+    group._direct_expert_dw_lease = None
+    group._owner_transport = None
+    group._staged_head_dw = None
+    group._fp8_cache = None
+    group.data_buffer_ctx.owner = group
+    return group, stream
+
+
+@pytest.mark.parametrize(
+    (
+        "training_state",
+        "has_grad",
+        "reduce_grads",
+        "reshard_after_backward",
+        "expected_reductions",
+        "expected_prefetches",
+    ),
+    [
+        (TrainingState.PRE_BACKWARD, True, True, True, 1, 1),
+        (TrainingState.IDLE, False, True, True, 0, 0),
+        # A callback with stale group state and a nonempty grad still is not an
+        # actual PRE_BACKWARD completion for this call.
+        (TrainingState.IDLE, True, True, True, 1, 0),
+        (TrainingState.PRE_BACKWARD, True, False, True, 0, 0),
+        (TrainingState.PRE_BACKWARD, True, True, False, 1, 0),
+    ],
+)
+def test_post_backward_transition_requires_real_reduced_resharded_backward(
+    monkeypatch,
+    training_state,
+    has_grad,
+    reduce_grads,
+    reshard_after_backward,
+    expected_reductions,
+    expected_prefetches,
+):
+    import torchtitan.distributed.gfsdp._param_group as param_group_module
+
+    group, _stream = _post_backward_group(
+        training_state=training_state,
+        has_grad=has_grad,
+        reduce_grads=reduce_grads,
+        reshard_after_backward=reshard_after_backward,
+    )
+    reductions = []
+    prefetches = []
+    reduce_event = object()
+
+    def fake_reduce_scatter(*_args, **_kwargs):
+        reductions.append(True)
+        return reduce_event
+
+    def fake_reshard(self):
+        self.data_buffer_ctx.release_event = _stream.record_event()
+        self.data_buffer_ctx.owner = None
+
+    monkeypatch.setattr(param_group_module, "reduce_scatter", fake_reduce_scatter)
+    monkeypatch.setattr(GFSDPParamGroup, "reshard", fake_reshard)
+    monkeypatch.setattr(
+        GFSDPParamGroup,
+        "_prefetch_unshard",
+        staticmethod(lambda target, pass_type: prefetches.append((target, pass_type))),
+    )
+
+    group.post_backward()
+
+    assert len(reductions) == expected_reductions
+    assert len(prefetches) == expected_prefetches
+    if expected_prefetches:
+        assert prefetches == [(group._post_backward_prefetch_target, "backward")]
+    if not reduce_grads and has_grad:
+        assert group.grad_buffer_ctx.owner is group
+
+
+def test_staged_head_callbacks_keep_the_private_gradient_until_all_chunks_write(
+    monkeypatch,
+):
+    import torchtitan.distributed.gfsdp._param_group as param_group_module
+    from torchtitan.distributed.gfsdp._staged_head_dw import StagedHeadDw
+
+    head, stream = _post_backward_group(
+        training_state=TrainingState.PRE_BACKWARD,
+        has_grad=False,
+        reduce_grads=False,
+        reshard_after_backward=False,
+    )
+    param = head.fsdp_params[0]
+    slot = param._unsharded_accumulated_grad
+    context = head.grad_buffer_ctx
+    context.owner = head
+    head._reduce_scatter_input[torch.float32] = slot
+    staged = StagedHeadDw(head, param, context, slot, "c1", num_chunks=2)
+    staged.stream = stream
+    staged.begin()
+    reductions = []
+    reduce_event = object()
+
+    def fake_reduce_scatter(_params, with_grad, _output, data, *_args, **kwargs):
+        assert with_grad == [param]
+        assert data is slot
+        assert kwargs["owner_transport"] is None
+        reductions.append(data.clone())
+        return reduce_event
+
+    monkeypatch.setattr(param_group_module, "reduce_scatter", fake_reduce_scatter)
+    slot.fill_(1)
+    staged.writes = 1
+    head.post_backward()
+    assert staged.completed_callbacks == 1
+    assert head._staged_head_dw is staged
+    assert context.owner is head
+    assert context.release_event is None
+    assert reductions == []
+
+    head._training_state = TrainingState.PRE_BACKWARD
+    head.reduce_grads = True
+    slot.add_(2)
+    staged.writes = 2
+    head.post_backward()
+    assert staged.completed_callbacks == 2
+    assert head._staged_head_dw is None
+    assert context.owner is None
+    assert context.release_event is reduce_event
+    assert len(reductions) == 1
+    torch.testing.assert_close(reductions[0], torch.full_like(slot, 3))
+
+
+@pytest.mark.parametrize(
+    "policy, buffer_name",
+    [
+        ("reshard_after_forward", "data buffer"),
+        ("reshard_after_backward", "data buffer"),
+        ("reduce_grads", "grad buffer"),
+    ],
+)
+def test_region_retention_validation_only_compares_aliased_storage(
+    monkeypatch, policy, buffer_name
+):
+    def buffer(buffer_type):
+        ctx = GFSDPBufferContext(buffer_type)
+        ctx.lazy_init({None: 128}, torch.device("cpu"))
+        return ctx
+
+    def group(name, data=None, grad=None):
+        return SimpleNamespace(
+            name=name,
+            data_buffer_ctx=data or buffer(GFSDPBufferContext.BufferType.ALL_GATHER),
+            grad_buffer_ctx=grad
+            or buffer(GFSDPBufferContext.BufferType.REDUCE_SCATTER),
+            _post_backward_prefetch_target=None,
+            reshard_after_forward=True,
+            reshard_after_backward=True,
+            reduce_grads=True,
+        )
+
+    data = buffer(GFSDPBufferContext.BufferType.ALL_GATHER)
+    grad = buffer(GFSDPBufferContext.BufferType.REDUCE_SCATTER)
+    source = group(
+        "ffn",
+        data.region({None: 64}, {None: 64}),
+        grad.region({None: 64}, {None: 64}),
+    )
+    target = group("layer7", data.region({None: 32}, {None: 64}))
+    norm = group("norm", grad=grad.region({None: 32}, {None: 64}))
+    sibling = group(
+        "disjoint",
+        data.region({None: 64}, {None: 0}),
+        grad.region({None: 64}, {None: 0}),
+    )
+    whole_slot = group("whole_slot", data, grad)
+    unrelated = group("unrelated")
+
+    root = GFSDPState()
+    root._modules = (torch.nn.Module(),)
+    root._fsdp_param_groups = [source, target, norm, sibling, whole_slot, unrelated]
+    root._state_ctx.all_states = [root]
+
+    overlaps = GFSDPBufferContext.overlaps
+    comparisons = []
+
+    def count_overlap(left, right):
+        comparisons.append((left._storage_ctx, right._storage_ctx))
+        return overlaps(left, right)
+
+    monkeypatch.setattr(GFSDPBufferContext, "overlaps", count_overlap)
+    setattr(sibling, policy, False)
+    setattr(unrelated, policy, False)
+    root.validate_shared_state()
+    assert comparisons == []
+
+    root._state_ctx.buffer_region_transition_groups = (source, target)
+    root.validate_shared_state()
+    assert comparisons == []
+
+    setattr(whole_slot, policy, False)
+    with pytest.raises(ValueError, match=f"share a {buffer_name}"):
+        root.validate_shared_state()
+    expected_root = data if buffer_name == "data buffer" else grad
+    assert comparisons == [(expected_root, expected_root)]
+
+
+@pytest.mark.parametrize("consume_gather", [True, False])
+def test_nonfinal_backward_keeps_pending_transition_data_lease(consume_gather):
+    root = GFSDPState()
+    group, stream = _post_backward_group(
+        training_state=TrainingState.IDLE,
+        has_grad=False,
+        reduce_grads=True,
+        reshard_after_backward=True,
+    )
+    root._fsdp_param_groups = [group]
+    root._state_ctx.all_states = [root]
+    root._state_ctx.is_last_backward = False
+    root._comm_ctx.post_forward_order = []
+
+    backing = GFSDPBufferContext(GFSDPBufferContext.BufferType.ALL_GATHER)
+    backing.lazy_init({None: 128}, torch.device("cpu"))
+    group.data_buffer_ctx = backing.region({None: 64}, {None: 64})
+    group.grad_buffer_ctx = None
+    group._sharded_state = ShardedState.SHARDED
+    group._protect_data_buffer_lease = True
+    group._post_reduce_event = None
+    group._post_forward_indices = []
+    group._all_gather_input_set_dtypes = set()
+    group._bf16_cache_enabled = False
+    group.fsdp_params[0].to_unsharded = lambda: None
+    group.fsdp_params[0].to_sharded = lambda: None
+
+    waits = []
+    gather = SimpleNamespace(wait=lambda: waits.append(group.data_buffer_ctx.owner))
+    group._all_gather_result = gather
+    group.data_buffer_ctx.owner = group
+
+    root._root_post_backward_final_callback()
+
+    assert group._all_gather_result is gather
+    assert waits == []
+    assert group.data_buffer_ctx.owner is group
+    assert group.data_buffer_ctx.release_event is None
+
+    peer = object.__new__(GFSDPParamGroup)
+    peer.__dict__.update(group.__dict__)
+    peer._all_gather_result = None
+    peer.reshard()
+    assert group.data_buffer_ctx.owner is group
+    assert group.data_buffer_ctx.release_event is None
+
+    target = _FakeTarget(owner=None)
+    target.data_buffer_ctx = backing.region({None: 32}, {None: 64})
+    GFSDPParamGroup._prefetch_unshard(target, "backward")
+    assert not target.unsharded
+
+    if consume_gather:
+        group.wait_for_unshard()
+        assert group.data_buffer_ctx.owner is group
+        group.reshard()
+    else:
+        root._state_ctx.is_last_backward = True
+        root._root_post_backward_final_callback()
+
+    assert waits == [group]
+    assert group._all_gather_result is None
+    assert group.data_buffer_ctx.owner is None
+    assert group.data_buffer_ctx.release_event is stream.events[-1]
+    GFSDPParamGroup._prefetch_unshard(target, "backward")
     assert target.unsharded
 
 

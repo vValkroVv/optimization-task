@@ -4,6 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
 from collections.abc import Iterable
 
 import torch
@@ -62,9 +63,7 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
     if excluded_fqns:
         blocks = [segment for segment in model.named_segments() if segment.is_block]
         available_fqns = {segment.fqn for segment in blocks}
-        unmatched_fqns = [
-            name for name in excluded_fqns if name not in available_fqns
-        ]
+        unmatched_fqns = [name for name in excluded_fqns if name not in available_fqns]
         if unmatched_fqns:
             raise ValueError(
                 "compile.cudagraph_exclude_blocks contains unmatched block FQNs: "
@@ -92,6 +91,39 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
             "a seq-len warmup may recompile each block at the fusion thresholds"
         )
 
+    options = {}
+    stats_only = os.environ.get("GIFT_CUTE_NORM_SAC_STATS_ONLY") == "1"
+    fuse_skip_gradient = os.environ.get("GIFT_CUTE_NORM_BWD_SKIP") == "1"
+    fuse_norm_pair = os.environ.get("GIFT_CUTE_NORM_PAIR") == "1"
+    if fuse_norm_pair and (
+        not stats_only or os.environ.get("GIFT_CUTE_NORM_FUSE_RESIDUAL") != "1"
+    ):
+        raise ValueError(
+            "GIFT_CUTE_NORM_PAIR requires GIFT_CUTE_NORM_SAC_STATS_ONLY=1 "
+            "and GIFT_CUTE_NORM_FUSE_RESIDUAL=1"
+        )
+    if stats_only or fuse_skip_gradient or fuse_norm_pair:
+        if compile_config.backend != "inductor":
+            raise ValueError("CuTe norm graph passes require the Inductor backend")
+        from torch._inductor.custom_graph_pass import get_custom_graph_passes
+
+        from torchtitan.models.common.norms.cute_gated_norm.compiler import (
+            GatedNormPairPass,
+            GatedNormSkipGradientPass,
+            GatedNormStatsOnlyPass,
+        )
+
+        passes = list(
+            get_custom_graph_passes(torch._inductor.config.post_grad_custom_post_pass)
+        )
+        if stats_only:
+            passes.append(GatedNormStatsOnlyPass())
+        if fuse_norm_pair:
+            passes.append(GatedNormPairPass())
+        if fuse_skip_gradient:
+            passes.append(GatedNormSkipGradientPass())
+        options["post_grad_custom_post_pass"] = tuple(passes)
+
     compiled: dict[str, int] = {}
     segments = blocks if blocks is not None else model.named_segments()
     for segment in segments:
@@ -99,11 +131,14 @@ def apply_compile(model: Module, compile_config: CompileConfig) -> None:
             continue
         regions = getattr(segment.module, "_ffn_overlap_regions", None)
         for region in regions if regions is not None else (segment.module,):
+            block_options = options
             if segment.fqn in excluded_fqns:
+                block_options = {**options, "triton.cudagraphs": False}
+            if block_options:
                 region.compile(
                     backend=compile_config.backend,
                     fullgraph=True,
-                    options={"triton.cudagraphs": False},
+                    options=block_options,
                 )
             else:
                 region.compile(backend=compile_config.backend, fullgraph=True)

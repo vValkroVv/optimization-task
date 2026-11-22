@@ -125,6 +125,57 @@ def test_empty_exclusions_keep_the_canonical_compile_kwargs(monkeypatch):
     )
 
 
+
+def test_cute_passes_keep_inductor_options_and_pass_order(monkeypatch):
+    from torch._inductor.custom_graph_pass import CustomGraphPass
+
+    from torchtitan.models.common.norms.cute_gated_norm.compiler import (
+        GatedNormPairPass,
+        GatedNormSkipGradientPass,
+        GatedNormStatsOnlyPass,
+    )
+
+    class ExistingPass(CustomGraphPass):
+        def __call__(self, graph):
+            return None
+
+        def uuid(self):
+            return "existing"
+
+    def fake_compile(fn, *, backend, fullgraph, options):
+        assert backend == "inductor" and fullgraph
+        calls.append(options)
+        return fn
+
+    calls = []
+    monkeypatch.setattr(torch, "compile", fake_compile)
+    for flag in (
+        "GIFT_CUTE_NORM_FUSE_RESIDUAL",
+        "GIFT_CUTE_NORM_SAC_STATS_ONLY",
+        "GIFT_CUTE_NORM_BWD_SKIP",
+        "GIFT_CUTE_NORM_PAIR",
+    ):
+        monkeypatch.setenv(flag, "1")
+    existing = ExistingPass()
+    with torch._inductor.config.patch(post_grad_custom_post_pass=existing):
+        apply_compile(
+            _TinyModel(),
+            CompileConfig(enable=True, cudagraph_exclude_blocks=["layers.0"]),
+        )
+        assert torch._inductor.config.post_grad_custom_post_pass is existing
+
+    first, second = calls
+    assert first["triton.cudagraphs"] is False
+    assert "triton.cudagraphs" not in second
+    assert first["post_grad_custom_post_pass"] is second["post_grad_custom_post_pass"]
+    assert tuple(map(type, second["post_grad_custom_post_pass"])) == (
+        ExistingPass,
+        GatedNormStatsOnlyPass,
+        GatedNormPairPass,
+        GatedNormSkipGradientPass,
+    )
+
+
 def test_campaign_selects_17_moe_blocks_through_selective_ac(monkeypatch, caplog):
     from torchtitan.models.common.moe.dispatch.hybridep import (
         HybridEPTokenDispatcher,

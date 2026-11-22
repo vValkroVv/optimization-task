@@ -1,0 +1,35 @@
+config_version: 1
+imports:
+  - ../../gift/configs/experiments/gift_100b_crop8_ep8_fp8_compile_cute.yaml
+  - ../overnight-streaming-perf/mds-dataloader.yaml
+dataloader:
+  num_prefetch_batches: 32
+parallelism:
+  expert_parallel_degree: 8
+  gfsdp_split_layer0_ffn: true
+  gfsdp_split_mtp_ffn: true
+  gfsdp_row_owner_embeddings: true
+  gfsdp_mtp_transition_prefetch: true
+  gfsdp_reuse_bf16_expert_weights: true
+  gfsdp_fp8_expert_weights: true
+  gfsdp_direct_expert_dw: true
+  gfsdp_retain_tail_weights: true
+  gfsdp_compact_expert_owner: false
+loss:
+  num_chunks: 2
+  num_chunks_on_monitoring_steps: null
+model:
+  config:
+    blocks:
+      gdn_moe:
+        moe:
+          experts:
+            token_dispatcher:
+              token_drop:
+                branchless_capacity_drop: true
+      mla_moe:
+        moe:
+          experts:
+            token_dispatcher:
+              token_drop:
+                branchless_capacity_drop: true

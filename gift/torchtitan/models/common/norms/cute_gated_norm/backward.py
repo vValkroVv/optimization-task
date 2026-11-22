@@ -618,10 +618,14 @@ class GnBwdFin:
 # B2: dx, dW_up, dw
 # =============================================================================
 class GnBwdDx(_BwdTile):
-    def __init__(self, hidden, rank, n_hc, n_groups, lgw, stages, epi_stage=2):
+    def __init__(
+        self, hidden, rank, n_hc, n_groups, lgw, stages, epi_stage=2, *, skip_first=None
+    ):
         super().__init__(hidden, rank, n_hc, n_groups, lgw, stages)
         self.epi_stage = epi_stage
         self.inv_h = 1.0 / float(hidden)
+        self.add_skip = skip_first is not None
+        self.skip_first = skip_first
 
     @cute.jit
     def __call__(
@@ -638,6 +642,7 @@ class GnBwdDx(_BwdTile):
         mDX: cute.Tensor,
         mWsGU: cute.Tensor,
         mWsW: cute.Tensor,
+        mSkip: cute.Tensor,
         stream: cuda.CUstream,
     ):
         mma_g = sm90_utils.make_trivial_tiled_mma(
@@ -701,12 +706,22 @@ class GnBwdDx(_BwdTile):
             cute.slice_(o_l, (None, None, 0)),
             (BLK_M, BLK_H),
         )
+        tma_skip, tSkip = tma_dy, tDY
+        if cutlass.const_expr(self.add_skip):
+            tma_skip, tSkip = cpasync.make_tiled_tma_atom(
+                cpasync.CopyBulkTensorTileG2SOp(),
+                mSkip,
+                cute.slice_(x_l, (None, None, 0)),
+                (BLK_M, BLK_H),
+            )
+        skip_smem = cute.cosize(x_l) if self.add_skip else 0
 
         @cute.struct
         class SharedStorage:
             mbar: cute.struct.MemRange[cutlass.Int64, self.stages * 2]
             s_x: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(x_l)], 1024]
             s_dy: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(x_l)], 1024]
+            s_skip: cute.struct.Align[cute.struct.MemRange[BF16, skip_smem], 1024]
             s_gd: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(gd_l)], 1024]
             s_gu: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(gd_l)], 1024]
             s_o: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(o_l)], 1024]
@@ -726,6 +741,8 @@ class GnBwdDx(_BwdTile):
             tX,
             tma_dy,
             tDY,
+            tma_skip,
+            tSkip,
             tma_gd,
             tGD,
             tma_gu,
@@ -763,6 +780,8 @@ class GnBwdDx(_BwdTile):
         mX: cute.Tensor,
         tma_dy: cute.CopyAtom,
         mDY: cute.Tensor,
+        tma_skip: cute.CopyAtom,
+        mSkip: cute.Tensor,
         tma_gd: cute.CopyAtom,
         mGD: cute.Tensor,
         tma_gu: cute.CopyAtom,
@@ -798,11 +817,15 @@ class GnBwdDx(_BwdTile):
             cpasync.prefetch_descriptor(tma_gd)
             cpasync.prefetch_descriptor(tma_gu)
             cpasync.prefetch_descriptor(tma_o)
+            if cutlass.const_expr(self.add_skip):
+                cpasync.prefetch_descriptor(tma_skip)
 
         storage = cutlass.utils.SmemAllocator().allocate(self.shared_storage)
         tx = 2 * cute.size_in_bytes(
             BF16, cute.slice_(x_l, (None, None, 0))
         ) + 2 * cute.size_in_bytes(BF16, cute.slice_(gd_l, (None, None, 0)))
+        if cutlass.const_expr(self.add_skip):
+            tx += cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
         ring = pipeline.PipelineTmaAsync.create(
             barrier_storage=storage.mbar.data_ptr(),
             num_stages=self.stages,
@@ -838,6 +861,18 @@ class GnBwdDx(_BwdTile):
             cute.group_modes(sDY, 0, 2),
             cute.group_modes(cute.local_tile(mDY, (BLK_M, BLK_H), (None, None)), 0, 2),
         )
+        sSkip, tSkips, tSkipg = sDY, tDYs, tDYg
+        if cutlass.const_expr(self.add_skip):
+            sSkip = storage.s_skip.get_tensor(x_l.outer, swizzle=x_l.inner)
+            tSkips, tSkipg = cpasync.tma_partition(
+                tma_skip,
+                0,
+                cute.make_layout(1),
+                cute.group_modes(sSkip, 0, 2),
+                cute.group_modes(
+                    cute.local_tile(mSkip, (BLK_M, BLK_H), (None, None)), 0, 2
+                ),
+            )
         tGDs, tGDg = cpasync.tma_partition(
             tma_gd,
             0,
@@ -889,6 +924,7 @@ class GnBwdDx(_BwdTile):
         rX = cute.make_rmem_tensor_like(acc, BF16)
         vX = s2r_thr.retile(rX)
         tSDY = s2r_thr.partition_S(sDY)
+        tSSkip = s2r_thr.partition_S(sSkip)
         rDY = cute.make_rmem_tensor_like(acc, BF16)
         vDY = s2r_thr.retile(rDY)
         r2s = cute.make_tiled_copy_C(
@@ -941,6 +977,13 @@ class GnBwdDx(_BwdTile):
                             tDYs[(None, st)],
                             tma_bar_ptr=bar,
                         )
+                        if cutlass.const_expr(self.add_skip):
+                            cute.copy(
+                                tma_skip,
+                                tSkipg[(None, rb, h_base + j)],
+                                tSkips[(None, st)],
+                                tma_bar_ptr=bar,
+                            )
                         cute.copy(
                             tma_gd,
                             tGDg[(None, h_base + j, 0)],
@@ -1041,11 +1084,22 @@ class GnBwdDx(_BwdTile):
                         xh = rv * xv
                         dw[jj * n_col + (i % 2) + 2 * (i // 4)] += dyv * xh
                         acc[i] = rv * wv * dyv - sB[crd[0]] * xv
+                    if cutlass.const_expr(self.add_skip):
+                        cute.copy(s2r, tSSkip[(None, None, None, st)], vDY)
                     ring.consumer_release(cons)
                     cons.advance()
                     cons.advance()
 
-                    r_out.store(acc.load().to(BF16))
+                    if cutlass.const_expr(self.add_skip):
+                        # Preserve the rounding of the separately stored dx.
+                        rounded_dx = acc.load().to(BF16).to(F32)
+                        skip = rDY.load().to(F32)
+                        if cutlass.const_expr(self.skip_first):
+                            r_out.store((skip + rounded_dx).to(BF16))
+                        else:
+                            r_out.store((rounded_dx + skip).to(BF16))
+                    else:
+                        r_out.store(acc.load().to(BF16))
                     buf = w * self.epi_stage + n_store % self.epi_stage
                     cute.copy(r2s, tRS_b, tRS_s[(None, None, None, buf)])
                     cute.arch.fence_proxy("async.shared", space="cta")
@@ -1147,6 +1201,8 @@ class GnBwdWFin:
 # =============================================================================
 B1_MAX_HC, B2_MAX_HC = 1024, 512
 B1_STAGES, B2_STAGES = 8, 7
+# A skip tile adds 8 KiB per stage. Six stages fit SM90 shared memory.
+B2_SKIP_STAGES = 6
 
 
 def pick_bwd_split(H, sms, max_hc):
@@ -1170,9 +1226,9 @@ def pick_bwd_split(H, sms, max_hc):
     return best[1], best[2]
 
 
-def _bwd_plan(H, R, lgw, dev, grad_dtypes, sms):
+def _bwd_plan(H, R, lgw, dev, grad_dtypes, sms, *, skip_first=None):
     """Compile an M-independent backward plan for one SM budget."""
-    key = ("bwd", H, R, lgw, dev.index, grad_dtypes, sms)
+    key = ("bwd", H, R, lgw, dev.index, grad_dtypes, sms, skip_first)
     plan = PLANS.get(key)
     if plan is None:
         n1, groups1 = pick_bwd_split(H, sms, B1_MAX_HC)
@@ -1236,8 +1292,16 @@ def _bwd_plan(H, R, lgw, dev, grad_dtypes, sms):
             ),
         )
         b2 = compile_op(
-            ("b2", H, R, n2, groups2, lgw),
-            lambda: GnBwdDx(H, R, n2, groups2, lgw, B2_STAGES),
+            ("b2", H, R, n2, groups2, lgw, skip_first),
+            lambda: GnBwdDx(
+                H,
+                R,
+                n2,
+                groups2,
+                lgw,
+                B2_SKIP_STAGES if skip_first is not None else B2_STAGES,
+                skip_first=skip_first,
+            ),
             (
                 make_fake_compact_tensor(
                     BF16, (m, H), stride_order=(1, 0), assumed_align=16
@@ -1274,6 +1338,9 @@ def _bwd_plan(H, R, lgw, dev, grad_dtypes, sms):
                 ),
                 make_fake_compact_tensor(
                     F32, (groups2, H), stride_order=(1, 0), assumed_align=4
+                ),
+                make_fake_compact_tensor(
+                    BF16, (m, H), stride_order=(1, 0), assumed_align=16
                 ),
             ),
         )
@@ -1324,6 +1391,8 @@ def gated_norm_bwd(
     grad_dtypes,
     *,
     num_sms=None,
+    skip=None,
+    skip_first=True,
 ):
     """Run backward using the forward's saved row statistics and prepared weights."""
     H = x.shape[-1]
@@ -1340,6 +1409,7 @@ def gated_norm_bwd(
         dev,
         tuple(grad_dtypes),
         sms,
+        skip_first=None if skip is None else skip_first,
     )
     shapes = [
         (n1, M, R),
@@ -1357,7 +1427,8 @@ def gated_norm_bwd(
     b1(x2d, dy2d, w_f, gd_bf, gd_t, rho, p, ds_part, c1_part, ws_gd)
     b1f(ds_part, c1_part, p, dp, c)
     dx = torch.empty_like(x2d)
-    b2(x2d, dy2d, w_f, gd_bf, gu_t, rho, p, dp, c, dx, ws_gu, ws_w)
+    skip2d = dy2d if skip is None else skip.view(M, H)
+    b2(x2d, dy2d, w_f, gd_bf, gu_t, rho, p, dp, c, dx, ws_gu, ws_w, skip2d)
     dweight = torch.empty(H, device=dev, dtype=grad_dtypes[0])
     dgate_up = torch.empty(R, H, device=dev, dtype=grad_dtypes[1])
     dgate_down = torch.empty(H, R, device=dev, dtype=grad_dtypes[2])

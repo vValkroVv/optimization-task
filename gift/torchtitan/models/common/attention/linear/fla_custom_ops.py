@@ -7,11 +7,12 @@ its int-heavy ``cu_seqlens`` index math out of the selective-AC op stream, which
 otherwise desyncs the SAC recompute replay (``Autograd not support dtype: Int``);
 the ops are also on the SAC MUST_SAVE list (see ``distributed/activation_checkpoint.py``).
 
-A custom op is opaque to autograd, so each registers its own backward via
-:func:`vjp_via_recompute`. ``fla`` is imported lazily inside the op bodies.
+A custom op is opaque to autograd, so each registers a backward. The default
+backwards use :func:`vjp_via_recompute`. ``fla`` is imported lazily inside the op bodies.
 """
 
 from collections.abc import Callable
+from inspect import unwrap
 
 import torch
 
@@ -83,6 +84,7 @@ def qkv_conv1d_unpack_op(
     cu_seqlens: torch.Tensor | None,
     normalize_qk: bool,
     eps: float,
+    fuse_backward: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Opaque custom-op wrapper over fla's ``fused_qkv_conv1d_unpack`` (short conv)."""
     from fla.ops.common.fused_conv_qkv import fused_qkv_conv1d_unpack
@@ -114,6 +116,7 @@ def _(
     cu_seqlens,
     normalize_qk,
     eps,
+    fuse_backward=False,
 ):
     bs, seqlen = qkv.shape[0], qkv.shape[1]
     return (
@@ -126,7 +129,6 @@ def _(
 def _qkv_conv_setup(ctx, inputs, output):
     qkv, weight = inputs[0], inputs[1]
     ctx.save_for_backward(qkv, weight)
-    # num_heads, num_v_heads, head_dim, head_v_dim, cu_seqlens, normalize_qk, eps
     ctx.fwd_args = inputs[2:]
 
 
@@ -157,16 +159,37 @@ _RECOMPUTE["qkv_conv1d"] = _qkv_conv_recompute
 
 
 def _qkv_conv_backward(ctx, grad_q, grad_k, grad_v):
-    nh, nvh, hd, hvd, cu_seqlens, normalize_qk, eps = ctx.fwd_args
-    d_qkv, d_weight = fla_vjp(
-        "qkv_conv1d",
-        list(ctx.saved_tensors),
-        [grad_q, grad_k, grad_v],
-        [cu_seqlens],
-        [nh, nvh, hd, hvd, normalize_qk, eps],
-        "",
-    )
-    return d_qkv, d_weight, None, None, None, None, None, None, None
+    nh, nvh, hd, hvd, cu_seqlens, normalize_qk, eps, fuse_backward = ctx.fwd_args
+    qkv, weight = ctx.saved_tensors
+    if fuse_backward and qkv.is_cuda and qkv.numel() != 0:
+        from torchtitan.models.common.attention.linear.gdn_short_conv import (
+            gdn_short_conv_backward,
+        )
+
+        d_qkv, d_weight = gdn_short_conv_backward(
+            qkv,
+            weight,
+            grad_q,
+            grad_k,
+            grad_v,
+            cu_seqlens,
+            nh,
+            nvh,
+            hd,
+            hvd,
+            normalize_qk,
+            eps,
+        )
+    else:
+        d_qkv, d_weight = fla_vjp(
+            "qkv_conv1d",
+            [qkv, weight],
+            [grad_q, grad_k, grad_v],
+            [cu_seqlens],
+            [nh, nvh, hd, hvd, normalize_qk, eps],
+            "",
+        )
+    return d_qkv, d_weight, None, None, None, None, None, None, None, None
 
 
 qkv_conv1d_unpack_op.register_autograd(
@@ -184,6 +207,7 @@ def gdn_chunk_op(
     A_log: torch.Tensor,
     dt_bias: torch.Tensor,
     cu_seqlens: torch.Tensor | None,
+    direct_fla_backward: bool = False,
 ) -> torch.Tensor:
     """Opaque custom-op wrapper over fla's ``chunk_gated_delta_rule`` (output only).
 
@@ -191,56 +215,59 @@ def gdn_chunk_op(
     decay input ``g`` is gated as ``-exp(A_log) * softplus(g + dt_bias)`` and cumsummed
     inside the kernel, so both receive grads via the recompute backward.
     """
-    from fla.ops.gated_delta_rule import chunk_gated_delta_rule
-
     with torch.no_grad():
-        o, _ = chunk_gated_delta_rule(
-            q=q,
-            k=k,
-            v=v,
-            g=g,
-            beta=beta,
-            A_log=A_log,
-            dt_bias=dt_bias,
-            output_final_state=False,
-            use_qk_l2norm_in_kernel=False,
-            use_gate_in_kernel=True,
-            cu_seqlens=cu_seqlens,
+        o = _run_gdn_chunk(
+            q, k, v, g, beta, A_log, dt_bias, cu_seqlens, direct_fla_backward
         )
     return o.contiguous()
 
 
 @gdn_chunk_op.register_fake
-def _(q, k, v, g, beta, A_log, dt_bias, cu_seqlens):
-    return torch.empty_like(v)
+def _(q, k, v, g, beta, A_log, dt_bias, cu_seqlens, direct_fla_backward=False):
+    return torch.empty_like(v, dtype=q.dtype, memory_format=torch.contiguous_format)
 
 
 def _gdn_chunk_setup(ctx, inputs, output):
-    q, k, v, g, beta, A_log, dt_bias, cu_seqlens = inputs
-    ctx.save_for_backward(q, k, v, g, beta, A_log, dt_bias)
-    ctx.cu_seqlens = cu_seqlens
+    q, k, v, g, beta, A_log, dt_bias, cu_seqlens, direct_fla_backward = inputs
+    ctx.save_for_backward(q, k, v, g, beta, A_log, dt_bias, cu_seqlens)
+    ctx.direct_fla_backward = direct_fla_backward
+
+
+def _run_gdn_chunk(q, k, v, g, beta, A_log, dt_bias, cu_seqlens, native_fla):
+    from fla.ops.gated_delta_rule import chunk_gated_delta_rule
+
+    kwargs = {}
+    if native_fla:
+        from torchtitan.models.common.attention.linear.gdn_fla_backward import (
+            GDN_FLA_CHUNK_SIZE,
+        )
+
+        # Backward consumes native FLA intermediates, so bypass backend dispatch.
+        chunk_gated_delta_rule = unwrap(chunk_gated_delta_rule)
+        kwargs["chunk_size"] = GDN_FLA_CHUNK_SIZE
+    o, _ = chunk_gated_delta_rule(
+        q=q,
+        k=k,
+        v=v,
+        g=g,
+        beta=beta,
+        A_log=A_log,
+        dt_bias=dt_bias,
+        output_final_state=False,
+        use_qk_l2norm_in_kernel=False,
+        use_gate_in_kernel=True,
+        cu_seqlens=cu_seqlens,
+        **kwargs,
+    )
+    return o
 
 
 def _gdn_chunk_recompute(static, scalars, text):
-    from fla.ops.gated_delta_rule import chunk_gated_delta_rule
-
     (cu_seqlens,) = static
+    native_fla = bool(scalars and scalars[0])
 
     def run(q, k, v, g, beta, A_log, dt_bias):
-        out = chunk_gated_delta_rule(
-            q=q,
-            k=k,
-            v=v,
-            g=g,
-            beta=beta,
-            A_log=A_log,
-            dt_bias=dt_bias,
-            use_qk_l2norm_in_kernel=False,
-            use_gate_in_kernel=True,
-            cu_seqlens=cu_seqlens,
-            output_final_state=False,
-        )
-        return out[0]
+        return _run_gdn_chunk(q, k, v, g, beta, A_log, dt_bias, cu_seqlens, native_fla)
 
     return run
 
@@ -249,10 +276,24 @@ _RECOMPUTE["gdn_chunk"] = _gdn_chunk_recompute
 
 
 def _gdn_chunk_backward(ctx, grad_o):
-    grads = fla_vjp(
-        "gdn_chunk", list(ctx.saved_tensors), [grad_o], [ctx.cu_seqlens], [], ""
-    )
-    return (*grads, None)
+    *leaves, cu_seqlens = ctx.saved_tensors
+    q = leaves[0]
+    if ctx.direct_fla_backward and q.is_cuda and q.numel() != 0:
+        from torchtitan.models.common.attention.linear.gdn_fla_backward import (
+            gdn_fla_backward,
+        )
+
+        grads = gdn_fla_backward(*leaves, grad_o, cu_seqlens)
+    else:
+        grads = fla_vjp(
+            "gdn_chunk",
+            leaves,
+            [grad_o],
+            [cu_seqlens],
+            [ctx.direct_fla_backward],
+            "",
+        )
+    return (*grads, None, None)
 
 
 gdn_chunk_op.register_autograd(_gdn_chunk_backward, setup_context=_gdn_chunk_setup)

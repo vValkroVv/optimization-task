@@ -26,6 +26,7 @@ from ._param_group import (
 )
 
 if TYPE_CHECKING:
+    from ._owner_transport import ExpertOwnerTransport
     from ._param import GFSDPParam
 
     try:
@@ -34,6 +35,48 @@ if TYPE_CHECKING:
         pass
 
 logger = logging.getLogger("gfsdp")
+
+
+def _alias_buffer_region(
+    source: GFSDPBufferContext, sizes: dict[torch.dtype | None, int]
+) -> GFSDPBufferContext:
+    """Create a bounded alias using storage-root-relative byte offsets."""
+    offsets = {}
+    for dtype, size in sizes.items():
+        if dtype not in source.buffers:
+            raise ValueError(f"Buffer region does not contain dtype bucket {dtype}")
+        if size < 0 or size > source.buffers[dtype].numel():
+            raise ValueError(
+                f"Requested {size} bytes from a {source.buffers[dtype].numel()}-byte "
+                f"{dtype} buffer region"
+            )
+        # region() offsets are relative to _storage_ctx, even when the source
+        # view is nested. Keep this range inside the source's absolute interval.
+        offsets[dtype] = source._ranges[dtype][0]
+    return source._storage_ctx.region(sizes, offsets)
+
+
+def _validate_region_retention(
+    transition_ctx: GFSDPBufferContext,
+    groups_by_ctx: dict[GFSDPBufferContext, list[GFSDPParamGroup]],
+    retains: Callable[[GFSDPParamGroup], bool],
+    buffer_name: str,
+    policy: str,
+) -> None:
+    # Exact-context conflicts are already checked. Compare live groups only
+    # across distinct views of the storage reused by the transition.
+    retained: dict[GFSDPBufferContext, GFSDPParamGroup] = {}
+    for ctx in transition_ctx._storage_ctx._regions:
+        for group in groups_by_ctx.get(ctx, ()):
+            if retains(group):
+                for other_ctx, other in retained.items():
+                    if ctx.overlaps(other_ctx):
+                        raise ValueError(
+                            "Only one parameter group across groups which share a "
+                            f"{buffer_name} is allowed to have {policy}, but got "
+                            f"{group=} and {other=}"
+                        )
+                retained[ctx] = group
 
 
 class GFSDPStateContext:
@@ -53,6 +96,14 @@ class GFSDPStateContext:
         self.post_backward_final_callback_queued: bool = False
         # Whether to finalize backward in this backward's final callback
         self.is_last_backward: bool = True
+        self.owner_transport: ExpertOwnerTransport | None = None
+        # Keep unused weight prefetches live between chunked-head backwards.
+        self.retain_tail_weights: bool = False
+        # Set once after dealing buffers. Validation also runs from submodule
+        # setters, so they must see the same two transition storage roots.
+        self.buffer_region_transition_groups: (
+            tuple[GFSDPParamGroup, GFSDPParamGroup] | None
+        ) = None
         # Optional user-provided event recorded after optimizer for the
         # all-gather streams to wait on in the root pre-forward
         self.post_optim_event: torch.Event | None = None
@@ -76,7 +127,9 @@ class GFSDPState(_State):
         # ``None`` shard order means fall back to ``named_modules()`` traversal.
         self._shard_order: "list[GFSDPState] | None" = None
         self._own_grad_buffer: bool = False
+        self._owner_transport_requested = False
         self._buffer_region_child: GFSDPState | None = None
+        self._buffer_region_transition: "tuple[GFSDPState, GFSDPState, GFSDPState] | None" = None
         self._allow_no_grad_reduce: bool = False
 
     # Define a separate init since `__init__` is called in the contract
@@ -186,6 +239,19 @@ class GFSDPState(_State):
         for state in self._state_ctx.all_states:
             for fsdp_param_group in state._fsdp_param_groups:
                 fsdp_param_group.lazy_init()
+        if (transport := self._state_ctx.owner_transport) is not None:
+            for state in self._state_ctx.all_states:
+                for group in state._fsdp_param_groups:
+                    if group._owner_transport is transport:
+                        slot = group._direct_expert_dw_slot
+                        if slot is None or group._fp8_cache is None:
+                            raise RuntimeError(f"{group} lost its compact BF16 producer")
+                        transport.bind_slot(slot)
+            logger.info(
+                "GFSDP compact BF16 owner transport active: slot_bytes=%d receive_bytes=%d",
+                4 * transport.receive.nbytes,
+                transport.receive.nbytes,
+            )
         requested_cache_groups = [
             group
             for state in self._state_ctx.all_states
@@ -193,12 +259,24 @@ class GFSDPState(_State):
             if group._bf16_cache_requested
         ]
         if requested_cache_groups and not any(
-            group._bf16_cache_enabled for group in requested_cache_groups
+            group._bf16_cache_enabled or group._fp8_cache is not None
+            for group in requested_cache_groups
         ):
             warning_once(
                 logger,
                 "BF16 expert weight reuse was requested, but no GFSDP parameter "
                 "group met the supported layout; using the ordinary all-gather path",
+                stacklevel=2,
+            )
+        if any(
+            group._fp8_cache_requested and group._fp8_cache is None
+            for state in self._state_ctx.all_states
+            for group in state._fsdp_param_groups
+        ):
+            warning_once(
+                logger,
+                "FP8 expert weight reuse was requested for an unsupported GFSDP "
+                "layout; those groups are using their regular weight path",
                 stacklevel=2,
             )
 
@@ -213,7 +291,16 @@ class GFSDPState(_State):
         grad_buffer_ctx_idx_to_yccl_handle: "dict[int, yccl.Handle] | None",
     ) -> None:
         """Share communication and EMA state across the root module tree."""
+        if self._owner_transport_requested and (
+            allow_no_grad_reduce
+            or yccl_handle is not None
+            or process_group_to_yccl_handle
+            or param_group_to_data_buffer_ctx_idx is not None
+            or grad_buffer_ctx_idx_to_yccl_handle is not None
+        ):
+            raise RuntimeError("Compact BF16 owner transport requires native gradient buffers")
         self._comm_ctx.lazy_init(self._device)
+        self._comm_ctx.retain_tail_weights = self._state_ctx.retain_tail_weights
         for state in self._state_ctx.all_states:
             self._state_ctx._ema_tracked_param_groups.update(
                 state._state_ctx._ema_tracked_param_groups
@@ -272,10 +359,20 @@ class GFSDPState(_State):
         # Deal the original units, so splitting cannot change alternating slots.
         param_groups = [group for group in param_groups if group not in child_groups]
 
+        if not (
+            yccl_handle is not None
+            or process_group_to_yccl_handle
+            or param_group_to_data_buffer_ctx_idx is not None
+            or data_buffer_ctx_idx_to_yccl_handle is not None
+        ):
+            for group in param_groups:
+                if group not in region_children:
+                    group._fp8_cache_layout = group._select_fp8_weight_cache_layout()
+
         def buffer_sizes(group: GFSDPParamGroup, *, grad: bool) -> dict:
-            itemsize = (
-                group.reduce_dtype or group.param_dtype or group.orig_dtype
-            ).itemsize
+            if not grad and group._fp8_cache_layout is not None:
+                return group._fp8_cache_layout.receive_sizes_by_dtype()
+            itemsize = group._grad_slot_dtype.itemsize
             return {
                 dtype: numel
                 * (
@@ -393,6 +490,18 @@ class GFSDPState(_State):
             )
         )
 
+        if self._owner_transport_requested:
+            from ._owner_transport import admit_expert_owner_transport
+
+            self._state_ctx.owner_transport = admit_expert_owner_transport(
+                [*param_groups, *child_groups],
+                grad_buffer_ctx2ctx_using_param_groups,
+                grad_buffer_ctx2yccl_handle,
+                region_children.keys() | child_groups,
+                self._comm_ctx,
+                lambda: self._state_ctx.is_last_backward,
+            )
+
         for (
             data_buffer_ctx,
             ctx_using_param_groups,
@@ -450,6 +559,150 @@ class GFSDPState(_State):
             for param_group in ctx_using_param_groups:
                 param_group.grad_buffer_ctx = grad_buffer_ctx
                 partition(param_group, grad_buffer_ctx, grad=True)
+
+        if self._buffer_region_transition is not None:
+            source_state, data_target_state, grad_target_state = (
+                self._buffer_region_transition
+            )
+            if any(
+                state not in ordered_states
+                for state in (source_state, data_target_state, grad_target_state)
+            ):
+                raise ValueError(
+                    "Buffer region transition modules must belong to the root state"
+                )
+            if len(source_state._fsdp_param_groups) != 1:
+                raise ValueError(
+                    "Buffer region transition source must have exactly one "
+                    "parameter group"
+                )
+            source_group = source_state._fsdp_param_groups[0]
+            source_process_group = source_group.mesh_info.shard_process_group
+
+            def matching_group(state: GFSDPState, name: str) -> GFSDPParamGroup:
+                matches = [
+                    group
+                    for group in state._fsdp_param_groups
+                    if group.mesh_info.shard_process_group is source_process_group
+                ]
+                if len(matches) != 1:
+                    raise ValueError(
+                        f"Buffer region transition requires one {name} parameter "
+                        f"group on the source dense process group; got {len(matches)}"
+                    )
+                return matches[0]
+
+            data_target_group = matching_group(data_target_state, "data target")
+            grad_target_group = matching_group(grad_target_state, "gradient target")
+
+            def alias_target(
+                source_ctx: GFSDPBufferContext,
+                target_group: GFSDPParamGroup,
+                *,
+                grad: bool,
+            ) -> tuple[GFSDPBufferContext, dict[torch.dtype | None, int]]:
+                if (
+                    source_group.mesh_info.shard_mesh_size
+                    != target_group.mesh_info.shard_mesh_size
+                    or source_group.mesh_info.shard_mesh_rank
+                    != target_group.mesh_info.shard_mesh_rank
+                    or source_group._shard_alignment != target_group._shard_alignment
+                    or source_group.param_dtype != target_group.param_dtype
+                    or source_group.reduce_dtype != target_group.reduce_dtype
+                    or source_group.orig_dtype != target_group.orig_dtype
+                    or source_group.mp_policy != target_group.mp_policy
+                ):
+                    raise ValueError(
+                        "Buffer region transition groups must have matching mesh "
+                        "and precision"
+                    )
+                sizes = buffer_sizes(target_group, grad=grad)
+                offsets = {}
+                for dtype, size in sizes.items():
+                    if dtype not in source_ctx.buffers:
+                        raise ValueError(
+                            "Buffer region transition dtype buckets do not match: "
+                            f"{dtype} is missing from the MTP FFN region"
+                        )
+                    start, end = source_ctx._ranges[dtype]
+                    item_dtype = (
+                        target_group.reduce_dtype
+                        or target_group.param_dtype
+                        or target_group.orig_dtype
+                        if grad
+                        else dtype
+                        or target_group.param_dtype
+                        or target_group.orig_dtype
+                    )
+                    alignment = (
+                        target_group.mesh_info.shard_mesh_size
+                        * target_group._shard_alignment
+                        * item_dtype.itemsize
+                    )
+                    capacity = end - start
+                    if size > capacity:
+                        raise ValueError(
+                            "Buffer region transition exceeds MTP FFN region "
+                            f"capacity for {dtype}: need {size} bytes, have {capacity}"
+                        )
+                    if start % alignment or size % alignment:
+                        raise ValueError(
+                            "Buffer region transition is not shard-aligned for "
+                            f"{dtype}: offset={start}, size={size}, alignment={alignment}"
+                        )
+                    offsets[dtype] = start
+                return _alias_buffer_region(source_ctx, sizes), offsets
+
+            source_data_ctx = source_group.data_buffer_ctx
+            source_grad_ctx = source_group.grad_buffer_ctx
+            if source_grad_ctx is None:
+                raise ValueError(
+                    "Buffer region transition source has no gradient buffer"
+                )
+            data_alias, data_offsets = alias_target(
+                source_data_ctx, data_target_group, grad=False
+            )
+            grad_alias, grad_offsets = alias_target(
+                source_grad_ctx, grad_target_group, grad=True
+            )
+            data_target_group.data_buffer_ctx = data_alias
+            grad_target_group.grad_buffer_ctx = grad_alias
+            for group in (*param_groups, *child_groups):
+                if group.data_buffer_ctx._storage_ctx is source_data_ctx._storage_ctx:
+                    group._protect_data_buffer_lease = True
+            source_group._post_backward_prefetch_target = data_target_group
+            self._state_ctx.buffer_region_transition_groups = (
+                source_group,
+                data_target_group,
+            )
+
+            def alias_summary(
+                alias: GFSDPBufferContext,
+                source_ctx: GFSDPBufferContext,
+                offsets: dict[torch.dtype | None, int],
+            ) -> dict[str, dict[str, int]]:
+                return {
+                    str(dtype): {
+                        "offset_bytes": offsets[dtype],
+                        "size_bytes": size,
+                        "capacity_bytes": source_ctx.buffers[dtype].numel(),
+                        "pool_bytes": alias._storage_ctx.buffers[dtype].numel(),
+                    }
+                    for dtype, size in (
+                        (dtype, tensor.numel())
+                        for dtype, tensor in alias.buffers.items()
+                    )
+                }
+
+            logger.info(
+                "GFSDP buffer region transition active: source=%s data_target=%s "
+                "grad_target=%s data=%s grad=%s",
+                source_group._module_fqn,
+                data_target_group._module_fqn,
+                grad_target_group._module_fqn,
+                alias_summary(data_alias, source_data_ctx, data_offsets),
+                alias_summary(grad_alias, source_grad_ctx, grad_offsets),
+            )
 
     def validate_shared_state(self) -> None:
         data_buffer_ctx2ctx_using_param_groups: dict[
@@ -533,6 +786,45 @@ class GFSDPState(_State):
                     "Only one parameter group across groups which share a grad buffer"
                     " is allowed to have no grad reduce"
                     f", but got {param_groups_with_no_reduce_grads=}"
+                )
+        if (transition := self._state_ctx.buffer_region_transition_groups) is not None:
+            source, target = transition
+            _validate_region_retention(
+                source.data_buffer_ctx,
+                data_buffer_ctx2ctx_using_param_groups,
+                lambda group: not group.reshard_after_forward,
+                "data buffer",
+                "no reshard after forward",
+            )
+            _validate_region_retention(
+                source.data_buffer_ctx,
+                data_buffer_ctx2ctx_using_param_groups,
+                lambda group: not group.reshard_after_backward,
+                "data buffer",
+                "no reshard after backward",
+            )
+            if source.grad_buffer_ctx is not None:
+                _validate_region_retention(
+                    source.grad_buffer_ctx,
+                    grad_buffer_ctx2ctx_using_param_groups,
+                    lambda group: not group.reduce_grads,
+                    "grad buffer",
+                    "no grad reduce",
+                )
+            if not source.reshard_after_backward:
+                raise ValueError(
+                    "MTP transition source must reshard after backward to "
+                    "release its data region"
+                )
+            if not target.reshard_after_forward:
+                raise ValueError(
+                    "MTP transition data target must reshard after forward "
+                    "to release the shared region"
+                )
+            if not target.reshard_after_backward:
+                raise ValueError(
+                    "MTP transition data target must reshard after backward "
+                    "to release the region for the next microbatch"
                 )
         data_buffer_ctx2module_prefix: dict[GFSDPBufferContext, str] = {}
         grad_buffer_ctx2module_prefix: dict[GFSDPBufferContext, str] = {}
@@ -694,14 +986,35 @@ class GFSDPState(_State):
     def _root_post_backward_final_callback(self) -> None:
         logger.debug("GFSDP::root_post_backward")
         with torch.profiler.record_function("GFSDP::root_post_backward_callback"):
+            retain_tail_weights = (
+                self._state_ctx.retain_tail_weights
+                and not self._state_ctx.is_last_backward
+            )
             for state in self._state_ctx.all_states:
+                if retain_tail_weights:
+                    state_participated = state._training_state in (
+                        TrainingState.PRE_BACKWARD,
+                        TrainingState.POST_BACKWARD,
+                    ) or any(
+                        fsdp_param_group._training_state
+                        in (TrainingState.PRE_BACKWARD, TrainingState.POST_BACKWARD)
+                        for fsdp_param_group in state._fsdp_param_groups
+                    )
                 for fsdp_param_group in state._fsdp_param_groups:
+                    if retain_tail_weights and fsdp_param_group._training_state in (
+                        TrainingState.IDLE,
+                        TrainingState.FORWARD,
+                    ):
+                        continue
                     if fsdp_param_group._training_state != TrainingState.POST_BACKWARD:
                         # Run post-backward in case forward inputs did not require
                         # gradient so the autograd backward did not run
                         fsdp_param_group.post_backward()
                     fsdp_param_group._training_state = TrainingState.IDLE
-                state._training_state = TrainingState.IDLE
+                if not retain_tail_weights:
+                    state._training_state = TrainingState.IDLE
+                elif state_participated:
+                    state._training_state = TrainingState.IDLE
                 if self._state_ctx.is_last_backward:
                     state._finalize_backward()
                 for fsdp_param_group in state._fsdp_param_groups:
@@ -716,6 +1029,8 @@ class GFSDPState(_State):
                         for yccl_handle in grad_buffer_ctx.yccl_handles.values():
                             if yccl_handle is not None:
                                 yccl_handle.process_profiling_events()
+            if (transport := self._state_ctx.owner_transport) is not None:
+                transport.finish_backward()
             if self._state_ctx.is_last_backward:
                 self._comm_ctx.post_forward_order.clear()
             self._state_ctx.post_backward_final_callback_queued = False

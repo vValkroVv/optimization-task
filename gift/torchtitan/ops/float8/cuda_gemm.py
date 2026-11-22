@@ -1,3 +1,4 @@
+import os
 from typing import TypeAlias
 
 import torch
@@ -73,6 +74,7 @@ class FP8Gemm(torch.autograd.Function):
         residual: torch.Tensor | None = None,
         is_recompute: bool = False,
         do_unpad_out: bool = True,
+        quantize_weight_tail: bool = False,
     ) -> torch.Tensor:
         """Forward autograd function
 
@@ -86,6 +88,7 @@ class FP8Gemm(torch.autograd.Function):
             residual (torch.Tensor | None): residual connection tensor
             is_recompute (bool): requantize fp8 weights on backward
             do_unpad_out (bool): do unpad gemm output if needed
+            quantize_weight_tail (bool): let the weight quantizer supply zero padding
         Returns:
             Torch.Tensor: forward output tensor
         """
@@ -110,7 +113,15 @@ class FP8Gemm(torch.autograd.Function):
             inp_quantized = quantize_vec128(inp, pack=True)
 
         # get quantized weights
-        weight = pad_tensor_if_needed(weight)
+        ctx.quantize_weight_tail = (
+            quantize_weight_tail
+            and weight.is_cuda
+            and weight.dtype == torch.bfloat16
+            and weight.is_contiguous()
+            and ctx.w_shape in ((10944, 4096), (4096, 10944))
+        )
+        if not ctx.quantize_weight_tail:
+            weight = pad_tensor_if_needed(weight)
 
         if not act_requires_grad:
             del inp
@@ -187,7 +198,10 @@ class FP8Gemm(torch.autograd.Function):
             (weight,) = restore_from_saved(ctx.tensor_objects, ctx.saved_tensors)
         ctx.tensor_objects = None
 
-        weight = pad_tensor_if_needed(weight)
+        # As for aligned weights, GFSDP restores the saved weight view before
+        # dgrad. CudaCherry supplies the same zeros in either FP8 orientation.
+        if not ctx.quantize_weight_tail:
+            weight = pad_tensor_if_needed(weight)
         weight_quantized = quantize_blk128x128(
             weight, transpose_output=True, pack=False
         )
@@ -243,6 +257,7 @@ class FP8Gemm(torch.autograd.Function):
             grad_output if ctx.has_residual else None,
             None,  # is_recompute
             None,  # do_unpad_out
+            None,  # quantize_weight_tail
         )
 
 
@@ -258,6 +273,9 @@ class FP8Linear(nn.Linear, Module):
             )
         self.in_features, self.out_features = config.require_features()
         self._is_recompute = False
+        self._quantize_weight_tail = (
+            os.environ.get("GIFT_FP8_QUANTIZE_WEIGHT_TAIL") == "1"
+        )
         super().__init__(
             self.in_features,
             self.out_features,
@@ -307,6 +325,7 @@ class FP8Linear(nn.Linear, Module):
             residual,
             is_recompute,
             do_unpad_out,
+            self._quantize_weight_tail,
         )
 
     def forward(

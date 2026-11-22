@@ -1,0 +1,141 @@
+--- a/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh
++++ b/deep_gemm/include/deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh
+@@ -17,6 +17,13 @@
+ namespace deep_gemm {
+ 
+ using namespace deep_gemm::sm90;
++
++__device__ __forceinline__ uint32_t bf16_add_positive_zero(uint32_t packed) {
++    uint32_t reduced;
++    // Match the legacy TMA BF16 reduction into a positive-zero destination.
++    asm("add.rn.bf16x2 %0, %1, %2;" : "=r"(reduced) : "r"(packed), "r"(0u));
++    return reduced;
++}
+ 
+ template <uint32_t SHAPE_M, uint32_t SHAPE_N, uint32_t SHAPE_K,
+           uint32_t kNumGroups,
+@@ -359,12 +366,14 @@
+             } else {
+                 #pragma unroll
+                 for (auto i = 0; i < WGMMA::kNumAccum / 4; ++ i) {
+-                    auto packed_0 = cast_into_bf16_and_pack(final_accum[i * 4 + 0], final_accum[i * 4 + 1]);
+-                    auto packed_1 = cast_into_bf16_and_pack(final_accum[i * 4 + 2], final_accum[i * 4 + 3]);
+-                    st_shared(reinterpret_cast<const uint32_t*>(smem_d + r_0 * BLOCK_N + col_idx * 2 + i * 8),
+-                              static_cast<uint32_t>(packed_0));
+-                    st_shared(reinterpret_cast<const uint32_t*>(smem_d + r_1 * BLOCK_N + col_idx * 2 + i * 8),
+-                              static_cast<uint32_t>(packed_1));
++                    auto packed_0 = static_cast<uint32_t>(cast_into_bf16_and_pack(final_accum[i * 4 + 0], final_accum[i * 4 + 1]));
++                    auto packed_1 = static_cast<uint32_t>(cast_into_bf16_and_pack(final_accum[i * 4 + 2], final_accum[i * 4 + 3]));
++                    if constexpr (kGemmType == GemmType::KGroupedContiguous and not kWithAccumulation) {
++                        packed_0 = bf16_add_positive_zero(packed_0);
++                        packed_1 = bf16_add_positive_zero(packed_1);
++                    }
++                    st_shared(reinterpret_cast<const uint32_t*>(smem_d + r_0 * BLOCK_N + col_idx * 2 + i * 8), packed_0);
++                    st_shared(reinterpret_cast<const uint32_t*>(smem_d + r_1 * BLOCK_N + col_idx * 2 + i * 8), packed_1);
+                 }
+             }
+             cute::tma_store_fence();
+--- a/csrc/jit_kernels/impls/sm90_fp8_gemm_1d1d.hpp
++++ b/csrc/jit_kernels/impls/sm90_fp8_gemm_1d1d.hpp
+@@ -34,6 +34,7 @@
+ 
+     static std::string generate_impl(const Args& args) {
+         return fmt::format(R"(
++{}
+ #include <deep_gemm/impls/sm90_fp8_gemm_1d1d.cuh>
+ 
+ using namespace deep_gemm;
+@@ -52,6 +53,8 @@
+     >);
+ }};
+ )",
++        args.gemm_config.gemm_type == GemmType::KGroupedContiguous and not args.gemm_config.with_accumulation ?
++            "#define sm90_fp8_gemm_1d1d_impl sm90_k_grouped_fp8_gemm_bf16_overwrite_impl" : "",
+         get_compiled_dim(args.m, 'm', args.compiled_dims), get_compiled_dim(args.n, 'n', args.compiled_dims), get_compiled_dim(args.k, 'k', args.compiled_dims),
+         args.num_groups,
+         args.gemm_config.block_m, args.gemm_config.block_n, args.gemm_config.block_k,
+@@ -140,28 +143,28 @@
+     SM90FP8Gemm1D1DRuntime::launch(runtime, args);
+ }
+ 
+-static void sm90_k_grouped_fp8_gemm_1d1d(const torch::Tensor& a, const torch::Tensor& sfa,
+-                                         const torch::Tensor& b, const torch::Tensor& sfb,
+-                                         const std::optional<torch::Tensor>& c,
+-                                         const torch::Tensor& d,
++static void sm90_k_grouped_fp8_gemm_bf16_overwrite(const torch::Tensor& a, const torch::Tensor& sfa,
++                                                  const torch::Tensor& b, const torch::Tensor& sfb,
++                                                  const torch::Tensor& d,
+                                          const int& m, const int& n,
+                                          const std::vector<int>& ks, const torch::Tensor& ks_tensor,
+                                          const torch::Tensor& tensor_map_buffer,
+                                          const cute::UMMA::Major& major_a, const cute::UMMA::Major& major_b,
+                                          const std::string& compiled_dims) {
+-    DG_HOST_ASSERT(d.scalar_type() == torch::kFloat or d.scalar_type() == torch::kBFloat16);
+-    DG_HOST_ASSERT(c.has_value());
++    DG_HOST_ASSERT(d.scalar_type() == torch::kBFloat16);
+     DG_HOST_ASSERT(major_a == cute::UMMA::Major::K and major_b == cute::UMMA::Major::K);
+ 
+     // Get config using max K for better performance
+     const auto& num_groups = static_cast<int>(ks.size());
+     const auto& max_k = *std::max_element(ks.begin(), ks.end());
+-    const auto& config = get_best_config<SM90ArchSpec>(
++    auto config = get_best_config<SM90ArchSpec>(
+         GemmType::KGroupedContiguous, KernelType::Kernel1D1D,
+         m, n, max_k, num_groups, major_a, major_b,
+         a.scalar_type(), b.scalar_type(),
+-        d.scalar_type(), c.has_value(),
++        torch::kBFloat16, true,
+         device_runtime->get_num_sms());
++    // Change only the epilogue of the selected legacy BF16 configuration.
++    config.with_accumulation = false;
+ 
+     // Requires no TMA splits
+     DG_HOST_ASSERT(config.smem_config.swizzle_a_mode == config.block_k);
+@@ -212,7 +215,7 @@
+         .tensor_map_cd = tensor_map_cd,
+     };
+     const auto& code = SM90FP8Gemm1D1DRuntime::generate(args);
+-    const auto& runtime = compiler->build("sm90_fp8_gemm_1d1d", code);
++    const auto& runtime = compiler->build("sm90_k_grouped_fp8_gemm_bf16_overwrite", code);
+ 
+     SM90FP8Gemm1D1DRuntime::launch(runtime, args);
+ }
+--- a/csrc/jit/compiler.hpp
++++ b/csrc/jit/compiler.hpp
+@@ -55,6 +55,7 @@
+
+     std::string signature, flags;
+     std::filesystem::path cache_dir_path;
++    bool use_shared_cache = true;
+
+     Compiler() {
+         // Check `prepare_init`
+@@ -180,7 +181,7 @@
+             return runtime;
+         }
+
+-        const auto shared_cache_dir_path = get_env<std::string>("DG_JIT_SHARED_CACHE_DIR");
++        const auto shared_cache_dir_path = use_shared_cache ? get_env<std::string>("DG_JIT_SHARED_CACHE_DIR") : "";
+         const auto shared_dir_path = std::filesystem::path(shared_cache_dir_path) / "cache" / dir_path.filename();
+         if (not shared_cache_dir_path.empty() and KernelRuntime::check_validity(shared_dir_path)
+             and copy_kernel_dir(shared_dir_path, dir_path)) {
+diff --git a/csrc/jit/device_runtime.hpp b/csrc/jit/device_runtime.hpp
+--- a/csrc/jit/device_runtime.hpp
++++ b/csrc/jit/device_runtime.hpp
+@@ -21,14 +21,8 @@
+     cublasLtHandle_t cublaslt_handle{};
+     std::shared_ptr<torch::Tensor> cublaslt_workspace;
+
+-    explicit DeviceRuntime() {
+-        cublaslt_workspace = std::make_shared<torch::Tensor>(torch::empty({kCublasLtWorkspaceSize}, dtype(torch::kByte).device(at::kCUDA)));
+-        DG_CUBLASLT_CHECK(cublasLtCreate(&cublaslt_handle));
+-    }
+-
+-    ~DeviceRuntime() noexcept(false) {
+-        DG_CUBLASLT_CHECK(cublasLtDestroy(cublaslt_handle));
+-    }
++    // The standalone SM90 extension never calls cuBLASLt.
++    explicit DeviceRuntime() = default;
+
+     cublasLtHandle_t get_cublaslt_handle() const {
+         return cublaslt_handle;

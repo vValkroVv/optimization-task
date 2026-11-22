@@ -207,6 +207,19 @@ class TestGradAccumulator(unittest.TestCase):
         expected = torch.cat([c.float() for c in bf16_chunks], dim=1)
         torch.testing.assert_close(result, expected)
 
+    def test_direct_bf16_writes_cover_the_sequence(self):
+        reference = torch.randn(2, 10, 16, dtype=torch.bfloat16)
+        acc = GradAccumulator(
+            reference, num_chunks=4, dtype=torch.float32, direct_bf16=True
+        )
+        chunks = reference.chunk(4, dim=1)
+        for chunk in chunks[:-1]:
+            acc.add(chunk)
+        with self.assertRaisesRegex(ValueError, "did not cover"):
+            acc.result()
+        acc.add(chunks[-1])
+        torch.testing.assert_close(acc.result(), reference, rtol=0, atol=0)
+
     def test_too_many_adds_raises(self):
         """Verify error when adding more chunks than expected."""
         acc = GradAccumulator(torch.randn(2, 8, 16), num_chunks=2, dtype=torch.float32)

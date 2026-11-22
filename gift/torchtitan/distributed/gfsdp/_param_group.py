@@ -16,9 +16,20 @@ from torch.utils.hooks import RemovableHandle
 from ._api import MixedPrecisionPolicy
 from ._collectives import AllGatherResult, all_gather, reduce_scatter
 from ._common import DataParallelMeshInfo, HSDPMeshInfo, TrainingState, is_bw
+from ._fp8_expert_weight_cache import (
+    ExpertAllGatherResult,
+    ExpertFP8WeightCache,
+    ExpertWeightLayout,
+)
 from ._param import ParamModuleInfo, ShardedState, GFSDPParam
 
 if TYPE_CHECKING:
+    from torchtitan.ops.float8.direct_expert_dw import DirectExpertDwLease
+
+    from ._owner_transport import ExpertOwnerTransport
+    from ._staged_head_dw import StagedHeadDw
+    from ._staged_head_dw_writer import HeadDwWriter
+
     try:
         import yccl
     except ImportError:
@@ -46,7 +57,7 @@ class GFSDPBufferContext:
             max(start, other._ranges[dtype][0]) < min(end, other._ranges[dtype][1])
             for dtype, (start, end) in self._ranges.items()
             if dtype in other._ranges
-        )
+        ) or (self is other and not self._ranges)
 
     def overlapping_contexts(self) -> list["GFSDPBufferContext"]:
         return [ctx for ctx in self._storage_ctx._regions if self.overlaps(ctx)]
@@ -61,11 +72,29 @@ class GFSDPBufferContext:
             None,
         )
 
+    def pending_release_events(self) -> tuple[torch.Event, ...]:
+        # A context can publish a new fence while a lease holds the old one.
+        return tuple(
+            {
+                id(event): event
+                for ctx in self.overlapping_contexts()
+                if (event := ctx.release_event) is not None
+            }.values()
+        )
+
     def wait_for_release(self, stream: torch.Stream) -> None:
         # Keep other regions' events: a later reader may use another stream.
         for ctx in self.overlapping_contexts():
             if ctx.release_event is not None:
                 stream.wait_event(ctx.release_event)
+
+    def release(self, owner: Any, stream: torch.Stream | None) -> bool:
+        """Publish completion only for the current owner of this region."""
+        if self.owner is not owner:
+            return False
+        self.release_event = stream.record_event() if stream is not None else None
+        self.owner = None
+        return True
 
     @contextlib.contextmanager
     def borrow(self, stream: torch.Stream | None) -> Iterator[dict]:
@@ -142,6 +171,8 @@ class GFSDPBufferContext:
 
 
 class GFSDPCommContext:
+    retain_tail_weights: bool = False
+
     def lazy_init(self, device: torch.device) -> None:
         self.device_handle = _get_device_handle(device.type)
         # Setting the all-gather/reduce-scatter streams to be higher priority
@@ -244,10 +275,16 @@ class GFSDPParamGroup:
 
         # - CUDA events for stream synchronization
         # Holds all-gather sync objects
-        self._all_gather_result: AllGatherResult | None = None
+        self._all_gather_result: AllGatherResult | ExpertAllGatherResult | None = None
+        self._protect_data_buffer_lease = False
         # Holds the CUDA event that marks the end of the group's post-backward,
         # which should be waited on at the end of backward
         self._post_reduce_event: torch.Event | None = None
+        # Optional one-way transition set by the root after buffer dealing.
+        self._post_backward_prefetch_target: GFSDPParamGroup | None = None
+        self._staged_head_dw: StagedHeadDw | None = None
+        self._staged_head_dw_writer: HeadDwWriter | None = None
+        self._staged_head_dw_reduced = False
 
         # The expert cache reuses the existing all-gather input. Its values
         # stay valid across microbatches until a supported weight writer bumps
@@ -266,6 +303,17 @@ class GFSDPParamGroup:
         self._bf16_cache_hits = 0
         self._bf16_cache_direct_uses = 0
         self._bf16_cache_invalidations = 0
+        self._fp8_cache_requested = False
+        self._fp8_cache_layout: ExpertWeightLayout | None = None
+        self._fp8_cache: ExpertFP8WeightCache | None = None
+        self._direct_expert_dw_requested = False
+        self._direct_expert_dw_slot: torch.Tensor | None = None
+        self._direct_expert_dw_offsets = (0, 0)
+        self._direct_expert_dw_shapes: (
+            tuple[tuple[int, int, int], tuple[int, int, int]] | None
+        ) = None
+        self._direct_expert_dw_lease: DirectExpertDwLease | None = None
+        self._owner_transport: ExpertOwnerTransport | None = None
 
         self._init_mp_dtypes()
         self._requires_grad = any(param.requires_grad for param in params)
@@ -505,7 +553,20 @@ class GFSDPParamGroup:
 
             ag_dtype = all_gather_dtype or self.param_dtype or self.orig_dtype
             ag_size_bytes = padded_unsharded_param_numel * ag_dtype.itemsize
-            if self._bf16_cache_enabled and all_gather_dtype is None:
+            if self._fp8_cache is not None:
+                # Only the autograd edge uses these BF16 leaves. The grouped
+                # GEMMs read the prepared FP8 planes through their handles.
+                anchor = torch.full(
+                    (), float("nan"), dtype=ag_dtype, device=self.device
+                )
+                weight_views = tuple(
+                    anchor.expand(param._orig_size) for param in fsdp_params
+                )
+            elif (
+                self._bf16_cache_enabled
+                and all_gather_dtype is None
+                and self.mesh_info.shard_mesh_size == 1
+            ):
                 self._all_gather_output[all_gather_dtype] = self._all_gather_input[
                     all_gather_dtype
                 ]
@@ -516,7 +577,7 @@ class GFSDPParamGroup:
                     .view(ag_dtype)
                 )
 
-            rs_dtype = self.reduce_dtype or self.param_dtype or self.orig_dtype
+            rs_dtype = self._grad_slot_dtype
             rs_size_bytes = padded_unsharded_param_numel * rs_dtype.itemsize
             self._reduce_scatter_input[all_gather_dtype] = (
                 self.grad_buffer_ctx.buffers[all_gather_dtype]
@@ -527,13 +588,15 @@ class GFSDPParamGroup:
             )
 
             unsharded_param_numels = self._unsharded_param_numels[all_gather_dtype]
-            all_gather_output = self._all_gather_output[all_gather_dtype]
+            if self._fp8_cache is None:
+                all_gather_output = self._all_gather_output[all_gather_dtype]
+                weight_views = all_gather_output[: sum(unsharded_param_numels)].split(
+                    unsharded_param_numels
+                )
             reduce_scatter_input = self._reduce_scatter_input[all_gather_dtype]
             for fsdp_param, param_all_gather_output, param_reduce_scatter_input in zip(
                 fsdp_params,
-                all_gather_output[: sum(unsharded_param_numels)].split(
-                    unsharded_param_numels
-                ),
+                weight_views,
                 (
                     reduce_scatter_input[: sum(unsharded_param_numels)].split(
                         self._unsharded_param_numels[all_gather_dtype]
@@ -547,12 +610,18 @@ class GFSDPParamGroup:
                     param_all_gather_output, param_reduce_scatter_input
                 )
 
+    @property
+    def _grad_slot_dtype(self) -> torch.dtype:
+        if self._owner_transport is not None:
+            return torch.bfloat16
+        return self.reduce_dtype or self.param_dtype or self.orig_dtype
+
     def _init_reduce_scatter_output(
         self,
         all_gather_dtype: torch.dtype | None,
         fsdp_params: list[GFSDPParam],
     ) -> None:
-        if self.grad_buffer_ctx is None:
+        if self.grad_buffer_ctx is None or self._owner_transport is not None:
             return
         reduce_scatter_input = self._reduce_scatter_input[all_gather_dtype]
         assert reduce_scatter_input is not None
@@ -621,14 +690,15 @@ class GFSDPParamGroup:
             return False
         if self.orig_dtype != torch.float32 or self.param_dtype != torch.bfloat16:
             return False
-        if self._all_gather_process_group.size() != 1:
-            return False
         if set(self._all_gather_dtype_to_fsdp_params) != {None}:
             return False
         if (
-            self._unsharded_param_numels[None] != self._sharded_param_numels[None]
-            or self.padded_unsharded_param_numel[None]
-            != self._padded_sharded_param_numel[None]
+            self.mesh_info.shard_mesh_size == 1
+            and (
+                self._unsharded_param_numels[None] != self._sharded_param_numels[None]
+                or self.padded_unsharded_param_numel[None]
+                != self._padded_sharded_param_numel[None]
+            )
         ):
             return False
         if any(
@@ -652,8 +722,93 @@ class GFSDPParamGroup:
         self._bf16_cache_enabled = self._bf16_cache_layout_is_eligible()
         self._bf16_cache_finalized = True
 
+    def enable_fp8_weight_cache(self) -> None:
+        if self._bf16_cache_finalized:
+            raise RuntimeError(
+                "FP8 expert weight reuse must be enabled before GFSDP lazy init"
+            )
+        self._fp8_cache_requested = True
+
+    def disable_fp8_weight_cache(self) -> None:
+        if self._bf16_cache_finalized:
+            raise RuntimeError(
+                "FP8 expert weight reuse must be disabled before GFSDP lazy init"
+            )
+        self._fp8_cache_requested = False
+
+    def _select_fp8_weight_cache_layout(self) -> ExpertWeightLayout | None:
+        if (
+            not self._fp8_cache_requested
+            or self.device.type != "cuda"
+            or self.orig_dtype != torch.float32
+            or self.param_dtype != torch.bfloat16
+            or set(self._all_gather_dtype_to_fsdp_params) != {None}
+        ):
+            return None
+        params = self._all_gather_dtype_to_fsdp_params[None]
+        if len(params) != 2 or any(
+            hasattr(param, "_extensions_data") for param in params
+        ):
+            return None
+        w13, w2 = params
+        if (
+            w13._module_info.module is not w2._module_info.module
+            or w13._module_info.param_name != "w13_E2FD"
+            or w2._module_info.param_name != "w2_EDF"
+            or w13._module_info.shared_modules
+            or w2._module_info.shared_modules
+            or len(w13._orig_size) != 4
+            or len(w2._orig_size) != 3
+        ):
+            return None
+        experts, gates, feed_forward, model_dim = w13._orig_size
+        if gates != 2 or w2._orig_size != (experts, model_dim, feed_forward):
+            return None
+        return ExpertWeightLayout.for_flat_shards(
+            (
+                ("w13", (experts, gates * feed_forward, model_dim)),
+                ("w2", (experts, model_dim, feed_forward)),
+            ),
+            self._padded_sharded_param_numel[None],
+            self.mesh_info.shard_mesh_size,
+            self.mesh_info.shard_mesh_rank,
+        )
+
+    def _init_fp8_weight_cache(self, layout: ExpertWeightLayout) -> None:
+        from torchtitan.ops.float8.deep_gemm_handle import PreparedExpertWeight
+
+        params = self._all_gather_dtype_to_fsdp_params[None]
+        self._fp8_cache = ExpertFP8WeightCache(
+            layout, self._padded_sharded_param_data[None], self.data_buffer_ctx.buffers
+        )
+        self._all_gather_input = {}
+        self._reduce_scatter_output = {}
+        self._init_unsharded_params()
+        self._init_reduce_scatter_output(None, params)
+        self._bf16_cache_finalized = True
+        params[0]._module_info.module._gfsdp_fp8_weights = (
+            PreparedExpertWeight(self, "w13"),
+            PreparedExpertWeight(self, "w2"),
+        )
+        logger.info("%s", self._with_fqn("GFSDP FP8 expert weight cache active"))
+
+    def resolve_fp8_weight(
+        self, projection: str, expected_generation: int | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor, int]:
+        cache = self._fp8_cache
+        if (
+            cache is None
+            or not self.is_unsharded
+            or self.data_buffer_ctx.owner is not self
+        ):
+            raise RuntimeError(f"{self} does not own a live FP8 expert weight slot")
+        return cache.resolve(projection, expected_generation)
+
     def invalidate_bf16_weight_cache(self) -> None:
         """Invalidate derived weights and order the next write after readers."""
+        if self._fp8_cache is not None:
+            self._fp8_cache.invalidate(self.device_handle.current_stream())
+            return
         if not self._bf16_cache_enabled:
             return
         if self._bf16_cache_debug:
@@ -671,7 +826,11 @@ class GFSDPParamGroup:
 
     def record_weight_write(self) -> None:
         """Record completion of a supported write to the active master weights."""
-        if self._bf16_cache_enabled:
+        if self._fp8_cache is not None:
+            self._fp8_cache.writer_event = (
+                self.device_handle.current_stream().record_event()
+            )
+        elif self._bf16_cache_enabled:
             self._bf16_cache_write_event = (
                 self.device_handle.current_stream().record_event()
             )
@@ -711,6 +870,11 @@ class GFSDPParamGroup:
         self._validate_no_meta_params()
         self._validate_requires_grad_unchanged()
         self._register_state_dict_hooks()
+        if self._fp8_cache_layout is not None:
+            self._init_fp8_weight_cache(self._fp8_cache_layout)
+            if self._direct_expert_dw_requested:
+                self._init_direct_expert_dw()
+            return
         if not self._bf16_cache_requested:
             self._init_unsharded_params()
         self._all_gather_input = {}
@@ -760,6 +924,118 @@ class GFSDPParamGroup:
                 self._init_reduce_scatter_output(all_gather_dtype, fsdp_params)
         else:
             self._bf16_cache_finalized = True
+        if self._direct_expert_dw_requested:
+            self._init_direct_expert_dw()
+
+    def _init_direct_expert_dw(self) -> None:
+        from torchtitan.ops.float8.direct_expert_dw import (
+            is_supported_direct_expert_dw_shape,
+        )
+
+        params = self._all_gather_dtype_to_fsdp_params.get(None, ())
+        if (
+            self.device.type != "cuda"
+            or self.orig_dtype != torch.float32
+            or self.param_dtype != torch.bfloat16
+            or self.reduce_dtype != torch.float32
+            or set(self._all_gather_dtype_to_fsdp_params) != {None}
+            or self.grad_buffer_ctx is None
+            or self.grad_buffer_ctx.yccl_handles.get(None) is not None
+            or len(params) != 2
+            or not all(param.sharded_param.requires_grad for param in params)
+        ):
+            raise ValueError(
+                f"{self} requires native gradient staging for two trainable expert projections"
+            )
+        by_name = {param._module_info.param_name: param for param in params}
+        if by_name.keys() != {"w13_E2FD", "w2_EDF"}:
+            raise ValueError(
+                f"{self} does not contain the two routed-expert projections"
+            )
+        w13, w2 = by_name["w13_E2FD"], by_name["w2_EDF"]
+        if len(w13._orig_size) != 4 or w13._module_info.module is not w2._module_info.module:
+            raise ValueError(f"{self} has incompatible routed-expert projections")
+        num_experts, num_gates, hidden_dim, model_dim = w13._orig_size
+        shapes = (
+            (num_experts, num_gates * hidden_dim, model_dim),
+            (num_experts, model_dim, hidden_dim),
+        )
+        if (
+            num_gates != 2
+            or w2._orig_size != shapes[1]
+            or not all(is_supported_direct_expert_dw_shape(shape) for shape in shapes)
+        ):
+            raise ValueError(
+                f"{self} has shapes unsupported by the Hopper direct expert dW kernel: {shapes}"
+            )
+        slot = self._reduce_scatter_input[None]
+        w13_grad, w2_grad = (
+            w13._unsharded_accumulated_grad,
+            w2._unsharded_accumulated_grad,
+        )
+        assert slot is not None and w13_grad is not None and w2_grad is not None
+        if slot.dtype != self._grad_slot_dtype:
+            raise RuntimeError(f"{self} has a mismatched direct expert dW slot dtype")
+        if slot.numel() != w13_grad.numel() + w2_grad.numel():
+            raise ValueError(f"{self} has padding in its direct expert dW slot")
+        self._direct_expert_dw_offsets = (
+            w13_grad.storage_offset() - slot.storage_offset(),
+            w2_grad.storage_offset() - slot.storage_offset(),
+        )
+        self._direct_expert_dw_slot = slot
+        self._direct_expert_dw_shapes = shapes
+        experts = w13._module_info.module
+        experts._gfsdp_direct_dw_slot = slot
+        experts._gfsdp_direct_dw_offsets = self._direct_expert_dw_offsets
+        logger.info("%s", self._with_fqn("GFSDP direct expert dW active"))
+
+    def _acquire_direct_expert_dw(self, slot: torch.Tensor) -> None:
+        from torchtitan.ops.float8.direct_expert_dw import acquire_direct_expert_dw
+
+        if not self.reduce_grads or self._direct_expert_dw_lease is not None:
+            raise RuntimeError(f"{self} requires one direct dW lease per reduction")
+        grad_buffer_ctx = self.grad_buffer_ctx
+        assert grad_buffer_ctx is not None
+        if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
+            raise RuntimeError(
+                f"{self} tried to acquire a gradient slot owned by {owner}"
+            )
+        assert self._direct_expert_dw_shapes is not None
+        lease_options = {}
+        if slot.dtype == torch.bfloat16:
+            if self._owner_transport is None:
+                raise RuntimeError(f"{self} has a BF16 slot without owner transport")
+            lease_options["compact_bf16"] = True
+        self._direct_expert_dw_lease = acquire_direct_expert_dw(
+            slot,
+            self._direct_expert_dw_offsets,
+            self._direct_expert_dw_shapes,
+            release_events=grad_buffer_ctx.pending_release_events(),
+            **lease_options,
+        )
+        grad_buffer_ctx.owner = self
+
+    def _finish_direct_expert_dw(self, lease: "DirectExpertDwLease") -> None:
+        if self._direct_expert_dw_lease is not lease:
+            raise RuntimeError(f"{self} tried to finish a stale direct dW lease")
+        grad_buffer_ctx = self.grad_buffer_ctx
+        assert grad_buffer_ctx is not None and grad_buffer_ctx.owner is self
+        try:
+            if any(
+                param.unsharded_param.grad is not None
+                or param.unsharded_accumulated_grad is not None
+                for param in self.fsdp_params
+            ):
+                raise RuntimeError(f"{self} received another gradient during direct dW")
+            lease.finish()
+        except BaseException:
+            if (stream := lease.abort()) is not None:
+                grad_buffer_ctx.release(self, stream)
+            self._direct_expert_dw_lease = None
+            raise
+        self._direct_expert_dw_lease = None
+        for param in self.fsdp_params:
+            param.unsharded_accumulated_grad = param._unsharded_accumulated_grad
 
     @torch.no_grad()
     def setup_ema_buffer(self) -> None:
@@ -865,6 +1141,13 @@ class GFSDPParamGroup:
     # Runtime #
     def unshard(self, async_op: bool = False) -> None:
         if self._all_gather_result is not None:  # already called, pending wait
+            if (
+                self._protect_data_buffer_lease
+                or self.comm_ctx.retain_tail_weights
+                or self._fp8_cache is not None
+                or self._bf16_cache_enabled
+            ):
+                self._check_pending_all_gather_owner()
             return
         if self.is_unsharded:
             return
@@ -887,6 +1170,14 @@ class GFSDPParamGroup:
                 )
             data_buffer_ctx.wait_for_release(all_gather_stream)
             data_buffer_ctx.owner = self
+            if self._fp8_cache is not None:
+                self._all_gather_result = self._fp8_cache.gather(
+                    self._padded_sharded_param_data[None],
+                    self._all_gather_process_group,
+                    all_gather_stream,
+                    async_op,
+                )
+                return
             for (
                 all_gather_dtype,
                 fsdp_params,
@@ -929,13 +1220,45 @@ class GFSDPParamGroup:
                         self._all_gather_result.all_gather_event
                     )
 
-    def wait_for_unshard(self) -> AllGatherResult | None:
+    def wait_for_unshard(self) -> AllGatherResult | ExpertAllGatherResult | None:
         if (all_gather_result := self._all_gather_result) is None:
             return None
+        if (
+            self._protect_data_buffer_lease
+            or self.comm_ctx.retain_tail_weights
+            or self._fp8_cache is not None
+            or self._bf16_cache_enabled
+        ):
+            self._check_pending_all_gather_owner()
         all_gather_result.wait()
         self._to_unsharded()
         self._all_gather_result = None
         return all_gather_result
+
+    def _check_pending_all_gather_owner(self) -> None:
+        data_buffer_ctx = self.data_buffer_ctx
+        if (owner := data_buffer_ctx.conflicting_owner(self)) is not None:
+            raise RuntimeError(
+                f"{self} has a pending all-gather, but its data buffer is in use by {owner}."
+            )
+        if data_buffer_ctx.owner is not self:
+            raise RuntimeError(
+                f"{self} has a pending all-gather without owning its data buffer."
+            )
+
+    def _release_data_buffer(self) -> None:
+        if self._all_gather_result is not None:
+            # The gather writes on the communication stream; wait on this
+            # consumer stream before making the region available to another group.
+            self._check_pending_all_gather_owner()
+            self._all_gather_result.wait()
+            self._all_gather_result = None
+        if self.data_buffer_ctx.owner is self:
+            self.data_buffer_ctx.release(self, self.device_handle.current_stream())
+            if self._fp8_cache is not None:
+                self._fp8_cache.reader_event = self.data_buffer_ctx.release_event
+            if self._bf16_cache_enabled:
+                self._bf16_cache_reader_event = self.data_buffer_ctx.release_event
 
     def reshard(self) -> None:
         if self._training_state == TrainingState.FORWARD:
@@ -946,18 +1269,33 @@ class GFSDPParamGroup:
             # we need to reshard anyway to release the shared data buffer
             if not self.reshard_after_forward and torch.is_grad_enabled():
                 return
+        if self._protect_data_buffer_lease and (
+            self._all_gather_result is not None or self.data_buffer_ctx.owner is not self
+        ):
+            # The detached head's backward also visits idle groups. Keep a
+            # prefetched alias reserved until its consumer or final cleanup.
+            return
         logger.debug(
             "%s", self._with_fqn(f"GFSDP::{self._training_state.name.lower()}_reshard")
         )
-        if self._bf16_cache_enabled:
-            self._bf16_cache_reader_event = (
+        use_safe_release = (
+            self._protect_data_buffer_lease
+            or self.comm_ctx.retain_tail_weights
+            or self._fp8_cache is not None
+            or self._bf16_cache_enabled
+        )
+        if use_safe_release and self._all_gather_result is not None:
+            self._check_pending_all_gather_owner()
+            self._all_gather_result.wait()
+            self._all_gather_result = None
+        self._to_sharded()
+        if use_safe_release:
+            self._release_data_buffer()
+        else:
+            self.data_buffer_ctx.release_event = (
                 self.device_handle.current_stream().record_event()
             )
-        self._to_sharded()
-        self.data_buffer_ctx.release_event = (
-            self.device_handle.current_stream().record_event()
-        )
-        self.data_buffer_ctx.owner = None
+            self.data_buffer_ctx.owner = None
 
     def pre_forward(
         self, module: nn.Module, args: tuple[Any, ...], kwargs: dict[str, Any]
@@ -996,13 +1334,35 @@ class GFSDPParamGroup:
             self.wait_for_unshard()
             if default_prefetch:
                 self._backward_prefetch()
+            if self._direct_expert_dw_slot is not None:
+                self._acquire_direct_expert_dw(self._direct_expert_dw_slot)
 
     def post_backward(self, *unused: Any) -> None:  # noqa: PLR0912
         # This method should be idempotent and safe to call even when this
         # FSDP parameter group was not used in backward (should be a no-op)
         logger.debug("%s", self._with_fqn("GFSDP::post_backward"))
+        was_in_backward = self._training_state == TrainingState.PRE_BACKWARD
+        lease = self._direct_expert_dw_lease
+        if self._owner_transport is not None:
+            if not self.reduce_grads:
+                raise RuntimeError(f"{self} requires owner reduction after each direct dW")
+            if lease is None and (
+                was_in_backward
+                or any(
+                    param.unsharded_param.grad is not None
+                    or param.unsharded_accumulated_grad is not None
+                    for param in self.fsdp_params
+                )
+            ):
+                raise RuntimeError(f"{self} requires a complete direct dW lease for owner reduction")
         self._training_state = TrainingState.POST_BACKWARD
-        if (grad_buffer_ctx := self.grad_buffer_ctx) is not None:
+        grad_buffer_ctx = self.grad_buffer_ctx
+        if self._staged_head_dw is not None:
+            if self._staged_head_dw.post_backward(was_in_backward):
+                return
+        elif lease is not None:
+            self._finish_direct_expert_dw(lease)
+        elif grad_buffer_ctx is not None:
             if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
                 raise RuntimeError(
                     f"{self} tried to acquire its gradient buffer, but it is in use by {owner}."
@@ -1091,6 +1451,7 @@ class GFSDPParamGroup:
 
         assert grad_buffer_ctx is not None
         logger.debug("%s", self._with_fqn("GFSDP::post_backward_reduce"))
+        reduce_scatter_enqueued = False
         with record_function(self._with_fqn("GFSDP::post_backward_reduce")):
             for (
                 all_gather_dtype,
@@ -1123,9 +1484,22 @@ class GFSDPParamGroup:
                     cast("GFSDPBufferContext", self.grad_buffer_ctx).yccl_handles.get(
                         all_gather_dtype
                     ),
+                    owner_transport=self._owner_transport,
+                    owner_fqn=self._module_fqn,
                 )
+                reduce_scatter_enqueued = True
         grad_buffer_ctx.release_event = self._post_reduce_event
         grad_buffer_ctx.owner = None
+
+        if (
+            was_in_backward
+            and reduce_scatter_enqueued
+            and self.reduce_grads
+            and self.reshard_after_backward
+            and self.data_buffer_ctx.owner is None
+            and self._post_backward_prefetch_target is not None
+        ):
+            self._prefetch_unshard(self._post_backward_prefetch_target, "backward")
 
     def finalize_backward(self) -> None:
         self._wait_for_post_backward()
@@ -1133,9 +1507,17 @@ class GFSDPParamGroup:
             # If there was a mistargeted unshard without a corresponding wait,
             # then we wait here and clear the unshard
             logger.debug("%s", self._with_fqn("GFSDP::wait_for_mistargeted_unshard"))
-            self._all_gather_result.wait()
-            self._all_gather_result = None
-            self.data_buffer_ctx.owner = None
+            if (
+                self._protect_data_buffer_lease
+                or self.comm_ctx.retain_tail_weights
+                or self._fp8_cache is not None
+                or self._bf16_cache_enabled
+            ):
+                self._release_data_buffer()
+            else:
+                self._all_gather_result.wait()
+                self._all_gather_result = None
+                self.data_buffer_ctx.owner = None
         self._post_forward_indices.clear()
         if self._bf16_cache_enabled:
             if self._bf16_cache_prepared_generation != self._bf16_cache_generation:
@@ -1264,11 +1646,12 @@ class GFSDPParamGroup:
         return args, kwargs
 
     def _register_state_dict_hooks(self) -> None:
+        cache_requested = self._bf16_cache_requested or self._fp8_cache_requested
         num_pre_save_hooks = len(self._module_to_pre_save_state_dict_hook_handle)
         num_pre_load_hooks = len(self._module_to_pre_load_state_dict_hook_handle)
         num_post_load_hooks = len(self._module_to_post_load_state_dict_hook_handle)
         if num_pre_save_hooks != num_pre_load_hooks or (
-            self._bf16_cache_requested and num_pre_save_hooks != num_post_load_hooks
+            cache_requested and num_pre_save_hooks != num_post_load_hooks
         ):
             raise AssertionError(
                 f"Pre-save: {num_pre_save_hooks} pre-load: {num_pre_load_hooks} "
@@ -1296,12 +1679,10 @@ class GFSDPParamGroup:
             )
             self._module_to_pre_load_state_dict_hook_handle[module] = (
                 module._register_load_state_dict_pre_hook(
-                    to_sharded_before_load
-                    if self._bf16_cache_requested
-                    else to_sharded_hook
+                    to_sharded_before_load if cache_requested else to_sharded_hook
                 )
             )
-        if self._bf16_cache_requested:
+        if cache_requested:
             for module in set(modules_with_fsdp_params).union(self.modules):
                 self._module_to_post_load_state_dict_hook_handle[module] = (
                     module.register_load_state_dict_post_hook(record_after_load)

@@ -4,6 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -407,6 +408,7 @@ class GradAccumulator:
         num_chunks: int,
         seq_dim: int = 1,
         dtype: torch.dtype,
+        direct_bf16: bool = False,
     ):
         from torch.distributed.device_mesh import DeviceMesh
         from torch.distributed.tensor import DTensor, Placement
@@ -425,7 +427,14 @@ class GradAccumulator:
         else:
             local = reference
 
-        self._buffer = torch.zeros_like(local, dtype=dtype)
+        # DTensor partial gradients retain their original accumulation contract.
+        self._direct = (
+            direct_bf16 and self._device_mesh is None and local.dtype == torch.bfloat16
+        )
+        if self._direct:
+            self._buffer = torch.empty_like(local)
+        else:
+            self._buffer = torch.zeros_like(local, dtype=dtype)
 
     def add(self, chunk_grad: torch.Tensor) -> None:
         """Add the next chunk gradient sequentially.
@@ -480,6 +489,8 @@ class GradAccumulator:
         """
         from torch.distributed.tensor import DTensor
 
+        if self._direct and self._next_seq_offset != self._buffer.shape[self.seq_dim]:
+            raise ValueError("Chunk writes did not cover the hidden gradient")
         if self._device_mesh is not None:
             if self._placements is None:
                 raise ValueError(
@@ -567,6 +578,18 @@ class ChunkedCELoss(BaseLoss):
 
         self.fn: LossFunction = stable_ce
         self._maybe_compile(compile_config)
+        direct_bf16 = os.environ.get("GIFT_DIRECT_BF16_DHIDDEN") or "0"
+        if direct_bf16 not in ("0", "1"):
+            raise ValueError("GIFT_DIRECT_BF16_DHIDDEN must be 0 or 1")
+        self._direct_bf16_dhidden = direct_bf16 == "1"
+        self._direct_bf16_dhidden_logged = False
+        matrix_env = "GIFT_EXPERIMENT_LM_HEAD_MATRIX"
+        matrix_mode = os.environ.get(matrix_env) or ""
+        if matrix_mode not in ("", "previous", "new"):
+            raise ValueError(f"{matrix_env} must be previous or new when set")
+        self._staged_head_dw_enabled = bool(matrix_mode)
+        self._release_chunk_logits = matrix_mode == "new"
+        self._staged_head_dw_logged = False
         self.num_chunks = config.num_chunks
         self.num_chunks_on_monitoring_steps = config.num_chunks_on_monitoring_steps
         self.lm_head: nn.Module | None = None
@@ -712,11 +735,33 @@ class ChunkedCELoss(BaseLoss):
             c.detach().requires_grad_(requires_grad) for c in _chunk(hidden_states)
         ]
         label_chunks = list(_chunk(labels))
+        staged_dw = None
+        if (
+            self._staged_head_dw_enabled
+            and requires_grad
+            and torch.is_grad_enabled()
+            and lm_head.training
+            and not shape_probe
+        ):
+            from torchtitan.distributed.gfsdp._staged_head_dw import (
+                select_staged_head_dw,
+            )
+
+            staged_dw = select_staged_head_dw(lm_head, h_chunks)
+            if not self._staged_head_dw_logged:
+                if staged_dw is not None:
+                    logger.info("GFSDP staged LM-head dW active")
+                else:
+                    logger.warning(
+                        "GFSDP staged LM-head dW is ineligible for this head or input"
+                    )
+                self._staged_head_dw_logged = True
 
         grad_accumulator = GradAccumulator(
             hidden_states,
             num_chunks=num_chunks,
             dtype=torch.float32,
+            direct_bf16=self._direct_bf16_dhidden,
         )
 
         total_loss = hidden_states.new_zeros((), dtype=torch.float32)
@@ -732,6 +777,8 @@ class ChunkedCELoss(BaseLoss):
             lm_head.set_is_last_backward(False)
 
         try:
+            if staged_dw is not None:
+                staged_dw.begin()
             last_idx = len(h_chunks) - 1
             for i, (h_chunk, label_chunk) in enumerate(zip(h_chunks, label_chunks)):
                 # torch FSDP: sync unconditionally, as before the gfsdp
@@ -743,7 +790,11 @@ class ChunkedCELoss(BaseLoss):
                         # the sync setter also arms AR, so override it last
                         lm_head.set_requires_all_reduce(sync_all_reduce, recurse=False)
 
-                logits = lm_head(h_chunk)
+                logits = (
+                    lm_head(h_chunk, staged_head_dw=staged_dw)
+                    if staged_dw is not None
+                    else lm_head(h_chunk)
+                )
                 if argmax_sink is not None:
                     # Greedy predictions for the acceptance counters, taken from
                     # the logits this loop already materializes; cat over the
@@ -752,7 +803,11 @@ class ChunkedCELoss(BaseLoss):
                         argmax_sink.append(logits.detach().argmax(dim=-1))
 
                 chunk_loss = self._chunk_loss(
-                    logits, label_chunk, global_valid_tokens, num_heads=num_heads
+                    logits,
+                    label_chunk,
+                    global_valid_tokens,
+                    num_heads=num_heads,
+                    staged_head_dw=staged_dw is not None,
                 )
                 total_loss = total_loss + chunk_loss.detach()
                 if component is not None:
@@ -768,7 +823,13 @@ class ChunkedCELoss(BaseLoss):
                     assert h_chunk.grad is not None
                     grad_accumulator.add(h_chunk.grad)
                     h_chunk.grad = None
+                if self._release_chunk_logits:
+                    del logits
+            if staged_dw is not None:
+                staged_dw.check_reduced()
         finally:
+            if staged_dw is not None:
+                staged_dw.close()
             if fsdp_enabled:
                 lm_head.set_is_last_backward(was_last_backward)
                 lm_head.set_reshard_after_forward(True)
@@ -784,6 +845,9 @@ class ChunkedCELoss(BaseLoss):
             return total_loss, None
 
         accumulated_grad = grad_accumulator.result().to(hidden_states.dtype)
+        if grad_accumulator._direct and not self._direct_bf16_dhidden_logged:
+            logger.info("LM_HEAD_DIRECT_BF16_DHIDDEN_ACTIVE chunks=%d", num_chunks)
+            self._direct_bf16_dhidden_logged = True
         return total_loss, accumulated_grad
 
     def _chunk_loss(
@@ -793,6 +857,7 @@ class ChunkedCELoss(BaseLoss):
         global_valid_tokens: torch.Tensor | None,
         *,
         num_heads: int,
+        staged_head_dw: bool = False,
     ) -> torch.Tensor:
         """Loss for one chunk of ``lm_head`` output."""
         chunk_loss = self.fn(logits, labels)
@@ -910,6 +975,60 @@ class MTPLoss(ChunkedCELoss):
         super().__init__(config, compile_config=compile_config)
         self.loss_weights = list(config.loss_weights)
         self.acceptance_sinks: list[list[dict[str, torch.Tensor]]] = []
+        self._folded_ce = None
+        self._folded_ce_consume = None
+        self._exact_folded_ce = None
+        self._supports_folded_ce = None
+        self._folded_ce_compiled = False
+        self._folded_ce_logged = False
+        folded_ce_env = "GIFT_STABLE_CE_FOLDED_BACKWARD"
+        folded_ce_mode = os.environ.get(folded_ce_env) or "0"
+        exact_ce_env = "GIFT_EXACT_FOLDED_CE_LIBRARY"
+        exact_ce_library = os.environ.get(exact_ce_env)
+        if folded_ce_mode not in ("0", "1"):
+            raise ValueError(f"{folded_ce_env} must be 0 or 1")
+        if exact_ce_library and (
+            folded_ce_mode != "1" or not self._release_chunk_logits
+        ):
+            raise ValueError(
+                f"{exact_ce_env} requires folded backward and the new staged head"
+            )
+        if folded_ce_mode == "1":
+            from torchtitan.experiments.four_fusion.stable_ce import (
+                folded_cross_entropy,
+                make_consuming_folded_cross_entropy,
+                supports_folded_cross_entropy,
+            )
+
+            self._supports_folded_ce = supports_folded_cross_entropy
+            self._folded_ce = folded_cross_entropy
+            backend = (
+                compile_config.backend
+                if compile_config is not None
+                and compile_config.enable
+                and "loss" in compile_config.components
+                else None
+            )
+            if backend is not None:
+                self._folded_ce = torch.compile(self._folded_ce, backend=backend)
+                self._folded_ce_compiled = True
+            if exact_ce_library:
+                from torchtitan.ops.exact_folded_ce import ExactFoldedCrossEntropy
+
+                if (
+                    backend != "inductor"
+                    or config.num_chunks != 2
+                    or config.num_chunks_on_monitoring_steps not in (None, 2)
+                    or len(self.loss_weights) != 1
+                ):
+                    raise ValueError(
+                        f"{exact_ce_env} requires C2, MTP1 and the Inductor loss backend"
+                    )
+                self._exact_folded_ce = ExactFoldedCrossEntropy(exact_ce_library)
+            elif self._release_chunk_logits:
+                self._folded_ce_consume = make_consuming_folded_cross_entropy(backend)
+                logger.info("Stable CE consuming BF16 logits enabled")
+            logger.info("Stable CE folded backward enabled")
 
     def declared_components(self) -> tuple[str, ...]:
         """``loss_ce``, the weighted MTP mean, and per-head terms when N > 1.
@@ -1021,6 +1140,7 @@ class MTPLoss(ChunkedCELoss):
         global_valid_tokens: torch.Tensor | None,
         *,
         num_heads: int,
+        staged_head_dw: bool = False,
     ) -> torch.Tensor:
         """Weighted sum of per-head CEs for one folded chunk; records per-head metrics.
 
@@ -1036,20 +1156,45 @@ class MTPLoss(ChunkedCELoss):
         )
         num_mtp = len(self.loss_weights)
         mtp_weight_total = sum(self.loss_weights)
-        chunk_loss: torch.Tensor | None = None
-        for head_idx, (weight, head_logits, head_labels) in enumerate(
-            zip(
-                head_weights,
-                torch.chunk(logits, num_heads, dim=0),
-                torch.chunk(labels, num_heads, dim=0),
+        if staged_head_dw and self._exact_folded_ce is not None:
+            raw_losses = self._exact_folded_ce(
+                logits, labels, head_weights, global_valid_tokens
             )
+        elif (
+            self._folded_ce is not None
+            and self._supports_folded_ce is not None
+            and self._supports_folded_ce(logits, labels)
         ):
-            head_loss = (
-                super()._chunk_loss(
-                    head_logits, head_labels, global_valid_tokens, num_heads=1
-                )
-                * weight
+            consume = (
+                staged_head_dw
+                and logits.dtype == torch.bfloat16
+                and self._folded_ce_consume is not None
             )
+            if consume:
+                raw_losses = self._folded_ce_consume(logits, labels, num_heads)
+            else:
+                raw_losses = self._folded_ce(logits, labels, num_heads)
+            if staged_head_dw and not self._folded_ce_logged:
+                logger.info(
+                    "Stable Folded CE active: compiled=%s inplace=%s early_logits_release=%s",
+                    self._folded_ce_compiled,
+                    consume,
+                    self._release_chunk_logits,
+                )
+                self._folded_ce_logged = True
+        else:
+            raw_losses = (
+                self.fn(head_logits, head_labels)
+                for head_logits, head_labels in zip(
+                    torch.chunk(logits, num_heads, dim=0),
+                    torch.chunk(labels, num_heads, dim=0),
+                )
+            )
+        chunk_loss: torch.Tensor | None = None
+        for head_idx, (weight, raw_loss) in enumerate(zip(head_weights, raw_losses)):
+            if global_valid_tokens is not None:
+                raw_loss = raw_loss / global_valid_tokens
+            head_loss = raw_loss * weight
             detached = head_loss.detach()
             if head_idx == 0:
                 self.add_component(self.component_name, detached)

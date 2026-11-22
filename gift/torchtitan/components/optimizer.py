@@ -182,7 +182,7 @@ class OptimizersContainer(Optimizer, Stateful, Configurable, Generic[T]):
             self._register_bf16_optimizer_state_hook()
         self._validate_length(len(self.model_parts))
         self._post_init(all_params, optimizer_kwargs)
-        self._register_bf16_expert_cache_hooks()
+        self._register_expert_weight_cache_hooks()
 
     def __iter__(self) -> Iterator[T]:
         return iter(self.optimizers)
@@ -278,11 +278,12 @@ class OptimizersContainer(Optimizer, Stateful, Configurable, Generic[T]):
         for optim in self.optimizers:
             optim.register_step_pre_hook(_bf16_state_init_hook)
 
-    def _register_bf16_expert_cache_hooks(self) -> None:
+    def _register_expert_weight_cache_hooks(self) -> None:
         requested_groups = [
             group
             for group in _iter_gfsdp_param_groups(self.model_parts)
-            if group._bf16_cache_requested and group.requires_grad
+            if group.requires_grad
+            and (group._bf16_cache_requested or group._fp8_cache_requested)
         ]
         if not requested_groups:
             return
@@ -306,14 +307,17 @@ class OptimizersContainer(Optimizer, Stateful, Configurable, Generic[T]):
                 for fsdp_param in param_group.fsdp_params
             }
             if not group_param_ids.issubset(all_optimizer_param_ids):
-                param_group.disable_bf16_weight_cache()
+                if param_group._bf16_cache_requested:
+                    param_group.disable_bf16_weight_cache()
+                if param_group._fp8_cache_requested:
+                    param_group.disable_fp8_weight_cache()
                 uncovered_group = True
                 continue
             for optimizer_index, optimizer_ids in enumerate(optimizer_param_ids):
                 if group_param_ids.intersection(optimizer_ids):
                     groups_by_optimizer[optimizer_index].append(param_group)
 
-        self._bf16_cache_hook_handles = []
+        self._expert_weight_cache_hook_handles = []
         for optimizer, param_groups in zip(
             self.optimizers, groups_by_optimizer, strict=True
         ):
@@ -332,7 +336,7 @@ class OptimizersContainer(Optimizer, Stateful, Configurable, Generic[T]):
                 for param_group in groups:
                     param_group.record_weight_write()
 
-            self._bf16_cache_hook_handles.extend(
+            self._expert_weight_cache_hook_handles.extend(
                 (
                     optimizer.register_step_pre_hook(invalidate_before_step),
                     optimizer.register_step_post_hook(record_after_step),
@@ -340,7 +344,7 @@ class OptimizersContainer(Optimizer, Stateful, Configurable, Generic[T]):
             )
         if uncovered_group:
             logger.warning(
-                "BF16 expert weight reuse was disabled for a GFSDP group "
+                "Expert weight reuse was disabled for a GFSDP group "
                 "whose trainable parameters are not all owned by an optimizer"
             )
 
@@ -369,13 +373,16 @@ class OptimizersInBackwardContainer(OptimizersContainer):
         requested_cache_groups = [
             group
             for group in _iter_gfsdp_param_groups(self.model_parts)
-            if group._bf16_cache_requested
+            if group._bf16_cache_requested or group._fp8_cache_requested
         ]
         for param_group in requested_cache_groups:
-            param_group.disable_bf16_weight_cache()
+            if param_group._bf16_cache_requested:
+                param_group.disable_bf16_weight_cache()
+            if param_group._fp8_cache_requested:
+                param_group.disable_fp8_weight_cache()
         if requested_cache_groups:
             logger.warning(
-                "BF16 expert weight reuse is unavailable with optimizer-in-backward; "
+                "Expert weight reuse is unavailable with optimizer-in-backward; "
                 "using the ordinary GFSDP path"
             )
 

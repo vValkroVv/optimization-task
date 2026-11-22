@@ -2,7 +2,15 @@ import torch
 from torch.autograd.profiler import record_function as record_fn
 from torch.fx.experimental.symbolic_shapes import guard_or_false
 
-from torchtitan.ops.float8.deep_gemm_handle import _DeepGemmHandle
+from torchtitan.ops.float8.deep_gemm_handle import (
+    _DeepGemmHandle,
+    PreparedExpertWeight,
+    routed_bf16_wgrad,
+)
+from torchtitan.ops.float8.direct_expert_dw import (
+    write_direct_expert_dw,
+    zero_direct_expert_dw,
+)
 from torchtitan.ops.float8.fp8_tensor import (
     Float8BlockwiseQTensor,
     clear_tensor_data,
@@ -29,11 +37,16 @@ class _EmptyGroupGemm(torch.autograd.Function):
         ctx,
         grad_edge: torch.Tensor | None,
         tensor_groups: torch.Tensor | Float8BlockwiseQTensor,
-        weights: Float8BlockwiseQTensor,
+        weights: torch.Tensor,
         fp8_grad_output: bool,
+        direct_dw_slot: torch.Tensor | None = None,
+        direct_dw_offset: int = 0,
+        needs_wgrad: bool | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         ctx.use_edges = grad_edge is not None
-        ctx.needs_wgrad = weights.requires_grad
+        ctx.needs_wgrad = weights.requires_grad if needs_wgrad is None else needs_wgrad
+        ctx.direct_dw_slot = direct_dw_slot
+        ctx.direct_dw_offset = direct_dw_offset
         ctx.weight_shape = weights.shape
         ctx.device = weights.device
         ctx.inp_shape = (
@@ -55,17 +68,27 @@ class _EmptyGroupGemm(torch.autograd.Function):
     # pyrefly: ignore [bad-override]
     def backward(ctx, grad_output, grad_fp8_edge=None):
         dgrad = torch.zeros(ctx.inp_shape, dtype=torch.bfloat16, device=ctx.device)
-        wgrad = (
-            torch.zeros(ctx.weight_shape, dtype=torch.bfloat16, device=ctx.device)
-            if ctx.needs_wgrad
-            else None
-        )
-        # Gradients for: grad_edge, tensor_groups, weights, fp8_grad_output
+        wgrad = None
+        if ctx.needs_wgrad:
+            if ctx.direct_dw_slot is None:
+                wgrad = torch.zeros(
+                    ctx.weight_shape, dtype=torch.bfloat16, device=ctx.device
+                )
+            else:
+                cotangent = grad_output if grad_fp8_edge is None else grad_fp8_edge
+                if isinstance(cotangent, Float8BlockwiseQTensor):
+                    cotangent = cotangent._data
+                zero_direct_expert_dw(
+                    ctx.direct_dw_slot, ctx.direct_dw_offset, cotangent
+                )
         return (
             dgrad if ctx.use_edges else None,
             None if ctx.use_edges else dgrad,
             wgrad,
-            None,
+            None,  # fp8_grad_output
+            None,  # direct_dw_slot
+            None,  # direct_dw_offset
+            None,  # needs_wgrad
         )
 
 
@@ -83,12 +106,16 @@ class _GroupedGemm(torch.autograd.Function):
         grad_edge: torch.Tensor | None,
         tensor_groups: torch.Tensor,
         list_groups_sizes_padded: list[int] | None,
-        weights: Float8BlockwiseQTensor,
+        weights: torch.Tensor,
         m_indices: torch.Tensor,
         tensor_groups_sizes_padded: torch.Tensor,
         tensor_groups_sizes_cpu: torch.Tensor | None,
         triton_row2col: bool,
         fp8_grad_output: bool,
+        prepared_weight: PreparedExpertWeight | None = None,
+        direct_dw_slot: torch.Tensor | None = None,
+        direct_dw_offset: int = 0,
+        needs_wgrad: bool | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         ctx.use_edges = grad_edge is not None
         ctx.fp8_grad_output = fp8_grad_output
@@ -106,7 +133,6 @@ class _GroupedGemm(torch.autograd.Function):
             else:
                 tensor_groups_quantized = (tensor_groups._data, tensor_groups._scale)
 
-            weights_quantized = (weights._data, weights._scale)
             ctx.m_indices = m_indices
 
             with record_fn("grouped_gemm::fwd::m_grouped_fp8_gemm"):
@@ -115,15 +141,33 @@ class _GroupedGemm(torch.autograd.Function):
                     tensor_groups_quantized[1],
                 )
 
-                out = _get_deep_gemm_handle().m_grouped_fp8_gemm_nt_contiguous(
-                    tensor_groups_quantized, weights_quantized, m_indices
-                )
+                if prepared_weight is None:
+                    assert isinstance(weights, Float8BlockwiseQTensor)
+                    weights_quantized = (weights._data, weights._scale)
+                    out = _get_deep_gemm_handle().m_grouped_fp8_gemm_nt_contiguous(
+                        tensor_groups_quantized, weights_quantized, m_indices
+                    )
+                else:
+                    prepared_weight = torch.ops.torchtitan.bind_prepared_fp8_weight(
+                        m_indices, prepared_weight
+                    )
+                    out = torch.ops.torchtitan.m_grouped_fp8_gemm_prepared_weight(
+                        *tensor_groups_quantized,
+                        prepared_weight,
+                        m_indices,
+                        weights.shape[1],
+                    )
+                    weights_quantized = ()
 
-        ctx.needs_wgrad = weights.requires_grad
-        saved = [weights._data, weights._scale]
-        if ctx.needs_wgrad:
-            saved.extend(tensor_groups_quantized)
-        ctx.save_for_backward(*saved)
+        ctx.needs_wgrad = weights.requires_grad if needs_wgrad is None else needs_wgrad
+        ctx.prepared_weight = prepared_weight
+        # Both projections write this shared buffer in backward. It must stay
+        # out of save_for_backward, which would check its version on each read.
+        ctx.direct_dw_slot = direct_dw_slot
+        ctx.direct_dw_offset = direct_dw_offset
+        ctx.save_for_backward(
+            *weights_quantized, *(tensor_groups_quantized if ctx.needs_wgrad else ())
+        )
         ctx.list_groups_sizes = list_groups_sizes_padded
         ctx.tensor_groups_sizes = tensor_groups_sizes_padded
         ctx.tensor_groups_sizes_cpu = tensor_groups_sizes_cpu
@@ -146,8 +190,10 @@ class _GroupedGemm(torch.autograd.Function):
                 assert grad_fp8_edge is not None
                 grad_output = grad_fp8_edge
             needs_wgrad = ctx.needs_wgrad
-            w_data, w_scale, *tensor_groups_quantized = ctx.saved_tensors
-            tensor_groups_quantized = tuple(tensor_groups_quantized)
+            tensor_groups_quantized = ctx.saved_tensors
+            if ctx.prepared_weight is None:
+                w_data, w_scale = tensor_groups_quantized[:2]
+                tensor_groups_quantized = tensor_groups_quantized[2:]
 
             # DGRAD
             is_quantized_grad_output = isinstance(grad_output, Float8BlockwiseQTensor)
@@ -175,10 +221,19 @@ class _GroupedGemm(torch.autograd.Function):
 
             # weights quantization for dgrad
             with record_fn("grouped_gemm::bwd::transpose_weights_fn"):
-                weights_quantized = (
-                    transpose_last_two_dims_fn(w_data),
-                    transpose_last_two_dims_fn(w_scale),
-                )
+                if ctx.prepared_weight is None:
+                    weights_quantized = (
+                        transpose_last_two_dims_fn(w_data),
+                        transpose_last_two_dims_fn(w_scale),
+                    )
+                else:
+                    weights_quantized = (
+                        torch.ops.torchtitan.transpose_prepared_fp8_weight(
+                            grad_output_quantized[0],
+                            ctx.prepared_weight,
+                            *ctx.weight_shape,
+                        )
+                    )
 
             # dgrad = grad_output x weights
             with record_fn("grouped_gemm::bwd::dgrad_m_grouped_fp8_gemm"):
@@ -218,11 +273,6 @@ class _GroupedGemm(torch.autograd.Function):
 
                     clear_tensor_data(*grad_output_quantized)
 
-                # TODO: replace with torch.empty
-                wgrad = torch.zeros(
-                    ctx.weight_shape, dtype=torch.bfloat16, device=ctx.device
-                )
-
                 grad_output_quantized_col = (
                     grad_output_quantized_col[0].view(torch.float8_e4m3fn),
                     grad_output_quantized_col[1].mT,
@@ -232,14 +282,26 @@ class _GroupedGemm(torch.autograd.Function):
                     tensor_groups_quantized_col[1].mT,
                 )
 
-                _get_deep_gemm_handle().k_grouped_fp8_gemm_contiguous(
-                    a=grad_output_quantized_col,
-                    b=tensor_groups_quantized_col,
-                    d=wgrad,
-                    ks=ctx.list_groups_sizes,
-                    ks_cpu=ctx.tensor_groups_sizes_cpu,
-                    ks_tensor=ctx.tensor_groups_sizes,
-                )
+                if ctx.direct_dw_slot is None:
+                    wgrad = routed_bf16_wgrad(
+                        a=grad_output_quantized_col,
+                        b=tensor_groups_quantized_col,
+                        weight_shape=ctx.weight_shape,
+                        device=ctx.device,
+                        ks=ctx.list_groups_sizes,
+                        ks_cpu=ctx.tensor_groups_sizes_cpu,
+                        ks_tensor=ctx.tensor_groups_sizes,
+                    )
+                else:
+                    write_direct_expert_dw(
+                        *grad_output_quantized_col,
+                        *tensor_groups_quantized_col,
+                        ctx.direct_dw_slot,
+                        ctx.direct_dw_offset,
+                        ctx.list_groups_sizes,
+                        ctx.tensor_groups_sizes_cpu,
+                        ctx.tensor_groups_sizes,
+                    )
 
                 clear_tensor_data(*grad_output_quantized_col)
                 clear_tensor_data(*tensor_groups_quantized_col)
@@ -256,6 +318,10 @@ class _GroupedGemm(torch.autograd.Function):
             None,  # tensor_groups_sizes_cpu
             None,  # triton_row2col
             None,  # fp8_grad_output
+            None,  # prepared_weight
+            None,  # direct_dw_slot
+            None,  # direct_dw_offset
+            None,  # needs_wgrad
         )
 
 
@@ -268,20 +334,32 @@ class GroupedGemmFp8Wrapper:
         self,
         tensor_groups: torch.Tensor,
         tensor_groups_sizes: list[int] | None,
-        weights: Float8BlockwiseQTensor,
+        weights: torch.Tensor,
         m_indices: torch.Tensor | None = None,
         tensor_groups_sizes_padded: torch.Tensor | None = None,
         tensor_groups_sizes_cpu: torch.Tensor | None = None,
         triton_row2col: bool = False,
         grad_edge: torch.Tensor | None = None,
         fp8_grad_output: bool = False,
+        prepared_weight: PreparedExpertWeight | None = None,
+        direct_dw_slot: torch.Tensor | None = None,
+        direct_dw_offset: int = 0,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Grouped fp8 GEMM over padded, expert-major token groups.
+
+        When a prepared projection supplies the values, ``weights`` is the
+        original BF16 parameter edge. With a direct dW slot, backward writes
+        the weight gradient there at the given element offset.
 
         Returns ``(output, packed_edge)``; the edge is ``None`` unless
         ``fp8_grad_output`` asked for one, so the caller reads the same pair
         either way.
         """
+        needs_wgrad = weights.requires_grad
+        if direct_dw_slot is not None and isinstance(weights, Float8BlockwiseQTensor):
+            # The quantizer's autograd edge can materialize an absent gradient
+            # as a zero tensor. Direct dW only needs the packed weight values.
+            weights = weights.detach()
         payload = (
             tensor_groups._data
             if isinstance(tensor_groups, Float8BlockwiseQTensor)
@@ -293,7 +371,13 @@ class GroupedGemmFp8Wrapper:
         # grid on their own.
         if guard_or_false(payload.numel() == 0):
             empty = _EmptyGroupGemm.apply(
-                grad_edge, tensor_groups, weights, fp8_grad_output
+                grad_edge,
+                tensor_groups,
+                weights,
+                fp8_grad_output,
+                direct_dw_slot,
+                direct_dw_offset,
+                needs_wgrad,
             )
             return empty if fp8_grad_output else (empty, None)
 
@@ -307,5 +391,9 @@ class GroupedGemmFp8Wrapper:
             tensor_groups_sizes_cpu,
             triton_row2col,
             fp8_grad_output,
+            prepared_weight,
+            direct_dw_slot,
+            direct_dw_offset,
+            needs_wgrad,
         )
         return out if fp8_grad_output else (out, None)

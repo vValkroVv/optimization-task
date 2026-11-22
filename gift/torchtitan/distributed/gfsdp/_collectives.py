@@ -8,6 +8,7 @@ from torch.distributed.device_mesh import _get_device_handle
 from ._param import GFSDPParam
 
 if TYPE_CHECKING:
+    from ._owner_transport import ExpertOwnerTransport
     from ._param_group import GFSDPParamGroup
     from ._tensor import RaggedShardDTensor
 
@@ -44,9 +45,10 @@ def all_gather(
 ) -> AllGatherResult:
     device_handle = _get_device_handle(device.type)
     with device_handle.stream(all_gather_stream):
-        direct_cache_use = (
+        cache_enabled = (
             param_group._bf16_cache_enabled and all_gather_dtype is None
         )
+        direct_cache_use = cache_enabled and all_gather_group.size() == 1
         if direct_cache_use and all_gather_output is not all_gather_input:
             raise AssertionError(
                 "An enabled BF16 expert cache must use its input as output"
@@ -61,9 +63,9 @@ def all_gather(
                 with torch.autograd._unsafe_preserve_version_counter(all_gather_input):  # type: ignore[attr-defined]
                     all_gather_input.copy_(padded_sharded_param_data)
             param_group._all_gather_input_set_dtypes.add(all_gather_dtype)
-            if direct_cache_use:
+            if cache_enabled:
                 param_group._bf16_cache_note_refresh()
-        elif direct_cache_use:
+        elif cache_enabled:
             param_group._bf16_cache_note_hit()
         if direct_cache_use:
             param_group._bf16_cache_note_direct_use()
@@ -118,10 +120,44 @@ def reduce_scatter(
     force_sum_reduction_for_comms: bool,
     bit32_acc_for_bit16_reduce_scatter: bool,
     yccl_handle: "yccl.Handle | None",
+    *,
+    owner_transport: "ExpertOwnerTransport | None" = None,
+    owner_fqn: str | None = None,
 ) -> torch.Event:
     device_handle = _get_device_handle(device.type)
     reduce_scatter_stream.wait_stream(device_handle.current_stream())
     with device_handle.stream(reduce_scatter_stream):
+        if owner_transport is not None:
+            if (
+                owner_fqn is None
+                or len(fsdp_params) != 2
+                or fsdp_params_with_grad != fsdp_params
+                or not all(param.sharded_param.requires_grad for param in fsdp_params)
+                or (orig_dtype, param_dtype, reduce_dtype)
+                != (torch.float32, torch.bfloat16, torch.float32)
+                or gradient_divide_factor != 1.0
+                or force_sum_reduction_for_comms
+                or bit32_acc_for_bit16_reduce_scatter
+                or all_reduce_group is not None
+                or yccl_handle is not None
+            ):
+                raise RuntimeError(f"Invalid compact BF16 owner reduction at {owner_fqn}")
+            has_grad = [param.sharded_param.grad is not None for param in fsdp_params]
+            if has_grad[0] != has_grad[1]:
+                raise RuntimeError(f"Mixed persistent gradient readiness at {owner_fqn}")
+            owner_transport.reduce(
+                owner_fqn,
+                padded_unsharded_param_grad,
+                padded_sharded_param_grad,
+                reduce_scatter_group,
+                reduce_scatter_stream,
+                accumulate=has_grad[0],
+            )
+            event = reduce_scatter_stream.record_event()
+            for param in fsdp_params:
+                param.sharded_param.grad = param.sharded_param_grad
+            return event
+
         reduce_in_sharded = (
             (
                 (reduce_dtype is None and param_dtype is None)
