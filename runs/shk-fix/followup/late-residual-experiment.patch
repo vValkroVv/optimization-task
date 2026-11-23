@@ -1,0 +1,139 @@
+--- a/gift/torchtitan/models/common/norms/cute_gated_norm/forward.py
++++ b/gift/torchtitan/models/common/norms/cute_gated_norm/forward.py
+@@ -32,6 +32,8 @@
+ Backward: backward.py. PyTorch custom ops and autograd: op.py.
+ """
+ 
++import os
++
+ import cuda.bindings.driver as cuda
+ import cutlass
+ import cutlass.cute as cute
+@@ -434,6 +436,7 @@
+         epi_stage=2,
+         pdl=False,
+         add_residual=False,
++        late_residual=False,
+     ):
+         hc = hidden // n_hc
+         if rank != RANK or hidden % n_hc or hc % (2 * BLK_H):
+@@ -442,6 +445,8 @@
+             )
+         self.H, self.R, self.S, self.n_hc = hidden, rank, n_split, n_hc
+         self.add_residual = add_residual
++        self.late_residual = late_residual
++        self.stage_residual = add_residual and not late_residual
+         self.Hc, self.n_sub = hc, hc // BLK_H
+         self.eps, self.lgw, self.inv_h = float(eps), float(lgw), 1.0 / float(hidden)
+         self.num_sms, self.stages, self.epi_stage, self.pdl = (
+@@ -501,17 +506,18 @@
+             cute.slice_(y_l, (None, None, 0)),
+             (BLK_M, BLK_H),
+         )
+-        # The disabled specialization never reads the residual descriptor or
+-        # allocates residual staging. Use X's descriptor in that specialization.
++        # Only the pipelined residual path needs a separate TMA descriptor.
+         tma_residual, tResidual = tma_x, tX
+-        if cutlass.const_expr(self.add_residual):
++        if cutlass.const_expr(self.late_residual):
++            tResidual = mResidual
++        if cutlass.const_expr(self.stage_residual):
+             tma_residual, tResidual = cpasync.make_tiled_tma_atom(
+                 cpasync.CopyBulkTensorTileG2SOp(),
+                 mResidual,
+                 cute.slice_(x_l, (None, None, 0)),
+                 (BLK_M, BLK_H),
+             )
+-        residual_smem = cute.cosize(x_l) if self.add_residual else 0
++        residual_smem = cute.cosize(x_l) if self.stage_residual else 0
+ 
+         @cute.struct
+         class SharedStorage:
+@@ -591,14 +597,14 @@
+             cpasync.prefetch_descriptor(tma_x)
+             cpasync.prefetch_descriptor(tma_b)
+             cpasync.prefetch_descriptor(tma_y)
+-            if cutlass.const_expr(self.add_residual):
++            if cutlass.const_expr(self.stage_residual):
+                 cpasync.prefetch_descriptor(tma_residual)
+ 
+         storage = cutlass.utils.SmemAllocator().allocate(self.shared_storage)
+         tx = cute.size_in_bytes(
+             BF16, cute.slice_(x_l, (None, None, 0))
+         ) + cute.size_in_bytes(BF16, cute.slice_(b_l, (None, None, 0)))
+-        if cutlass.const_expr(self.add_residual):
++        if cutlass.const_expr(self.stage_residual):
+             tx += cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
+         ring = pipeline.PipelineTmaAsync.create(
+             barrier_storage=storage.mbar.data_ptr(),
+@@ -622,7 +628,7 @@
+             cute.group_modes(cute.local_tile(mX, (BLK_M, BLK_H), (None, None)), 0, 2),
+         )
+         sResidual, tRs, tRg = sX, tXs, tXg
+-        if cutlass.const_expr(self.add_residual):
++        if cutlass.const_expr(self.stage_residual):
+             sResidual = storage.s_residual.get_tensor(x_l.outer, swizzle=x_l.inner)
+             tRs, tRg = cpasync.tma_partition(
+                 tma_residual,
+@@ -711,7 +717,7 @@
+                             tBs[(None, prod.index)],
+                             tma_bar_ptr=bar,
+                         )
+-                        if cutlass.const_expr(self.add_residual):
++                        if cutlass.const_expr(self.stage_residual):
+                             cute.copy(
+                                 tma_residual,
+                                 tRg[(None, bm, h_base + j)],
+@@ -792,12 +798,18 @@
+                             * sW[j * BLK_H + crd[1]]
+                             * sigmoid(acc[i])
+                         )
+-                    if cutlass.const_expr(self.add_residual):
++                    if cutlass.const_expr(self.stage_residual):
+                         cute.copy(s2r, tSResidual[(None, None, None, st)], vX)
+                     ring.consumer_release(cons)
+                     cons.advance()
+                     cons.advance()
+ 
++                    if cutlass.const_expr(self.late_residual):
++                        for i in cutlass.range_constexpr(cute.size(acc)):
++                            row, col = tCc[i]
++                            rX[i] = BF16(0.0)
++                            if m0 + row < M:
++                                rX[i] = mResidual[(m0 + row, hc0 + j * BLK_H + col)]
+                     if cutlass.const_expr(self.add_residual):
+                         normalized = acc.load().to(BF16).to(F32)
+                         r_out.store((normalized + rX.load().to(F32)).to(BF16))
+@@ -888,8 +900,14 @@
+     H, R, dtypes, eps, lgw, dev, n_hc, sms, f2_pdl=False, *, add_residual=False
+ ):
+     """Compile an M-independent forward plan for one bounded F2 split."""
++    late_residual = False
++    if add_residual:
++        value = os.environ.get("GIFT_CUTE_NORM_LATE_RESIDUAL", "")
++        if value not in ("", "0", "1"):
++            raise ValueError("GIFT_CUTE_NORM_LATE_RESIDUAL must be 0, 1, or unset")
++        late_residual = value == "1"
+     # A missing output split selects the statistics-only finalizer.
+-    key = ("fwd", H, R, dtypes, eps, lgw, dev.index, n_hc, sms, f2_pdl, add_residual)
++    key = ("fwd", H, R, dtypes, eps, lgw, dev.index, n_hc, sms, f2_pdl, add_residual, late_residual)
+     plan = PLANS.get(key)
+     if plan is None:
+         split_k = pick_n_split(H)
+@@ -965,7 +983,7 @@
+             return plan
+         stages = pick_f2_stages(H, n_hc, add_residual=add_residual)
+         f2 = compile_op(
+-            ("f2", H, R, split_k, n_hc, eps, lgw, sms, stages, f2_pdl, add_residual),
++            ("f2", H, R, split_k, n_hc, eps, lgw, sms, stages, f2_pdl, add_residual, late_residual),
+             lambda: GnFwdOut(
+                 H,
+                 R,
+@@ -977,6 +995,7 @@
+                 stages,
+                 pdl=f2_pdl,
+                 add_residual=add_residual,
++                late_residual=late_residual,
+             ),
+             (
+                 make_fake_compact_tensor(

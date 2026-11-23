@@ -1,0 +1,73 @@
+--- a/runs/shk-fix/followup/dense_dy_backward_component.py
++++ b/runs/shk-fix/followup/dense_dy_backward_component.py
+@@ -12,7 +12,7 @@
+ import dense_dy_quant_transpose as quant_probe
+ 
+ 
+-LANES = {"w2": (4096, 1536), "qkv": (8192, 4096)}
++LANES = {"w2": (4096, 1536), "qkv": (8192, 4096), "qkv-early": (8192, 4096)}
+ TOKEN_SHAPE = (2, quant_probe.NATIVE_ROWS // 2)
+ PLANES = {
+     "row_fp8": (torch.float8_e4m3fn, torch.uint8),
+@@ -74,6 +74,7 @@
+     gemm = native.fp8_gemm
+ 
+     transpose_x = lane == "w2"
++    transpose_dy_early = lane != "qkv"
+ 
+     def backward(inputs):
+         dy, weight, x = inputs
+@@ -92,17 +93,14 @@
+         else:
+             dy_row = quantize(dy, pack=False)
+ 
+-        if transpose_x:
+-            x_col = transpose(x, pack=False)
+-            if not fused:
+-                dy_col = transpose(dy_row, pack=False)
+-        else:
+-            # QKV reuses the columnwise activation already available at the cut.
+-            x_col = x
++        # Both QKV schedules reuse the columnwise X available at the cut.
++        x_col = transpose(x, pack=False) if transpose_x else x
++        if transpose_dy_early and not fused:
++            dy_col = transpose(dy_row, pack=False)
+         dx = gemm(
+             dy_row, weight_col, out_dtype=torch.bfloat16, use_split_accumulator=True
+         )
+-        if not transpose_x and not fused:
++        if not transpose_dy_early and not fused:
+             dy_col = transpose(dy_row, pack=False)
+         dw = gemm(x_col, dy_col, out_dtype=torch.bfloat16, use_split_accumulator=True)
+         if expose_planes:
+@@ -158,8 +156,8 @@
+     transpose_dy = (transpose_op, [[*TOKEN_SHAPE, dy_width]])
+     if lane == "w2":
+         expected_operands.append((transpose_op, [[*TOKEN_SHAPE, x_width]]))
+-        if arm == "A":
+-            expected_operands.append(transpose_dy)
++    if lane != "qkv" and arm == "A":
++        expected_operands.append(transpose_dy)
+     expected_operands.append((gemm_op, [[*TOKEN_SHAPE, dy_width], [x_width, dy_width]]))
+     if lane == "qkv" and arm == "A":
+         expected_operands.append(transpose_dy)
+@@ -189,7 +187,9 @@
+         kernel_order.append(role)
+     expected_kernel_order = ["weight", "row" if arm == "A" else "fused"]
+     if lane == "w2":
+-        expected_kernel_order.extend(["transpose"] * (2 if arm == "A" else 1))
++        expected_kernel_order.append("transpose")
++    if lane != "qkv" and arm == "A":
++        expected_kernel_order.append("transpose")
+     expected_kernel_order.append("other")
+     if lane == "qkv" and arm == "A":
+         expected_kernel_order.extend(("transpose", "other"))
+@@ -259,7 +259,7 @@
+     bf16, source = load_inputs(args.fixture, dy_width, x_width)
+     shapes = {name: list(tensor.shape) for name, tensor in bf16.items()}
+     x = native.quantize_vec128(bf16.pop("x"), pack=False)
+-    if args.lane == "qkv":
++    if args.lane != "w2":
+         x = native.scaling_aware_fp8_transpose(x, pack=False)
+     inputs = (bf16["dy"], bf16["weight"], x)
+     outputs = {

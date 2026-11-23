@@ -1,0 +1,252 @@
+--- a/gift/torchtitan/models/common/norms/cute_gated_norm/forward.py
++++ b/gift/torchtitan/models/common/norms/cute_gated_norm/forward.py
+@@ -38,7 +38,9 @@
+ import cutlass.pipeline as pipeline
+ import cutlass.utils.hopper_helpers as sm90_utils
+ import torch
++from cutlass._mlir.dialects import llvm
+ from cutlass.cute.nvgpu import cpasync, warp
++from cutlass.cutlass_dsl import dsl_user_op
+ from cutlass.cute.runtime import make_fake_compact_tensor
+ 
+ from .common import (
+@@ -418,6 +420,92 @@
+             m += self.num_sms * BLK_M
+ 
+ 
++@dsl_user_op
++def _quant_scale(v0, v1, v2, v3, *, loc=None, ip=None):
++    """CudaCherry d3e0feb row scale, from one warp's 128 BF16 values."""
++    return F32(
++        llvm.inline_asm(
++            F32.mlir_type,
++            [F32(v).ir_value(loc=loc, ip=ip) for v in (v0, v1, v2, v3)],
++            """{
++                .reg .f32 a<4>, mx, other;
++                .reg .b32 bits, shuffled, mantissa;
++                .reg .pred needs_round;
++                abs.f32 a0, $1;
++                abs.f32 a1, $2;
++                abs.f32 a2, $3;
++                abs.f32 a3, $4;
++                max.f32 a0, a0, a1;
++                max.f32 a2, a2, a3;
++                max.f32 mx, a0, a2;
++                mov.b32 bits, mx;
++                shfl.sync.bfly.b32 shuffled, bits, 16, 31, 0xffffffff;
++                mov.b32 other, shuffled;
++                max.f32 mx, mx, other;
++                mov.b32 bits, mx;
++                shfl.sync.bfly.b32 shuffled, bits, 8, 31, 0xffffffff;
++                mov.b32 other, shuffled;
++                max.f32 mx, mx, other;
++                mov.b32 bits, mx;
++                shfl.sync.bfly.b32 shuffled, bits, 4, 31, 0xffffffff;
++                mov.b32 other, shuffled;
++                max.f32 mx, mx, other;
++                mov.b32 bits, mx;
++                shfl.sync.bfly.b32 shuffled, bits, 2, 31, 0xffffffff;
++                mov.b32 other, shuffled;
++                max.f32 mx, mx, other;
++                mov.b32 bits, mx;
++                shfl.sync.bfly.b32 shuffled, bits, 1, 31, 0xffffffff;
++                mov.b32 other, shuffled;
++                max.f32 mx, mx, other;
++
++                // NVCC's FP32 multiply by 1/448 and the 1e-30 scale floor.
++                // max.f32 ignores a lone NaN, including an all-NaN group's
++                // reduction when it meets the floor here.
++                mul.rn.ftz.f32 mx, mx, 0f3B124925;
++                max.f32 mx, mx, 0f0DA24260;
++                mov.b32 bits, mx;
++                and.b32 mantissa, bits, 0x007fffff;
++                setp.ne.u32 needs_round, mantissa, 0;
++                and.b32 bits, bits, 0x7f800000;
++                @needs_round add.u32 bits, bits, 0x00800000;
++                mov.b32 $0, bits;
++            }""",
++            "=f,f,f,f,f",
++            has_side_effects=True,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def _pack_fp8(v0, v1, v2, v3, scale, *, loc=None, ip=None):
++    return cutlass.Int32(
++        llvm.inline_asm(
++            cutlass.Int32.mlir_type,
++            [F32(v).ir_value(loc=loc, ip=ip) for v in (v0, v1, v2, v3, scale)],
++            """{
++                .reg .f32 scaled<4>, inv;
++                .reg .b16 lo, hi;
++                rcp.approx.ftz.f32 inv, $5;
++                mul.rn.ftz.f32 scaled0, $1, inv;
++                mul.rn.ftz.f32 scaled1, $2, inv;
++                mul.rn.ftz.f32 scaled2, $3, inv;
++                mul.rn.ftz.f32 scaled3, $4, inv;
++                cvt.rn.satfinite.e4m3x2.f32 lo, scaled1, scaled0;
++                cvt.rn.satfinite.e4m3x2.f32 hi, scaled3, scaled2;
++                mov.b32 $0, {lo, hi};
++            }""",
++            "=r,f,f,f,f,f",
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
+ class GnFwdOut:
+     """Tile = 64 rows x Hc = H / n_hc columns (persistent, strided over num_SMs CTAs)."""
+ 
+@@ -434,6 +522,7 @@
+         epi_stage=2,
+         pdl=False,
+         add_residual=False,
++        quantize_output=False,
+     ):
+         hc = hidden // n_hc
+         if rank != RANK or hidden % n_hc or hc % (2 * BLK_H):
+@@ -442,6 +531,7 @@
+             )
+         self.H, self.R, self.S, self.n_hc = hidden, rank, n_split, n_hc
+         self.add_residual = add_residual
++        self.quantize_output = quantize_output
+         self.Hc, self.n_sub = hc, hc // BLK_H
+         self.eps, self.lgw, self.inv_h = float(eps), float(lgw), 1.0 / float(hidden)
+         self.num_sms, self.stages, self.epi_stage, self.pdl = (
+@@ -464,6 +554,8 @@
+         mP: cute.Tensor,
+         mResidual: cute.Tensor,
+         stream: cuda.CUstream,
++        mQWords=None,
++        mScale=None,
+     ):
+         tile_mnk = (BLK_M, BLK_H, self.R)
+         mma = sm90_utils.make_trivial_tiled_mma(
+@@ -529,6 +621,10 @@
+         self.shared_storage = SharedStorage
+         M = cutlass.Int64(mX.shape[0])
+         num_tiles = (M + BLK_M - 1) // BLK_M * self.n_hc
++        # The ordinary specialization never reads these extra operands.
++        quant_words, quant_scale = mY, mRho
++        if cutlass.const_expr(self.quantize_output):
++            quant_words, quant_scale = mQWords, mScale
+         self.kernel(
+             tma_x,
+             tX,
+@@ -543,6 +639,8 @@
+             mSSp,
+             mRho,
+             mP,
++            quant_words,
++            quant_scale,
+             mma,
+             x_l,
+             b_l,
+@@ -574,6 +672,8 @@
+         mSSp: cute.Tensor,
+         mRho: cute.Tensor,
+         mP: cute.Tensor,
++        mQWords: cute.Tensor,
++        mScale: cute.Tensor,
+         mma: cute.TiledMma,
+         x_l: cute.ComposedLayout,
+         b_l: cute.ComposedLayout,
+@@ -816,9 +916,92 @@
+                         store_ring.producer_commit()
+                         store_ring.producer_acquire()
+                     cute.arch.barrier(barrier_id=wg_bar_id, number_of_threads=WG)
++                    if cutlass.const_expr(self.quantize_output):
++                        # Both BF16 halves are visible to the row warps. Double
++                        # buffering and the next pair's barrier protect these
++                        # reads before either warpgroup can reuse the slot.
++                        all_bar.arrive_and_wait()
++                        lane = ct % 32
++                        row_warp = ct // 32
++                        col = (lane % 16) * 4
++                        pair_stage = (lane // 16) * self.epi_stage + n_store % self.epi_stage
++                        group = bc * (self.n_sub // 2) + jj
++                        for ri in cutlass.range_constexpr(BLK_M // (2 * WG // 32)):
++                            row = row_warp + ri * (2 * WG // 32)
++                            if m0 + row < M:
++                                v0 = F32(sY[(row, col, pair_stage)])
++                                v1 = F32(sY[(row, col + 1, pair_stage)])
++                                v2 = F32(sY[(row, col + 2, pair_stage)])
++                                v3 = F32(sY[(row, col + 3, pair_stage)])
++                                scale = _quant_scale(v0, v1, v2, v3)
++                                mQWords[(m0 + row, group * 32 + lane)] = _pack_fp8(
++                                    v0, v1, v2, v3, scale
++                                )
++                                if lane == 0:
++                                    mScale[(group, m0 + row)] = scale
+                     n_store += 1
+                 tile += gdim
+             store_ring.producer_tail()
++
++
++def compile_norm_out_quant(eps, lgw, *, compile_kernel=compile_op):
++    """Compile the ordinary native output phase and its 1x128 quantization."""
++    hidden, rank, sms, chunks = 4096, 16, 116, 4
++    splits = pick_n_split(hidden)
++    stages = pick_f2_stages(hidden, chunks)
++    m = cute.sym_int(width=64)
++    output_phase = GnFwdOut(
++        hidden, rank, splits, chunks, eps, lgw, sms, stages, quantize_output=True
++    )
++
++    @cute.jit
++    def launch(
++        x: cute.Tensor,
++        weight: cute.Tensor,
++        down: cute.Tensor,
++        p_part: cute.Tensor,
++        ss_part: cute.Tensor,
++        y: cute.Tensor,
++        rho: cute.Tensor,
++        p: cute.Tensor,
++        words: cute.Tensor,
++        scale: cute.Tensor,
++        stream: cuda.CUstream,
++    ):
++        output_phase(x, weight, down, p_part, ss_part, y, rho, p, x, stream, words, scale)
++
++    return compile_kernel(
++        ("f2_row_quant", hidden, rank, splits, chunks, eps, lgw, sms, stages),
++        lambda: launch,
++        (
++            make_fake_compact_tensor(
++                BF16, (m, hidden), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(F32, (hidden,), stride_order=(0,), assumed_align=16),
++            make_fake_compact_tensor(
++                BF16, (hidden, rank), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(
++                F32, (splits, m, rank), stride_order=(2, 1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(
++                F32, (splits, m), stride_order=(1, 0), assumed_align=4
++            ),
++            make_fake_compact_tensor(
++                BF16, (m, hidden), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(F32, (m,), stride_order=(0,), assumed_align=16),
++            make_fake_compact_tensor(
++                F32, (m, rank), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(
++                cutlass.Int32, (m, hidden // 4), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(
++                F32, (hidden // 128, m), stride_order=(1, 0), assumed_align=16
++            ),
++        ),
++    )
+ 
+ 
+ # =============================================================================

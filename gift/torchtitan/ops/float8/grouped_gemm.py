@@ -2,7 +2,7 @@ import torch
 from torch.autograd.profiler import record_function as record_fn
 from torch.fx.experimental.symbolic_shapes import guard_or_false
 
-from torchtitan.ops.float8.deep_gemm_handle import _DeepGemmHandle
+from torchtitan.ops.float8.deep_gemm_handle import _DeepGemmHandle, routed_bf16_wgrad
 from torchtitan.ops.float8.fp8_tensor import (
     Float8BlockwiseQTensor,
     clear_tensor_data,
@@ -218,11 +218,6 @@ class _GroupedGemm(torch.autograd.Function):
 
                     clear_tensor_data(*grad_output_quantized)
 
-                # TODO: replace with torch.empty
-                wgrad = torch.zeros(
-                    ctx.weight_shape, dtype=torch.bfloat16, device=ctx.device
-                )
-
                 grad_output_quantized_col = (
                     grad_output_quantized_col[0].view(torch.float8_e4m3fn),
                     grad_output_quantized_col[1].mT,
@@ -232,10 +227,11 @@ class _GroupedGemm(torch.autograd.Function):
                     tensor_groups_quantized_col[1].mT,
                 )
 
-                _get_deep_gemm_handle().k_grouped_fp8_gemm_contiguous(
+                wgrad = routed_bf16_wgrad(
                     a=grad_output_quantized_col,
                     b=tensor_groups_quantized_col,
-                    d=wgrad,
+                    weight_shape=ctx.weight_shape,
+                    device=ctx.device,
                     ks=ctx.list_groups_sizes,
                     ks_cpu=ctx.tensor_groups_sizes_cpu,
                     ks_tensor=ctx.tensor_groups_sizes,

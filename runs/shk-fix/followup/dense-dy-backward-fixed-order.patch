@@ -1,0 +1,33 @@
+--- a/runs/shk-fix/followup/dense_dy_backward_component.py
++++ b/runs/shk-fix/followup/dense_dy_backward_component.py
+@@ -23,6 +23,12 @@
+     "dW": (torch.bfloat16, torch.int16),
+ }
+ COMPILE = {"backend": "inductor", "fullgraph": True, "dynamic": False}
++# Preserve the measured cut in both standalone arms. The trace still checks order.
++COMPILE_OPTIONS = {
++    "triton.cudagraphs": False,
++    "reorder_for_locality": False,
++    "reorder_for_peak_memory": False,
++}
+ 
+ 
+ def load_inputs(fixture, dy_width, x_width):
+@@ -109,7 +115,7 @@
+             return (*dy_row[:2], *dy_col[:2], dx, dw)
+         return dx, dw
+ 
+-    return torch.compile(backward, **COMPILE, options={"triton.cudagraphs": False})
++    return torch.compile(backward, **COMPILE, options=COMPILE_OPTIONS)
+ 
+ 
+ def parity(left, right, expected_shapes):
+@@ -311,7 +317,7 @@
+             "layout": "rowwise" if args.lane == "w2" else "columnwise",
+             "shapes": [list(plane.shape) for plane in x[:2]],
+         },
+-        "compile": {**COMPILE, "cudagraphs": False},
++        "compile": {**COMPILE, **COMPILE_OPTIONS},
+         "gemm": {"out_dtype": "bfloat16", "use_split_accumulator": True},
+         "debug_parity": debug_parity,
+         "timed_parity": timed_parity,

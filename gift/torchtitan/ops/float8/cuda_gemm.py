@@ -1,3 +1,4 @@
+import os
 from typing import TypeAlias
 
 import torch
@@ -73,6 +74,8 @@ class FP8Gemm(torch.autograd.Function):
         residual: torch.Tensor | None = None,
         is_recompute: bool = False,
         do_unpad_out: bool = True,
+        quantize_weight_tail: bool = False,
+        wgrad_logical_width: bool = False,
     ) -> torch.Tensor:
         """Forward autograd function
 
@@ -86,6 +89,8 @@ class FP8Gemm(torch.autograd.Function):
             residual (torch.Tensor | None): residual connection tensor
             is_recompute (bool): requantize fp8 weights on backward
             do_unpad_out (bool): do unpad gemm output if needed
+            quantize_weight_tail (bool): let the weight quantizer supply zero padding
+            wgrad_logical_width (bool): write the dense w2 gradient at its logical width
         Returns:
             Torch.Tensor: forward output tensor
         """
@@ -110,7 +115,23 @@ class FP8Gemm(torch.autograd.Function):
             inp_quantized = quantize_vec128(inp, pack=True)
 
         # get quantized weights
-        weight = pad_tensor_if_needed(weight)
+        ctx.quantize_weight_tail = (
+            quantize_weight_tail
+            and weight.is_cuda
+            and weight.dtype == torch.bfloat16
+            and weight.is_contiguous()
+            and ctx.w_shape in ((10944, 4096), (4096, 10944))
+        )
+        ctx.wgrad_logical_width = (
+            wgrad_logical_width
+            and ctx.quantize_weight_tail
+            and ctx.w_shape == (4096, 10944)
+            and dtype == torch.bfloat16
+            and inp_is_quantized
+            and ctx.inp_cur_shape == (2, 4096, 11008)
+        )
+        if not ctx.quantize_weight_tail:
+            weight = pad_tensor_if_needed(weight)
 
         if not act_requires_grad:
             del inp
@@ -187,7 +208,10 @@ class FP8Gemm(torch.autograd.Function):
             (weight,) = restore_from_saved(ctx.tensor_objects, ctx.saved_tensors)
         ctx.tensor_objects = None
 
-        weight = pad_tensor_if_needed(weight)
+        # As for aligned weights, GFSDP restores the saved weight view before
+        # dgrad. CudaCherry supplies the same zeros in either FP8 orientation.
+        if not ctx.quantize_weight_tail:
+            weight = pad_tensor_if_needed(weight)
         weight_quantized = quantize_blk128x128(
             weight, transpose_output=True, pack=False
         )
@@ -223,12 +247,25 @@ class FP8Gemm(torch.autograd.Function):
                 grad_output_quantized,
                 pack=False,
             )
+            wgrad_input = inp_quantized
+            if ctx.wgrad_logical_width:
+                data, scale, layout, block = inp_quantized
+                width = ctx.w_shape[-1]
+                # Columnwise FP8 stores a contiguous feature prefix. cuBLASLt
+                # derives the scale row stride from that feature count.
+                wgrad_input = (
+                    data[:width],
+                    scale[:, :width].contiguous(),
+                    layout,
+                    block,
+                )
             wgrad = fp8_gemm(
-                inp_quantized,
+                wgrad_input,
                 grad_output_quantized,
                 out_dtype=ctx.dtype,
                 use_split_accumulator=True,
             )
+            del wgrad_input
             wgrad = unpad_tensor_if_needed(wgrad, ctx.w_shape)
             clear_tensor_data(inp_quantized, grad_output_quantized)
         else:
@@ -243,6 +280,8 @@ class FP8Gemm(torch.autograd.Function):
             grad_output if ctx.has_residual else None,
             None,  # is_recompute
             None,  # do_unpad_out
+            None,  # quantize_weight_tail
+            None,  # wgrad_logical_width
         )
 
 
@@ -258,6 +297,12 @@ class FP8Linear(nn.Linear, Module):
             )
         self.in_features, self.out_features = config.require_features()
         self._is_recompute = False
+        self._quantize_weight_tail = (
+            os.environ.get("GIFT_FP8_QUANTIZE_WEIGHT_TAIL") == "1"
+        )
+        self._wgrad_logical_width = (
+            os.environ.get("GIFT_FP8_WGRAD_LOGICAL_WIDTH") == "1"
+        )
         super().__init__(
             self.in_features,
             self.out_features,
@@ -307,6 +352,8 @@ class FP8Linear(nn.Linear, Module):
             residual,
             is_recompute,
             do_unpad_out,
+            self._quantize_weight_tail,
+            self._wgrad_logical_width,
         )
 
     def forward(

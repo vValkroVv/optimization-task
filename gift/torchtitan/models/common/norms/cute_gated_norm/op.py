@@ -80,12 +80,29 @@ def _forward(
     torch.Tensor,
     torch.Tensor,
 ]:
+    return _run_forward(x, weight, gate_up_weight, gate_down_weight, eps, gating_weight)
+
+
+def _run_forward(
+    x,
+    weight,
+    gate_up_weight,
+    gate_down_weight,
+    eps,
+    gating_weight,
+    residual=None,
+    *,
+    stats_only=False,
+):
     _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
     _check_device(x)
     if x.numel() == 0:
-        y, rho, p, *_ = _forward_fake(
-            x, weight, gate_up_weight, gate_down_weight, eps, gating_weight
+        y = (
+            None
+            if stats_only
+            else torch.empty_like(x, memory_format=torch.contiguous_format)
         )
+        rho, p, *_ = _saved_forward_fake(x)
         # Even an empty row shard must return the replicated auxiliary weights.
         return (
             y,
@@ -107,6 +124,8 @@ def _forward(
             _aligned(gate_down_weight),
             eps,
             gating_weight,
+            residual=None if residual is None else _aligned(residual),
+            stats_only=stats_only,
         )
     # Preserve leading dimensions so DTensor can shard rows without flattening
     # a batch/sequence shard across the normalized hidden dimension.
@@ -116,9 +135,15 @@ def _forward(
 @_forward.register_fake
 def _forward_fake(x, weight, gate_up_weight, gate_down_weight, eps, gating_weight):
     _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
-    hidden = x.shape[-1]
     return (
         torch.empty_like(x, memory_format=torch.contiguous_format),
+        *_saved_forward_fake(x),
+    )
+
+
+def _saved_forward_fake(x):
+    hidden = x.shape[-1]
+    return (
         x.new_empty(x.shape[:-1], dtype=torch.float32),
         x.new_empty((*x.shape[:-1], 16), dtype=torch.float32),
         x.new_empty((hidden,), dtype=torch.float32),
@@ -126,6 +151,81 @@ def _forward_fake(x, weight, gate_up_weight, gate_down_weight, eps, gating_weigh
         x.new_empty((16, hidden)),
         x.new_empty((hidden, 16)),
     )
+
+
+@torch.library.custom_op(
+    "torchtitan::cute_gated_norm_residual_fwd", mutates_args=(), device_types="cuda"
+)
+def _forward_residual(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    gate_up_weight: torch.Tensor,
+    gate_down_weight: torch.Tensor,
+    eps: float,
+    gating_weight: float,
+    residual: torch.Tensor,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    _validate_residual(x, residual)
+    return _run_forward(
+        x, weight, gate_up_weight, gate_down_weight, eps, gating_weight, residual
+    )
+
+
+def _validate_residual(x, residual):
+    if (
+        residual.shape != x.shape
+        or residual.dtype != x.dtype
+        or residual.device != x.device
+    ):
+        raise ValueError(
+            "CuTe residual must match the BF16 norm input shape and device"
+        )
+
+
+@_forward_residual.register_fake
+def _forward_residual_fake(
+    x, weight, gate_up_weight, gate_down_weight, eps, gating_weight, residual
+):
+    _validate_residual(x, residual)
+    return _forward_fake(
+        x, weight, gate_up_weight, gate_down_weight, eps, gating_weight
+    )
+
+
+@torch.library.custom_op(
+    "torchtitan::cute_gated_norm_fwd_stats", mutates_args=(), device_types="cuda"
+)
+def _forward_stats(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    gate_up_weight: torch.Tensor,
+    gate_down_weight: torch.Tensor,
+    eps: float,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    return _run_forward(
+        x, weight, gate_up_weight, gate_down_weight, eps, 0.0, stats_only=True
+    )[1:]
+
+
+@_forward_stats.register_fake
+def _forward_stats_fake(x, weight, gate_up_weight, gate_down_weight, eps):
+    _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
+    return _saved_forward_fake(x)
 
 
 @torch.library.custom_op(
@@ -145,6 +245,36 @@ def _backward(
     up_dtype: torch.dtype,
     down_dtype: torch.dtype,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    return _run_backward(
+        dy,
+        x,
+        rho,
+        p,
+        w_f,
+        gd_bf,
+        gd_t,
+        gu_t,
+        gating_weight,
+        (weight_dtype, up_dtype, down_dtype),
+    )
+
+
+def _run_backward(
+    dy,
+    x,
+    rho,
+    p,
+    w_f,
+    gd_bf,
+    gd_t,
+    gu_t,
+    gating_weight,
+    grad_dtypes,
+    *,
+    skip=None,
+    skip_first=True,
+):
+    weight_dtype, up_dtype, down_dtype = grad_dtypes
     if x.numel() == 0:
         return (
             torch.empty_like(x, memory_format=torch.contiguous_format),
@@ -164,7 +294,9 @@ def _backward(
             gd_t,
             gu_t,
             gating_weight,
-            (weight_dtype, up_dtype, down_dtype),
+            grad_dtypes,
+            skip=skip,
+            skip_first=skip_first,
         )
 
 
@@ -191,6 +323,52 @@ def _backward_fake(
     )
 
 
+@torch.library.custom_op(
+    "torchtitan::cute_gated_norm_bwd_skip", mutates_args=(), device_types="cuda"
+)
+def _backward_skip(
+    dy: torch.Tensor,
+    x: torch.Tensor,
+    rho: torch.Tensor,
+    p: torch.Tensor,
+    w_f: torch.Tensor,
+    gd_bf: torch.Tensor,
+    gd_t: torch.Tensor,
+    gu_t: torch.Tensor,
+    gating_weight: float,
+    weight_dtype: torch.dtype,
+    up_dtype: torch.dtype,
+    down_dtype: torch.dtype,
+    skip: torch.Tensor,
+    skip_first: bool,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    _validate_residual(x, skip)
+    args = (
+        dy,
+        x,
+        rho,
+        p,
+        w_f,
+        gd_bf,
+        gd_t,
+        gu_t,
+        gating_weight,
+        (weight_dtype, up_dtype, down_dtype),
+    )
+    if skip.is_contiguous() and skip.data_ptr() % 16 == 0:
+        return _run_backward(*args, skip=skip, skip_first=skip_first)
+    # Preserve the original sum if the actual storage is unsuitable for TMA.
+    dx, *parameter_grads = _run_backward(*args)
+    left, right = (skip, dx) if skip_first else (dx, skip)
+    return torch.add(left, right, out=torch.empty_like(dx)), *parameter_grads
+
+
+@_backward_skip.register_fake
+def _backward_skip_fake(*args):
+    _validate_residual(args[1], args[-2])
+    return _backward_fake(*args[:-2])
+
+
 def _setup_context(ctx, inputs, output):
     x, weight, gate_up_weight, gate_down_weight, _, gating_weight = inputs
     ctx.save_for_backward(x, *output[1:])
@@ -209,10 +387,30 @@ def _autograd_backward(ctx, dy, *unused):
 
 _forward.register_autograd(_autograd_backward, setup_context=_setup_context)
 
-register_cute_gated_norm_sharding(_forward._opoverload, _backward._opoverload)
+
+def _setup_residual_context(ctx, inputs, output):
+    _setup_context(ctx, inputs[:-1], output)
 
 
-def gated_norm(x, weight, gate_up_weight, gate_down_weight, *, eps, gating_weight):
+def _autograd_residual_backward(ctx, dy, *unused):
+    return (*_autograd_backward(ctx, dy), dy)
+
+
+_forward_residual.register_autograd(
+    _autograd_residual_backward, setup_context=_setup_residual_context
+)
+
+register_cute_gated_norm_sharding(
+    _forward._opoverload, _backward._opoverload, _forward_residual._opoverload
+)
+
+
+def gated_norm(
+    x, weight, gate_up_weight, gate_down_weight, *, eps, gating_weight, residual=None
+):
     """Self-gated RMSNorm for BF16 Hopper inputs; supports first-order gradients."""
     _validate_inputs(x, weight, gate_up_weight, gate_down_weight, eps)
-    return _forward(x, weight, gate_up_weight, gate_down_weight, eps, gating_weight)[0]
+    args = (x, weight, gate_up_weight, gate_down_weight, eps, gating_weight)
+    if residual is not None:
+        return _forward_residual(*args, residual)[0]
+    return _forward(*args)[0]

@@ -363,8 +363,61 @@ class GnFwdStats:
 
 
 # =============================================================================
-# F2: statistics finalize + gate + output
+# F2: statistics finalize, optionally followed by the gate and output
 # =============================================================================
+class GnFwdFinalizeStats:
+    """Finalize the saved statistics once per row without the output epilogue."""
+
+    def __init__(self, hidden, n_split, eps, num_sms):
+        self.inv_h = 1.0 / float(hidden)
+        self.n_split, self.eps, self.num_sms = n_split, float(eps), num_sms
+
+    @cute.jit
+    def __call__(
+        self,
+        mPp: cute.Tensor,
+        mSSp: cute.Tensor,
+        mRho: cute.Tensor,
+        mP: cute.Tensor,
+        stream: cuda.CUstream,
+    ):
+        M = cutlass.Int64(mP.shape[0])
+        self.kernel(mPp, mSSp, mRho, mP, M).launch(
+            grid=(self.num_sms, 1, 1),
+            block=(BLK_M * 4, 1, 1),
+            stream=stream,
+        )
+
+    @cute.kernel
+    def kernel(
+        self,
+        mPp: cute.Tensor,
+        mSSp: cute.Tensor,
+        mRho: cute.Tensor,
+        mP: cute.Tensor,
+        M: cutlass.Int64,
+    ):
+        tidx, _, _ = cute.arch.thread_idx()
+        bidx, _, _ = cute.arch.block_idx()
+        m = cutlass.Int64(bidx) * BLK_M + tidx // 4
+        sk0 = (tidx % 4) * 4
+        pv = cute.make_rmem_tensor((4,), F32)
+        while m < M:
+            # Match GnFwdOut's split order and FP32 arithmetic exactly.
+            ss = F32(0.0)
+            pv.fill(0.0)
+            for s in cutlass.range_constexpr(self.n_split):
+                ss += mSSp[(s, m)]
+                for kk in cutlass.range_constexpr(4):
+                    pv[kk] += mPp[(s, m, sk0 + kk)]
+            rho = cute.math.rsqrt(ss * self.inv_h + self.eps)
+            for kk in cutlass.range_constexpr(4):
+                mP[(m, sk0 + kk)] = pv[kk] * rho
+            if sk0 == 0:
+                mRho[m] = rho
+            m += self.num_sms * BLK_M
+
+
 class GnFwdOut:
     """Tile = 64 rows x Hc = H / n_hc columns (persistent, strided over num_SMs CTAs)."""
 
@@ -380,6 +433,7 @@ class GnFwdOut:
         stages,
         epi_stage=2,
         pdl=False,
+        add_residual=False,
     ):
         hc = hidden // n_hc
         if rank != RANK or hidden % n_hc or hc % (2 * BLK_H):
@@ -387,6 +441,7 @@ class GnFwdOut:
                 f"H/n_hc={hidden}/{n_hc} must be a multiple of {2 * BLK_H}"
             )
         self.H, self.R, self.S, self.n_hc = hidden, rank, n_split, n_hc
+        self.add_residual = add_residual
         self.Hc, self.n_sub = hc, hc // BLK_H
         self.eps, self.lgw, self.inv_h = float(eps), float(lgw), 1.0 / float(hidden)
         self.num_sms, self.stages, self.epi_stage, self.pdl = (
@@ -407,6 +462,7 @@ class GnFwdOut:
         mY: cute.Tensor,
         mRho: cute.Tensor,
         mP: cute.Tensor,
+        mResidual: cute.Tensor,
         stream: cuda.CUstream,
     ):
         tile_mnk = (BLK_M, BLK_H, self.R)
@@ -445,11 +501,25 @@ class GnFwdOut:
             cute.slice_(y_l, (None, None, 0)),
             (BLK_M, BLK_H),
         )
+        # The disabled specialization never reads the residual descriptor or
+        # allocates residual staging. Use X's descriptor in that specialization.
+        tma_residual, tResidual = tma_x, tX
+        if cutlass.const_expr(self.add_residual):
+            tma_residual, tResidual = cpasync.make_tiled_tma_atom(
+                cpasync.CopyBulkTensorTileG2SOp(),
+                mResidual,
+                cute.slice_(x_l, (None, None, 0)),
+                (BLK_M, BLK_H),
+            )
+        residual_smem = cute.cosize(x_l) if self.add_residual else 0
 
         @cute.struct
         class SharedStorage:
             mbar: cute.struct.MemRange[cutlass.Int64, self.stages * 2]
             s_x: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(x_l)], 1024]
+            s_residual: cute.struct.Align[
+                cute.struct.MemRange[BF16, residual_smem], 1024
+            ]
             s_b: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(b_l)], 1024]
             s_y: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(y_l)], 1024]
             s_s: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(s_l)], 1024]
@@ -466,6 +536,8 @@ class GnFwdOut:
             tGD,
             tma_y,
             tY,
+            tma_residual,
+            tResidual,
             mW,
             mPp,
             mSSp,
@@ -495,6 +567,8 @@ class GnFwdOut:
         mGD: cute.Tensor,
         tma_y: cute.CopyAtom,
         mY: cute.Tensor,
+        tma_residual: cute.CopyAtom,
+        mResidual: cute.Tensor,
         mW: cute.Tensor,
         mPp: cute.Tensor,
         mSSp: cute.Tensor,
@@ -517,11 +591,15 @@ class GnFwdOut:
             cpasync.prefetch_descriptor(tma_x)
             cpasync.prefetch_descriptor(tma_b)
             cpasync.prefetch_descriptor(tma_y)
+            if cutlass.const_expr(self.add_residual):
+                cpasync.prefetch_descriptor(tma_residual)
 
         storage = cutlass.utils.SmemAllocator().allocate(self.shared_storage)
         tx = cute.size_in_bytes(
             BF16, cute.slice_(x_l, (None, None, 0))
         ) + cute.size_in_bytes(BF16, cute.slice_(b_l, (None, None, 0)))
+        if cutlass.const_expr(self.add_residual):
+            tx += cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
         ring = pipeline.PipelineTmaAsync.create(
             barrier_storage=storage.mbar.data_ptr(),
             num_stages=self.stages,
@@ -543,6 +621,18 @@ class GnFwdOut:
             cute.group_modes(sX, 0, 2),
             cute.group_modes(cute.local_tile(mX, (BLK_M, BLK_H), (None, None)), 0, 2),
         )
+        sResidual, tRs, tRg = sX, tXs, tXg
+        if cutlass.const_expr(self.add_residual):
+            sResidual = storage.s_residual.get_tensor(x_l.outer, swizzle=x_l.inner)
+            tRs, tRg = cpasync.tma_partition(
+                tma_residual,
+                0,
+                cute.make_layout(1),
+                cute.group_modes(sResidual, 0, 2),
+                cute.group_modes(
+                    cute.local_tile(mResidual, (BLK_M, BLK_H), (None, None)), 0, 2
+                ),
+            )
         tBs, tBg = cpasync.tma_partition(
             tma_b,
             0,
@@ -582,6 +672,7 @@ class GnFwdOut:
         r2s = cute.make_tiled_copy_C(sm90_utils.get_smem_store_op(ROW, BF16, F32), mma)
         tRS_s = r2s.get_slice(wt).partition_D(sY)
         r_out = cute.make_rmem_tensor_like(acc, BF16)
+        tSResidual = s2r_thr.partition_S(sResidual)
         tRS_b = r2s.retile(r_out)
         store_ring = pipeline.PipelineTmaStore.create(
             num_stages=self.epi_stage,
@@ -620,6 +711,13 @@ class GnFwdOut:
                             tBs[(None, prod.index)],
                             tma_bar_ptr=bar,
                         )
+                        if cutlass.const_expr(self.add_residual):
+                            cute.copy(
+                                tma_residual,
+                                tRg[(None, bm, h_base + j)],
+                                tRs[(None, prod.index)],
+                                tma_bar_ptr=bar,
+                            )
                         ring.producer_commit(prod)
                         prod.advance()
                     tile += gdim
@@ -694,11 +792,17 @@ class GnFwdOut:
                             * sW[j * BLK_H + crd[1]]
                             * sigmoid(acc[i])
                         )
+                    if cutlass.const_expr(self.add_residual):
+                        cute.copy(s2r, tSResidual[(None, None, None, st)], vX)
                     ring.consumer_release(cons)
                     cons.advance()
                     cons.advance()
 
-                    r_out.store(acc.load().to(BF16))
+                    if cutlass.const_expr(self.add_residual):
+                        normalized = acc.load().to(BF16).to(F32)
+                        r_out.store((normalized + rX.load().to(F32)).to(BF16))
+                    else:
+                        r_out.store(acc.load().to(BF16))
                     buf = w * self.epi_stage + n_store % self.epi_stage
                     cute.copy(r2s, tRS_b, tRS_s[(None, None, None, buf)])
                     cute.arch.fence_proxy("async.shared", space="cta")
@@ -746,10 +850,11 @@ def f2_fixed_smem(H, n_hc):
     return 4 * BLK_M * BLK_H * 2 + BLK_M * RANK * 2 + (H // n_hc) * 4 + BLK_M * 4 + 2048
 
 
-def pick_f2_stages(H, n_hc, budget=220 * 1024):
+def pick_f2_stages(H, n_hc, budget=220 * 1024, *, add_residual=False):
+    stage_bytes = f2_stage_smem() + (BLK_M * BLK_H * 2 if add_residual else 0)
     return max(
         2,
-        min(12, (budget - f2_fixed_smem(H, n_hc)) // f2_stage_smem()),
+        min(12, (budget - f2_fixed_smem(H, n_hc)) // stage_bytes),
     )
 
 
@@ -779,9 +884,12 @@ def pick_n_hc(M, H, sms):
     return min(f2_chunk_options(H, sms), key=lambda n_hc: (cost(n_hc), n_hc))
 
 
-def _fwd_plan(H, R, dtypes, eps, lgw, dev, n_hc, sms, f2_pdl=False):
+def _fwd_plan(
+    H, R, dtypes, eps, lgw, dev, n_hc, sms, f2_pdl=False, *, add_residual=False
+):
     """Compile an M-independent forward plan for one bounded F2 split."""
-    key = ("fwd", H, R, dtypes, eps, lgw, dev.index, n_hc, sms, f2_pdl)
+    # A missing output split selects the statistics-only finalizer.
+    key = ("fwd", H, R, dtypes, eps, lgw, dev.index, n_hc, sms, f2_pdl, add_residual)
     plan = PLANS.get(key)
     if plan is None:
         split_k = pick_n_split(H)
@@ -833,9 +941,31 @@ def _fwd_plan(H, R, dtypes, eps, lgw, dev, n_hc, sms, f2_pdl=False):
                 ),
             ),
         )
-        stages = pick_f2_stages(H, n_hc)
+        if n_hc is None:
+            finalize_stats = compile_op(
+                ("finalize_stats", H, R, split_k, eps, sms),
+                lambda: GnFwdFinalizeStats(H, split_k, eps, sms),
+                (
+                    make_fake_compact_tensor(
+                        F32, (split_k, m, R), stride_order=(2, 1, 0), assumed_align=16
+                    ),
+                    make_fake_compact_tensor(
+                        F32, (split_k, m), stride_order=(1, 0), assumed_align=4
+                    ),
+                    make_fake_compact_tensor(
+                        F32, (m,), stride_order=(0,), assumed_align=16
+                    ),
+                    make_fake_compact_tensor(
+                        F32, (m, R), stride_order=(1, 0), assumed_align=16
+                    ),
+                ),
+            )
+            plan = (prep, f1, finalize_stats, split_k)
+            PLANS[key] = plan
+            return plan
+        stages = pick_f2_stages(H, n_hc, add_residual=add_residual)
         f2 = compile_op(
-            ("f2", H, R, split_k, n_hc, eps, lgw, sms, stages, f2_pdl),
+            ("f2", H, R, split_k, n_hc, eps, lgw, sms, stages, f2_pdl, add_residual),
             lambda: GnFwdOut(
                 H,
                 R,
@@ -846,6 +976,7 @@ def _fwd_plan(H, R, dtypes, eps, lgw, dev, n_hc, sms, f2_pdl=False):
                 sms,
                 stages,
                 pdl=f2_pdl,
+                add_residual=add_residual,
             ),
             (
                 make_fake_compact_tensor(
@@ -871,6 +1002,9 @@ def _fwd_plan(H, R, dtypes, eps, lgw, dev, n_hc, sms, f2_pdl=False):
                 ),
                 make_fake_compact_tensor(
                     F32, (m, R), stride_order=(1, 0), assumed_align=16
+                ),
+                make_fake_compact_tensor(
+                    BF16, (m, H), stride_order=(1, 0), assumed_align=16
                 ),
             ),
         )
@@ -909,6 +1043,8 @@ def gated_norm_fwd(
     num_sms=None,
     n_hc=None,
     f2_pdl=False,
+    residual=None,
+    stats_only=False,
 ):
     """Run forward and return output, saved row statistics and prepared weights.
 
@@ -924,7 +1060,7 @@ def gated_norm_fwd(
     M = x2d.shape[0]
     dev = x.device
     sms = resolve_num_sms(dev, num_sms)
-    if n_hc is None:
+    if not stats_only and n_hc is None:
         n_hc = pick_n_hc(M, H, sms)
     dtypes = (gate_up_weight.dtype, weight.dtype, gate_down_weight.dtype)
     prep, f1, f2, split_k = _fwd_plan(
@@ -934,9 +1070,10 @@ def gated_norm_fwd(
         float(eps),
         float(lgw),
         dev,
-        n_hc,
+        None if stats_only else n_hc,
         sms,
         f2_pdl,
+        add_residual=residual is not None,
     )
 
     w_eff = torch.empty(R, H, device=dev, dtype=torch.bfloat16)
@@ -959,8 +1096,13 @@ def gated_norm_fwd(
         [(split_k, M, R), (split_k, M)],
     )
     f1(x2d, w_eff, p_part, ss_part)
-    y = torch.empty_like(x2d)
+    y = None if stats_only else torch.empty_like(x2d)
     rho = torch.empty(M, device=dev, dtype=torch.float32)
     p = torch.empty(M, R, device=dev, dtype=torch.float32)
-    f2(x2d, w_f, gd_bf, p_part, ss_part, y, rho, p)
-    return y.view(x.shape), rho, p, (w_f, gd_bf, gd_t, gu_t)
+    if stats_only:
+        f2(p_part, ss_part, rho, p)
+    else:
+        residual2d = x2d if residual is None else residual.view(M, H)
+        f2(x2d, w_f, gd_bf, p_part, ss_part, y, rho, p, residual2d)
+        y = y.view(x.shape)
+    return y, rho, p, (w_f, gd_bf, gd_t, gu_t)

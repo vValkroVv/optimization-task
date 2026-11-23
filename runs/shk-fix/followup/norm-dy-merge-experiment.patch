@@ -1,0 +1,363 @@
+diff --git a/gift/torchtitan/models/common/norms/cute_gated_norm/backward.py b/gift/torchtitan/models/common/norms/cute_gated_norm/backward.py
+--- a/gift/torchtitan/models/common/norms/cute_gated_norm/backward.py
++++ b/gift/torchtitan/models/common/norms/cute_gated_norm/backward.py
+@@ -81,10 +81,21 @@
+     return bc, g, cutlass.Int32(rb0), cutlass.Int32(cutlass.min(rb0 + rpg, n_rb))
+ 
+ 
++@cute.jit
++def _dy_vector(tensor, coord, layout):
++    offset = cute.domain_offset(coord, tensor)
++    # Global operands are contiguous and each coordinate is 16-byte aligned.
++    return cute.make_tensor(offset.iterator.align(16), layout)
++
++
+ # =============================================================================
+ # B1: dS / c1 partials per H chunk, dW_down per row group
+ # =============================================================================
+ class GnBwdDs(_BwdTile):
++    def __init__(self, hidden, rank, n_hc, n_groups, lgw, stages, *, merge_dy):
++        super().__init__(hidden, rank, n_hc, n_groups, lgw, stages)
++        self.merge_dy = merge_dy
++
+     @cute.jit
+     def __call__(
+         self,
+@@ -98,6 +109,8 @@
+         mDSp: cute.Tensor,
+         mC1p: cute.Tensor,
+         mWsGD: cute.Tensor,
++        mDYB: cute.Tensor,
++        mDYC: cute.Tensor,
+         stream: cuda.CUstream,
+     ):
+         mma_g = sm90_utils.make_trivial_tiled_mma(
+@@ -146,12 +159,14 @@
+             cute.slice_(x_l, (None, None, 0)),
+             (BLK_M, BLK_H),
+         )
+-        tma_dy, tDY = cpasync.make_tiled_tma_atom(
+-            cpasync.CopyBulkTensorTileG2SOp(),
+-            mDY,
+-            cute.slice_(x_l, (None, None, 0)),
+-            (BLK_M, BLK_H),
+-        )
++        tma_dy, tDY = tma_x, tX
++        if cutlass.const_expr(not self.merge_dy):
++            tma_dy, tDY = cpasync.make_tiled_tma_atom(
++                cpasync.CopyBulkTensorTileG2SOp(),
++                mDY,
++                cute.slice_(x_l, (None, None, 0)),
++                (BLK_M, BLK_H),
++            )
+         tma_gd, tGD = cpasync.make_tiled_tma_atom(
+             cpasync.CopyBulkTensorTileG2SOp(),
+             mGD,
+@@ -190,6 +205,9 @@
+             tX,
+             tma_dy,
+             tDY,
++            mDY,
++            mDYB,
++            mDYC,
+             tma_gd,
+             tGD,
+             tma_gdt,
+@@ -225,6 +243,9 @@
+         mX: cute.Tensor,
+         tma_dy: cute.CopyAtom,
+         mDY: cute.Tensor,
++        mDYA: cute.Tensor,
++        mDYB: cute.Tensor,
++        mDYC: cute.Tensor,
+         tma_gd: cute.CopyAtom,
+         mGD: cute.Tensor,
+         tma_gdt: cute.CopyAtom,
+@@ -255,20 +276,29 @@
+         h_base = bc * self.n_sub
+         if warp_idx == 0:
+             cpasync.prefetch_descriptor(tma_x)
+-            cpasync.prefetch_descriptor(tma_dy)
++            if cutlass.const_expr(not self.merge_dy):
++                cpasync.prefetch_descriptor(tma_dy)
+             cpasync.prefetch_descriptor(tma_gd)
+             cpasync.prefetch_descriptor(tma_gdt)
+ 
+         storage = cutlass.utils.SmemAllocator().allocate(self.shared_storage)
+         tx = (
+-            2 * cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
++            cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
+             + cute.size_in_bytes(BF16, cute.slice_(gd_l, (None, None, 0)))
+             + cute.size_in_bytes(BF16, cute.slice_(gdt_l, (None, None, 0)))
+         )
++        producer_arrivals = 1
++        if cutlass.const_expr(self.merge_dy):
++            # One TMA transaction arrival and one ordinary arrival per merge warp.
++            producer_arrivals = 4
++        else:
++            tx += cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
+         ring = pipeline.PipelineTmaAsync.create(
+             barrier_storage=storage.mbar.data_ptr(),
+             num_stages=self.stages,
+-            producer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread),
++            producer_group=pipeline.CooperativeGroup(
++                pipeline.Agent.Thread, producer_arrivals
++            ),
+             consumer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread, 4),
+             tx_count=tx,
+             cta_layout_vmnk=cute.make_layout((1, 1, 1, 1)),
+@@ -292,13 +322,14 @@
+             cute.group_modes(sX, 0, 2),
+             cute.group_modes(cute.local_tile(mX, (BLK_M, BLK_H), (None, None)), 0, 2),
+         )
+-        tDYs, tDYg = cpasync.tma_partition(
+-            tma_dy,
+-            0,
+-            cute.make_layout(1),
+-            cute.group_modes(sDY, 0, 2),
+-            cute.group_modes(cute.local_tile(mDY, (BLK_M, BLK_H), (None, None)), 0, 2),
+-        )
++        if cutlass.const_expr(not self.merge_dy):
++            tDYs, tDYg = cpasync.tma_partition(
++                tma_dy,
++                0,
++                cute.make_layout(1),
++                cute.group_modes(sDY, 0, 2),
++                cute.group_modes(cute.local_tile(mDY, (BLK_M, BLK_H), (None, None)), 0, 2),
++            )
+         tGDs, tGDg = cpasync.tma_partition(
+             tma_gd,
+             0,
+@@ -389,12 +420,13 @@
+                             tXs[(None, st)],
+                             tma_bar_ptr=bar,
+                         )
+-                        cute.copy(
+-                            tma_dy,
+-                            tDYg[(None, rb, h_base + j)],
+-                            tDYs[(None, st)],
+-                            tma_bar_ptr=bar,
+-                        )
++                        if cutlass.const_expr(not self.merge_dy):
++                            cute.copy(
++                                tma_dy,
++                                tDYg[(None, rb, h_base + j)],
++                                tDYs[(None, st)],
++                                tma_bar_ptr=bar,
++                            )
+                         cute.copy(
+                             tma_gd,
+                             tGDg[(None, h_base + j, 0)],
+@@ -410,6 +442,52 @@
+                         ring.producer_commit(prod)
+                         prod.advance()
+                 ring.producer_tail(prod)
++            else:
++                if cutlass.const_expr(self.merge_dy):
++                    prod = pipeline.make_pipeline_state(
++                        pipeline.PipelineUserType.Producer, self.stages
++                    )
++                    lane = cute.arch.lane_idx()
++                    row_start = 4 * (warp_idx - 1) + lane // 8
++                    col_in_tile = (lane % 8) * 8
++                    vector = cute.make_layout((8, 1))
++                    copy128 = cute.make_copy_atom(
++                        cute.nvgpu.CopyUniversalOp(), BF16, num_bits_per_copy=128
++                    )
++                    r_a = cute.make_rmem_tensor(vector, BF16)
++                    r_b = cute.make_rmem_tensor(vector, BF16)
++                    r_c = cute.make_rmem_tensor(vector, BF16)
++                    for rb in range(rb0, rb1):
++                        for j in range(self.n_sub):
++                            st = prod.index
++                            ring.sync_object_empty.wait(st, prod.phase)
++                            col = (h_base + j) * BLK_H + col_in_tile
++                            for row in cutlass.range(row_start, BLK_M, 12, unroll=1):
++                                global_row = cutlass.Int64(rb) * BLK_M + row
++                                if global_row < M:
++                                    coord = (global_row, col)
++                                    a = _dy_vector(mDYA, coord, vector)
++                                    b = _dy_vector(mDYB, coord, vector)
++                                    c = _dy_vector(mDYC, coord, vector)
++                                    cute.copy(copy128, a, r_a)
++                                    cute.copy(copy128, b, r_b)
++                                    cute.copy(copy128, c, r_c)
++                                    summed = r_a.load().to(F32) + r_b.load().to(F32)
++                                    summed = summed + r_c.load().to(F32)
++                                    r_a.store(summed.to(BF16))
++                                    # Each lane exclusively owns the vector it overwrites.
++                                    cute.copy(copy128, r_a, a)
++                                else:
++                                    r_a.fill(0)
++                                # SW128 preserves each 16-byte group in this view.
++                                stage = cute.local_tile(
++                                    sDY, (1, 8, 1), (row, lane % 8, st)
++                                )
++                                cute.copy(copy128, r_a[(None, 0)], stage[(0, None, 0)])
++                            cute.arch.sync_warp()
++                            with cute.arch.elect_one():
++                                cute.arch.mbarrier_arrive(ring.producer_get_barrier(prod))
++                            prod.advance()
+         if wg_idx != 0:
+             cute.arch.setmaxregister_increase(232)
+             for jj in cutlass.range_constexpr(self.n_jj):
+@@ -619,13 +697,24 @@
+ # =============================================================================
+ class GnBwdDx(_BwdTile):
+     def __init__(
+-        self, hidden, rank, n_hc, n_groups, lgw, stages, epi_stage=2, *, skip_first=None
++        self,
++        hidden,
++        rank,
++        n_hc,
++        n_groups,
++        lgw,
++        stages,
++        epi_stage=2,
++        *,
++        skip_first=None,
++        use_pdl=True,
+     ):
+         super().__init__(hidden, rank, n_hc, n_groups, lgw, stages)
+         self.epi_stage = epi_stage
+         self.inv_h = 1.0 / float(hidden)
+         self.add_skip = skip_first is not None
+         self.skip_first = skip_first
++        self.use_pdl = use_pdl
+ 
+     @cute.jit
+     def __call__(
+@@ -770,7 +859,7 @@
+             block=(3 * WG, 1, 1),
+             min_blocks_per_mp=1,
+             stream=stream,
+-            use_pdl=True,
++            use_pdl=self.use_pdl,
+         )
+ 
+     @cute.kernel
+@@ -1001,7 +1090,8 @@
+                 ring.producer_tail(prod)
+         if wg_idx != 0:
+             cute.arch.setmaxregister_increase(232)
+-            cute.arch.griddepcontrol_wait()  # dP / c come from B1f
++            if cutlass.const_expr(self.use_pdl):
++                cute.arch.griddepcontrol_wait()  # dP / c come from B1f
+             dw.fill(0.0)
+             for jj in cutlass.range_constexpr(self.n_jj):
+                 acc_dw[jj].fill(0.0)
+@@ -1226,17 +1316,19 @@
+     return best[1], best[2]
+ 
+ 
+-def _bwd_plan(H, R, lgw, dev, grad_dtypes, sms, *, skip_first=None):
++def _bwd_plan(
++    H, R, lgw, dev, grad_dtypes, sms, *, skip_first=None, merge_dy=False
++):
+     """Compile an M-independent backward plan for one SM budget."""
+-    key = ("bwd", H, R, lgw, dev.index, grad_dtypes, sms, skip_first)
++    key = ("bwd", H, R, lgw, dev.index, grad_dtypes, sms, skip_first, merge_dy)
+     plan = PLANS.get(key)
+     if plan is None:
+         n1, groups1 = pick_bwd_split(H, sms, B1_MAX_HC)
+         n2, groups2 = pick_bwd_split(H, sms, B2_MAX_HC)
+         m = cute.sym_int(width=64)
+         b1 = compile_op(
+-            ("b1", H, R, n1, groups1, lgw),
+-            lambda: GnBwdDs(H, R, n1, groups1, lgw, B1_STAGES),
++            ("b1", H, R, n1, groups1, lgw, merge_dy),
++            lambda: GnBwdDs(H, R, n1, groups1, lgw, B1_STAGES, merge_dy=merge_dy),
+             (
+                 make_fake_compact_tensor(
+                     BF16, (m, H), stride_order=(1, 0), assumed_align=16
+@@ -1267,6 +1359,12 @@
+                 ),
+                 make_fake_compact_tensor(
+                     F32, (groups1, H, R), stride_order=(2, 1, 0), assumed_align=16
++                ),
++                make_fake_compact_tensor(
++                    BF16, (m, H), stride_order=(1, 0), assumed_align=16
++                ),
++                make_fake_compact_tensor(
++                    BF16, (m, H), stride_order=(1, 0), assumed_align=16
+                 ),
+             ),
+         )
+@@ -1292,7 +1390,7 @@
+             ),
+         )
+         b2 = compile_op(
+-            ("b2", H, R, n2, groups2, lgw, skip_first),
++            ("b2", H, R, n2, groups2, lgw, skip_first, merge_dy),
+             lambda: GnBwdDx(
+                 H,
+                 R,
+@@ -1301,6 +1399,8 @@
+                 lgw,
+                 B2_SKIP_STAGES if skip_first is not None else B2_STAGES,
+                 skip_first=skip_first,
++                # The producer loads dy before the PDL consumer wait.
++                use_pdl=not merge_dy,
+             ),
+             (
+                 make_fake_compact_tensor(
+@@ -1393,12 +1493,40 @@
+     num_sms=None,
+     skip=None,
+     skip_first=True,
++    dy_branches=None,
+ ):
+-    """Run backward using the forward's saved row statistics and prepared weights."""
++    """Run backward, optionally merging into the caller's private dy buffer."""
+     H = x.shape[-1]
+     R = gd_bf.shape[1]
+     x2d = x.reshape(-1, H).contiguous()
+-    dy2d = dy.reshape(-1, H).contiguous()
++    if dy_branches is None:
++        dy2d = dy.reshape(-1, H).contiguous()
++        dy_b = dy_c = dy2d
++    else:
++        if len(dy_branches) != 2:
++            raise ValueError("The in-place dy merge requires two additional branches")
++        for branch in (dy, *dy_branches):
++            if (
++                branch.shape != x.shape
++                or branch.device != x.device
++                or branch.dtype != torch.bfloat16
++                or not branch.is_contiguous()
++                or branch.data_ptr() % 16
++            ):
++                raise ValueError(
++                    "The in-place dy merge requires aligned compact BF16 operands"
++                )
++        start = dy.data_ptr()
++        end = start + dy.numel() * dy.element_size()
++        for tensor in (*dy_branches, x, skip, rho, p, w_f, gd_bf, gd_t, gu_t):
++            if tensor is None:
++                continue
++            storage = tensor.untyped_storage()
++            address = storage.data_ptr()
++            if start < address + storage.nbytes() and address < end:
++                raise ValueError("The in-place dy merge requires a private first branch")
++        dy2d = dy.view(-1, H)
++        dy_b, dy_c = (branch.view(-1, H) for branch in dy_branches)
+     M = x2d.shape[0]
+     dev = x.device
+     sms = resolve_num_sms(dev, num_sms)
+@@ -1410,6 +1538,7 @@
+         tuple(grad_dtypes),
+         sms,
+         skip_first=None if skip is None else skip_first,
++        merge_dy=dy_branches is not None,
+     )
+     shapes = [
+         (n1, M, R),
+@@ -1424,7 +1553,7 @@
+         dev,
+         shapes,
+     )
+-    b1(x2d, dy2d, w_f, gd_bf, gd_t, rho, p, ds_part, c1_part, ws_gd)
++    b1(x2d, dy2d, w_f, gd_bf, gd_t, rho, p, ds_part, c1_part, ws_gd, dy_b, dy_c)
+     b1f(ds_part, c1_part, p, dp, c)
+     dx = torch.empty_like(x2d)
+     skip2d = dy2d if skip is None else skip.view(M, H)

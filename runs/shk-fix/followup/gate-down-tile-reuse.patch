@@ -1,0 +1,214 @@
+--- a/gift/torchtitan/models/common/norms/cute_gated_norm/backward.py
++++ b/gift/torchtitan/models/common/norms/cute_gated_norm/backward.py
+@@ -618,14 +618,32 @@
+ # B2: dx, dW_up, dw
+ # =============================================================================
+ class GnBwdDx(_BwdTile):
++    """Compute dx and weight-gradient partials for one row group and hidden chunk.
++
++    When keeping gate-down tiles, the first row charges each tile to its input
++    ring stage and writes it to a separate slot that remains read-only. Later
++    rows reuse those slots. Empty row groups write zero partials and issue no loads.
++    """
++
+     def __init__(
+-        self, hidden, rank, n_hc, n_groups, lgw, stages, epi_stage=2, *, skip_first=None
++        self,
++        hidden,
++        rank,
++        n_hc,
++        n_groups,
++        lgw,
++        stages,
++        epi_stage=2,
++        *,
++        skip_first=None,
++        keep_gate_down=False,
+     ):
+         super().__init__(hidden, rank, n_hc, n_groups, lgw, stages)
+         self.epi_stage = epi_stage
+         self.inv_h = 1.0 / float(hidden)
+         self.add_skip = skip_first is not None
+         self.skip_first = skip_first
++        self.keep_gate_down = keep_gate_down
+ 
+     @cute.jit
+     def __call__(
+@@ -667,9 +685,14 @@
+         o_l = sm90_utils.make_smem_layout_epi(
+             BF16, ROW, (BLK_M, BLK_H), 2 * self.epi_stage
+         )
+-        gd_l = sm90_utils.make_smem_layout_b(
++        gu_l = sm90_utils.make_smem_layout_b(
+             ROW, (BLK_M, BLK_H, self.R), BF16, self.stages
+         )
++        gd_l = gu_l
++        if cutlass.const_expr(self.keep_gate_down):
++            gd_l = sm90_utils.make_smem_layout_b(
++                ROW, (BLK_M, BLK_H, self.R), BF16, self.n_sub
++            )
+         s_l = sm90_utils.make_smem_layout_a(ROW, (BLK_M, BLK_H, self.R), BF16, 1)
+         dpt_l = sm90_utils.make_smem_layout_b(COL, (BLK_H, self.R, BLK_M), BF16, 1)
+         # the x stages viewed as the M-major A (M = h, K = m) of the dW_up gemm
+@@ -697,7 +720,7 @@
+         tma_gu, tGU = cpasync.make_tiled_tma_atom(
+             cpasync.CopyBulkTensorTileG2SOp(),
+             mGUt,
+-            cute.slice_(gd_l, (None, None, 0)),
++            cute.slice_(gu_l, (None, None, 0)),
+             (BLK_H, self.R),
+         )
+         tma_o, tO = cpasync.make_tiled_tma_atom(
+@@ -723,7 +746,7 @@
+             s_dy: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(x_l)], 1024]
+             s_skip: cute.struct.Align[cute.struct.MemRange[BF16, skip_smem], 1024]
+             s_gd: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(gd_l)], 1024]
+-            s_gu: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(gd_l)], 1024]
++            s_gu: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(gu_l)], 1024]
+             s_o: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(o_l)], 1024]
+             s_s: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(s_l)], 1024]
+             s_dp: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(s_l)], 1024]
+@@ -761,6 +784,7 @@
+             x_l,
+             o_l,
+             gd_l,
++            gu_l,
+             s_l,
+             dpt_l,
+             xa_l,
+@@ -800,6 +824,7 @@
+         x_l: cute.ComposedLayout,
+         o_l: cute.ComposedLayout,
+         gd_l: cute.ComposedLayout,
++        gu_l: cute.ComposedLayout,
+         s_l: cute.ComposedLayout,
+         dpt_l: cute.ComposedLayout,
+         xa_l: cute.ComposedLayout,
+@@ -821,9 +846,11 @@
+                 cpasync.prefetch_descriptor(tma_skip)
+ 
+         storage = cutlass.utils.SmemAllocator().allocate(self.shared_storage)
+-        tx = 2 * cute.size_in_bytes(
+-            BF16, cute.slice_(x_l, (None, None, 0))
+-        ) + 2 * cute.size_in_bytes(BF16, cute.slice_(gd_l, (None, None, 0)))
++        gd_bytes = cute.size_in_bytes(BF16, cute.slice_(gd_l, (None, None, 0)))
++        tx = 2 * cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
++        tx += cute.size_in_bytes(BF16, cute.slice_(gu_l, (None, None, 0)))
++        if cutlass.const_expr(not self.keep_gate_down):
++            tx += gd_bytes
+         if cutlass.const_expr(self.add_skip):
+             tx += cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
+         ring = pipeline.PipelineTmaAsync.create(
+@@ -838,7 +865,7 @@
+         sXa = storage.s_x.get_tensor(xa_l.outer, swizzle=xa_l.inner)
+         sDY = storage.s_dy.get_tensor(x_l.outer, swizzle=x_l.inner)
+         sGD = storage.s_gd.get_tensor(gd_l.outer, swizzle=gd_l.inner)
+-        sGU = storage.s_gu.get_tensor(gd_l.outer, swizzle=gd_l.inner)
++        sGU = storage.s_gu.get_tensor(gu_l.outer, swizzle=gu_l.inner)
+         sO = storage.s_o.get_tensor(o_l.outer, swizzle=o_l.inner)
+         sS = storage.s_s.get_tensor(s_l.outer, swizzle=s_l.inner)
+         sDP = storage.s_dp.get_tensor(s_l.outer, swizzle=s_l.inner)
+@@ -965,6 +992,18 @@
+                         ring.producer_acquire(prod)
+                         bar = ring.producer_get_barrier(prod)
+                         st = prod.index
++                        if cutlass.const_expr(self.keep_gate_down):
++                            if rb == rb0:
++                                # Count the gate copy before any stage copy can complete.
++                                with cute.arch.elect_one():
++                                    cute.arch.mbarrier_expect_tx(bar, gd_bytes)
++                                cute.arch.sync_warp()
++                                cute.copy(
++                                    tma_gd,
++                                    tGDg[(None, h_base + j, 0)],
++                                    tGDs[(None, j)],
++                                    tma_bar_ptr=bar,
++                                )
+                         cute.copy(
+                             tma_x,
+                             tXg[(None, rb, h_base + j)],
+@@ -984,12 +1023,13 @@
+                                 tSkips[(None, st)],
+                                 tma_bar_ptr=bar,
+                             )
+-                        cute.copy(
+-                            tma_gd,
+-                            tGDg[(None, h_base + j, 0)],
+-                            tGDs[(None, st)],
+-                            tma_bar_ptr=bar,
+-                        )
++                        if cutlass.const_expr(not self.keep_gate_down):
++                            cute.copy(
++                                tma_gd,
++                                tGDg[(None, h_base + j, 0)],
++                                tGDs[(None, st)],
++                                tma_bar_ptr=bar,
++                            )
+                         cute.copy(
+                             tma_gu,
+                             tGUg[(None, h_base + j, 0)],
+@@ -1047,12 +1087,16 @@
+                     j = jj * 2 + w
+                     ring.consumer_wait(cons)
+                     st = cons.index
++                    gd_slot = st
++                    if cutlass.const_expr(self.keep_gate_down):
++                        # The first row's stage wait makes this subtile's gate visible.
++                        gd_slot = j
+                     cute.nvgpu.warpgroup.fence()
+                     cute.gemm(
+                         mma_g,
+                         acc,
+                         tArS[(None, None, 0, 0)],
+-                        tBrGD[(None, None, 0, st)],
++                        tBrGD[(None, None, 0, gd_slot)],
+                         acc,
+                     )
+                     cute.gemm(
+@@ -1226,9 +1270,11 @@
+     return best[1], best[2]
+ 
+ 
+-def _bwd_plan(H, R, lgw, dev, grad_dtypes, sms, *, skip_first=None):
++def _bwd_plan(
++    H, R, lgw, dev, grad_dtypes, sms, *, skip_first=None, keep_gate_down=False
++):
+     """Compile an M-independent backward plan for one SM budget."""
+-    key = ("bwd", H, R, lgw, dev.index, grad_dtypes, sms, skip_first)
++    key = ("bwd", H, R, lgw, dev.index, grad_dtypes, sms, skip_first, keep_gate_down)
+     plan = PLANS.get(key)
+     if plan is None:
+         n1, groups1 = pick_bwd_split(H, sms, B1_MAX_HC)
+@@ -1292,7 +1338,7 @@
+             ),
+         )
+         b2 = compile_op(
+-            ("b2", H, R, n2, groups2, lgw, skip_first),
++            ("b2", H, R, n2, groups2, lgw, skip_first, keep_gate_down),
+             lambda: GnBwdDx(
+                 H,
+                 R,
+@@ -1301,6 +1347,7 @@
+                 lgw,
+                 B2_SKIP_STAGES if skip_first is not None else B2_STAGES,
+                 skip_first=skip_first,
++                keep_gate_down=keep_gate_down,
+             ),
+             (
+                 make_fake_compact_tensor(
+@@ -1393,6 +1440,7 @@
+     num_sms=None,
+     skip=None,
+     skip_first=True,
++    keep_gate_down=False,
+ ):
+     """Run backward using the forward's saved row statistics and prepared weights."""
+     H = x.shape[-1]
+@@ -1410,6 +1458,7 @@
+         tuple(grad_dtypes),
+         sms,
+         skip_first=None if skip is None else skip_first,
++        keep_gate_down=keep_gate_down,
+     )
+     shapes = [
+         (n1, M, R),

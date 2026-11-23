@@ -1,0 +1,171 @@
+--- a/gift/torchtitan/models/common/norms/cute_gated_norm/backward.py
++++ b/gift/torchtitan/models/common/norms/cute_gated_norm/backward.py
+@@ -84,7 +84,7 @@
+ # =============================================================================
+ # B1: dS / c1 partials per H chunk, dW_down per row group
+ # =============================================================================
+-class GnBwdDs(_BwdTile):
++class GnBwdDsGateLayout(_BwdTile):
+     @cute.jit
+     def __call__(
+         self,
+@@ -92,7 +92,6 @@
+         mDY: cute.Tensor,
+         mW: cute.Tensor,
+         mGD: cute.Tensor,
+-        mGDt: cute.Tensor,
+         mRho: cute.Tensor,
+         mP: cute.Tensor,
+         mDSp: cute.Tensor,
+@@ -113,7 +112,7 @@
+             BF16,
+             BF16,
+             ROW.sm90_mma_major_mode(),
+-            ROW.sm90_mma_major_mode(),
++            COL.sm90_mma_major_mode(),
+             F32,
+             (1, 1, 1),
+             tiler_mn=(BLK_M, self.R),
+@@ -131,8 +130,10 @@
+         gd_l = sm90_utils.make_smem_layout_b(
+             ROW, (BLK_M, BLK_H, self.R), BF16, self.stages
+         )
++        # A K-major (h, r) SW32 stage and an N-major (r, h) SW32 stage
++        # both address h * R + r before the same swizzle.
+         gdt_l = sm90_utils.make_smem_layout_b(
+-            ROW, (BLK_M, self.R, BLK_H), BF16, self.stages
++            COL, (BLK_M, self.R, BLK_H), BF16, self.stages
+         )
+         s_l = sm90_utils.make_smem_layout_a(ROW, (BLK_M, BLK_H, self.R), BF16, 1)
+         st_l = sm90_utils.make_smem_layout_b(COL, (BLK_H, self.R, BLK_M), BF16, 1)
+@@ -158,12 +159,6 @@
+             cute.slice_(gd_l, (None, None, 0)),
+             (BLK_H, self.R),
+         )
+-        tma_gdt, tGDt = cpasync.make_tiled_tma_atom(
+-            cpasync.CopyBulkTensorTileG2SOp(),
+-            mGDt,
+-            cute.slice_(gdt_l, (None, None, 0)),
+-            (self.R, BLK_H),
+-        )
+ 
+         @cute.struct
+         class SharedStorage:
+@@ -171,9 +166,6 @@
+             s_x: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(x_l)], 1024]
+             s_dy: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(x_l)], 1024]
+             s_gd: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(gd_l)], 1024]
+-            s_gdt: cute.struct.Align[
+-                cute.struct.MemRange[BF16, cute.cosize(gdt_l)], 1024
+-            ]
+             s_s: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(s_l)], 1024]
+             s_st: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(st_l)], 1024]
+             s_dl: cute.struct.Align[
+@@ -192,8 +184,6 @@
+             tDY,
+             tma_gd,
+             tGD,
+-            tma_gdt,
+-            tGDt,
+             mW,
+             mRho,
+             mP,
+@@ -227,8 +217,6 @@
+         mDY: cute.Tensor,
+         tma_gd: cute.CopyAtom,
+         mGD: cute.Tensor,
+-        tma_gdt: cute.CopyAtom,
+-        mGDt: cute.Tensor,
+         mW: cute.Tensor,
+         mRho: cute.Tensor,
+         mP: cute.Tensor,
+@@ -257,13 +245,11 @@
+             cpasync.prefetch_descriptor(tma_x)
+             cpasync.prefetch_descriptor(tma_dy)
+             cpasync.prefetch_descriptor(tma_gd)
+-            cpasync.prefetch_descriptor(tma_gdt)
+ 
+         storage = cutlass.utils.SmemAllocator().allocate(self.shared_storage)
+         tx = (
+             2 * cute.size_in_bytes(BF16, cute.slice_(x_l, (None, None, 0)))
+             + cute.size_in_bytes(BF16, cute.slice_(gd_l, (None, None, 0)))
+-            + cute.size_in_bytes(BF16, cute.slice_(gdt_l, (None, None, 0)))
+         )
+         ring = pipeline.PipelineTmaAsync.create(
+             barrier_storage=storage.mbar.data_ptr(),
+@@ -276,7 +262,7 @@
+         sX = storage.s_x.get_tensor(x_l.outer, swizzle=x_l.inner)
+         sDY = storage.s_dy.get_tensor(x_l.outer, swizzle=x_l.inner)
+         sGD = storage.s_gd.get_tensor(gd_l.outer, swizzle=gd_l.inner)
+-        sGDt = storage.s_gdt.get_tensor(gdt_l.outer, swizzle=gdt_l.inner)
++        sGDt = storage.s_gd.get_tensor(gdt_l.outer, swizzle=gdt_l.inner)
+         sS = storage.s_s.get_tensor(s_l.outer, swizzle=s_l.inner)
+         sSt = storage.s_st.get_tensor(st_l.outer, swizzle=st_l.inner)
+         sDLk = storage.s_dl.get_tensor(dlk_l.outer, swizzle=dlk_l.inner)
+@@ -305,15 +291,6 @@
+             cute.make_layout(1),
+             cute.group_modes(sGD, 0, 2),
+             cute.group_modes(cute.local_tile(mGD, (BLK_H, self.R), (None, None)), 0, 2),
+-        )
+-        tGDts, tGDtg = cpasync.tma_partition(
+-            tma_gdt,
+-            0,
+-            cute.make_layout(1),
+-            cute.group_modes(sGDt, 0, 2),
+-            cute.group_modes(
+-                cute.local_tile(mGDt, (self.R, BLK_H), (None, None)), 0, 2
+-            ),
+         )
+ 
+         # CuTe DSL user objects must be constructed outside dynamic warp-role guards.
+@@ -399,12 +376,6 @@
+                             tma_gd,
+                             tGDg[(None, h_base + j, 0)],
+                             tGDs[(None, st)],
+-                            tma_bar_ptr=bar,
+-                        )
+-                        cute.copy(
+-                            tma_gdt,
+-                            tGDtg[(None, 0, h_base + j)],
+-                            tGDts[(None, st)],
+                             tma_bar_ptr=bar,
+                         )
+                         ring.producer_commit(prod)
+@@ -1228,15 +1199,15 @@
+ 
+ def _bwd_plan(H, R, lgw, dev, grad_dtypes, sms, *, skip_first=None):
+     """Compile an M-independent backward plan for one SM budget."""
+-    key = ("bwd", H, R, lgw, dev.index, grad_dtypes, sms, skip_first)
++    key = ("bwd_b1_gate_layout", H, R, lgw, dev.index, grad_dtypes, sms, skip_first)
+     plan = PLANS.get(key)
+     if plan is None:
+         n1, groups1 = pick_bwd_split(H, sms, B1_MAX_HC)
+         n2, groups2 = pick_bwd_split(H, sms, B2_MAX_HC)
+         m = cute.sym_int(width=64)
+         b1 = compile_op(
+-            ("b1", H, R, n1, groups1, lgw),
+-            lambda: GnBwdDs(H, R, n1, groups1, lgw, B1_STAGES),
++            ("b1_gate_layout", H, R, n1, groups1, lgw),
++            lambda: GnBwdDsGateLayout(H, R, n1, groups1, lgw, B1_STAGES),
+             (
+                 make_fake_compact_tensor(
+                     BF16, (m, H), stride_order=(1, 0), assumed_align=16
+@@ -1249,9 +1220,6 @@
+                 ),
+                 make_fake_compact_tensor(
+                     BF16, (H, R), stride_order=(1, 0), assumed_align=16
+-                ),
+-                make_fake_compact_tensor(
+-                    BF16, (R, H), stride_order=(1, 0), assumed_align=16
+                 ),
+                 make_fake_compact_tensor(
+                     F32, (m,), stride_order=(0,), assumed_align=16
+@@ -1424,7 +1392,7 @@
+         dev,
+         shapes,
+     )
+-    b1(x2d, dy2d, w_f, gd_bf, gd_t, rho, p, ds_part, c1_part, ws_gd)
++    b1(x2d, dy2d, w_f, gd_bf, rho, p, ds_part, c1_part, ws_gd)
+     b1f(ds_part, c1_part, p, dp, c)
+     dx = torch.empty_like(x2d)
+     skip2d = dy2d if skip is None else skip.view(M, H)

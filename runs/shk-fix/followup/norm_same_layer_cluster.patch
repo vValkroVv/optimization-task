@@ -1,0 +1,503 @@
+--- a/gift/torchtitan/models/common/norms/cute_gated_norm/forward.py
++++ b/gift/torchtitan/models/common/norms/cute_gated_norm/forward.py
+@@ -38,6 +38,8 @@
+ import cutlass.pipeline as pipeline
+ import cutlass.utils.hopper_helpers as sm90_utils
+ import torch
++from cutlass._mlir.dialects import llvm
++from cutlass.cutlass_dsl import dsl_user_op
+ from cutlass.cute.nvgpu import cpasync, warp
+ from cutlass.cute.runtime import make_fake_compact_tensor
+ 
+@@ -1106,3 +1108,491 @@
+         f2(x2d, w_f, gd_bf, p_part, ss_part, y, rho, p, residual2d)
+         y = y.view(x.shape)
+     return y, rho, p, (w_f, gd_bf, gd_t, gu_t)
++
++
++@dsl_user_op
++def _cluster_read(ptr, rank, dtype, *, loc=None, ip=None):
++    if dtype is BF16:
++        result_type, ptx_type, constraint = cutlass.Int16.mlir_type, "b16", "h"
++    else:
++        result_type, ptx_type, constraint = F32.mlir_type, "f32", "f"
++    value = llvm.inline_asm(
++        result_type,
++        [
++            ptr.toint(loc=loc, ip=ip).ir_value(loc=loc, ip=ip),
++            cutlass.Int32(rank).ir_value(loc=loc, ip=ip),
++        ],
++        f"""{{ .reg .u32 remote_addr;
++            mapa.shared::cluster.u32 remote_addr, $1, $2;
++            ld.shared::cluster.{ptx_type} $0, [remote_addr]; }}""",
++        f"={constraint},r,r,~{{memory}}",
++        has_side_effects=True,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++    if dtype is BF16:
++        value = llvm.bitcast(BF16.mlir_type, value, loc=loc, ip=ip)
++    return dtype(value)
++
++
++class GnFwdPlainCluster:
++    """F1 and plain F2 share eight input stages in each of eight CTAs."""
++
++    def __init__(self, eps, lgw, clusters):
++        self.eps, self.lgw, self.clusters = float(eps), float(lgw), clusters
++
++    @cute.jit
++    def __call__(
++        self,
++        mX: cute.Tensor,
++        mGUs: cute.Tensor,
++        mW: cute.Tensor,
++        mGD: cute.Tensor,
++        mY: cute.Tensor,
++        mRho: cute.Tensor,
++        mP: cute.Tensor,
++        stream: cuda.CUstream,
++    ):
++        f1_shape = (BLK_M, RANK, BLK_H)
++        f2_shape = (BLK_M, BLK_H, RANK)
++        major = ROW.sm90_mma_major_mode()
++        f1_mma = sm90_utils.make_trivial_tiled_mma(
++            BF16, BF16, major, major, F32, (1, 1, 1), tiler_mn=(BLK_M, RANK)
++        )
++        f2_mma = sm90_utils.make_trivial_tiled_mma(
++            BF16, BF16, major, major, F32, (1, 1, 1), tiler_mn=(BLK_M, BLK_H)
++        )
++        x_l = sm90_utils.make_smem_layout_a(ROW, f1_shape, BF16, 8)
++        gu_l = sm90_utils.make_smem_layout_b(ROW, f1_shape, BF16, 8)
++        gd_l = sm90_utils.make_smem_layout_b(ROW, f2_shape, BF16, 8)
++        gate_l = sm90_utils.make_smem_layout_a(ROW, f2_shape, BF16, 1)
++        y_l = sm90_utils.make_smem_layout_epi(BF16, ROW, (BLK_M, BLK_H), 4)
++        tma_x, tX = cpasync.make_tiled_tma_atom(
++            cpasync.CopyBulkTensorTileG2SOp(),
++            mX,
++            cute.slice_(x_l, (None, None, 0)),
++            (BLK_M, BLK_H),
++        )
++        tma_gu, tGU = cpasync.make_tiled_tma_atom(
++            cpasync.CopyBulkTensorTileG2SOp(),
++            mGUs,
++            cute.slice_(gu_l, (None, None, 0)),
++            (RANK, BLK_H),
++        )
++        tma_gd, tGD = cpasync.make_tiled_tma_atom(
++            cpasync.CopyBulkTensorTileG2SOp(),
++            mGD,
++            cute.slice_(gd_l, (None, None, 0)),
++            (BLK_H, RANK),
++        )
++        tma_y, tY = cpasync.make_tiled_tma_atom(
++            cpasync.CopyBulkTensorTileS2GOp(),
++            mY,
++            cute.slice_(y_l, (None, None, 0)),
++            (BLK_M, BLK_H),
++        )
++        red_words = WG * (BLK_M * RANK // WG + 1)
++
++        @cute.struct
++        class SharedStorage:
++            f1_mbar: cute.struct.MemRange[cutlass.Int64, 16]
++            gd_mbar: cute.struct.MemRange[cutlass.Int64, 16]
++            x: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(x_l)], 1024]
++            gu: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(gu_l)], 1024]
++            gd: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(gd_l)], 1024]
++            y: cute.struct.Align[cute.struct.MemRange[BF16, cute.cosize(y_l)], 1024]
++            gate: cute.struct.Align[
++                cute.struct.MemRange[BF16, cute.cosize(gate_l)], 1024
++            ]
++            w: cute.struct.Align[cute.struct.MemRange[F32, 8 * BLK_H], 16]
++            rho: cute.struct.Align[cute.struct.MemRange[F32, BLK_M], 16]
++            red: cute.struct.Align[cute.struct.MemRange[F32, red_words], 16]
++            partial_p: cute.struct.Align[cute.struct.MemRange[F32, BLK_M * RANK], 16]
++            partial_ss: cute.struct.Align[cute.struct.MemRange[F32, BLK_M], 16]
++            published_gate: cute.struct.Align[
++                cute.struct.MemRange[BF16, BLK_M * RANK], 16
++            ]
++
++        self.shared_storage = SharedStorage
++        M = cutlass.Int64(mX.shape[0])
++        self.kernel(
++            tma_x,
++            tX,
++            tma_gu,
++            tGU,
++            tma_gd,
++            tGD,
++            tma_y,
++            tY,
++            mW,
++            mRho,
++            mP,
++            f1_mma,
++            f2_mma,
++            x_l,
++            gu_l,
++            gd_l,
++            gate_l,
++            y_l,
++            M,
++        ).launch(
++            grid=(8 * self.clusters, 1, 1),
++            block=(3 * WG, 1, 1),
++            cluster=(8, 1, 1),
++            min_blocks_per_mp=1,
++            stream=stream,
++        )
++
++    @cute.kernel
++    def kernel(
++        self,
++        tma_x: cute.CopyAtom,
++        mX: cute.Tensor,
++        tma_gu: cute.CopyAtom,
++        mGU: cute.Tensor,
++        tma_gd: cute.CopyAtom,
++        mGD: cute.Tensor,
++        tma_y: cute.CopyAtom,
++        mY: cute.Tensor,
++        mW: cute.Tensor,
++        mRho: cute.Tensor,
++        mP: cute.Tensor,
++        f1_mma: cute.TiledMma,
++        f2_mma: cute.TiledMma,
++        x_l: cute.ComposedLayout,
++        gu_l: cute.ComposedLayout,
++        gd_l: cute.ComposedLayout,
++        gate_l: cute.ComposedLayout,
++        y_l: cute.ComposedLayout,
++        M: cutlass.Int64,
++    ):
++        tidx, _, _ = cute.arch.thread_idx()
++        cluster_x, _, _ = cute.arch.cluster_idx()
++        rank = cute.arch.block_idx_in_cluster()
++        warp_idx = cute.arch.make_warp_uniform(cute.arch.warp_idx())
++        wg_idx = cute.arch.make_warp_uniform(tidx // WG)
++        w = wg_idx - 1
++        wt = tidx % WG
++        ct = tidx - WG
++        if warp_idx == 0:
++            cpasync.prefetch_descriptor(tma_x)
++            cpasync.prefetch_descriptor(tma_gu)
++            cpasync.prefetch_descriptor(tma_gd)
++            cpasync.prefetch_descriptor(tma_y)
++
++        storage = cutlass.utils.SmemAllocator().allocate(self.shared_storage)
++        local_cta = cute.make_layout((1, 1, 1, 1))
++        f1_ring = pipeline.PipelineTmaAsync.create(
++            barrier_storage=storage.f1_mbar.data_ptr(),
++            num_stages=8,
++            producer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread),
++            consumer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread, 4),
++            tx_count=2 * BLK_H * (BLK_M + RANK),
++            cta_layout_vmnk=local_cta,
++        )
++        gd_ring = pipeline.PipelineTmaAsync.create(
++            barrier_storage=storage.gd_mbar.data_ptr(),
++            num_stages=8,
++            producer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread),
++            consumer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread, 4),
++            tx_count=2 * BLK_H * RANK,
++            cta_layout_vmnk=local_cta,
++        )
++        sX = storage.x.get_tensor(x_l.outer, swizzle=x_l.inner)
++        sGU = storage.gu.get_tensor(gu_l.outer, swizzle=gu_l.inner)
++        sGD = storage.gd.get_tensor(gd_l.outer, swizzle=gd_l.inner)
++        sY = storage.y.get_tensor(y_l.outer, swizzle=y_l.inner)
++        sGate = storage.gate.get_tensor(gate_l.outer, swizzle=gate_l.inner)
++        sW = storage.w.get_tensor(cute.make_layout(8 * BLK_H))
++        sRho = storage.rho.get_tensor(cute.make_layout(BLK_M))
++        n_acc = BLK_M * RANK // WG
++        red_stride = n_acc + 1
++        sRed = storage.red.get_tensor(cute.make_layout(WG * red_stride))
++        rows_by_gate = cute.make_layout((BLK_M, RANK), stride=(RANK, 1))
++        sPartialP = storage.partial_p.get_tensor(rows_by_gate)
++        sPartialSS = storage.partial_ss.get_tensor(cute.make_layout(BLK_M))
++        sPublishedGate = storage.published_gate.get_tensor(rows_by_gate)
++
++        tXs, tXg = cpasync.tma_partition(
++            tma_x,
++            0,
++            cute.make_layout(1),
++            cute.group_modes(sX, 0, 2),
++            cute.group_modes(cute.local_tile(mX, (BLK_M, BLK_H), (None, None)), 0, 2),
++        )
++        tGUs, tGUg = cpasync.tma_partition(
++            tma_gu,
++            0,
++            cute.make_layout(1),
++            cute.group_modes(sGU, 0, 2),
++            cute.group_modes(cute.local_tile(mGU, (RANK, BLK_H), (None, None)), 0, 2),
++        )
++        tGDs, tGDg = cpasync.tma_partition(
++            tma_gd,
++            0,
++            cute.make_layout(1),
++            cute.group_modes(sGD, 0, 2),
++            cute.group_modes(cute.local_tile(mGD, (BLK_H, RANK), (None, None)), 0, 2),
++        )
++        tYs, tYg = cpasync.tma_partition(
++            tma_y,
++            0,
++            cute.make_layout(1),
++            cute.group_modes(sY, 0, 2),
++            cute.group_modes(cute.local_tile(mY, (BLK_M, BLK_H), (None, None)), 0, 2),
++        )
++
++        f1_thr = f1_mma.get_slice(wt)
++        f1_a = f1_mma.make_fragment_A(f1_thr.partition_A(sX))
++        f1_b = f1_mma.make_fragment_B(f1_thr.partition_B(sGU))
++        f1_acc = f1_thr.make_fragment_C(f1_thr.partition_shape_C((BLK_M, RANK)))
++        f1_coord = f1_thr.partition_C(cute.make_identity_tensor((BLK_M, RANK)))
++        num_k = cute.size(f1_a, mode=[2])
++        f2_thr = f2_mma.get_slice(wt)
++        f2_a = f2_mma.make_fragment_A(f2_thr.partition_A(sGate))
++        f2_b = f2_mma.make_fragment_B(f2_thr.partition_B(sGD))
++        f2_acc = f2_thr.make_fragment_C(f2_thr.partition_shape_C((BLK_M, BLK_H)))
++        f2_coord = f2_thr.partition_C(cute.make_identity_tensor((BLK_M, BLK_H)))
++        s2r = cute.make_tiled_copy_C(
++            cute.make_copy_atom(
++                warp.LdMatrix8x8x16bOp(transpose=False, num_matrices=4), BF16
++            ),
++            f2_mma,
++        )
++        s2r_thr = s2r.get_slice(wt)
++        tSX = s2r_thr.partition_S(sX)
++        rX = cute.make_rmem_tensor_like(f2_acc, BF16)
++        vX = s2r_thr.retile(rX)
++        r2s = cute.make_tiled_copy_C(
++            sm90_utils.get_smem_store_op(ROW, BF16, F32), f2_mma
++        )
++        tRS_s = r2s.get_slice(wt).partition_D(sY)
++        r_out = cute.make_rmem_tensor_like(f2_acc, BF16)
++        tRS_b = r2s.retile(r_out)
++        store_ring = pipeline.PipelineTmaStore.create(
++            num_stages=2,
++            producer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread, WG),
++        )
++
++        f1_prod = pipeline.make_pipeline_state(pipeline.PipelineUserType.Producer, 8)
++        gd_prod = pipeline.make_pipeline_state(pipeline.PipelineUserType.Producer, 8)
++        f1_cons = pipeline.make_pipeline_state(pipeline.PipelineUserType.Consumer, 8)
++        gd_cons = pipeline.make_pipeline_state(pipeline.PipelineUserType.Consumer, 8)
++        all_bar = pipeline.NamedBarrier(barrier_id=1, num_threads=2 * WG)
++        wg_bar_id = 2 + w
++        pv = cute.make_rmem_tensor((4,), F32)
++        n_store = cutlass.Int32(0)
++        if wg_idx == 0:
++            cute.arch.setmaxregister_decrease(40)
++        else:
++            cute.arch.setmaxregister_increase(232)
++            f1_mma.set(cute.nvgpu.warpgroup.Field.ACCUMULATE, True)
++            f2_mma.set(cute.nvgpu.warpgroup.Field.ACCUMULATE, False)
++            for _ in cutlass.range(w, unroll=1):
++                f1_cons.advance()
++                gd_cons.advance()
++
++        bm = cutlass.Int64(cluster_x)
++        while bm < (M + BLK_M - 1) // BLK_M:
++            m0 = bm * BLK_M
++            h_base = rank * 8
++            if warp_idx == 0:
++                # The final rendezvous prevents early reuse of the eight X stages.
++                for j in range(8):
++                    f1_ring.producer_acquire(f1_prod)
++                    bar = f1_ring.producer_get_barrier(f1_prod)
++                    cute.copy(
++                        tma_x,
++                        tXg[(None, bm, h_base + j)],
++                        tXs[(None, f1_prod.index)],
++                        tma_bar_ptr=bar,
++                    )
++                    cute.copy(
++                        tma_gu,
++                        tGUg[(None, 0, h_base + j)],
++                        tGUs[(None, f1_prod.index)],
++                        tma_bar_ptr=bar,
++                    )
++                    f1_ring.producer_commit(f1_prod)
++                    f1_prod.advance()
++                # GD has a separate ring with eight free slots at this point.
++                for j in range(8):
++                    gd_ring.producer_acquire(gd_prod)
++                    bar = gd_ring.producer_get_barrier(gd_prod)
++                    cute.copy(
++                        tma_gd,
++                        tGDg[(None, h_base + j, 0)],
++                        tGDs[(None, gd_prod.index)],
++                        tma_bar_ptr=bar,
++                    )
++                    gd_ring.producer_commit(gd_prod)
++                    gd_prod.advance()
++
++            if wg_idx != 0:
++                r = wt // 2
++                c0 = (wt % 2) * (BLK_H // 2)
++                f1_acc.fill(0.0)
++                ss = F32(0.0)
++                for _ in range(4):
++                    f1_ring.consumer_wait(f1_cons)
++                    st = f1_cons.index
++                    cute.nvgpu.warpgroup.fence()
++                    for kb in cutlass.range_constexpr(num_k):
++                        cute.gemm(
++                            f1_mma,
++                            f1_acc,
++                            f1_a[(None, None, kb, st)],
++                            f1_b[(None, None, kb, st)],
++                            f1_acc,
++                        )
++                    cute.nvgpu.warpgroup.commit_group()
++                    ss_j = F32(0.0)
++                    for c in cutlass.range_constexpr(BLK_H // 2):
++                        xv = F32(sX[(r, c0 + c, st)])
++                        ss_j += xv * xv
++                    ss += ss_j
++                    cute.nvgpu.warpgroup.wait_group(0)
++                    f1_ring.consumer_release(f1_cons)
++                    f1_cons.advance()
++                    f1_cons.advance()
++                ss = cute.arch.warp_reduction_sum(ss, threads_in_group=2)
++                if w == 1:
++                    for i in cutlass.range_constexpr(n_acc):
++                        sRed[wt * red_stride + i] = f1_acc[i]
++                    sRed[wt * red_stride + n_acc] = ss
++                all_bar.arrive_and_wait()
++                if w == 0:
++                    for i in cutlass.range_constexpr(n_acc):
++                        crd = f1_coord[i]
++                        if m0 + crd[0] < M:
++                            sPartialP[crd] = f1_acc[i] + sRed[wt * red_stride + i]
++                    if wt % 2 == 0 and m0 + r < M:
++                        sPartialSS[r] = ss + sRed[wt * red_stride + n_acc]
++
++            cute.arch.cluster_arrive(aligned=True)
++            cute.arch.cluster_wait()
++            if warp_idx == 4:
++                # One warp finalizes the eight contiguous rows owned by this CTA.
++                sr = rank * 8 + wt // 4
++                sk0 = (wt % 4) * 4
++                m = m0 + sr
++                ss = F32(0.0)
++                pv.fill(0.0)
++                if m < M:
++                    for peer in cutlass.range_constexpr(8):
++                        ss += _cluster_read(sPartialSS.iterator + sr, peer, F32)
++                        for kk in cutlass.range_constexpr(4):
++                            index = sr * RANK + sk0 + kk
++                            pv[kk] += _cluster_read(
++                                sPartialP.iterator + index, peer, F32
++                            )
++                rho = cute.math.rsqrt(ss * (1.0 / 4096.0) + self.eps)
++                for kk in cutlass.range_constexpr(4):
++                    pk = pv[kk] * rho
++                    sPublishedGate[(sr, sk0 + kk)] = BF16(pk * sigmoid(pk))
++                    if m < M:
++                        mP[(m, sk0 + kk)] = pk
++                if sk0 == 0:
++                    sRho[sr] = rho * self.lgw
++                    if m < M:
++                        mRho[m] = rho
++
++            cute.arch.cluster_arrive(aligned=True)
++            cute.arch.cluster_wait()
++            if wg_idx != 0:
++                sr = ct // 4
++                sk0 = (ct % 4) * 4
++                owner = sr // 8
++                if owner == rank:
++                    for kk in cutlass.range_constexpr(4):
++                        sGate[(sr, sk0 + kk, 0)] = sPublishedGate[(sr, sk0 + kk)]
++                else:
++                    for kk in cutlass.range_constexpr(4):
++                        index = sr * RANK + sk0 + kk
++                        sGate[(sr, sk0 + kk, 0)] = _cluster_read(
++                            sPublishedGate.iterator + index, owner, BF16
++                        )
++                    if sk0 == 0:
++                        sRho[sr] = _cluster_read(sRho.iterator + sr, owner, F32)
++                for i in cutlass.range_constexpr(2):
++                    hw = i * 2 * WG + ct
++                    sW[hw] = mW[h_base * BLK_H + hw]
++
++                cute.arch.fence_proxy("async.shared", space="cta")
++                all_bar.arrive_and_wait()
++                for jj in range(4):
++                    j = jj * 2 + w
++                    gd_ring.consumer_wait(gd_cons)
++                    st = gd_cons.index
++                    cute.nvgpu.warpgroup.fence()
++                    cute.gemm(
++                        f2_mma,
++                        f2_acc,
++                        f2_a[(None, None, 0, 0)],
++                        f2_b[(None, None, 0, st)],
++                        f2_acc,
++                    )
++                    cute.nvgpu.warpgroup.commit_group()
++                    cute.copy(s2r, tSX[(None, None, None, j)], vX)
++                    cute.nvgpu.warpgroup.wait_group(0)
++                    for i in cutlass.range_constexpr(cute.size(f2_acc)):
++                        crd = f2_coord[i]
++                        f2_acc[i] = (
++                            F32(rX[i])
++                            * sRho[crd[0]]
++                            * sW[j * BLK_H + crd[1]]
++                            * sigmoid(f2_acc[i])
++                        )
++                    gd_ring.consumer_release(gd_cons)
++                    gd_cons.advance()
++                    gd_cons.advance()
++
++                    r_out.store(f2_acc.load().to(BF16))
++                    buf = w * 2 + n_store % 2
++                    cute.copy(r2s, tRS_b, tRS_s[(None, None, None, buf)])
++                    cute.arch.fence_proxy("async.shared", space="cta")
++                    cute.arch.barrier(barrier_id=wg_bar_id, number_of_threads=WG)
++                    if warp_idx % 4 == 0:
++                        cute.copy(tma_y, tYs[(None, buf)], tYg[(None, bm, h_base + j)])
++                        store_ring.producer_commit()
++                        store_ring.producer_acquire()
++                    cute.arch.barrier(barrier_id=wg_bar_id, number_of_threads=WG)
++                    n_store += 1
++
++            # All remote accesses and X readers finish before any CTA advances.
++            cute.arch.cluster_arrive(aligned=True)
++            cute.arch.cluster_wait()
++            bm += self.clusters
++
++        if wg_idx != 0:
++            store_ring.producer_tail()
++
++
++def compile_norm_same_layer_cluster(eps, lgw, clusters):
++    if clusters not in (1, 14):
++        raise ValueError("Expected one debug cluster or fourteen native clusters")
++    m = cute.sym_int(width=64)
++    return compile_op(
++        ("fwd_plain_cluster", float(eps), float(lgw), clusters),
++        lambda: GnFwdPlainCluster(eps, lgw, clusters),
++        (
++            make_fake_compact_tensor(
++                BF16, (m, 4096), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(
++                BF16, (RANK, 4096), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(F32, (4096,), stride_order=(0,), assumed_align=16),
++            make_fake_compact_tensor(
++                BF16, (4096, RANK), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(
++                BF16, (m, 4096), stride_order=(1, 0), assumed_align=16
++            ),
++            make_fake_compact_tensor(F32, (m,), stride_order=(0,), assumed_align=16),
++            make_fake_compact_tensor(
++                F32, (m, RANK), stride_order=(1, 0), assumed_align=16
++            ),
++        ),
++    )

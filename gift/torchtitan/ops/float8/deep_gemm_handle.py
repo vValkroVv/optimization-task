@@ -6,11 +6,25 @@
 
 from __future__ import annotations
 
+import os
 import warnings
 
 import torch
 
+from torchtitan.tools.logging import logger
+
 _deep_gemm = None
+_routed_dw_overwrite_activated = False
+_routed_dw_overwrite_flag = os.environ.get("GIFT_ROUTED_DW_BF16_OVERWRITE", "")
+if _routed_dw_overwrite_flag not in ("", "0", "1"):
+    raise ValueError("GIFT_ROUTED_DW_BF16_OVERWRITE must be 0 or 1")
+_routed_dw_overwrite_enabled = _routed_dw_overwrite_flag == "1"
+_ROUTED_DW_OVERWRITE_SHAPES = (
+    (16, 3072, 4096),
+    (16, 4096, 1536),
+    (32, 3072, 4096),
+    (32, 4096, 1536),
+)
 
 
 def _load_deep_gemm():
@@ -36,10 +50,7 @@ def _load_deep_gemm():
     return deep_gemm
 
 
-@torch.library.custom_op(
-    "torchtitan::k_grouped_fp8_gemm_contiguous", mutates_args={"d"}, device_types="cuda"
-)
-def _k_grouped_fp8_gemm_contiguous(
+def _k_grouped_fp8_gemm(
     a_data: torch.Tensor,
     a_scale: torch.Tensor,
     b_data: torch.Tensor,
@@ -48,8 +59,10 @@ def _k_grouped_fp8_gemm_contiguous(
     ks: list[int] | None,
     ks_cpu: torch.Tensor | None,
     ks_tensor: torch.Tensor,
+    *,
+    overwrite: bool,
 ) -> None:
-    """DeepGEMM's k-grouped contiguous fp8 GEMM (wgrad), accumulating into ``d``."""
+    global _routed_dw_overwrite_activated
     assert (
         a_data.is_cuda
         and a_scale.is_cuda
@@ -95,18 +108,96 @@ def _k_grouped_fp8_gemm_contiguous(
 
     assert a_data.is_contiguous() and b_data.is_contiguous()
 
-    # An empty batch means every k is zero, so the weight gradient is the zero
-    # matrix -- which is what ``d`` already holds, because the caller allocates
-    # it with torch.zeros.
+    # An empty batch has no GEMM. The legacy caller prezeros d, while the
+    # overwrite caller needs the same positive zero gradient written here.
     if a_data.numel() == 0:
+        if overwrite:
+            d.zero_()
         return
 
-    _load_deep_gemm().k_grouped_fp8_gemm_nt_contiguous(
+    deep_gemm = _load_deep_gemm()
+    if overwrite:
+        device = d.device
+        # Guard the narrower extension ABI after trimming, where the runtime
+        # counts and addresses are available even under torch.compile.
+        if (
+            d.shape in _ROUTED_DW_OVERWRITE_SHAPES
+            and d.dtype == torch.bfloat16
+            and d.is_contiguous()
+            and all(
+                t.device == device
+                for t in (a_data, a_scale, b_data, b_scale, ks_tensor)
+            )
+            and a_scale.shape == (m, rows // 128)
+            and b_scale.shape == (n, rows // 128)
+            and b_data.numel() == rows * n
+            and ks_tensor.shape == (num_groups,)
+            and ks_tensor.dtype == torch.int32
+            and ks_tensor.is_contiguous()
+            and rows <= (1 << 31) - 1
+            and all(k >= 0 for k in ks)
+            and all(t.data_ptr() % 16 == 0 for t in (a_data, b_data, d))
+        ):
+            from torchtitan.ops.float8._routed_dw_overwrite import load_extension
+
+            extension = load_extension(device, deep_gemm)
+            if extension is not None:
+                extension.k_grouped_fp8_gemm_nt_contiguous_bf16_overwrite(
+                    (a_data, a_scale), (b_data, b_scale), d, ks, ks_tensor
+                )
+                if not _routed_dw_overwrite_activated:
+                    _routed_dw_overwrite_activated = True
+                    logger.info("Routed BF16 dW overwrite activated")
+                return
+
+        d.zero_()
+    deep_gemm.k_grouped_fp8_gemm_nt_contiguous(
         (a_data, a_scale), (b_data, b_scale), d, ks, ks_tensor, d
     )
 
 
+@torch.library.custom_op(
+    "torchtitan::k_grouped_fp8_gemm_contiguous", mutates_args={"d"}, device_types="cuda"
+)
+def _k_grouped_fp8_gemm_contiguous(
+    a_data: torch.Tensor,
+    a_scale: torch.Tensor,
+    b_data: torch.Tensor,
+    b_scale: torch.Tensor,
+    d: torch.Tensor,
+    ks: list[int] | None,
+    ks_cpu: torch.Tensor | None,
+    ks_tensor: torch.Tensor,
+) -> None:
+    """DeepGEMM's k-grouped contiguous fp8 GEMM (wgrad), accumulating into ``d``."""
+    _k_grouped_fp8_gemm(
+        a_data, a_scale, b_data, b_scale, d, ks, ks_cpu, ks_tensor, overwrite=False
+    )
+
+
+@torch.library.custom_op(
+    "torchtitan::k_grouped_fp8_gemm_bf16_overwrite",
+    mutates_args={"d"},
+    device_types="cuda",
+)
+def _k_grouped_fp8_gemm_bf16_overwrite(
+    a_data: torch.Tensor,
+    a_scale: torch.Tensor,
+    b_data: torch.Tensor,
+    b_scale: torch.Tensor,
+    d: torch.Tensor,
+    ks: list[int] | None,
+    ks_cpu: torch.Tensor | None,
+    ks_tensor: torch.Tensor,
+) -> None:
+    """Initialize every element of an uninitialized routed weight gradient."""
+    _k_grouped_fp8_gemm(
+        a_data, a_scale, b_data, b_scale, d, ks, ks_cpu, ks_tensor, overwrite=True
+    )
+
+
 @_k_grouped_fp8_gemm_contiguous.register_fake
+@_k_grouped_fp8_gemm_bf16_overwrite.register_fake
 def _(
     a_data: torch.Tensor,
     a_scale: torch.Tensor,
@@ -119,6 +210,29 @@ def _(
 ) -> None:
     """Fake k-grouped GEMM: writes ``d`` in place and returns nothing."""
     return None
+
+
+def routed_bf16_wgrad(
+    a: tuple[torch.Tensor, torch.Tensor],
+    b: tuple[torch.Tensor, torch.Tensor],
+    weight_shape: torch.Size,
+    device: torch.device,
+    ks: list[int] | None,
+    ks_cpu: torch.Tensor | None,
+    ks_tensor: torch.Tensor,
+) -> torch.Tensor:
+    if (
+        _routed_dw_overwrite_enabled
+        and device.type == "cuda"
+        and weight_shape in _ROUTED_DW_OVERWRITE_SHAPES
+    ):
+        d = torch.empty(weight_shape, dtype=torch.bfloat16, device=device)
+        op = torch.ops.torchtitan.k_grouped_fp8_gemm_bf16_overwrite
+    else:
+        d = torch.zeros(weight_shape, dtype=torch.bfloat16, device=device)
+        op = torch.ops.torchtitan.k_grouped_fp8_gemm_contiguous
+    op(a[0], a[1], b[0], b[1], d, ks, ks_cpu, ks_tensor)
+    return d
 
 
 @torch.library.custom_op(

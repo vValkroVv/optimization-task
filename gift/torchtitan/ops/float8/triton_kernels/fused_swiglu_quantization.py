@@ -17,6 +17,8 @@ Backward
     128 threads × 128 regs = 16 384 → 4 blocks/SM on H100.
 """
 
+import os
+
 import torch
 import triton
 import triton.language as tl
@@ -31,6 +33,7 @@ from torchtitan.ops.float8.triton_kernels.kernel_params import params_to_kernel_
 from torchtitan.ops.float8.triton_kernels.utils import tensor_to_kernel_args
 
 _SWIGLU_TOKEN_BUCKET_SIZE = 2048
+_BWD_MN_MAJOR_SCALE_ENV = "GIFT_MOE_SWIGLU_BWD_MN_MAJOR_SCALE"
 
 FP8_MAX: float = 448.0
 INV_FP8_MAX = tl.constexpr(1.0 / FP8_MAX)
@@ -294,6 +297,63 @@ def _swiglu_quant_bwd_kernel(
     )
 
 
+def _swiglu_quantized_backward(
+    grad_output: torch.Tensor,
+    x_c: torch.Tensor,
+    p_c: torch.Tensor,
+    swiglu_limit: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    total_tokens = x_c.shape[0]
+    hid_dim = x_c.shape[1] // 2
+    blocks_per_row = hid_dim // COL_BLOCK
+    device = x_c.device
+
+    assert isinstance(grad_output, torch.Tensor)
+    grad_output = grad_output.contiguous()
+
+    grad_in = torch.empty(
+        (total_tokens, 2 * hid_dim), device=device, dtype=torch.float8_e4m3fn
+    )
+    scale_shape = (total_tokens, 2 * blocks_per_row)
+    mn_major_scale = os.environ.get(_BWD_MN_MAJOR_SCALE_ENV, "")
+    if mn_major_scale == "1":
+        # Padded token rows meet DeepGEMM's TMA alignment. Unit row stride
+        # also lets CudaCherry consume these scales without copying them.
+        grad_in_sf = torch.empty_strided(
+            scale_shape, (1, total_tokens), device=device, dtype=torch.float32
+        )
+    elif mn_major_scale in ("", "0"):
+        grad_in_sf = torch.empty(scale_shape, device=device, dtype=torch.float32)
+    else:
+        raise ValueError(f"{_BWD_MN_MAJOR_SCALE_ENV} must be 0, 1, or unset")
+    grad_probs_partial = torch.empty(
+        (total_tokens, blocks_per_row), device=device, dtype=torch.float32
+    )
+
+    token_bucket = total_tokens // _SWIGLU_TOKEN_BUCKET_SIZE
+    grid = (total_tokens // BWD_ROW_BLOCK, blocks_per_row)
+
+    _swiglu_quant_bwd_kernel[grid](
+        *tensor_to_kernel_args(grad_output, 2),
+        *tensor_to_kernel_args(p_c, 1),
+        *tensor_to_kernel_args(x_c, 2),
+        *tensor_to_kernel_args(grad_in, 2),
+        *tensor_to_kernel_args(grad_in_sf, 2),
+        *tensor_to_kernel_args(grad_probs_partial, 2),
+        token_bucket,
+        hid_dim,
+        ROW_BLOCK=BWD_ROW_BLOCK,
+        COL_BLOCK=COL_BLOCK,
+        APPLY_CLAMP=swiglu_limit > 0,
+        swiglu_limit=float(swiglu_limit),
+        **params_to_kernel_kwargs(
+            STATIC_TRITON_PARAMS_BWD, hid_dim, num_warps=4, maxnreg=128
+        ),
+    )
+
+    return grad_in, grad_in_sf, grad_probs_partial.sum(dim=-1)
+
+
 # ── autograd Function ──────────────────────────────────────────────────────────
 
 
@@ -304,7 +364,7 @@ class FusedQuantizedSwiGLU(torch.autograd.Function):
     ) -> Float8BlockwiseQTensor:
         return Float8BlockwiseQTensor(
             data=data.contiguous(),
-            scale=scale.contiguous(),
+            scale=scale,
             orig_dtype=torch.bfloat16,
             input_layout_type=InputLayoutType.ROWWISE,
             block_scaling_dim=1,
@@ -326,7 +386,6 @@ class FusedQuantizedSwiGLU(torch.autograd.Function):
         # is the edge.
         ctx.use_edges = fp8_edge is not None
         del fp8_edge  # only its gradient matters
-        ctx.input_tensor_shape = input_tensor.shape
         ctx.probs_shape = probs.shape
         ctx.swiglu_limit = swiglu_limit
 
@@ -393,47 +452,9 @@ class FusedQuantizedSwiGLU(torch.autograd.Function):
     ):
         del grad_payload  # the payload is not differentiable
         x_c, p_c = ctx.saved_tensors
-        total_tokens = ctx.input_tensor_shape[0]
-        hid_dim = ctx.input_tensor_shape[1] // 2
-        blocks_per_row = hid_dim // COL_BLOCK
-        device = x_c.device
-        swiglu_limit = ctx.swiglu_limit
-
-        assert isinstance(grad_output, torch.Tensor)
-        grad_output = grad_output.contiguous()
-
-        grad_in = torch.empty(
-            (total_tokens, 2 * hid_dim), device=device, dtype=torch.float8_e4m3fn
+        grad_in, grad_in_sf, grad_probs = _swiglu_quantized_backward(
+            grad_output, x_c, p_c, ctx.swiglu_limit
         )
-        grad_in_sf = torch.empty(
-            (total_tokens, 2 * blocks_per_row), device=device, dtype=torch.float32
-        )
-        grad_probs_partial = torch.empty(
-            (total_tokens, blocks_per_row), device=device, dtype=torch.float32
-        )
-
-        token_bucket = total_tokens // _SWIGLU_TOKEN_BUCKET_SIZE
-        grid = (total_tokens // BWD_ROW_BLOCK, blocks_per_row)
-
-        _swiglu_quant_bwd_kernel[grid](
-            *tensor_to_kernel_args(grad_output, 2),
-            *tensor_to_kernel_args(p_c, 1),
-            *tensor_to_kernel_args(x_c, 2),
-            *tensor_to_kernel_args(grad_in, 2),
-            *tensor_to_kernel_args(grad_in_sf, 2),
-            *tensor_to_kernel_args(grad_probs_partial, 2),
-            token_bucket,
-            hid_dim,
-            ROW_BLOCK=BWD_ROW_BLOCK,
-            COL_BLOCK=COL_BLOCK,
-            APPLY_CLAMP=swiglu_limit > 0,
-            swiglu_limit=float(swiglu_limit),
-            **params_to_kernel_kwargs(
-                STATIC_TRITON_PARAMS_BWD, hid_dim, num_warps=4, maxnreg=128
-            ),
-        )
-
-        grad_probs = grad_probs_partial.sum(dim=-1)
         grad_in_packed = FusedQuantizedSwiGLU._make_qtensor(grad_in, grad_in_sf)
         return (
             grad_in_packed if ctx.use_edges else None,

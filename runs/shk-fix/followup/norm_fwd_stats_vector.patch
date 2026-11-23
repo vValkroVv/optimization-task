@@ -1,0 +1,52 @@
+--- a/torchtitan/models/common/norms/cute_gated_norm/forward.py
++++ b/torchtitan/models/common/norms/cute_gated_norm/forward.py
+@@ -120,7 +120,7 @@
+ # =============================================================================
+ # F1: split-K statistics
+ # =============================================================================
+-class GnFwdStats:
++class GnFwdStatsVector:
+     """p_part[s, m, :] = x[m, H_s] @ W_eff[:, H_s]^T and ss_part[s, m] = sum(x[m, H_s]^2).
+ 
+     Tile = 64 rows x Hs = H / n_split columns. Per 64 x 64 sub-tile: 4 wgmma k-steps into a
+@@ -271,7 +271,16 @@
+             pipeline.PipelineUserType.Consumer, self.stages
+         )
+         r = wt // 2
+-        c0 = (wt % 2) * (BLK_H // 2)
++        # Lane wt owns row wt // 2 and one contiguous 32-column half.
++        s2r = cute.make_tiled_copy_tv(
++            cute.make_copy_atom(
++                cute.nvgpu.CopyUniversalOp(), BF16, num_bits_per_copy=128
++            ),
++            cute.make_layout((BLK_M, 2), stride=(2, 1)),
++            cute.make_layout((1, BLK_H // 2), stride=(0, 1)),
++        )
++        tSX = s2r.get_slice(wt).partition_S(sA)
++        rX = cute.make_rmem_tensor_like(tSX[(None, 0, 0, 0)], BF16)
+         if wg_idx == 0:
+             cute.arch.setmaxregister_decrease(40)
+             if warp_idx == 0:
+@@ -332,9 +341,10 @@
+                             acc,
+                         )
+                     cute.nvgpu.warpgroup.commit_group()
++                    cute.copy(s2r, tSX[(None, 0, 0, st)], rX)
+                     ss_j = F32(0.0)
+                     for c in cutlass.range_constexpr(BLK_H // 2):
+-                        xv = F32(sA[(r, c0 + c, st)])
++                        xv = F32(rX[c])
+                         ss_j += xv * xv
+                     ss += ss_j
+                     cute.nvgpu.warpgroup.wait_group(0)
+@@ -924,8 +934,8 @@
+             ),
+         )
+         f1 = compile_op(
+-            ("f1", H, R, split_k, sms),
+-            lambda: GnFwdStats(H, R, split_k, sms),
++            ("f1_vector", H, R, split_k, sms),
++            lambda: GnFwdStatsVector(H, R, split_k, sms),
+             (
+                 make_fake_compact_tensor(
+                     BF16, (m, H), stride_order=(1, 0), assumed_align=16
