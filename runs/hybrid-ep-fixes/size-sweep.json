@@ -1,0 +1,3876 @@
+{
+  "input_provenance": {
+    "directory": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/capacity-selector/artifacts/raw/capacity-selector-001-capture/routing-fixtures",
+    "rank_receipts": [
+      {
+        "rank": 0,
+        "file_sha256": "f14d63ed1c6b2ba8968d96f8869eaa0677cac77cd0805dfff778d84d2793a386",
+        "largest_expert_count": 608
+      },
+      {
+        "rank": 1,
+        "file_sha256": "242c114f574c798e0b96c6244583ffd7251328f88e03692dd4e11bd5e78d1a6a",
+        "largest_expert_count": 611
+      },
+      {
+        "rank": 2,
+        "file_sha256": "6f93b341a5b9de178aa47b81660d9b5e085e94dad26fdfcc641137bc0caa0a1d",
+        "largest_expert_count": 610
+      },
+      {
+        "rank": 3,
+        "file_sha256": "a3822fa8a8280bf1d3ae6017d19d64e60002a98cb2f9b21b4e0329939e738548",
+        "largest_expert_count": 611
+      },
+      {
+        "rank": 4,
+        "file_sha256": "6e321f6bb71b4a77ab530484da8143610e45c8b2a524f55f455bd1b0784d886f",
+        "largest_expert_count": 596
+      },
+      {
+        "rank": 5,
+        "file_sha256": "3f45beb0941db7d72df4161549fa579cda93acd7f49709db1011f9bccb5a3a47",
+        "largest_expert_count": 607
+      },
+      {
+        "rank": 6,
+        "file_sha256": "fad7c242f4942dde8ccd79af10cdcd9cdb202d40f5d552c61c1927bb8e281feb",
+        "largest_expert_count": 654
+      },
+      {
+        "rank": 7,
+        "file_sha256": "b03aaec09635c31f94477057b89d0c3dc2218929fcacb37f363172476ae6125b",
+        "largest_expert_count": 639
+      }
+    ],
+    "global_destination_counts": [
+      65615,
+      65346,
+      65259,
+      66927,
+      64999,
+      64315,
+      64638,
+      67189
+    ],
+    "group_budget": 800000,
+    "dropped_routes": 0
+  },
+  "device": "NVIDIA H100 80GB HBM3",
+  "torch": "2.15.0.dev20260822+cu130",
+  "torch_git": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+  "triton": "3.8.0",
+  "cuda_build": "13.0",
+  "sentinel_parity": "negative int64 IDs, valid zero, signed zero and NaN",
+  "sources_sha256": {
+    "bench_routing.py": "236658fc6299ee4b736b5080a96eccd6221e23e2a5ed4b6be6a1cb229db947c7",
+    "routing_metadata.py": "2fb70d05edb774b09af93f0e97bd8054a75cd13f741e6071a82bf07e827c2f53",
+    "routing.py": "0c378d5e6c40b8a214f58ae89e5eb0e411afa2d88aa6ead55dd89a8421974a2e"
+  },
+  "batch": 64,
+  "distinct_outputs_batch": 24,
+  "cases": [
+    {
+      "fixture_rank": 0,
+      "fixture_ranks": [
+        0
+      ],
+      "input_adaptation": "captured native routes",
+      "shape": [
+        8192,
+        8
+      ],
+      "experts": 128,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            22.942458589871723,
+            23.02287518978119,
+            22.949290772279102,
+            22.860916952292126,
+            22.85183221101761,
+            22.90816605091095,
+            22.901001075903576,
+            22.90641764799754
+          ],
+          "host": [
+            {
+              "enqueue_us": 81.11503125,
+              "completion_wait_us": 0.291765625,
+              "integrated_us": 81.406796875
+            },
+            {
+              "enqueue_us": 77.647203125,
+              "completion_wait_us": 0.202953125,
+              "integrated_us": 77.85015625
+            },
+            {
+              "enqueue_us": 77.03821875,
+              "completion_wait_us": 0.194125,
+              "integrated_us": 77.23234375
+            },
+            {
+              "enqueue_us": 77.085921875,
+              "completion_wait_us": 0.20740625,
+              "integrated_us": 77.293328125
+            },
+            {
+              "enqueue_us": 76.897671875,
+              "completion_wait_us": 0.185421875,
+              "integrated_us": 77.08309375
+            },
+            {
+              "enqueue_us": 77.38078125,
+              "completion_wait_us": 0.19240625,
+              "integrated_us": 77.5731875
+            },
+            {
+              "enqueue_us": 77.11434375,
+              "completion_wait_us": 0.18315625,
+              "integrated_us": 77.2975
+            },
+            {
+              "enqueue_us": 76.916484375,
+              "completion_wait_us": 0.19525,
+              "integrated_us": 77.111734375
+            }
+          ],
+          "medians": {
+            "graph_us": 22.907291849454246,
+            "enqueue_us": 77.1001328125,
+            "completion_wait_us": 0.1946875,
+            "integrated_us": 77.2954140625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 22.419874999999962,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.2041249999999764,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            22.949832181135815,
+            22.983374694983166,
+            22.91812499364217,
+            22.85674959421158,
+            22.852040827274323,
+            22.786458333333332,
+            22.782251238822937,
+            22.920166452725727
+          ],
+          "host": [
+            {
+              "enqueue_us": 77.032703125,
+              "completion_wait_us": 0.216203125,
+              "integrated_us": 77.24890625
+            },
+            {
+              "enqueue_us": 80.113890625,
+              "completion_wait_us": 0.243984375,
+              "integrated_us": 80.357875
+            },
+            {
+              "enqueue_us": 76.924953125,
+              "completion_wait_us": 0.20159375,
+              "integrated_us": 77.126546875
+            },
+            {
+              "enqueue_us": 80.09240625,
+              "completion_wait_us": 0.265578125,
+              "integrated_us": 80.357984375
+            },
+            {
+              "enqueue_us": 76.959,
+              "completion_wait_us": 0.1891875,
+              "integrated_us": 77.1481875
+            },
+            {
+              "enqueue_us": 79.4585,
+              "completion_wait_us": 0.232359375,
+              "integrated_us": 79.690859375
+            },
+            {
+              "enqueue_us": 77.297171875,
+              "completion_wait_us": 0.183953125,
+              "integrated_us": 77.481125
+            },
+            {
+              "enqueue_us": 78.868265625,
+              "completion_wait_us": 0.251265625,
+              "integrated_us": 79.11953125
+            }
+          ],
+          "medians": {
+            "graph_us": 22.887437293926872,
+            "enqueue_us": 78.08271875,
+            "completion_wait_us": 0.22428125,
+            "integrated_us": 78.300328125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 22.391875000000084,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.1961249999999382,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            11.112374564011892,
+            11.125708619753519,
+            11.106666177511215,
+            11.100624998410543,
+            11.106708397467932,
+            11.099499960740408,
+            11.103957891464233,
+            11.103750516970953
+          ],
+          "host": [
+            {
+              "enqueue_us": 57.4696875,
+              "completion_wait_us": 0.321296875,
+              "integrated_us": 57.790984375
+            },
+            {
+              "enqueue_us": 61.866671875,
+              "completion_wait_us": 0.277609375,
+              "integrated_us": 62.14428125
+            },
+            {
+              "enqueue_us": 56.57803125,
+              "completion_wait_us": 0.2991875,
+              "integrated_us": 56.87721875
+            },
+            {
+              "enqueue_us": 57.531609375,
+              "completion_wait_us": 0.30503125,
+              "integrated_us": 57.836640625
+            },
+            {
+              "enqueue_us": 56.822859375,
+              "completion_wait_us": 0.281015625,
+              "integrated_us": 57.103875
+            },
+            {
+              "enqueue_us": 55.8886875,
+              "completion_wait_us": 0.2673125,
+              "integrated_us": 56.156
+            },
+            {
+              "enqueue_us": 55.189796875,
+              "completion_wait_us": 0.276828125,
+              "integrated_us": 55.466625
+            },
+            {
+              "enqueue_us": 60.14903125,
+              "completion_wait_us": 0.41628125,
+              "integrated_us": 60.5653125
+            }
+          ],
+          "medians": {
+            "graph_us": 11.105312034487724,
+            "enqueue_us": 57.1462734375,
+            "completion_wait_us": 0.29010156249999997,
+            "integrated_us": 57.447429687500005
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 11.695875000000257,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            5.911208068331082,
+            5.9156666199366255,
+            5.910583461324374,
+            5.904375265041987,
+            5.911458283662796,
+            5.906958132982254,
+            5.908416584134102,
+            5.903416623671849
+          ],
+          "host": [
+            {
+              "enqueue_us": 50.324453125,
+              "completion_wait_us": 0.281921875,
+              "integrated_us": 50.606375
+            },
+            {
+              "enqueue_us": 41.80640625,
+              "completion_wait_us": 0.18984375,
+              "integrated_us": 41.99625
+            },
+            {
+              "enqueue_us": 44.302453125,
+              "completion_wait_us": 0.326890625,
+              "integrated_us": 44.62934375
+            },
+            {
+              "enqueue_us": 42.373578125,
+              "completion_wait_us": 0.206859375,
+              "integrated_us": 42.5804375
+            },
+            {
+              "enqueue_us": 45.6263125,
+              "completion_wait_us": 0.25446875,
+              "integrated_us": 45.88078125
+            },
+            {
+              "enqueue_us": 43.176125,
+              "completion_wait_us": 0.18434375,
+              "integrated_us": 43.36046875
+            },
+            {
+              "enqueue_us": 43.973875,
+              "completion_wait_us": 0.239984375,
+              "integrated_us": 44.213859375
+            },
+            {
+              "enqueue_us": 42.05703125,
+              "completion_wait_us": 0.183703125,
+              "integrated_us": 42.240734375
+            }
+          ],
+          "medians": {
+            "graph_us": 5.9095000227292385,
+            "enqueue_us": 43.575,
+            "completion_wait_us": 0.223421875,
+            "integrated_us": 43.7871640625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.243875000000003,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            3.804124891757965,
+            3.7761665880680084,
+            3.776374893883864,
+            3.7734583020210266,
+            3.773874913652738,
+            3.7708751236399016,
+            3.778208357592424,
+            3.7757915755112967
+          ],
+          "host": [
+            {
+              "enqueue_us": 43.051578125,
+              "completion_wait_us": 0.207265625,
+              "integrated_us": 43.25884375
+            },
+            {
+              "enqueue_us": 41.121609375,
+              "completion_wait_us": 0.215421875,
+              "integrated_us": 41.33703125
+            },
+            {
+              "enqueue_us": 42.816453125,
+              "completion_wait_us": 0.20125,
+              "integrated_us": 43.017703125
+            },
+            {
+              "enqueue_us": 41.478125,
+              "completion_wait_us": 0.185359375,
+              "integrated_us": 41.663484375
+            },
+            {
+              "enqueue_us": 43.319328125,
+              "completion_wait_us": 0.22353125,
+              "integrated_us": 43.542859375
+            },
+            {
+              "enqueue_us": 42.072875,
+              "completion_wait_us": 0.19121875,
+              "integrated_us": 42.26409375
+            },
+            {
+              "enqueue_us": 43.346,
+              "completion_wait_us": 0.202828125,
+              "integrated_us": 43.548828125
+            },
+            {
+              "enqueue_us": 41.3700625,
+              "completion_wait_us": 0.179703125,
+              "integrated_us": 41.549765625
+            }
+          ],
+          "medians": {
+            "graph_us": 3.775979081789653,
+            "enqueue_us": 42.4446640625,
+            "completion_wait_us": 0.2020390625,
+            "integrated_us": 42.6408984375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 3.8677500000000293,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_eager": [
+          23.482999867863125,
+          23.642443948321873,
+          23.64177836312188,
+          23.63777822918362,
+          23.60488971074422,
+          23.474334014786614,
+          23.446889387236702,
+          23.546444045172798
+        ],
+        "baseline_compiled": [
+          11.539999809530046,
+          11.508999599350823,
+          11.529000269042122,
+          11.522666447692448,
+          11.512777871555752,
+          11.494110855791304,
+          11.512777871555752,
+          11.494999958409203
+        ],
+        "current": [
+          6.042222181955974,
+          6.039555701944563,
+          6.042555388477114,
+          6.039888908465703,
+          6.039888908465703,
+          6.040222114986843,
+          6.042333526743783,
+          6.0447777311007185
+        ],
+        "grouped_8x128_wrapped": [
+          3.892889039383994,
+          3.895444588528739,
+          3.895666864183214,
+          3.8953332437409296,
+          3.8968887594011097,
+          3.8976665172311993,
+          3.8961110015710196,
+          3.8929999702506595
+        ]
+      }
+    },
+    {
+      "fixture_rank": 6,
+      "fixture_ranks": [
+        6
+      ],
+      "input_adaptation": "captured native routes",
+      "shape": [
+        8192,
+        8
+      ],
+      "experts": 128,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            23.519625266393025,
+            23.430749773979187,
+            23.42375119527181,
+            23.57204258441925,
+            23.560084402561188,
+            23.561249176661175,
+            23.530917863051098,
+            23.55887492497762
+          ],
+          "host": [
+            {
+              "enqueue_us": 109.410796875,
+              "completion_wait_us": 0.330859375,
+              "integrated_us": 109.74165625
+            },
+            {
+              "enqueue_us": 106.717421875,
+              "completion_wait_us": 0.253203125,
+              "integrated_us": 106.970625
+            },
+            {
+              "enqueue_us": 140.2708125,
+              "completion_wait_us": 1.461359375,
+              "integrated_us": 141.732171875
+            },
+            {
+              "enqueue_us": 107.80128125,
+              "completion_wait_us": 0.286859375,
+              "integrated_us": 108.088140625
+            },
+            {
+              "enqueue_us": 107.279828125,
+              "completion_wait_us": 0.252671875,
+              "integrated_us": 107.5325
+            },
+            {
+              "enqueue_us": 107.48075,
+              "completion_wait_us": 0.33275,
+              "integrated_us": 107.8135
+            },
+            {
+              "enqueue_us": 107.22340625,
+              "completion_wait_us": 0.249875,
+              "integrated_us": 107.47328125
+            },
+            {
+              "enqueue_us": 107.2953125,
+              "completion_wait_us": 0.26721875,
+              "integrated_us": 107.56253125
+            }
+          ],
+          "medians": {
+            "graph_us": 23.54489639401436,
+            "enqueue_us": 107.38803125,
+            "completion_wait_us": 0.2770390625,
+            "integrated_us": 107.688015625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 22.387624999999673,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.2078750000000014,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            23.56566737095515,
+            23.438791433970135,
+            23.47537378470103,
+            23.588667313257854,
+            23.571332295735676,
+            23.59070877234141,
+            23.575708270072937,
+            23.578666150569916
+          ],
+          "host": [
+            {
+              "enqueue_us": 108.211421875,
+              "completion_wait_us": 0.34153125,
+              "integrated_us": 108.552953125
+            },
+            {
+              "enqueue_us": 108.18303125,
+              "completion_wait_us": 0.380984375,
+              "integrated_us": 108.564015625
+            },
+            {
+              "enqueue_us": 107.716125,
+              "completion_wait_us": 0.30384375,
+              "integrated_us": 108.01996875
+            },
+            {
+              "enqueue_us": 108.154671875,
+              "completion_wait_us": 0.296296875,
+              "integrated_us": 108.45096875
+            },
+            {
+              "enqueue_us": 107.25684375,
+              "completion_wait_us": 0.241640625,
+              "integrated_us": 107.498484375
+            },
+            {
+              "enqueue_us": 109.1763125,
+              "completion_wait_us": 0.370484375,
+              "integrated_us": 109.546796875
+            },
+            {
+              "enqueue_us": 108.18890625,
+              "completion_wait_us": 0.306546875,
+              "integrated_us": 108.495453125
+            },
+            {
+              "enqueue_us": 107.5894375,
+              "completion_wait_us": 0.29653125,
+              "integrated_us": 107.88596875
+            }
+          ],
+          "medians": {
+            "graph_us": 23.573520282904305,
+            "enqueue_us": 108.16885156250001,
+            "completion_wait_us": 0.3051953125,
+            "integrated_us": 108.4732109375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 22.404624999999996,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.2000000000000313,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            11.353958398103714,
+            11.33508359392484,
+            11.358791341384253,
+            11.331874877214432,
+            11.341957996288935,
+            11.349125454823175,
+            11.349458247423172,
+            11.338458706935247
+          ],
+          "host": [
+            {
+              "enqueue_us": 63.227328125,
+              "completion_wait_us": 0.31878125,
+              "integrated_us": 63.546109375
+            },
+            {
+              "enqueue_us": 63.21690625,
+              "completion_wait_us": 0.30603125,
+              "integrated_us": 63.5229375
+            },
+            {
+              "enqueue_us": 64.666,
+              "completion_wait_us": 0.293859375,
+              "integrated_us": 64.959859375
+            },
+            {
+              "enqueue_us": 64.01884375,
+              "completion_wait_us": 0.320140625,
+              "integrated_us": 64.338984375
+            },
+            {
+              "enqueue_us": 63.1534375,
+              "completion_wait_us": 0.31621875,
+              "integrated_us": 63.46965625
+            },
+            {
+              "enqueue_us": 62.750078125,
+              "completion_wait_us": 0.299421875,
+              "integrated_us": 63.0495
+            },
+            {
+              "enqueue_us": 63.51378125,
+              "completion_wait_us": 0.30978125,
+              "integrated_us": 63.8235625
+            },
+            {
+              "enqueue_us": 63.51796875,
+              "completion_wait_us": 0.313625,
+              "integrated_us": 63.83159375
+            }
+          ],
+          "medians": {
+            "graph_us": 11.345541725556055,
+            "enqueue_us": 63.370554687500004,
+            "completion_wait_us": 0.31170312499999997,
+            "integrated_us": 63.6848359375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 11.751874999999927,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            5.964416389664014,
+            5.957749982674916,
+            5.969083557526271,
+            5.957374970118205,
+            5.972374851504962,
+            5.9574997673432035,
+            5.965124815702438,
+            5.959916859865189
+          ],
+          "host": [
+            {
+              "enqueue_us": 48.604796875,
+              "completion_wait_us": 0.27828125,
+              "integrated_us": 48.883078125
+            },
+            {
+              "enqueue_us": 45.61884375,
+              "completion_wait_us": 0.216640625,
+              "integrated_us": 45.835484375
+            },
+            {
+              "enqueue_us": 50.03003125,
+              "completion_wait_us": 0.275109375,
+              "integrated_us": 50.305140625
+            },
+            {
+              "enqueue_us": 46.606,
+              "completion_wait_us": 0.21378125,
+              "integrated_us": 46.81978125
+            },
+            {
+              "enqueue_us": 48.90465625,
+              "completion_wait_us": 0.2769375,
+              "integrated_us": 49.18159375
+            },
+            {
+              "enqueue_us": 49.49446875,
+              "completion_wait_us": 0.3258125,
+              "integrated_us": 49.82028125
+            },
+            {
+              "enqueue_us": 48.872953125,
+              "completion_wait_us": 0.276015625,
+              "integrated_us": 49.14896875
+            },
+            {
+              "enqueue_us": 46.763125,
+              "completion_wait_us": 0.2181875,
+              "integrated_us": 46.9813125
+            }
+          ],
+          "medians": {
+            "graph_us": 5.962166624764601,
+            "enqueue_us": 48.738875,
+            "completion_wait_us": 0.2755625,
+            "integrated_us": 49.016023437499996
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.2361250000000155,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            3.8362499326467514,
+            3.830375149846077,
+            3.832958328227202,
+            3.8248334700862565,
+            3.8407916824022927,
+            3.8346250851949057,
+            3.8385416070620217,
+            3.8334165389339128
+          ],
+          "host": [
+            {
+              "enqueue_us": 46.029671875,
+              "completion_wait_us": 0.230109375,
+              "integrated_us": 46.25978125
+            },
+            {
+              "enqueue_us": 45.904953125,
+              "completion_wait_us": 0.226359375,
+              "integrated_us": 46.1313125
+            },
+            {
+              "enqueue_us": 47.162875,
+              "completion_wait_us": 0.228328125,
+              "integrated_us": 47.391203125
+            },
+            {
+              "enqueue_us": 46.246703125,
+              "completion_wait_us": 0.2216875,
+              "integrated_us": 46.468390625
+            },
+            {
+              "enqueue_us": 46.97615625,
+              "completion_wait_us": 0.22471875,
+              "integrated_us": 47.200875
+            },
+            {
+              "enqueue_us": 46.417046875,
+              "completion_wait_us": 0.235578125,
+              "integrated_us": 46.652625
+            },
+            {
+              "enqueue_us": 46.662296875,
+              "completion_wait_us": 0.227484375,
+              "integrated_us": 46.88978125
+            },
+            {
+              "enqueue_us": 45.8521875,
+              "completion_wait_us": 0.224125,
+              "integrated_us": 46.0763125
+            }
+          ],
+          "medians": {
+            "graph_us": 3.8340208120644093,
+            "enqueue_us": 46.331875,
+            "completion_wait_us": 0.226921875,
+            "integrated_us": 46.5605078125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 3.859999999999957,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_eager": [
+          23.62022300561269,
+          23.517888453271652,
+          23.53344526555803,
+          23.48755631181929,
+          23.491443859206306,
+          23.545554942554897,
+          23.541443877749973,
+          23.6288888586892
+        ],
+        "baseline_compiled": [
+          11.534111367331612,
+          11.522110965516832,
+          11.515333420700497,
+          11.502444744110107,
+          11.505666706297133,
+          11.500000125832027,
+          11.525221996837193,
+          11.506888601515028
+        ],
+        "current": [
+          6.051999827226003,
+          6.053888963328467,
+          6.052666654189427,
+          6.051999827226003,
+          6.052111172013813,
+          6.050222035911348,
+          6.047777831554413,
+          6.060666508144802
+        ],
+        "grouped_8x128_wrapped": [
+          3.906333198149999,
+          3.903999924659729,
+          3.9012220998605094,
+          3.895777795049879,
+          3.9017775820361242,
+          3.900666617684894,
+          3.9031112359629736,
+          3.900000204642614
+        ]
+      }
+    },
+    {
+      "fixture_rank": 0,
+      "fixture_ranks": [
+        0,
+        6
+      ],
+      "input_adaptation": "concatenate two native rank samples",
+      "shape": [
+        16384,
+        8
+      ],
+      "experts": 128,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            25.870042542616527,
+            25.87216595808665,
+            25.866876045862835,
+            25.940167407194775,
+            25.915416578451794,
+            25.810209413369495,
+            25.829749802748363,
+            25.840957959493
+          ],
+          "host": [
+            {
+              "enqueue_us": 112.51421875,
+              "completion_wait_us": 0.428546875,
+              "integrated_us": 112.942765625
+            },
+            {
+              "enqueue_us": 106.92378125,
+              "completion_wait_us": 0.24934375,
+              "integrated_us": 107.173125
+            },
+            {
+              "enqueue_us": 106.716328125,
+              "completion_wait_us": 0.253359375,
+              "integrated_us": 106.9696875
+            },
+            {
+              "enqueue_us": 116.628171875,
+              "completion_wait_us": 0.51015625,
+              "integrated_us": 117.138328125
+            },
+            {
+              "enqueue_us": 107.187734375,
+              "completion_wait_us": 0.2789375,
+              "integrated_us": 107.466671875
+            },
+            {
+              "enqueue_us": 107.01184375,
+              "completion_wait_us": 0.25984375,
+              "integrated_us": 107.2716875
+            },
+            {
+              "enqueue_us": 107.08390625,
+              "completion_wait_us": 0.249140625,
+              "integrated_us": 107.333046875
+            },
+            {
+              "enqueue_us": 107.077359375,
+              "completion_wait_us": 0.2596875,
+              "integrated_us": 107.337046875
+            }
+          ],
+          "medians": {
+            "graph_us": 25.86845929423968,
+            "enqueue_us": 107.0806328125,
+            "completion_wait_us": 0.259765625,
+            "integrated_us": 107.33504687499999
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 24.67112500000013,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.3717500000000769,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            25.90595930814743,
+            25.912207861741383,
+            25.901791950066883,
+            25.88599920272827,
+            25.886083642641704,
+            25.856082638104755,
+            25.8382906516393,
+            25.855499009291332
+          ],
+          "host": [
+            {
+              "enqueue_us": 107.42684375,
+              "completion_wait_us": 0.284203125,
+              "integrated_us": 107.711046875
+            },
+            {
+              "enqueue_us": 108.7739375,
+              "completion_wait_us": 0.3235,
+              "integrated_us": 109.0974375
+            },
+            {
+              "enqueue_us": 106.896390625,
+              "completion_wait_us": 0.251640625,
+              "integrated_us": 107.14803125
+            },
+            {
+              "enqueue_us": 109.0855625,
+              "completion_wait_us": 0.32359375,
+              "integrated_us": 109.40915625
+            },
+            {
+              "enqueue_us": 107.24765625,
+              "completion_wait_us": 0.273578125,
+              "integrated_us": 107.521234375
+            },
+            {
+              "enqueue_us": 108.425765625,
+              "completion_wait_us": 0.313375,
+              "integrated_us": 108.739140625
+            },
+            {
+              "enqueue_us": 107.0875625,
+              "completion_wait_us": 0.248625,
+              "integrated_us": 107.3361875
+            },
+            {
+              "enqueue_us": 110.407890625,
+              "completion_wait_us": 0.329984375,
+              "integrated_us": 110.737875
+            }
+          ],
+          "medians": {
+            "graph_us": 25.88604142268499,
+            "enqueue_us": 107.9263046875,
+            "completion_wait_us": 0.29878906250000004,
+            "integrated_us": 108.22509375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 24.65912499999996,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.3681250000000773,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            13.922082881132761,
+            13.92375056942304,
+            13.915708909432093,
+            13.907750447591146,
+            13.922041902939478,
+            13.912333796421686,
+            13.915083060661951,
+            13.908332834641138
+          ],
+          "host": [
+            {
+              "enqueue_us": 66.81771875,
+              "completion_wait_us": 0.341890625,
+              "integrated_us": 67.159609375
+            },
+            {
+              "enqueue_us": 65.3120625,
+              "completion_wait_us": 0.292,
+              "integrated_us": 65.6040625
+            },
+            {
+              "enqueue_us": 66.166515625,
+              "completion_wait_us": 0.31765625,
+              "integrated_us": 66.484171875
+            },
+            {
+              "enqueue_us": 63.919609375,
+              "completion_wait_us": 0.2650625,
+              "integrated_us": 64.184671875
+            },
+            {
+              "enqueue_us": 65.796484375,
+              "completion_wait_us": 0.311140625,
+              "integrated_us": 66.107625
+            },
+            {
+              "enqueue_us": 64.770109375,
+              "completion_wait_us": 0.31240625,
+              "integrated_us": 65.082515625
+            },
+            {
+              "enqueue_us": 65.20334375,
+              "completion_wait_us": 0.314609375,
+              "integrated_us": 65.517953125
+            },
+            {
+              "enqueue_us": 64.980765625,
+              "completion_wait_us": 0.351984375,
+              "integrated_us": 65.33275
+            }
+          ],
+          "medians": {
+            "graph_us": 13.915395985047022,
+            "enqueue_us": 65.257703125,
+            "completion_wait_us": 0.31350781250000004,
+            "integrated_us": 65.56100781250001
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 14.403875000000042,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            10.894666115442911,
+            10.882791131734848,
+            10.89141642053922,
+            10.882666955391565,
+            10.896417001883188,
+            10.88720808426539,
+            10.889541357755661,
+            10.880583276351294
+          ],
+          "host": [
+            {
+              "enqueue_us": 50.84875,
+              "completion_wait_us": 0.295265625,
+              "integrated_us": 51.144015625
+            },
+            {
+              "enqueue_us": 48.22359375,
+              "completion_wait_us": 0.219453125,
+              "integrated_us": 48.443046875
+            },
+            {
+              "enqueue_us": 50.08271875,
+              "completion_wait_us": 0.27765625,
+              "integrated_us": 50.360375
+            },
+            {
+              "enqueue_us": 47.932359375,
+              "completion_wait_us": 0.20878125,
+              "integrated_us": 48.141140625
+            },
+            {
+              "enqueue_us": 50.961265625,
+              "completion_wait_us": 0.28821875,
+              "integrated_us": 51.249484375
+            },
+            {
+              "enqueue_us": 47.85790625,
+              "completion_wait_us": 0.2165625,
+              "integrated_us": 48.07446875
+            },
+            {
+              "enqueue_us": 49.59103125,
+              "completion_wait_us": 0.2555625,
+              "integrated_us": 49.84659375
+            },
+            {
+              "enqueue_us": 48.36778125,
+              "completion_wait_us": 0.215453125,
+              "integrated_us": 48.583234375
+            }
+          ],
+          "medians": {
+            "graph_us": 10.888374721010525,
+            "enqueue_us": 48.97940625,
+            "completion_wait_us": 0.23750781250000003,
+            "integrated_us": 49.2149140625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 11.179749999999956,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            6.609375278155009,
+            6.605374937256177,
+            6.606833388408025,
+            6.604624912142754,
+            6.611958146095276,
+            6.608291839559873,
+            6.609708070755005,
+            6.607374797264735
+          ],
+          "host": [
+            {
+              "enqueue_us": 47.599,
+              "completion_wait_us": 0.231296875,
+              "integrated_us": 47.830296875
+            },
+            {
+              "enqueue_us": 46.45815625,
+              "completion_wait_us": 0.2238125,
+              "integrated_us": 46.68196875
+            },
+            {
+              "enqueue_us": 48.113796875,
+              "completion_wait_us": 0.275703125,
+              "integrated_us": 48.3895
+            },
+            {
+              "enqueue_us": 47.3170625,
+              "completion_wait_us": 0.218140625,
+              "integrated_us": 47.535203125
+            },
+            {
+              "enqueue_us": 47.82928125,
+              "completion_wait_us": 0.231203125,
+              "integrated_us": 48.060484375
+            },
+            {
+              "enqueue_us": 46.67496875,
+              "completion_wait_us": 0.2145,
+              "integrated_us": 46.88946875
+            },
+            {
+              "enqueue_us": 48.15015625,
+              "completion_wait_us": 0.239,
+              "integrated_us": 48.38915625
+            },
+            {
+              "enqueue_us": 47.349265625,
+              "completion_wait_us": 0.214421875,
+              "integrated_us": 47.5636875
+            }
+          ],
+          "medians": {
+            "graph_us": 6.607833318412304,
+            "enqueue_us": 47.4741328125,
+            "completion_wait_us": 0.22750781250000002,
+            "integrated_us": 47.6969921875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.879750000000001,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_eager": [
+          26.13699932893117,
+          26.14744504292806,
+          26.14544497595893,
+          26.091666685210335,
+          26.08977754910787,
+          26.13411181502872,
+          26.13566650284661,
+          26.14566683769226
+        ],
+        "baseline_compiled": [
+          14.169777433077494,
+          14.15611141257816,
+          14.190999997986687,
+          14.168555537859598,
+          14.190443687968784,
+          14.176223013136122,
+          14.182221558358934,
+          14.177444908354017
+        ],
+        "current": [
+          10.973666277196672,
+          10.968666937616137,
+          10.966999663247002,
+          10.969555212391747,
+          10.969333350658417,
+          10.967999696731567,
+          11.005555589993795,
+          10.974110828505623
+        ],
+        "grouped_8x128_wrapped": [
+          6.985999643802643,
+          6.993778049945831,
+          6.9985555277930365,
+          6.994889014297062,
+          6.987444228596157,
+          6.984555886851417,
+          6.985222299893697,
+          6.991999844710032
+        ]
+      }
+    },
+    {
+      "fixture_rank": 6,
+      "fixture_ranks": [
+        6,
+        0
+      ],
+      "input_adaptation": "concatenate two native rank samples",
+      "shape": [
+        16384,
+        8
+      ],
+      "experts": 128,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            25.80687403678894,
+            25.867583851019543,
+            25.856209297974903,
+            25.8308748404185,
+            25.819708903630573,
+            25.830792884031933,
+            25.80899993578593,
+            25.84354082743327
+          ],
+          "host": [
+            {
+              "enqueue_us": 112.03,
+              "completion_wait_us": 0.425109375,
+              "integrated_us": 112.455109375
+            },
+            {
+              "enqueue_us": 107.271734375,
+              "completion_wait_us": 0.250265625,
+              "integrated_us": 107.522
+            },
+            {
+              "enqueue_us": 106.654,
+              "completion_wait_us": 0.23859375,
+              "integrated_us": 106.89259375
+            },
+            {
+              "enqueue_us": 107.343484375,
+              "completion_wait_us": 0.265546875,
+              "integrated_us": 107.60903125
+            },
+            {
+              "enqueue_us": 106.731609375,
+              "completion_wait_us": 0.2420625,
+              "integrated_us": 106.973671875
+            },
+            {
+              "enqueue_us": 106.953921875,
+              "completion_wait_us": 0.251234375,
+              "integrated_us": 107.20515625
+            },
+            {
+              "enqueue_us": 106.5504375,
+              "completion_wait_us": 0.23978125,
+              "integrated_us": 106.79021875
+            },
+            {
+              "enqueue_us": 107.04740625,
+              "completion_wait_us": 0.243546875,
+              "integrated_us": 107.290953125
+            }
+          ],
+          "medians": {
+            "graph_us": 25.830833862225216,
+            "enqueue_us": 107.0006640625,
+            "completion_wait_us": 0.24690625,
+            "integrated_us": 107.2480546875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 24.55962500000004,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.3799999999999955,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            25.824082394440968,
+            25.89716762304306,
+            25.898166000843048,
+            25.834083557128906,
+            25.848624606927235,
+            25.84175020456314,
+            25.873541831970215,
+            25.846250355243683
+          ],
+          "host": [
+            {
+              "enqueue_us": 107.56246875,
+              "completion_wait_us": 0.264046875,
+              "integrated_us": 107.826515625
+            },
+            {
+              "enqueue_us": 108.73690625,
+              "completion_wait_us": 0.313125,
+              "integrated_us": 109.05003125
+            },
+            {
+              "enqueue_us": 107.042453125,
+              "completion_wait_us": 0.2358125,
+              "integrated_us": 107.278265625
+            },
+            {
+              "enqueue_us": 108.256921875,
+              "completion_wait_us": 0.2886875,
+              "integrated_us": 108.545609375
+            },
+            {
+              "enqueue_us": 106.9065625,
+              "completion_wait_us": 0.23428125,
+              "integrated_us": 107.14084375
+            },
+            {
+              "enqueue_us": 108.37365625,
+              "completion_wait_us": 0.283296875,
+              "integrated_us": 108.656953125
+            },
+            {
+              "enqueue_us": 106.90928125,
+              "completion_wait_us": 0.225859375,
+              "integrated_us": 107.135140625
+            },
+            {
+              "enqueue_us": 108.418390625,
+              "completion_wait_us": 0.29340625,
+              "integrated_us": 108.711796875
+            }
+          ],
+          "medians": {
+            "graph_us": 25.847437481085457,
+            "enqueue_us": 107.90969531249999,
+            "completion_wait_us": 0.273671875,
+            "integrated_us": 108.18606249999999
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 24.507749999999902,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.3801249999999783,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            13.91075054804484,
+            13.909291476011276,
+            13.896125058333078,
+            13.913041601578394,
+            13.915916283925375,
+            13.90583316485087,
+            13.926041622956594,
+            13.909250497817993
+          ],
+          "host": [
+            {
+              "enqueue_us": 64.615703125,
+              "completion_wait_us": 0.319546875,
+              "integrated_us": 64.93525
+            },
+            {
+              "enqueue_us": 64.728796875,
+              "completion_wait_us": 0.301,
+              "integrated_us": 65.029796875
+            },
+            {
+              "enqueue_us": 64.997375,
+              "completion_wait_us": 0.307046875,
+              "integrated_us": 65.304421875
+            },
+            {
+              "enqueue_us": 64.05815625,
+              "completion_wait_us": 0.302703125,
+              "integrated_us": 64.360859375
+            },
+            {
+              "enqueue_us": 64.662546875,
+              "completion_wait_us": 0.313359375,
+              "integrated_us": 64.97590625
+            },
+            {
+              "enqueue_us": 63.90215625,
+              "completion_wait_us": 0.30259375,
+              "integrated_us": 64.20475
+            },
+            {
+              "enqueue_us": 64.54346875,
+              "completion_wait_us": 0.28796875,
+              "integrated_us": 64.8314375
+            },
+            {
+              "enqueue_us": 64.360734375,
+              "completion_wait_us": 0.295296875,
+              "integrated_us": 64.65603125
+            }
+          ],
+          "medians": {
+            "graph_us": 13.910021012028057,
+            "enqueue_us": 64.5795859375,
+            "completion_wait_us": 0.30264843750000003,
+            "integrated_us": 64.88334375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 14.375625000000113,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            10.895500580469767,
+            10.88441660006841,
+            10.888416320085526,
+            10.88529204328855,
+            10.891250024239222,
+            10.88683307170868,
+            10.891582816839218,
+            10.885541637738546
+          ],
+          "host": [
+            {
+              "enqueue_us": 49.37009375,
+              "completion_wait_us": 0.278546875,
+              "integrated_us": 49.648640625
+            },
+            {
+              "enqueue_us": 47.581578125,
+              "completion_wait_us": 0.217625,
+              "integrated_us": 47.799203125
+            },
+            {
+              "enqueue_us": 48.783828125,
+              "completion_wait_us": 0.25709375,
+              "integrated_us": 49.040921875
+            },
+            {
+              "enqueue_us": 47.53715625,
+              "completion_wait_us": 0.2193125,
+              "integrated_us": 47.75646875
+            },
+            {
+              "enqueue_us": 49.347875,
+              "completion_wait_us": 0.33975,
+              "integrated_us": 49.687625
+            },
+            {
+              "enqueue_us": 47.87315625,
+              "completion_wait_us": 0.219140625,
+              "integrated_us": 48.092296875
+            },
+            {
+              "enqueue_us": 49.14103125,
+              "completion_wait_us": 0.27159375,
+              "integrated_us": 49.412625
+            },
+            {
+              "enqueue_us": 47.836265625,
+              "completion_wait_us": 0.21703125,
+              "integrated_us": 48.053296875
+            }
+          ],
+          "medians": {
+            "graph_us": 10.887624695897102,
+            "enqueue_us": 48.328492187500004,
+            "completion_wait_us": 0.23820312500000002,
+            "integrated_us": 48.566609375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 11.163999999999987,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            6.60983348886172,
+            6.605833147962888,
+            6.6110001256068545,
+            6.603958085179329,
+            6.610166902343432,
+            6.606791789333026,
+            6.609083463748296,
+            6.606541574001312
+          ],
+          "host": [
+            {
+              "enqueue_us": 47.2469375,
+              "completion_wait_us": 0.229203125,
+              "integrated_us": 47.476140625
+            },
+            {
+              "enqueue_us": 46.284171875,
+              "completion_wait_us": 0.228953125,
+              "integrated_us": 46.513125
+            },
+            {
+              "enqueue_us": 46.922109375,
+              "completion_wait_us": 0.274609375,
+              "integrated_us": 47.19671875
+            },
+            {
+              "enqueue_us": 46.376453125,
+              "completion_wait_us": 0.228,
+              "integrated_us": 46.604453125
+            },
+            {
+              "enqueue_us": 47.30546875,
+              "completion_wait_us": 0.22659375,
+              "integrated_us": 47.5320625
+            },
+            {
+              "enqueue_us": 47.386015625,
+              "completion_wait_us": 0.2216875,
+              "integrated_us": 47.607703125
+            },
+            {
+              "enqueue_us": 47.647,
+              "completion_wait_us": 0.24034375,
+              "integrated_us": 47.88734375
+            },
+            {
+              "enqueue_us": 46.766859375,
+              "completion_wait_us": 0.228765625,
+              "integrated_us": 46.995625
+            }
+          ],
+          "medians": {
+            "graph_us": 6.607937626540661,
+            "enqueue_us": 47.084523437499996,
+            "completion_wait_us": 0.228859375,
+            "integrated_us": 47.3364296875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.880124999999964,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_eager": [
+          26.137888431549072,
+          26.060332854588825,
+          26.057443685001797,
+          26.057667202419704,
+          26.08755562040541,
+          26.13544464111328,
+          26.118000348409016,
+          26.10599994659424
+        ],
+        "baseline_compiled": [
+          14.182888799243504,
+          14.204000433286032,
+          14.191778169737923,
+          14.179334044456482,
+          14.193221926689148,
+          14.170888397428724,
+          14.171333776579964,
+          14.184667004479302
+        ],
+        "current": [
+          10.973888966772291,
+          10.969333350658417,
+          10.971110728051928,
+          10.976666377650368,
+          10.97011152240965,
+          10.968555178907183,
+          10.969555212391747,
+          10.974555379814571
+        ],
+        "grouped_8x128_wrapped": [
+          6.974555552005768,
+          6.985666851202647,
+          6.979555719428593,
+          6.979888512028588,
+          6.985222299893697,
+          6.991667052110036,
+          6.982000337706672,
+          6.973444587654537
+        ]
+      }
+    },
+    {
+      "fixture_rank": 0,
+      "fixture_ranks": [
+        0
+      ],
+      "input_adaptation": "fold IDs modulo 64 and advance duplicates to the next free ID",
+      "shape": [
+        8192,
+        8
+      ],
+      "experts": 64,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            22.949665784835815,
+            22.885834177335102,
+            22.869708637396496,
+            22.94241636991501,
+            22.94183274110158,
+            22.860998908678692,
+            22.866040468215942,
+            22.81970779101054
+          ],
+          "host": [
+            {
+              "enqueue_us": 111.913390625,
+              "completion_wait_us": 0.427265625,
+              "integrated_us": 112.34065625
+            },
+            {
+              "enqueue_us": 106.841046875,
+              "completion_wait_us": 0.261703125,
+              "integrated_us": 107.10275
+            },
+            {
+              "enqueue_us": 107.523484375,
+              "completion_wait_us": 0.253203125,
+              "integrated_us": 107.7766875
+            },
+            {
+              "enqueue_us": 107.504375,
+              "completion_wait_us": 0.261515625,
+              "integrated_us": 107.765890625
+            },
+            {
+              "enqueue_us": 107.175390625,
+              "completion_wait_us": 0.25490625,
+              "integrated_us": 107.430296875
+            },
+            {
+              "enqueue_us": 107.323296875,
+              "completion_wait_us": 0.256671875,
+              "integrated_us": 107.57996875
+            },
+            {
+              "enqueue_us": 106.660921875,
+              "completion_wait_us": 0.2534375,
+              "integrated_us": 106.914359375
+            },
+            {
+              "enqueue_us": 106.9074375,
+              "completion_wait_us": 0.2491875,
+              "integrated_us": 107.156625
+            }
+          ],
+          "medians": {
+            "graph_us": 22.8777714073658,
+            "enqueue_us": 107.24934375000001,
+            "completion_wait_us": 0.2557890625,
+            "integrated_us": 107.5051328125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 21.519624999999948,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.2080000000000268,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            22.913791239261627,
+            22.885166108608246,
+            22.892333567142487,
+            23.000165820121765,
+            22.992707788944244,
+            22.946707904338837,
+            22.95554180939992,
+            22.944708665211994
+          ],
+          "host": [
+            {
+              "enqueue_us": 107.364859375,
+              "completion_wait_us": 0.261671875,
+              "integrated_us": 107.62653125
+            },
+            {
+              "enqueue_us": 108.27621875,
+              "completion_wait_us": 0.307078125,
+              "integrated_us": 108.583296875
+            },
+            {
+              "enqueue_us": 107.2656875,
+              "completion_wait_us": 0.254109375,
+              "integrated_us": 107.519796875
+            },
+            {
+              "enqueue_us": 108.479828125,
+              "completion_wait_us": 0.30396875,
+              "integrated_us": 108.783796875
+            },
+            {
+              "enqueue_us": 109.1638125,
+              "completion_wait_us": 0.33778125,
+              "integrated_us": 109.50159375
+            },
+            {
+              "enqueue_us": 109.022953125,
+              "completion_wait_us": 0.30490625,
+              "integrated_us": 109.327859375
+            },
+            {
+              "enqueue_us": 106.882015625,
+              "completion_wait_us": 0.248796875,
+              "integrated_us": 107.1308125
+            },
+            {
+              "enqueue_us": 108.011625,
+              "completion_wait_us": 0.288046875,
+              "integrated_us": 108.299671875
+            }
+          ],
+          "medians": {
+            "graph_us": 22.945708284775414,
+            "enqueue_us": 108.14392187499999,
+            "completion_wait_us": 0.29600781249999997,
+            "integrated_us": 108.441484375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 21.527999999999878,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.200000000000017,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            9.34362473587195,
+            10.035249715050062,
+            10.036916782458624,
+            9.92125024398168,
+            9.923874710996946,
+            10.03012495736281,
+            10.03208321829637,
+            9.779874856273333
+          ],
+          "host": [
+            {
+              "enqueue_us": 66.669609375,
+              "completion_wait_us": 0.36065625,
+              "integrated_us": 67.030265625
+            },
+            {
+              "enqueue_us": 64.382015625,
+              "completion_wait_us": 0.31259375,
+              "integrated_us": 64.694609375
+            },
+            {
+              "enqueue_us": 64.562046875,
+              "completion_wait_us": 0.316109375,
+              "integrated_us": 64.87815625
+            },
+            {
+              "enqueue_us": 64.179546875,
+              "completion_wait_us": 0.354046875,
+              "integrated_us": 64.53359375
+            },
+            {
+              "enqueue_us": 63.98490625,
+              "completion_wait_us": 0.31575,
+              "integrated_us": 64.30065625
+            },
+            {
+              "enqueue_us": 63.794515625,
+              "completion_wait_us": 0.303859375,
+              "integrated_us": 64.098375
+            },
+            {
+              "enqueue_us": 64.651140625,
+              "completion_wait_us": 0.31359375,
+              "integrated_us": 64.964734375
+            },
+            {
+              "enqueue_us": 63.773859375,
+              "completion_wait_us": 0.2971875,
+              "integrated_us": 64.071046875
+            }
+          ],
+          "medians": {
+            "graph_us": 9.976999834179878,
+            "enqueue_us": 64.28078124999999,
+            "completion_wait_us": 0.314671875,
+            "integrated_us": 64.6141015625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 10.235499999999945,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            5.964208394289017,
+            5.956333130598068,
+            5.961958318948746,
+            5.956749742229779,
+            5.962499727805455,
+            5.956125135223071,
+            5.961041897535324,
+            5.957041556636493
+          ],
+          "host": [
+            {
+              "enqueue_us": 49.8101875,
+              "completion_wait_us": 0.290265625,
+              "integrated_us": 50.100453125
+            },
+            {
+              "enqueue_us": 47.095625,
+              "completion_wait_us": 0.214078125,
+              "integrated_us": 47.309703125
+            },
+            {
+              "enqueue_us": 49.8086875,
+              "completion_wait_us": 0.2784375,
+              "integrated_us": 50.087125
+            },
+            {
+              "enqueue_us": 47.621140625,
+              "completion_wait_us": 0.224171875,
+              "integrated_us": 47.8453125
+            },
+            {
+              "enqueue_us": 49.8148125,
+              "completion_wait_us": 0.288484375,
+              "integrated_us": 50.103296875
+            },
+            {
+              "enqueue_us": 47.63446875,
+              "completion_wait_us": 0.2160625,
+              "integrated_us": 47.85053125
+            },
+            {
+              "enqueue_us": 50.06421875,
+              "completion_wait_us": 0.278140625,
+              "integrated_us": 50.342359375
+            },
+            {
+              "enqueue_us": 47.28228125,
+              "completion_wait_us": 0.21025,
+              "integrated_us": 47.49253125
+            }
+          ],
+          "medians": {
+            "graph_us": 5.959041727085909,
+            "enqueue_us": 48.721578125,
+            "completion_wait_us": 0.25115624999999997,
+            "integrated_us": 48.968828125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.240000000000009,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            3.17845835040013,
+            3.173499989012877,
+            3.165666634837786,
+            3.164875010649363,
+            3.1694999585549035,
+            3.1647918124993644,
+            3.168541627625624,
+            3.1653751308719316
+          ],
+          "host": [
+            {
+              "enqueue_us": 46.953625,
+              "completion_wait_us": 0.23315625,
+              "integrated_us": 47.18678125
+            },
+            {
+              "enqueue_us": 46.765015625,
+              "completion_wait_us": 0.23875,
+              "integrated_us": 47.003765625
+            },
+            {
+              "enqueue_us": 47.305140625,
+              "completion_wait_us": 0.2283125,
+              "integrated_us": 47.533453125
+            },
+            {
+              "enqueue_us": 47.04778125,
+              "completion_wait_us": 0.23646875,
+              "integrated_us": 47.28425
+            },
+            {
+              "enqueue_us": 47.582703125,
+              "completion_wait_us": 0.23096875,
+              "integrated_us": 47.813671875
+            },
+            {
+              "enqueue_us": 46.56578125,
+              "completion_wait_us": 0.23,
+              "integrated_us": 46.79578125
+            },
+            {
+              "enqueue_us": 47.081578125,
+              "completion_wait_us": 0.23521875,
+              "integrated_us": 47.316796875
+            },
+            {
+              "enqueue_us": 46.96746875,
+              "completion_wait_us": 0.215453125,
+              "integrated_us": 47.182921875
+            }
+          ],
+          "medians": {
+            "graph_us": 3.167104131231705,
+            "enqueue_us": 47.007625000000004,
+            "completion_wait_us": 0.2320625,
+            "integrated_us": 47.235515625000005
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 3.2240000000000038,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_eager": [
+          22.827777597639297,
+          22.805333137512207,
+          22.856444120407104,
+          22.82255556848314,
+          22.83055583635966,
+          22.971666521496243,
+          22.954111297925312,
+          22.823777463701035
+        ],
+        "baseline_compiled": [
+          9.415444400575426,
+          9.41111147403717,
+          9.403333067893982,
+          9.406888650523292,
+          9.410777853594887,
+          9.885999891493055,
+          9.885555340184105,
+          9.404777652687496
+        ],
+        "current": [
+          6.040111184120178,
+          6.037000152799818,
+          6.035777843660778,
+          6.035111016697353,
+          6.039777977599038,
+          6.038222048017714,
+          6.042555388477114,
+          6.034000052346124
+        ],
+        "grouped_8x128_wrapped": [
+          3.2352221508820853,
+          3.23588897784551,
+          3.2322222573889627,
+          3.2344443930519953,
+          3.226888883444998,
+          3.224555609954728,
+          3.233000015219053,
+          3.2383333891630173
+        ]
+      }
+    },
+    {
+      "fixture_rank": 6,
+      "fixture_ranks": [
+        6
+      ],
+      "input_adaptation": "fold IDs modulo 64 and advance duplicates to the next free ID",
+      "shape": [
+        8192,
+        8
+      ],
+      "experts": 64,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            22.8433758020401,
+            22.839084267616272,
+            22.81704048315684,
+            22.89041628440221,
+            22.866542140642803,
+            22.843750814596813,
+            22.815540432929993,
+            22.8992501894633
+          ],
+          "host": [
+            {
+              "enqueue_us": 110.39753125,
+              "completion_wait_us": 0.364171875,
+              "integrated_us": 110.761703125
+            },
+            {
+              "enqueue_us": 107.67559375,
+              "completion_wait_us": 0.2658125,
+              "integrated_us": 107.94140625
+            },
+            {
+              "enqueue_us": 107.9598125,
+              "completion_wait_us": 0.285234375,
+              "integrated_us": 108.245046875
+            },
+            {
+              "enqueue_us": 107.83971875,
+              "completion_wait_us": 0.2674375,
+              "integrated_us": 108.10715625
+            },
+            {
+              "enqueue_us": 107.74709375,
+              "completion_wait_us": 0.25125,
+              "integrated_us": 107.99834375
+            },
+            {
+              "enqueue_us": 107.9739375,
+              "completion_wait_us": 0.25003125,
+              "integrated_us": 108.22396875
+            },
+            {
+              "enqueue_us": 107.809890625,
+              "completion_wait_us": 0.255515625,
+              "integrated_us": 108.06540625
+            },
+            {
+              "enqueue_us": 108.73315625,
+              "completion_wait_us": 0.292,
+              "integrated_us": 109.02515625
+            }
+          ],
+          "medians": {
+            "graph_us": 22.84356330831846,
+            "enqueue_us": 107.899765625,
+            "completion_wait_us": 0.266625,
+            "integrated_us": 108.1655625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 21.427749999999946,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.20799999999997,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            22.85979191462199,
+            22.952832281589508,
+            22.952832281589508,
+            22.949124375979107,
+            22.952333092689514,
+            22.957084079583485,
+            22.960583368937176,
+            22.845332821210224
+          ],
+          "host": [
+            {
+              "enqueue_us": 107.784234375,
+              "completion_wait_us": 0.25325,
+              "integrated_us": 108.037484375
+            },
+            {
+              "enqueue_us": 108.957109375,
+              "completion_wait_us": 0.305421875,
+              "integrated_us": 109.26253125
+            },
+            {
+              "enqueue_us": 107.15778125,
+              "completion_wait_us": 0.244984375,
+              "integrated_us": 107.402765625
+            },
+            {
+              "enqueue_us": 109.206453125,
+              "completion_wait_us": 0.3336875,
+              "integrated_us": 109.540140625
+            },
+            {
+              "enqueue_us": 107.61896875,
+              "completion_wait_us": 0.2360625,
+              "integrated_us": 107.85503125
+            },
+            {
+              "enqueue_us": 108.760359375,
+              "completion_wait_us": 0.301015625,
+              "integrated_us": 109.061375
+            },
+            {
+              "enqueue_us": 107.7266875,
+              "completion_wait_us": 0.25265625,
+              "integrated_us": 107.97934375
+            },
+            {
+              "enqueue_us": 109.04825,
+              "completion_wait_us": 0.31803125,
+              "integrated_us": 109.36628125
+            }
+          ],
+          "medians": {
+            "graph_us": 22.95258268713951,
+            "enqueue_us": 108.272296875,
+            "completion_wait_us": 0.2771328125,
+            "integrated_us": 108.54942968750001
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 21.468000000000103,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.2201250000000101,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            9.380416944622993,
+            9.784375006953875,
+            9.789583583672842,
+            10.028500109910965,
+            10.031875222921371,
+            9.7720834116141,
+            9.78037528693676,
+            10.03795862197876
+          ],
+          "host": [
+            {
+              "enqueue_us": 63.21903125,
+              "completion_wait_us": 0.3119375,
+              "integrated_us": 63.53096875
+            },
+            {
+              "enqueue_us": 63.808953125,
+              "completion_wait_us": 0.295234375,
+              "integrated_us": 64.1041875
+            },
+            {
+              "enqueue_us": 63.365046875,
+              "completion_wait_us": 0.294328125,
+              "integrated_us": 63.659375
+            },
+            {
+              "enqueue_us": 63.52315625,
+              "completion_wait_us": 0.296046875,
+              "integrated_us": 63.819203125
+            },
+            {
+              "enqueue_us": 64.120765625,
+              "completion_wait_us": 0.29753125,
+              "integrated_us": 64.418296875
+            },
+            {
+              "enqueue_us": 63.973125,
+              "completion_wait_us": 0.32503125,
+              "integrated_us": 64.29815625
+            },
+            {
+              "enqueue_us": 63.889421875,
+              "completion_wait_us": 0.30809375,
+              "integrated_us": 64.197515625
+            },
+            {
+              "enqueue_us": 63.945171875,
+              "completion_wait_us": 0.32646875,
+              "integrated_us": 64.271640625
+            }
+          ],
+          "medians": {
+            "graph_us": 9.786979295313358,
+            "enqueue_us": 63.8491875,
+            "completion_wait_us": 0.30281250000000004,
+            "integrated_us": 64.1508515625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 10.280125000000083,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            5.9619999180237455,
+            5.957166974743207,
+            5.960666884978612,
+            5.959125235676765,
+            5.961916719873746,
+            5.956416949629784,
+            5.96966656545798,
+            5.959625045458476
+          ],
+          "host": [
+            {
+              "enqueue_us": 49.11940625,
+              "completion_wait_us": 0.282296875,
+              "integrated_us": 49.401703125
+            },
+            {
+              "enqueue_us": 47.30775,
+              "completion_wait_us": 0.21703125,
+              "integrated_us": 47.52478125
+            },
+            {
+              "enqueue_us": 48.70890625,
+              "completion_wait_us": 0.27253125,
+              "integrated_us": 48.9814375
+            },
+            {
+              "enqueue_us": 47.135859375,
+              "completion_wait_us": 0.21278125,
+              "integrated_us": 47.348640625
+            },
+            {
+              "enqueue_us": 49.600296875,
+              "completion_wait_us": 0.268859375,
+              "integrated_us": 49.86915625
+            },
+            {
+              "enqueue_us": 47.360859375,
+              "completion_wait_us": 0.205875,
+              "integrated_us": 47.566734375
+            },
+            {
+              "enqueue_us": 49.010640625,
+              "completion_wait_us": 0.272078125,
+              "integrated_us": 49.28271875
+            },
+            {
+              "enqueue_us": 46.970859375,
+              "completion_wait_us": 0.216125,
+              "integrated_us": 47.186984375
+            }
+          ],
+          "medians": {
+            "graph_us": 5.960145965218544,
+            "enqueue_us": 48.0348828125,
+            "completion_wait_us": 0.2429453125,
+            "integrated_us": 48.274085937500004
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.251874999999998,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            3.1740417083104453,
+            3.169374850889047,
+            3.178083337843418,
+            3.1734583899378777,
+            3.179624987145265,
+            3.1773333127299943,
+            3.180875132481257,
+            3.176999899248282
+          ],
+          "host": [
+            {
+              "enqueue_us": 47.04996875,
+              "completion_wait_us": 0.233234375,
+              "integrated_us": 47.283203125
+            },
+            {
+              "enqueue_us": 46.875296875,
+              "completion_wait_us": 0.2214375,
+              "integrated_us": 47.096734375
+            },
+            {
+              "enqueue_us": 46.82490625,
+              "completion_wait_us": 0.228,
+              "integrated_us": 47.05290625
+            },
+            {
+              "enqueue_us": 46.80903125,
+              "completion_wait_us": 0.231265625,
+              "integrated_us": 47.040296875
+            },
+            {
+              "enqueue_us": 47.812359375,
+              "completion_wait_us": 0.259765625,
+              "integrated_us": 48.072125
+            },
+            {
+              "enqueue_us": 46.50634375,
+              "completion_wait_us": 0.226984375,
+              "integrated_us": 46.733328125
+            },
+            {
+              "enqueue_us": 46.87921875,
+              "completion_wait_us": 0.23009375,
+              "integrated_us": 47.1093125
+            },
+            {
+              "enqueue_us": 46.14725,
+              "completion_wait_us": 0.226734375,
+              "integrated_us": 46.373984375
+            }
+          ],
+          "medians": {
+            "graph_us": 3.177166605989138,
+            "enqueue_us": 46.8501015625,
+            "completion_wait_us": 0.229046875,
+            "integrated_us": 47.074820312499995
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 3.2398750000000547,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_eager": [
+          22.915444440311855,
+          22.959444257948135,
+          22.956889536645676,
+          22.957666052712334,
+          22.960333360566032,
+          22.76500066121419,
+          22.76355524857839,
+          22.786666949590046
+        ],
+        "baseline_compiled": [
+          10.063333643807304,
+          9.8807778623369,
+          9.887555407153236,
+          10.035889016257393,
+          10.030888848834568,
+          10.125333236323463,
+          10.121333102385202,
+          9.430777695443895
+        ],
+        "current": [
+          6.036333325836393,
+          6.036444256703059,
+          6.0377779106299085,
+          6.040888941950268,
+          6.040555735429128,
+          6.037000152799818,
+          6.040222114986843,
+          6.036777877145344
+        ],
+        "grouped_8x128_wrapped": [
+          3.2344443930519953,
+          3.2323333952162,
+          3.233333428700765,
+          3.233333428700765,
+          3.2298889838986926,
+          3.2295555704169803,
+          3.2319999817344875,
+          3.2324445330434375
+        ]
+      }
+    },
+    {
+      "fixture_rank": 0,
+      "fixture_ranks": [
+        0
+      ],
+      "input_adaptation": "split alternating top-k slots across two 128-expert banks",
+      "shape": [
+        8192,
+        8
+      ],
+      "experts": 256,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            25.07579078276952,
+            24.926374355951946,
+            24.933708210786182,
+            25.037209192911785,
+            24.999499320983887,
+            24.960207442442577,
+            24.97708300749461,
+            25.025874376296997
+          ],
+          "host": [
+            {
+              "enqueue_us": 111.944109375,
+              "completion_wait_us": 0.4206875,
+              "integrated_us": 112.364796875
+            },
+            {
+              "enqueue_us": 107.147421875,
+              "completion_wait_us": 0.252609375,
+              "integrated_us": 107.40003125
+            },
+            {
+              "enqueue_us": 106.672296875,
+              "completion_wait_us": 0.250546875,
+              "integrated_us": 106.92284375
+            },
+            {
+              "enqueue_us": 107.03184375,
+              "completion_wait_us": 0.247109375,
+              "integrated_us": 107.278953125
+            },
+            {
+              "enqueue_us": 106.606109375,
+              "completion_wait_us": 0.232234375,
+              "integrated_us": 106.83834375
+            },
+            {
+              "enqueue_us": 106.94990625,
+              "completion_wait_us": 0.255703125,
+              "integrated_us": 107.205609375
+            },
+            {
+              "enqueue_us": 106.812984375,
+              "completion_wait_us": 0.23559375,
+              "integrated_us": 107.048578125
+            },
+            {
+              "enqueue_us": 107.84665625,
+              "completion_wait_us": 0.26746875,
+              "integrated_us": 108.114125
+            }
+          ],
+          "medians": {
+            "graph_us": 24.98829116423925,
+            "enqueue_us": 106.99087499999999,
+            "completion_wait_us": 0.251578125,
+            "integrated_us": 107.24228124999999
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 23.91912499999998,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.1919999999999504,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            25.129626194636028,
+            24.986582497755688,
+            24.98437464237213,
+            25.032542645931244,
+            25.04845956961314,
+            24.973084529240925,
+            24.98362461725871,
+            25.059749682744343
+          ],
+          "host": [
+            {
+              "enqueue_us": 107.4125,
+              "completion_wait_us": 0.273453125,
+              "integrated_us": 107.685953125
+            },
+            {
+              "enqueue_us": 108.151609375,
+              "completion_wait_us": 0.313296875,
+              "integrated_us": 108.46490625
+            },
+            {
+              "enqueue_us": 106.603421875,
+              "completion_wait_us": 0.24403125,
+              "integrated_us": 106.847453125
+            },
+            {
+              "enqueue_us": 108.086875,
+              "completion_wait_us": 0.287890625,
+              "integrated_us": 108.374765625
+            },
+            {
+              "enqueue_us": 107.013671875,
+              "completion_wait_us": 0.239328125,
+              "integrated_us": 107.253
+            },
+            {
+              "enqueue_us": 108.037546875,
+              "completion_wait_us": 0.3105,
+              "integrated_us": 108.348046875
+            },
+            {
+              "enqueue_us": 106.637015625,
+              "completion_wait_us": 0.23625,
+              "integrated_us": 106.873265625
+            },
+            {
+              "enqueue_us": 107.884640625,
+              "completion_wait_us": 0.288984375,
+              "integrated_us": 108.173625
+            }
+          ],
+          "medians": {
+            "graph_us": 25.009562571843468,
+            "enqueue_us": 107.6485703125,
+            "completion_wait_us": 0.280671875,
+            "integrated_us": 107.92978906249999
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 23.964499999999973,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.1878749999999627,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            13.949708392222723,
+            13.944417238235474,
+            13.945875068505606,
+            13.943124562501907,
+            13.93954207499822,
+            13.92537479599317,
+            13.939333458741507,
+            13.936124742031097
+          ],
+          "host": [
+            {
+              "enqueue_us": 65.7371875,
+              "completion_wait_us": 0.3299375,
+              "integrated_us": 66.067125
+            },
+            {
+              "enqueue_us": 64.108515625,
+              "completion_wait_us": 0.3149375,
+              "integrated_us": 64.423453125
+            },
+            {
+              "enqueue_us": 64.59534375,
+              "completion_wait_us": 0.31228125,
+              "integrated_us": 64.907625
+            },
+            {
+              "enqueue_us": 64.677453125,
+              "completion_wait_us": 0.3404375,
+              "integrated_us": 65.017890625
+            },
+            {
+              "enqueue_us": 65.33896875,
+              "completion_wait_us": 0.33425,
+              "integrated_us": 65.67321875
+            },
+            {
+              "enqueue_us": 65.41978125,
+              "completion_wait_us": 0.333078125,
+              "integrated_us": 65.752859375
+            },
+            {
+              "enqueue_us": 64.28178125,
+              "completion_wait_us": 0.302140625,
+              "integrated_us": 64.583921875
+            },
+            {
+              "enqueue_us": 64.068875,
+              "completion_wait_us": 0.30178125,
+              "integrated_us": 64.37065625
+            }
+          ],
+          "medians": {
+            "graph_us": 13.941333318750065,
+            "enqueue_us": 64.63639843749999,
+            "completion_wait_us": 0.3224375,
+            "integrated_us": 64.9627578125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 14.408125000000013,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            7.315374910831451,
+            7.311624785264333,
+            7.3174163699150085,
+            7.312583426634471,
+            7.3157499233881635,
+            7.31083316107591,
+            7.317166775465012,
+            7.312583426634471
+          ],
+          "host": [
+            {
+              "enqueue_us": 49.968296875,
+              "completion_wait_us": 0.2875625,
+              "integrated_us": 50.255859375
+            },
+            {
+              "enqueue_us": 47.514734375,
+              "completion_wait_us": 0.22103125,
+              "integrated_us": 47.735765625
+            },
+            {
+              "enqueue_us": 49.799046875,
+              "completion_wait_us": 0.27484375,
+              "integrated_us": 50.073890625
+            },
+            {
+              "enqueue_us": 48.20925,
+              "completion_wait_us": 0.224046875,
+              "integrated_us": 48.433296875
+            },
+            {
+              "enqueue_us": 50.641921875,
+              "completion_wait_us": 0.2919375,
+              "integrated_us": 50.933859375
+            },
+            {
+              "enqueue_us": 48.8081875,
+              "completion_wait_us": 0.215765625,
+              "integrated_us": 49.023953125
+            },
+            {
+              "enqueue_us": 49.815015625,
+              "completion_wait_us": 0.28134375,
+              "integrated_us": 50.096359375
+            },
+            {
+              "enqueue_us": 47.84009375,
+              "completion_wait_us": 0.21425,
+              "integrated_us": 48.05434375
+            }
+          ],
+          "medians": {
+            "graph_us": 7.313979168732962,
+            "enqueue_us": 49.3036171875,
+            "completion_wait_us": 0.24944531250000002,
+            "integrated_us": 49.548921875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 7.640124999999998,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            5.618166799346606,
+            5.619124819835027,
+            5.622291937470436,
+            5.6147500872612,
+            5.620333055655162,
+            5.613958463072777,
+            5.640499914685885,
+            5.630833407243093
+          ],
+          "host": [
+            {
+              "enqueue_us": 47.565703125,
+              "completion_wait_us": 0.230890625,
+              "integrated_us": 47.79659375
+            },
+            {
+              "enqueue_us": 46.983203125,
+              "completion_wait_us": 0.247015625,
+              "integrated_us": 47.23021875
+            },
+            {
+              "enqueue_us": 48.0205,
+              "completion_wait_us": 0.22453125,
+              "integrated_us": 48.24503125
+            },
+            {
+              "enqueue_us": 46.960953125,
+              "completion_wait_us": 0.227984375,
+              "integrated_us": 47.1889375
+            },
+            {
+              "enqueue_us": 48.0944375,
+              "completion_wait_us": 0.242484375,
+              "integrated_us": 48.336921875
+            },
+            {
+              "enqueue_us": 47.8366875,
+              "completion_wait_us": 0.225296875,
+              "integrated_us": 48.061984375
+            },
+            {
+              "enqueue_us": 48.131015625,
+              "completion_wait_us": 0.238625,
+              "integrated_us": 48.369640625
+            },
+            {
+              "enqueue_us": 47.33103125,
+              "completion_wait_us": 0.2364375,
+              "integrated_us": 47.56746875
+            }
+          ],
+          "medians": {
+            "graph_us": 5.619728937745094,
+            "enqueue_us": 47.7011953125,
+            "completion_wait_us": 0.2336640625,
+            "integrated_us": 47.929289062500004
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 5.5558750000000146,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_eager": [
+          25.077554914686417,
+          25.221221976810032,
+          25.22433300813039,
+          25.081778566042583,
+          25.07433295249939,
+          25.066667132907444,
+          25.10777778095669,
+          25.15622145599789
+        ],
+        "baseline_compiled": [
+          14.359111587206522,
+          14.363111721144783,
+          14.357111520237392,
+          14.364555478096008,
+          14.36388823721144,
+          14.34433294667138,
+          14.39288920826382,
+          14.357111520237392
+        ],
+        "current": [
+          7.513555387655894,
+          7.510333425468868,
+          7.526333133379619,
+          7.507222394148509,
+          7.527777718173133,
+          7.5174445907274885,
+          7.519666519429949,
+          7.511888941129048
+        ],
+        "grouped_8x128_wrapped": [
+          5.710333171817991,
+          5.708555380503337,
+          5.716000166204241,
+          5.704555660486221,
+          5.705444349182977,
+          5.704111109177272,
+          5.693888912598292,
+          5.705333418316311
+        ]
+      }
+    },
+    {
+      "fixture_rank": 6,
+      "fixture_ranks": [
+        6
+      ],
+      "input_adaptation": "split alternating top-k slots across two 128-expert banks",
+      "shape": [
+        8192,
+        8
+      ],
+      "experts": 256,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            25.112248957157135,
+            24.99162405729294,
+            24.991542100906372,
+            25.02408375342687,
+            25.013084212938946,
+            25.022417306900024,
+            24.975125988324482,
+            25.621458888053894
+          ],
+          "host": [
+            {
+              "enqueue_us": 111.64296875,
+              "completion_wait_us": 0.43296875,
+              "integrated_us": 112.0759375
+            },
+            {
+              "enqueue_us": 107.050015625,
+              "completion_wait_us": 0.253484375,
+              "integrated_us": 107.3035
+            },
+            {
+              "enqueue_us": 106.726890625,
+              "completion_wait_us": 0.245296875,
+              "integrated_us": 106.9721875
+            },
+            {
+              "enqueue_us": 107.237125,
+              "completion_wait_us": 0.252515625,
+              "integrated_us": 107.489640625
+            },
+            {
+              "enqueue_us": 106.772703125,
+              "completion_wait_us": 0.24725,
+              "integrated_us": 107.019953125
+            },
+            {
+              "enqueue_us": 106.38453125,
+              "completion_wait_us": 0.24696875,
+              "integrated_us": 106.6315
+            },
+            {
+              "enqueue_us": 106.651046875,
+              "completion_wait_us": 0.23403125,
+              "integrated_us": 106.885078125
+            },
+            {
+              "enqueue_us": 107.27653125,
+              "completion_wait_us": 0.2488125,
+              "integrated_us": 107.52534375
+            }
+          ],
+          "medians": {
+            "graph_us": 25.017750759919487,
+            "enqueue_us": 106.911359375,
+            "completion_wait_us": 0.24803124999999998,
+            "integrated_us": 107.16172656250001
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 23.920624999999802,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.2041250000000332,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            25.135457515716553,
+            25.034666061401367,
+            24.99370773633321,
+            25.054457286993664,
+            25.06183336178462,
+            25.031042595704395,
+            25.030501186847687,
+            25.572165846824646
+          ],
+          "host": [
+            {
+              "enqueue_us": 106.867609375,
+              "completion_wait_us": 0.25196875,
+              "integrated_us": 107.119578125
+            },
+            {
+              "enqueue_us": 108.460828125,
+              "completion_wait_us": 0.292140625,
+              "integrated_us": 108.75296875
+            },
+            {
+              "enqueue_us": 106.736921875,
+              "completion_wait_us": 0.240015625,
+              "integrated_us": 106.9769375
+            },
+            {
+              "enqueue_us": 108.093328125,
+              "completion_wait_us": 0.293328125,
+              "integrated_us": 108.38665625
+            },
+            {
+              "enqueue_us": 106.582203125,
+              "completion_wait_us": 0.283328125,
+              "integrated_us": 106.86553125
+            },
+            {
+              "enqueue_us": 108.422453125,
+              "completion_wait_us": 0.292828125,
+              "integrated_us": 108.71528125
+            },
+            {
+              "enqueue_us": 106.65321875,
+              "completion_wait_us": 0.240640625,
+              "integrated_us": 106.893859375
+            },
+            {
+              "enqueue_us": 108.9130625,
+              "completion_wait_us": 0.29434375,
+              "integrated_us": 109.20740625
+            }
+          ],
+          "medians": {
+            "graph_us": 25.044561674197517,
+            "enqueue_us": 107.48046875,
+            "completion_wait_us": 0.287734375,
+            "integrated_us": 107.75311718750001
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 23.907875000000047,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.1999999999999886,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            13.96008332570394,
+            13.933000465234121,
+            13.946916908025742,
+            13.941541314125061,
+            13.93929123878479,
+            13.944166402022043,
+            13.941583534081778,
+            13.93937443693479
+          ],
+          "host": [
+            {
+              "enqueue_us": 65.3325625,
+              "completion_wait_us": 0.326015625,
+              "integrated_us": 65.658578125
+            },
+            {
+              "enqueue_us": 64.046890625,
+              "completion_wait_us": 0.304765625,
+              "integrated_us": 64.35165625
+            },
+            {
+              "enqueue_us": 64.409796875,
+              "completion_wait_us": 0.30521875,
+              "integrated_us": 64.715015625
+            },
+            {
+              "enqueue_us": 64.471390625,
+              "completion_wait_us": 0.308765625,
+              "integrated_us": 64.78015625
+            },
+            {
+              "enqueue_us": 63.920328125,
+              "completion_wait_us": 0.300859375,
+              "integrated_us": 64.2211875
+            },
+            {
+              "enqueue_us": 64.411828125,
+              "completion_wait_us": 0.29921875,
+              "integrated_us": 64.711046875
+            },
+            {
+              "enqueue_us": 63.87584375,
+              "completion_wait_us": 0.30828125,
+              "integrated_us": 64.184125
+            },
+            {
+              "enqueue_us": 116.628984375,
+              "completion_wait_us": 1.838546875,
+              "integrated_us": 118.46753125
+            }
+          ],
+          "medians": {
+            "graph_us": 13.94156242410342,
+            "enqueue_us": 64.41081249999999,
+            "completion_wait_us": 0.30674999999999997,
+            "integrated_us": 64.71303125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 14.488125000000167,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            7.318333412210147,
+            7.314583286643028,
+            7.316833361983299,
+            7.312166815002759,
+            7.31858362754186,
+            7.312541827559471,
+            7.318083196878433,
+            7.31266662478447
+          ],
+          "host": [
+            {
+              "enqueue_us": 49.626203125,
+              "completion_wait_us": 0.28796875,
+              "integrated_us": 49.914171875
+            },
+            {
+              "enqueue_us": 47.346421875,
+              "completion_wait_us": 0.212578125,
+              "integrated_us": 47.559
+            },
+            {
+              "enqueue_us": 49.602546875,
+              "completion_wait_us": 0.27996875,
+              "integrated_us": 49.882515625
+            },
+            {
+              "enqueue_us": 47.07740625,
+              "completion_wait_us": 0.202921875,
+              "integrated_us": 47.280328125
+            },
+            {
+              "enqueue_us": 49.492453125,
+              "completion_wait_us": 0.271734375,
+              "integrated_us": 49.7641875
+            },
+            {
+              "enqueue_us": 48.52725,
+              "completion_wait_us": 0.221390625,
+              "integrated_us": 48.748640625
+            },
+            {
+              "enqueue_us": 49.767046875,
+              "completion_wait_us": 0.277015625,
+              "integrated_us": 50.0440625
+            },
+            {
+              "enqueue_us": 47.14378125,
+              "completion_wait_us": 0.208078125,
+              "integrated_us": 47.351859375
+            }
+          ],
+          "medians": {
+            "graph_us": 7.315708324313164,
+            "enqueue_us": 49.0098515625,
+            "completion_wait_us": 0.2465625,
+            "integrated_us": 49.2564140625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 7.6360000000000525,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            5.609833324948947,
+            5.605791384975116,
+            5.638291438420613,
+            5.630833407243093,
+            5.617249757051468,
+            5.610416953762372,
+            5.636041363080342,
+            5.633125081658363
+          ],
+          "host": [
+            {
+              "enqueue_us": 47.286203125,
+              "completion_wait_us": 0.217609375,
+              "integrated_us": 47.5038125
+            },
+            {
+              "enqueue_us": 46.758046875,
+              "completion_wait_us": 0.24584375,
+              "integrated_us": 47.003890625
+            },
+            {
+              "enqueue_us": 47.41840625,
+              "completion_wait_us": 0.229875,
+              "integrated_us": 47.64828125
+            },
+            {
+              "enqueue_us": 47.38609375,
+              "completion_wait_us": 0.219515625,
+              "integrated_us": 47.605609375
+            },
+            {
+              "enqueue_us": 47.30028125,
+              "completion_wait_us": 0.2293125,
+              "integrated_us": 47.52959375
+            },
+            {
+              "enqueue_us": 47.156984375,
+              "completion_wait_us": 0.241046875,
+              "integrated_us": 47.39803125
+            },
+            {
+              "enqueue_us": 47.263453125,
+              "completion_wait_us": 0.23440625,
+              "integrated_us": 47.497859375
+            },
+            {
+              "enqueue_us": 46.32746875,
+              "completion_wait_us": 0.219515625,
+              "integrated_us": 46.546984375
+            }
+          ],
+          "medians": {
+            "graph_us": 5.62404158214728,
+            "enqueue_us": 47.274828125,
+            "completion_wait_us": 0.22959374999999999,
+            "integrated_us": 47.5008359375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 5.571625000000012,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_eager": [
+          25.092777278688217,
+          25.077443983819748,
+          25.059334105915493,
+          25.18611152966817,
+          25.198999378416275,
+          25.084666079945034,
+          25.082444151242573,
+          25.18511149618361
+        ],
+        "baseline_compiled": [
+          14.380445082982382,
+          14.365888304180569,
+          14.364000823762682,
+          14.362111687660217,
+          14.367999302016365,
+          14.377221465110779,
+          14.386221766471863,
+          14.362555411126879
+        ],
+        "current": [
+          7.520111070738898,
+          7.529111372099982,
+          7.527111305130853,
+          7.534888883431752,
+          7.530222336451213,
+          7.528000407748753,
+          7.526888615555233,
+          7.531999713844723
+        ],
+        "grouped_8x128_wrapped": [
+          5.703777902656132,
+          5.706555727455351,
+          5.705666624837452,
+          5.703777902656132,
+          5.698444528712167,
+          5.694999876949522,
+          5.747444513771269,
+          5.749000029431449
+        ]
+      }
+    }
+  ]
+}

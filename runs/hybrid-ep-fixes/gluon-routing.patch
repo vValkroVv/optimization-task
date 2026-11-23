@@ -1,0 +1,191 @@
+diff --git a/gift/tests/unit_tests/test_fusion_routing_metadata.py b/gift/tests/unit_tests/test_fusion_routing_metadata.py
+index 36b14f97a..71ca418a9 100644
+--- a/gift/tests/unit_tests/test_fusion_routing_metadata.py
++++ b/gift/tests/unit_tests/test_fusion_routing_metadata.py
+@@ -272,7 +272,10 @@ def test_large_expert_vector_uses_eager_reference_fallback():
+ @pytest.mark.skipif(
+     not torch.cuda.is_available(), reason="requires an available CUDA device"
+ )
+-def test_triton_metadata_runs_inside_hybridep_dispatch_custom_op(monkeypatch):
++@pytest.mark.parametrize("num_experts", [4, 128])
++def test_triton_metadata_runs_inside_hybridep_dispatch_custom_op(
++    monkeypatch, num_experts
++):
+     from torchtitan.distributed.deepep import hybridep
+ 
+     if hybridep.indices_to_map is not triton_indices_to_map:
+@@ -280,9 +283,14 @@ def test_triton_metadata_runs_inside_hybridep_dispatch_custom_op(monkeypatch):
+ 
+     device = torch.device("cuda")
+     ids, weights, _ = _noncontiguous_inputs(device, torch.int64, torch.float32)
+-    hidden_in = torch.ones((4, 8), dtype=torch.bfloat16, device=device)
+-    expected_routing = _EXPECTED_ROUTING.to(device)
+-    expected_probabilities = _EXPECTED_PROBS.to(device)
++    if num_experts == 128:
++        # Exercise the grouped kernel with a partially occupied four-row block.
++        ids, weights = ids[:3].contiguous(), weights[:3].contiguous()
++    num_tokens = ids.shape[0]
++    hidden_in = torch.ones((num_tokens, 8), dtype=torch.bfloat16, device=device)
++    expected_routing, expected_probabilities = reference_indices_to_map(
++        ids, weights, num_experts
++    )
+ 
+     class RecordingBuffer:
+         def dispatch_with_permute(self, **kwargs):
+@@ -296,7 +304,7 @@ def test_triton_metadata_runs_inside_hybridep_dispatch_custom_op(monkeypatch):
+                 kwargs["hidden"].clone(),
+                 kwargs["probs"],
+                 torch.empty(0, dtype=torch.float32, device=device),
+-                torch.ones(4, dtype=torch.int32, device="cpu"),
++                torch.ones(num_experts, dtype=torch.int32, device="cpu"),
+                 object(),
+             )
+ 
+@@ -318,7 +326,7 @@ def test_triton_metadata_runs_inside_hybridep_dispatch_custom_op(monkeypatch):
+         hidden_in,
+         ids,
+         weights,
+-        4,
++        num_experts,
+         1,
+         "routing_metadata_test",
+         [],
+@@ -328,5 +336,5 @@ def test_triton_metadata_runs_inside_hybridep_dispatch_custom_op(monkeypatch):
+         False,
+     )
+ 
+-    assert result[2].shape == (4, 4)
++    assert result[2].shape == (num_tokens, num_experts)
+     torch.testing.assert_close(result[2], expected_probabilities, rtol=0, atol=0)
+diff --git a/gift/torchtitan/experiments/four_fusion/routing_metadata.py b/gift/torchtitan/experiments/four_fusion/routing_metadata.py
+index af50f9536..77e775080 100644
+--- a/gift/torchtitan/experiments/four_fusion/routing_metadata.py
++++ b/gift/torchtitan/experiments/four_fusion/routing_metadata.py
+@@ -3,6 +3,8 @@
+ import torch
+ import triton
+ import triton.language as tl
++from triton.experimental import gluon
++from triton.experimental.gluon import language as gl
+ 
+ from torchtitan.distributed.deepep.routing import (
+     gather_route_gradients,
+@@ -86,6 +88,49 @@ def _routing_metadata_kernel(
+         tl.store(probability_storage + sink_offset, 0.0)
+ 
+ 
++@gluon.jit
++def _grouped_routing_metadata_kernel(
++    expert_ids,
++    weights,
++    routing_storage,
++    probability_storage,
++    num_tokens: gl.constexpr,
++    top_k: gl.constexpr,
++    num_experts: gl.constexpr,
++    block_tokens: gl.constexpr,
++):
++    # One warp owns each token row, with expert columns spread over its lanes.
++    layout: gl.constexpr = gl.BlockedLayout(
++        [1, num_experts // 32], [1, 32], [block_tokens, 1], [1, 0]
++    )
++    block = gl.program_id(0)
++    token = block.to(gl.int64) * block_tokens + gl.arange(
++        0, block_tokens, layout=gl.SliceLayout(1, layout)
++    )
++    expert = gl.arange(0, num_experts, layout=gl.SliceLayout(0, layout))
++    active = token < num_tokens
++    route = gl.full((block_tokens, num_experts), False, gl.int1, layout)
++    probability = gl.full((block_tokens, num_experts), 0.0, gl.float32, layout)
++    for slot in gl.static_range(top_k):
++        input_offset = token * top_k + slot
++        raw_id = gl.load(expert_ids + input_offset, mask=active, other=-1)
++        # Check both bounds before narrowing so a wide ID cannot alias an expert.
++        expert_id = gl.where(raw_id.to(gl.uint64) < num_experts, raw_id, -1).to(
++            gl.int32
++        )
++        score = gl.load(weights + input_offset, mask=active, other=0).to(gl.float32)
++        match = expert[None, :] == expert_id[:, None]
++        route = route | match
++        probability = gl.where(match, score[:, None], probability)
++
++    output_offset = token[:, None] * num_experts + expert[None, :]
++    gl.store(routing_storage + output_offset, route, mask=active[:, None])
++    gl.store(probability_storage + output_offset, probability, mask=active[:, None])
++    if block == 0:
++        gl.store(routing_storage + num_tokens * num_experts, False)
++        gl.store(probability_storage + num_tokens * num_experts, 0.0)
++
++
+ @torch.library.custom_op(
+     "four_fusion::routing_metadata_cuda", mutates_args=(), device_types="cuda"
+ )
+@@ -100,22 +145,42 @@ def _routing_metadata_cuda(
+     probability_storage = torch.empty(
+         (num_entries + 1,), dtype=torch.float32, device=expert_ids.device
+     )
+-    block_experts = triton.next_power_of_2(max(num_experts, 1))
+-    _routing_metadata_kernel[(max(num_tokens, 1),)](
+-        expert_ids,
+-        weights,
+-        routing_storage,
+-        probability_storage,
+-        num_tokens,
+-        top_k,
+-        num_experts,
+-        expert_ids.stride(0),
+-        expert_ids.stride(1),
+-        weights.stride(0),
+-        weights.stride(1),
+-        block_experts,
+-        num_warps=4,
+-    )
++    if (
++        num_experts in (64, 128, 256)
++        and expert_ids.is_contiguous()
++        and weights.is_contiguous()
++    ):
++        block_tokens = 4
++        _grouped_routing_metadata_kernel[
++            (max(triton.cdiv(num_tokens, block_tokens), 1),)
++        ](
++            expert_ids,
++            weights,
++            routing_storage,
++            probability_storage,
++            num_tokens,
++            top_k,
++            num_experts,
++            block_tokens,
++            num_warps=block_tokens,
++        )
++    else:
++        block_experts = triton.next_power_of_2(max(num_experts, 1))
++        _routing_metadata_kernel[(max(num_tokens, 1),)](
++            expert_ids,
++            weights,
++            routing_storage,
++            probability_storage,
++            num_tokens,
++            top_k,
++            num_experts,
++            expert_ids.stride(0),
++            expert_ids.stride(1),
++            weights.stride(0),
++            weights.stride(1),
++            block_experts,
++            num_warps=4,
++        )
+     return _metadata_views(
+         routing_storage, probability_storage, num_tokens, num_experts
+     )
+@@ -211,7 +276,8 @@ def indices_to_map(
+     the host. CUDA execution is bounded to ``num_experts <= 1024``,
+     ``top_k <= 64``, the signed CUDA CTA grid limit, and signed int64 input and
+     output offsets; CPU and unsupported CUDA shape/dtype cases use the eager
+-    reference.
++    reference. Contiguous CUDA inputs with 64, 128 or 256 experts use the
++    four-token Gluon layout.
+     """
+     if not _can_use_cuda_kernel(expert_ids, weights, num_experts):
+         return _reference_indices_to_map(expert_ids, weights, num_experts)

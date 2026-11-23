@@ -1,0 +1,1452 @@
+{
+  "input_provenance": {
+    "directory": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/capacity-selector/artifacts/raw/capacity-selector-001-capture/routing-fixtures",
+    "rank_receipts": [
+      {
+        "rank": 0,
+        "file_sha256": "f14d63ed1c6b2ba8968d96f8869eaa0677cac77cd0805dfff778d84d2793a386",
+        "largest_expert_count": 608
+      },
+      {
+        "rank": 1,
+        "file_sha256": "242c114f574c798e0b96c6244583ffd7251328f88e03692dd4e11bd5e78d1a6a",
+        "largest_expert_count": 611
+      },
+      {
+        "rank": 2,
+        "file_sha256": "6f93b341a5b9de178aa47b81660d9b5e085e94dad26fdfcc641137bc0caa0a1d",
+        "largest_expert_count": 610
+      },
+      {
+        "rank": 3,
+        "file_sha256": "a3822fa8a8280bf1d3ae6017d19d64e60002a98cb2f9b21b4e0329939e738548",
+        "largest_expert_count": 611
+      },
+      {
+        "rank": 4,
+        "file_sha256": "6e321f6bb71b4a77ab530484da8143610e45c8b2a524f55f455bd1b0784d886f",
+        "largest_expert_count": 596
+      },
+      {
+        "rank": 5,
+        "file_sha256": "3f45beb0941db7d72df4161549fa579cda93acd7f49709db1011f9bccb5a3a47",
+        "largest_expert_count": 607
+      },
+      {
+        "rank": 6,
+        "file_sha256": "fad7c242f4942dde8ccd79af10cdcd9cdb202d40f5d552c61c1927bb8e281feb",
+        "largest_expert_count": 654
+      },
+      {
+        "rank": 7,
+        "file_sha256": "b03aaec09635c31f94477057b89d0c3dc2218929fcacb37f363172476ae6125b",
+        "largest_expert_count": 639
+      }
+    ],
+    "global_destination_counts": [
+      65615,
+      65346,
+      65259,
+      66927,
+      64999,
+      64315,
+      64638,
+      67189
+    ],
+    "group_budget": 800000,
+    "dropped_routes": 0
+  },
+  "device": "NVIDIA H100 80GB HBM3",
+  "torch": "2.15.0.dev20260822+cu130",
+  "torch_git": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+  "triton": "3.8.0",
+  "cuda_build": "13.0",
+  "sentinel_parity": "negative int64 IDs, valid zero, signed zero and NaN",
+  "sources_sha256": {
+    "bench_routing.py": "66a9ee8a43c9624e38d5618d81f4f98dda234f71aebcabbe0b537b32fac0ca0c",
+    "routing_metadata.py": "2fb70d05edb774b09af93f0e97bd8054a75cd13f741e6071a82bf07e827c2f53",
+    "routing.py": "0c378d5e6c40b8a214f58ae89e5eb0e411afa2d88aa6ead55dd89a8421974a2e"
+  },
+  "batch": 64,
+  "distinct_outputs_batch": 24,
+  "cases": [
+    {
+      "fixture_rank": 0,
+      "shape": [
+        8192,
+        8
+      ],
+      "experts": 128,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            22.761498888333637,
+            22.832957406838734,
+            22.76158332824707,
+            22.774999340375263,
+            22.774708767731983,
+            22.76558429002762,
+            22.754542529582977,
+            22.76408423980077
+          ],
+          "host": [
+            {
+              "enqueue_us": 148.61071875,
+              "completion_wait_us": 2.543828125,
+              "integrated_us": 151.154546875
+            },
+            {
+              "enqueue_us": 77.236921875,
+              "completion_wait_us": 0.191765625,
+              "integrated_us": 77.4286875
+            },
+            {
+              "enqueue_us": 77.10509375,
+              "completion_wait_us": 0.187953125,
+              "integrated_us": 77.293046875
+            },
+            {
+              "enqueue_us": 78.132921875,
+              "completion_wait_us": 0.223125,
+              "integrated_us": 78.356046875
+            },
+            {
+              "enqueue_us": 77.390578125,
+              "completion_wait_us": 0.1890625,
+              "integrated_us": 77.579640625
+            },
+            {
+              "enqueue_us": 77.28140625,
+              "completion_wait_us": 0.179140625,
+              "integrated_us": 77.460546875
+            },
+            {
+              "enqueue_us": 77.075359375,
+              "completion_wait_us": 0.17646875,
+              "integrated_us": 77.251828125
+            },
+            {
+              "enqueue_us": 76.927953125,
+              "completion_wait_us": 0.188546875,
+              "integrated_us": 77.1165
+            }
+          ],
+          "medians": {
+            "graph_us": 22.764834264914192,
+            "enqueue_us": 77.25916406249999,
+            "completion_wait_us": 0.1888046875,
+            "integrated_us": 77.4446171875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 22.375124999999798,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.1919999999999504,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            22.84645785888036,
+            22.788000603516895,
+            22.794584433237713,
+            22.76829133431117,
+            22.762708365917206,
+            22.791750729084015,
+            22.79183268547058,
+            22.79091626405716
+          ],
+          "host": [
+            {
+              "enqueue_us": 77.106921875,
+              "completion_wait_us": 0.205984375,
+              "integrated_us": 77.31290625
+            },
+            {
+              "enqueue_us": 78.6880625,
+              "completion_wait_us": 0.2351875,
+              "integrated_us": 78.92325
+            },
+            {
+              "enqueue_us": 77.07121875,
+              "completion_wait_us": 0.176078125,
+              "integrated_us": 77.247296875
+            },
+            {
+              "enqueue_us": 79.15403125,
+              "completion_wait_us": 0.25103125,
+              "integrated_us": 79.4050625
+            },
+            {
+              "enqueue_us": 77.16165625,
+              "completion_wait_us": 0.191296875,
+              "integrated_us": 77.352953125
+            },
+            {
+              "enqueue_us": 78.625890625,
+              "completion_wait_us": 0.23,
+              "integrated_us": 78.855890625
+            },
+            {
+              "enqueue_us": 77.165328125,
+              "completion_wait_us": 0.176859375,
+              "integrated_us": 77.3421875
+            },
+            {
+              "enqueue_us": 78.449921875,
+              "completion_wait_us": 0.22753125,
+              "integrated_us": 78.677453125
+            }
+          ],
+          "medians": {
+            "graph_us": 22.791333496570587,
+            "enqueue_us": 77.807625,
+            "completion_wait_us": 0.21675781249999998,
+            "integrated_us": 78.015203125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 22.388000000000062,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.184000000000026,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            11.103582878907522,
+            11.075125386317572,
+            11.078125486771265,
+            11.078833291927973,
+            11.079041908184687,
+            11.084166665871939,
+            11.073542137940725,
+            11.080041527748108
+          ],
+          "host": [
+            {
+              "enqueue_us": 64.35490625,
+              "completion_wait_us": 0.3190625,
+              "integrated_us": 64.67396875
+            },
+            {
+              "enqueue_us": 55.786609375,
+              "completion_wait_us": 0.28296875,
+              "integrated_us": 56.069578125
+            },
+            {
+              "enqueue_us": 54.358984375,
+              "completion_wait_us": 0.267078125,
+              "integrated_us": 54.6260625
+            },
+            {
+              "enqueue_us": 55.513375,
+              "completion_wait_us": 0.26678125,
+              "integrated_us": 55.78015625
+            },
+            {
+              "enqueue_us": 62.726984375,
+              "completion_wait_us": 0.33125,
+              "integrated_us": 63.058234375
+            },
+            {
+              "enqueue_us": 56.354578125,
+              "completion_wait_us": 0.292671875,
+              "integrated_us": 56.64725
+            },
+            {
+              "enqueue_us": 55.362046875,
+              "completion_wait_us": 0.334203125,
+              "integrated_us": 55.69625
+            },
+            {
+              "enqueue_us": 55.14209375,
+              "completion_wait_us": 0.2733125,
+              "integrated_us": 55.41540625
+            }
+          ],
+          "medians": {
+            "graph_us": 11.07893760005633,
+            "enqueue_us": 55.649992187500004,
+            "completion_wait_us": 0.2878203125,
+            "integrated_us": 55.9248671875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 11.648000000000081,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            5.921375006437302,
+            5.900291725993156,
+            5.911750098069509,
+            5.89924988647302,
+            5.9080831706523895,
+            5.901833375295003,
+            5.904375265041987,
+            5.90104175110658
+          ],
+          "host": [
+            {
+              "enqueue_us": 48.436765625,
+              "completion_wait_us": 0.26740625,
+              "integrated_us": 48.704171875
+            },
+            {
+              "enqueue_us": 42.370140625,
+              "completion_wait_us": 0.185109375,
+              "integrated_us": 42.55525
+            },
+            {
+              "enqueue_us": 43.53178125,
+              "completion_wait_us": 0.252953125,
+              "integrated_us": 43.784734375
+            },
+            {
+              "enqueue_us": 41.382171875,
+              "completion_wait_us": 0.194796875,
+              "integrated_us": 41.57696875
+            },
+            {
+              "enqueue_us": 45.227421875,
+              "completion_wait_us": 0.290359375,
+              "integrated_us": 45.51778125
+            },
+            {
+              "enqueue_us": 41.771,
+              "completion_wait_us": 0.203484375,
+              "integrated_us": 41.974484375
+            },
+            {
+              "enqueue_us": 44.38903125,
+              "completion_wait_us": 0.2445,
+              "integrated_us": 44.63353125
+            },
+            {
+              "enqueue_us": 41.739,
+              "completion_wait_us": 0.207859375,
+              "integrated_us": 41.946859375
+            }
+          ],
+          "medians": {
+            "graph_us": 5.903104320168495,
+            "enqueue_us": 42.9509609375,
+            "completion_wait_us": 0.2261796875,
+            "integrated_us": 43.1699921875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.235875000000135,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current_one_warp_direct": {
+          "graph_us": [
+            5.943624923626582,
+            5.925291528304418,
+            5.930999914805095,
+            5.924624701340993,
+            5.93808355430762,
+            5.926625182231267,
+            5.931833138068517,
+            5.9257081399361295
+          ],
+          "host": [
+            {
+              "enqueue_us": 22.876421875,
+              "completion_wait_us": 0.172828125,
+              "integrated_us": 23.04925
+            },
+            {
+              "enqueue_us": 22.722265625,
+              "completion_wait_us": 0.16115625,
+              "integrated_us": 22.883421875
+            },
+            {
+              "enqueue_us": 22.853171875,
+              "completion_wait_us": 0.165578125,
+              "integrated_us": 23.01875
+            },
+            {
+              "enqueue_us": 23.850578125,
+              "completion_wait_us": 0.1613125,
+              "integrated_us": 24.011890625
+            },
+            {
+              "enqueue_us": 22.983453125,
+              "completion_wait_us": 0.175234375,
+              "integrated_us": 23.1586875
+            },
+            {
+              "enqueue_us": 23.226796875,
+              "completion_wait_us": 0.165546875,
+              "integrated_us": 23.39234375
+            },
+            {
+              "enqueue_us": 22.906265625,
+              "completion_wait_us": 0.178796875,
+              "integrated_us": 23.0850625
+            },
+            {
+              "enqueue_us": 23.067140625,
+              "completion_wait_us": 0.158921875,
+              "integrated_us": 23.2260625
+            }
+          ],
+          "medians": {
+            "graph_us": 5.928812548518181,
+            "enqueue_us": 22.944859375,
+            "completion_wait_us": 0.1655625,
+            "integrated_us": 23.121875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.272000000000048,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_4x128_direct": {
+          "graph_us": [
+            3.737499937415123,
+            3.7231665725509324,
+            3.729624984165033,
+            3.7275000164906182,
+            3.732291671137015,
+            3.7280001367131868,
+            3.7285415455698967,
+            3.7263749788204827
+          ],
+          "host": [
+            {
+              "enqueue_us": 24.292078125,
+              "completion_wait_us": 0.173890625,
+              "integrated_us": 24.46596875
+            },
+            {
+              "enqueue_us": 23.374203125,
+              "completion_wait_us": 0.16475,
+              "integrated_us": 23.538953125
+            },
+            {
+              "enqueue_us": 23.846515625,
+              "completion_wait_us": 0.17215625,
+              "integrated_us": 24.018671875
+            },
+            {
+              "enqueue_us": 23.446,
+              "completion_wait_us": 0.1525,
+              "integrated_us": 23.5985
+            },
+            {
+              "enqueue_us": 23.87165625,
+              "completion_wait_us": 0.16709375,
+              "integrated_us": 24.03875
+            },
+            {
+              "enqueue_us": 23.632765625,
+              "completion_wait_us": 0.155171875,
+              "integrated_us": 23.7879375
+            },
+            {
+              "enqueue_us": 23.7856875,
+              "completion_wait_us": 0.1653125,
+              "integrated_us": 23.951
+            },
+            {
+              "enqueue_us": 23.6154375,
+              "completion_wait_us": 0.156453125,
+              "integrated_us": 23.771890625
+            }
+          ],
+          "medians": {
+            "graph_us": 3.7282708411415415,
+            "enqueue_us": 23.7092265625,
+            "completion_wait_us": 0.16503125000000002,
+            "integrated_us": 23.869468750000003
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 4.004000000000019,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_direct": {
+          "graph_us": [
+            3.760041669011116,
+            3.7508749713500342,
+            3.748249883453051,
+            3.7464999283353486,
+            3.7522083148360252,
+            3.750708264609178,
+            3.755083307623863,
+            3.753749964137872
+          ],
+          "host": [
+            {
+              "enqueue_us": 23.70540625,
+              "completion_wait_us": 0.16596875,
+              "integrated_us": 23.871375
+            },
+            {
+              "enqueue_us": 23.680125,
+              "completion_wait_us": 0.159234375,
+              "integrated_us": 23.839359375
+            },
+            {
+              "enqueue_us": 23.811875,
+              "completion_wait_us": 0.172078125,
+              "integrated_us": 23.983953125
+            },
+            {
+              "enqueue_us": 23.860828125,
+              "completion_wait_us": 0.155109375,
+              "integrated_us": 24.0159375
+            },
+            {
+              "enqueue_us": 23.639109375,
+              "completion_wait_us": 0.1584375,
+              "integrated_us": 23.797546875
+            },
+            {
+              "enqueue_us": 23.652515625,
+              "completion_wait_us": 0.16084375,
+              "integrated_us": 23.813359375
+            },
+            {
+              "enqueue_us": 23.71478125,
+              "completion_wait_us": 0.155921875,
+              "integrated_us": 23.870703125
+            },
+            {
+              "enqueue_us": 23.771421875,
+              "completion_wait_us": 0.166171875,
+              "integrated_us": 23.93759375
+            }
+          ],
+          "medians": {
+            "graph_us": 3.75154164309303,
+            "enqueue_us": 23.71009375,
+            "completion_wait_us": 0.1600390625,
+            "integrated_us": 23.8710390625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 3.8438750000000255,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            3.759499949713548,
+            3.7498334422707558,
+            3.7551249066988626,
+            3.755625026921431,
+            3.7546666959921517,
+            3.754749894142151,
+            3.7497499336798987,
+            3.7502084548274675
+          ],
+          "host": [
+            {
+              "enqueue_us": 41.671875,
+              "completion_wait_us": 0.196640625,
+              "integrated_us": 41.868515625
+            },
+            {
+              "enqueue_us": 40.83984375,
+              "completion_wait_us": 0.188984375,
+              "integrated_us": 41.028828125
+            },
+            {
+              "enqueue_us": 40.7664375,
+              "completion_wait_us": 0.197421875,
+              "integrated_us": 40.963859375
+            },
+            {
+              "enqueue_us": 40.219015625,
+              "completion_wait_us": 0.1804375,
+              "integrated_us": 40.399453125
+            },
+            {
+              "enqueue_us": 41.28621875,
+              "completion_wait_us": 0.215859375,
+              "integrated_us": 41.502078125
+            },
+            {
+              "enqueue_us": 41.16271875,
+              "completion_wait_us": 0.186234375,
+              "integrated_us": 41.348953125
+            },
+            {
+              "enqueue_us": 41.463046875,
+              "completion_wait_us": 0.2200625,
+              "integrated_us": 41.683109375
+            },
+            {
+              "enqueue_us": 40.863203125,
+              "completion_wait_us": 0.200375,
+              "integrated_us": 41.063578125
+            }
+          ],
+          "medians": {
+            "graph_us": 3.754708295067151,
+            "enqueue_us": 41.0129609375,
+            "completion_wait_us": 0.19703125,
+            "integrated_us": 41.206265625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 3.827875000000006,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_compiled": [
+          11.572221914927164,
+          11.569333573182425,
+          11.554000278313955,
+          11.582222249772814,
+          11.571444571018219,
+          11.565888921419779,
+          11.570666399266985,
+          11.577111151483324
+        ],
+        "current": [
+          6.040444390641318,
+          6.034222328000599,
+          6.041222148471409,
+          6.035666498872969,
+          6.039999839332369,
+          6.035444637139638,
+          6.039555701944563,
+          6.039222081502278
+        ],
+        "grouped_8x128_wrapped": [
+          3.87655571103096,
+          3.8763334353764853,
+          3.8725555770927005,
+          3.8759998149342008,
+          3.8746665749284954,
+          3.877555744515525,
+          3.8785553640789456,
+          3.88277777367168
+        ]
+      }
+    },
+    {
+      "fixture_rank": 6,
+      "shape": [
+        8192,
+        8
+      ],
+      "experts": 128,
+      "input_types": [
+        "torch.int64",
+        "torch.float32"
+      ],
+      "input_strides": [
+        [
+          8,
+          1
+        ],
+        [
+          8,
+          1
+        ]
+      ],
+      "variants": {
+        "baseline_eager": {
+          "graph_us": [
+            23.467667400836945,
+            23.378707468509674,
+            23.343915740648907,
+            23.565749327341717,
+            23.570291697978973,
+            23.52316677570343,
+            23.465707898139954,
+            23.56337507565816
+          ],
+          "host": [
+            {
+              "enqueue_us": 108.72871875,
+              "completion_wait_us": 0.342578125,
+              "integrated_us": 109.071296875
+            },
+            {
+              "enqueue_us": 106.6820625,
+              "completion_wait_us": 0.254640625,
+              "integrated_us": 106.936703125
+            },
+            {
+              "enqueue_us": 106.41009375,
+              "completion_wait_us": 0.24634375,
+              "integrated_us": 106.6564375
+            },
+            {
+              "enqueue_us": 106.416078125,
+              "completion_wait_us": 0.25609375,
+              "integrated_us": 106.672171875
+            },
+            {
+              "enqueue_us": 106.4438125,
+              "completion_wait_us": 0.245328125,
+              "integrated_us": 106.689140625
+            },
+            {
+              "enqueue_us": 107.963453125,
+              "completion_wait_us": 0.27,
+              "integrated_us": 108.233453125
+            },
+            {
+              "enqueue_us": 107.084421875,
+              "completion_wait_us": 0.251671875,
+              "integrated_us": 107.33609375
+            },
+            {
+              "enqueue_us": 106.653125,
+              "completion_wait_us": 0.2579375,
+              "integrated_us": 106.9110625
+            }
+          ],
+          "medians": {
+            "graph_us": 23.495417088270187,
+            "enqueue_us": 106.66759375000001,
+            "completion_wait_us": 0.2553671875,
+            "integrated_us": 106.9238828125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 22.455374999999947,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.1959999999999695,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_eager_repeat": {
+          "graph_us": [
+            23.512790600458782,
+            23.362499972184498,
+            23.34745724995931,
+            23.544708887736004,
+            23.5282505551974,
+            23.502459128697712,
+            23.534834384918213,
+            23.543626070022583
+          ],
+          "host": [
+            {
+              "enqueue_us": 106.90584375,
+              "completion_wait_us": 0.245328125,
+              "integrated_us": 107.151171875
+            },
+            {
+              "enqueue_us": 108.160515625,
+              "completion_wait_us": 0.29496875,
+              "integrated_us": 108.455484375
+            },
+            {
+              "enqueue_us": 106.749296875,
+              "completion_wait_us": 0.238453125,
+              "integrated_us": 106.98775
+            },
+            {
+              "enqueue_us": 108.075953125,
+              "completion_wait_us": 0.290828125,
+              "integrated_us": 108.36678125
+            },
+            {
+              "enqueue_us": 106.497390625,
+              "completion_wait_us": 0.23909375,
+              "integrated_us": 106.736484375
+            },
+            {
+              "enqueue_us": 135.967671875,
+              "completion_wait_us": 1.32340625,
+              "integrated_us": 137.291078125
+            },
+            {
+              "enqueue_us": 106.91696875,
+              "completion_wait_us": 0.257140625,
+              "integrated_us": 107.174109375
+            },
+            {
+              "enqueue_us": 107.694734375,
+              "completion_wait_us": 0.303796875,
+              "integrated_us": 107.99853125
+            }
+          ],
+          "medians": {
+            "graph_us": 23.52052057782809,
+            "enqueue_us": 107.3058515625,
+            "completion_wait_us": 0.273984375,
+            "integrated_us": 107.58632031249999
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 22.39599999999993,
+              "names_and_counts": {
+                "void at::native::vectorized_elementwise_kernel<8, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>, false>(int, at::native::compare_scalar_kernel<long>(at::TensorIteratorBase&, at::native::(anonymous namespace)::OpType, long)::{lambda(long)#1}, std::array<char*, 2ul>)": 8,
+                "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": 8,
+                "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<long> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<long> const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>, false>(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)": 16,
+                "void at::native::vectorized_elementwise_kernel<2, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<8, at::native::FillFunctor<bool>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<bool>, std::array<char*, 1ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)": 8,
+                "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<4>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 1.188000000000045,
+              "names_and_counts": {
+                "Memcpy DtoD (Device -> Device)": 8
+              }
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "baseline_compiled": {
+          "graph_us": [
+            11.296416322390238,
+            11.291583379109701,
+            11.291708797216415,
+            11.290375143289566,
+            11.29499947031339,
+            11.290958772102991,
+            11.297792196273804,
+            11.275875071684519
+          ],
+          "host": [
+            {
+              "enqueue_us": 63.15521875,
+              "completion_wait_us": 0.316859375,
+              "integrated_us": 63.472078125
+            },
+            {
+              "enqueue_us": 62.816640625,
+              "completion_wait_us": 0.3053125,
+              "integrated_us": 63.121953125
+            },
+            {
+              "enqueue_us": 62.8838125,
+              "completion_wait_us": 0.29940625,
+              "integrated_us": 63.18321875
+            },
+            {
+              "enqueue_us": 62.950921875,
+              "completion_wait_us": 0.308296875,
+              "integrated_us": 63.25921875
+            },
+            {
+              "enqueue_us": 62.65578125,
+              "completion_wait_us": 0.312453125,
+              "integrated_us": 62.968234375
+            },
+            {
+              "enqueue_us": 62.403609375,
+              "completion_wait_us": 0.28928125,
+              "integrated_us": 62.692890625
+            },
+            {
+              "enqueue_us": 64.06821875,
+              "completion_wait_us": 0.33171875,
+              "integrated_us": 64.3999375
+            },
+            {
+              "enqueue_us": 62.661265625,
+              "completion_wait_us": 0.296765625,
+              "integrated_us": 62.95803125
+            }
+          ],
+          "medians": {
+            "graph_us": 11.29164608816306,
+            "enqueue_us": 62.8502265625,
+            "completion_wait_us": 0.3068046875,
+            "integrated_us": 63.1525859375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 11.675749999999937,
+              "names_and_counts": {
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_0": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_1": 8,
+                "triton_poi_fused_add_arange_bitwise_not_ge_masked_fill_scatter_unsqueeze_view_zeros_2": 8,
+                "void at::native::_scatter_gather_elementwise_kernel<128, 8, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1}>(int, at::native::_cuda_scatter_gather_internal_kernel<true, at::native::OpaqueType<1>, long>::operator()<at::native::TensorAssign>(at::TensorIterator&, long, long, long, at::native::TensorAssign const&)::{lambda(int)#1})": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current": {
+          "graph_us": [
+            5.959416429201762,
+            5.953500047326088,
+            5.9574997673432035,
+            5.954125275214513,
+            5.957333371043205,
+            5.955166493852933,
+            5.961916719873746,
+            5.952541405955951
+          ],
+          "host": [
+            {
+              "enqueue_us": 47.31659375,
+              "completion_wait_us": 0.280171875,
+              "integrated_us": 47.596765625
+            },
+            {
+              "enqueue_us": 45.551921875,
+              "completion_wait_us": 0.20578125,
+              "integrated_us": 45.757703125
+            },
+            {
+              "enqueue_us": 48.00175,
+              "completion_wait_us": 0.280703125,
+              "integrated_us": 48.282453125
+            },
+            {
+              "enqueue_us": 45.573453125,
+              "completion_wait_us": 0.23053125,
+              "integrated_us": 45.803984375
+            },
+            {
+              "enqueue_us": 47.713859375,
+              "completion_wait_us": 0.27546875,
+              "integrated_us": 47.989328125
+            },
+            {
+              "enqueue_us": 46.20475,
+              "completion_wait_us": 0.217375,
+              "integrated_us": 46.422125
+            },
+            {
+              "enqueue_us": 49.878015625,
+              "completion_wait_us": 0.307578125,
+              "integrated_us": 50.18559375
+            },
+            {
+              "enqueue_us": 47.266984375,
+              "completion_wait_us": 0.21728125,
+              "integrated_us": 47.484265625
+            }
+          ],
+          "medians": {
+            "graph_us": 5.956249932448069,
+            "enqueue_us": 47.2917890625,
+            "completion_wait_us": 0.253,
+            "integrated_us": 47.540515625
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.236125000000001,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "current_one_warp_direct": {
+          "graph_us": [
+            5.986916522185008,
+            5.982041358947754,
+            5.983666827281316,
+            5.981499950091044,
+            5.989249795675278,
+            5.979916701714198,
+            5.992208297053973,
+            5.980333313345909
+          ],
+          "host": [
+            {
+              "enqueue_us": 26.41140625,
+              "completion_wait_us": 0.18753125,
+              "integrated_us": 26.5989375
+            },
+            {
+              "enqueue_us": 26.262421875,
+              "completion_wait_us": 0.174171875,
+              "integrated_us": 26.43659375
+            },
+            {
+              "enqueue_us": 26.49709375,
+              "completion_wait_us": 0.18825,
+              "integrated_us": 26.68534375
+            },
+            {
+              "enqueue_us": 26.51834375,
+              "completion_wait_us": 0.181453125,
+              "integrated_us": 26.699796875
+            },
+            {
+              "enqueue_us": 26.43621875,
+              "completion_wait_us": 0.202734375,
+              "integrated_us": 26.638953125
+            },
+            {
+              "enqueue_us": 26.696796875,
+              "completion_wait_us": 0.197921875,
+              "integrated_us": 26.89471875
+            },
+            {
+              "enqueue_us": 26.58334375,
+              "completion_wait_us": 0.203875,
+              "integrated_us": 26.78721875
+            },
+            {
+              "enqueue_us": 26.850453125,
+              "completion_wait_us": 0.18715625,
+              "integrated_us": 27.037609375
+            }
+          ],
+          "medians": {
+            "graph_us": 5.982854093114534,
+            "enqueue_us": 26.507718750000002,
+            "completion_wait_us": 0.187890625,
+            "integrated_us": 26.692570312500003
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 6.267874999999947,
+              "names_and_counts": {
+                "_routing_metadata_kernel": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_4x128_direct": {
+          "graph_us": [
+            3.7820000822345414,
+            3.7803749243418374,
+            3.7814583629369736,
+            3.7790415808558464,
+            3.781749866902828,
+            3.7799999117851257,
+            3.7850417817632356,
+            3.7788748741149902
+          ],
+          "host": [
+            {
+              "enqueue_us": 27.38425,
+              "completion_wait_us": 0.186625,
+              "integrated_us": 27.570875
+            },
+            {
+              "enqueue_us": 27.063359375,
+              "completion_wait_us": 0.17821875,
+              "integrated_us": 27.241578125
+            },
+            {
+              "enqueue_us": 27.31584375,
+              "completion_wait_us": 0.194765625,
+              "integrated_us": 27.510609375
+            },
+            {
+              "enqueue_us": 27.1035625,
+              "completion_wait_us": 0.177203125,
+              "integrated_us": 27.280765625
+            },
+            {
+              "enqueue_us": 27.530484375,
+              "completion_wait_us": 0.1809375,
+              "integrated_us": 27.711421875
+            },
+            {
+              "enqueue_us": 27.27596875,
+              "completion_wait_us": 0.175109375,
+              "integrated_us": 27.451078125
+            },
+            {
+              "enqueue_us": 27.614578125,
+              "completion_wait_us": 0.188390625,
+              "integrated_us": 27.80296875
+            },
+            {
+              "enqueue_us": 27.045265625,
+              "completion_wait_us": 0.17975,
+              "integrated_us": 27.225015625
+            }
+          ],
+          "medians": {
+            "graph_us": 3.7809166436394053,
+            "enqueue_us": 27.29590625,
+            "completion_wait_us": 0.18034375,
+            "integrated_us": 27.48084375
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 4.003999999999962,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_direct": {
+          "graph_us": [
+            3.8123332584897676,
+            3.8111666217446327,
+            3.8059999545415244,
+            3.8056249419848123,
+            3.800541783372561,
+            3.7994583447774253,
+            3.8088333482543626,
+            3.8034583752353988
+          ],
+          "host": [
+            {
+              "enqueue_us": 27.2599375,
+              "completion_wait_us": 0.1825625,
+              "integrated_us": 27.4425
+            },
+            {
+              "enqueue_us": 27.13375,
+              "completion_wait_us": 0.1859375,
+              "integrated_us": 27.3196875
+            },
+            {
+              "enqueue_us": 27.214203125,
+              "completion_wait_us": 0.186359375,
+              "integrated_us": 27.4005625
+            },
+            {
+              "enqueue_us": 27.250640625,
+              "completion_wait_us": 0.180078125,
+              "integrated_us": 27.43071875
+            },
+            {
+              "enqueue_us": 26.94471875,
+              "completion_wait_us": 0.175390625,
+              "integrated_us": 27.120109375
+            },
+            {
+              "enqueue_us": 27.135609375,
+              "completion_wait_us": 0.193671875,
+              "integrated_us": 27.32928125
+            },
+            {
+              "enqueue_us": 27.7560625,
+              "completion_wait_us": 0.18915625,
+              "integrated_us": 27.94521875
+            },
+            {
+              "enqueue_us": 27.205,
+              "completion_wait_us": 0.183046875,
+              "integrated_us": 27.388046875
+            }
+          ],
+          "medians": {
+            "graph_us": 3.8058124482631683,
+            "enqueue_us": 27.209601562499998,
+            "completion_wait_us": 0.18449218750000002,
+            "integrated_us": 27.3943046875
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 3.8438750000000255,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        },
+        "grouped_8x128_wrapped": {
+          "graph_us": [
+            3.8104581957062087,
+            3.8089584559202194,
+            3.7996250515182814,
+            3.8022082298994064,
+            3.7971666703621545,
+            3.7995834524432817,
+            3.80708339313666,
+            3.802250139415264
+          ],
+          "host": [
+            {
+              "enqueue_us": 44.8855625,
+              "completion_wait_us": 0.206921875,
+              "integrated_us": 45.092484375
+            },
+            {
+              "enqueue_us": 44.96071875,
+              "completion_wait_us": 0.215578125,
+              "integrated_us": 45.176296875
+            },
+            {
+              "enqueue_us": 44.91984375,
+              "completion_wait_us": 0.234515625,
+              "integrated_us": 45.154359375
+            },
+            {
+              "enqueue_us": 45.109984375,
+              "completion_wait_us": 0.219359375,
+              "integrated_us": 45.32934375
+            },
+            {
+              "enqueue_us": 46.0526875,
+              "completion_wait_us": 0.25553125,
+              "integrated_us": 46.30821875
+            },
+            {
+              "enqueue_us": 44.8468125,
+              "completion_wait_us": 0.223421875,
+              "integrated_us": 45.070234375
+            },
+            {
+              "enqueue_us": 46.284328125,
+              "completion_wait_us": 0.22465625,
+              "integrated_us": 46.508984375
+            },
+            {
+              "enqueue_us": 45.959296875,
+              "completion_wait_us": 0.21578125,
+              "integrated_us": 46.175078125
+            }
+          ],
+          "medians": {
+            "graph_us": 3.8022291846573353,
+            "enqueue_us": 45.0353515625,
+            "completion_wait_us": 0.221390625,
+            "integrated_us": 45.2528203125
+          },
+          "profile": {
+            "kernels": {
+              "sum_us_per_call": 3.840000000000032,
+              "names_and_counts": {
+                "grouped_rows": 8
+              }
+            },
+            "copies": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            },
+            "memsets": {
+              "sum_us_per_call": 0.0,
+              "names_and_counts": {}
+            }
+          }
+        }
+      },
+      "distinct_outputs_graph_us": {
+        "baseline_compiled": [
+          11.488888826635149,
+          11.500333746274313,
+          11.491110755337608,
+          11.530333095126682,
+          11.489444308810764,
+          11.514999800258213,
+          11.481888592243195,
+          11.511444217628902
+        ],
+        "current": [
+          6.040222114986843,
+          6.029222160577774,
+          6.033888707558314,
+          6.034888741042879,
+          6.038888874981138,
+          6.037444290187624,
+          6.046444591548708,
+          6.042666733264923
+        ],
+        "grouped_8x128_wrapped": [
+          3.8754443327585855,
+          3.8763334353764853,
+          3.874000161886215,
+          3.874222023619546,
+          3.8725555770927005,
+          3.8698886831601462,
+          3.8763334353764853,
+          3.8728887836138406
+        ]
+      }
+    }
+  ]
+}
