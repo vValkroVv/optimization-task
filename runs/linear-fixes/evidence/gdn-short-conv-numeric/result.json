@@ -1,0 +1,1532 @@
+{
+  "device": "NVIDIA H100 80GB HBM3",
+  "torch": "2.15.0.dev20260822+cu130",
+  "cuda": "13.0",
+  "triton": "3.8.0",
+  "compiled_source_sha256": {
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-short-conv-numeric/gdn_short_conv_numeric.py": "ff5cb9cc3ffe3529995728bb0e699862a8663e0487f53dcc8c8749571a0e81b1",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/torchtitan/models/common/attention/linear/gdn_short_conv.py": "fe4f093de05a64cd2a5c72bba03494a4ae30447ebb502875febbbba32a4632af",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/contrib/flash-linear-attention/fla/modules/conv/triton/kernels.py": "5ce6a327ea1ba92987cec2ab2b568179439650cdd0fd615b28fa7b25e230345d",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/contrib/flash-linear-attention/fla/ops/common/fused_conv_qkv.py": "5abe9c02fa191f58df29031b52f023f780d7c5d4b84cf2d1f3c77397a5e881cf",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-short-conv-numeric/capture/instrumented_short_conv.py": "11493254e6172e308153342633feba3095dd2a22c56ba802d5b9494e23ed4753"
+  },
+  "fixture": {
+    "fixture_sha256": "7e244453fe8d7de975438cc9584a112e687832fd06896bf4db47bc63eb4c52f3",
+    "rank": 0,
+    "world_size": 8,
+    "source_revision": "0f0bf5604f43d8150065f90f90216fd4ba3e5ec1",
+    "qkv_shape": [
+      2,
+      4096,
+      8192
+    ],
+    "weight_shape": [
+      8192,
+      4096
+    ]
+  },
+  "synthetic_seed": 2048,
+  "real": {
+    "native_vs_fused": {
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 2,
+        "finite": true,
+        "max_abs": 3.637978807091713e-12,
+        "rms": 4.965068379392701e-16,
+        "relative_rms": 5.088103337078073e-07
+      },
+      "dw": {
+        "dtype": "torch.bfloat16",
+        "elements": 32768,
+        "different_elements": 7,
+        "finite": true,
+        "max_abs": 1.1920928955078125e-07,
+        "rms": 6.58586019053331e-10,
+        "relative_rms": 0.0001394236055366885
+      }
+    },
+    "native_staged_replay_vs_native": {
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "dw": {
+        "dtype": "torch.bfloat16",
+        "elements": 32768,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      }
+    },
+    "instrumented_vs_fused": {
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "dw": {
+        "dtype": "torch.bfloat16",
+        "elements": 32768,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      }
+    },
+    "instrumented_vs_native": {
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 2,
+        "finite": true,
+        "max_abs": 3.637978807091713e-12,
+        "rms": 4.965068379392701e-16,
+        "relative_rms": 5.088103337078073e-07
+      },
+      "dw": {
+        "dtype": "torch.bfloat16",
+        "elements": 32768,
+        "different_elements": 7,
+        "finite": true,
+        "max_abs": 1.1920928955078125e-07,
+        "rms": 6.58586019053331e-10,
+        "relative_rms": 0.0001394236055366885
+      }
+    },
+    "stages": {
+      "rounded_preactivation": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "rounded_normalized_qk": {
+        "dtype": "torch.bfloat16",
+        "elements": 33554432,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "fp32_rstd": {
+        "dtype": "torch.float32",
+        "elements": 262144,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "rounded_packed_dy": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "fp32_post_silu": {
+        "dtype": "torch.float32",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      }
+    },
+    "replay_using_fused_main_derivative": {
+      "vs_original": {
+        "dx": {
+          "dtype": "torch.bfloat16",
+          "elements": 67108864,
+          "different_elements": 0,
+          "finite": true,
+          "max_abs": 0.0,
+          "rms": 0.0,
+          "relative_rms": 0.0
+        },
+        "dw": {
+          "dtype": "torch.bfloat16",
+          "elements": 32768,
+          "different_elements": 0,
+          "finite": true,
+          "max_abs": 0.0,
+          "rms": 0.0,
+          "relative_rms": 0.0
+        }
+      },
+      "vs_fused": {
+        "dx": {
+          "dtype": "torch.bfloat16",
+          "elements": 67108864,
+          "different_elements": 2,
+          "finite": true,
+          "max_abs": 3.637978807091713e-12,
+          "rms": 4.965068379392701e-16,
+          "relative_rms": 5.088103337078073e-07
+        },
+        "dw": {
+          "dtype": "torch.bfloat16",
+          "elements": 32768,
+          "different_elements": 7,
+          "finite": true,
+          "max_abs": 1.1920928955078125e-07,
+          "rms": 6.58586019053331e-10,
+          "relative_rms": 0.00013942403505492332
+        }
+      }
+    },
+    "dx_outliers": [
+      {
+        "point": [
+          1,
+          1278,
+          3300
+        ],
+        "native": -4.5838532969355583e-10,
+        "fused": -4.602043190971017e-10,
+        "instrumented_before_dx_round": -4.5936923709355426e-10,
+        "taps": [
+          {
+            "output_token": 1278,
+            "halo": false,
+            "weight": -0.0086669921875,
+            "preactivation_bf16": [
+              -0.00119781494140625,
+              -0.00119781494140625,
+              -0.00119781494140625
+            ],
+            "packed_dy_bf16": [
+              -6.51925802230835e-09,
+              -6.51925802230835e-09,
+              -6.51925802230835e-09
+            ],
+            "fp64_packed_dy_before_cast": -6.519792135478188e-09,
+            "post_silu_fp32_vs_fp64": [
+              -3.255724578821173e-09,
+              -3.255724578821173e-09,
+              -3.2557245797548267e-09
+            ],
+            "contributions_fp64": [
+              2.8217339489294835e-11,
+              2.8217339489294835e-11,
+              2.8217339497386803e-11
+            ],
+            "normalized": [
+              -0.0086669921875,
+              -0.0086669921875,
+              -0.0086669921875
+            ],
+            "rstd": [
+              14.503033638000488,
+              14.503033638000488,
+              14.503032776121024
+            ],
+            "fp32_dot_vs_fp64": [
+              1.8028883941312301e-10,
+              1.8028872839082055e-10
+            ]
+          },
+          {
+            "output_token": 1279,
+            "halo": false,
+            "weight": -0.005859375,
+            "preactivation_bf16": [
+              0.0006561279296875,
+              0.0006561279296875,
+              0.0006561279296875
+            ],
+            "packed_dy_bf16": [
+              7.217749953269958e-08,
+              7.217749953269958e-08,
+              7.217749953269958e-08
+            ],
+            "fp64_packed_dy_before_cast": 7.224062818986106e-08,
+            "post_silu_fp32_vs_fp64": [
+              3.611242505030532e-08,
+              3.611242505030532e-08,
+              3.611242860132002e-08
+            ],
+            "contributions_fp64": [
+              -2.1159624052913273e-10,
+              -2.1159624052913273e-10,
+              -2.115962613358595e-10
+            ],
+            "normalized": [
+              0.00433349609375,
+              0.00433349609375,
+              0.00433349609375
+            ],
+            "rstd": [
+              13.243657112121582,
+              13.243657112121582,
+              13.243656769599786
+            ],
+            "fp32_dot_vs_fp64": [
+              1.0589533694371767e-08,
+              1.0589534249483279e-08
+            ]
+          },
+          {
+            "output_token": 1280,
+            "halo": true,
+            "weight": -0.005584716796875,
+            "preactivation_bf16": [
+              0.00921630859375,
+              0.00921630859375,
+              0.00921630859375
+            ],
+            "packed_dy_bf16": [
+              -4.493631422519684e-08,
+              -4.493631422519684e-08,
+              -4.493631422519684e-08
+            ],
+            "fp64_packed_dy_before_cast": -4.4973655797982145e-08,
+            "post_silu_fp32_vs_fp64": [
+              -2.2675228805724146e-08,
+              -2.2675228805724146e-08,
+              -2.2675227650636377e-08
+            ],
+            "contributions_fp64": [
+              1.2663473118431148e-10,
+              1.2663473118431148e-10,
+              1.2663472473347342e-10
+            ],
+            "normalized": [
+              0.06591796875,
+              0.06591796875,
+              0.06591796875
+            ],
+            "rstd": [
+              14.25240707397461,
+              14.25240707397461,
+              14.252406536037629
+            ],
+            "fp32_dot_vs_fp64": [
+              1.0341452139073226e-08,
+              1.034145230560668e-08
+            ]
+          },
+          {
+            "output_token": 1281,
+            "halo": true,
+            "weight": -0.006927490234375,
+            "preactivation_bf16": [
+              0.0106201171875,
+              0.0106201171875,
+              0.0106201171875
+            ],
+            "packed_dy_bf16": [
+              1.1455267667770386e-07,
+              1.150183379650116e-07,
+              1.150183379650116e-07
+            ],
+            "fp64_packed_dy_before_cast": 1.147855135895732e-07,
+            "post_silu_fp32_vs_fp64": [
+              5.788460200051304e-08,
+              5.8119905332887356e-08,
+              5.811991161580723e-08
+            ],
+            "contributions_fp64": [
+              -4.009950150792377e-10,
+              -4.0262507661637664e-10,
+              -4.026251201412427e-10
+            ],
+            "normalized": [
+              0.06982421875,
+              0.06982421875,
+              0.06982421875
+            ],
+            "rstd": [
+              13.066431999206543,
+              13.066433906555176,
+              13.066432545391002
+            ],
+            "fp32_dot_vs_fp64": [
+              5.9012101871758205e-09,
+              5.901210201053608e-09
+            ]
+          }
+        ],
+        "fp64_lane_accumulation": [
+          -4.577391849347641e-10,
+          -4.5936924647190305e-10,
+          -4.5936931724624197e-10
+        ],
+        "fp64_lane_accumulation_rounded": [
+          -4.5838532969355583e-10,
+          -4.602043190971017e-10,
+          -4.602043190971017e-10
+        ]
+      },
+      {
+        "point": [
+          1,
+          3071,
+          39
+        ],
+        "native": -6.220943760126829e-10,
+        "fused": -6.257323548197746e-10,
+        "instrumented_before_dx_round": -6.244254557863371e-10,
+        "taps": [
+          {
+            "output_token": 3071,
+            "halo": false,
+            "weight": 0.00958251953125,
+            "preactivation_bf16": [
+              -0.011474609375,
+              -0.011474609375,
+              -0.011474609375
+            ],
+            "packed_dy_bf16": [
+              -1.685693860054016e-07,
+              -1.685693860054016e-07,
+              -1.685693860054016e-07
+            ],
+            "fp64_packed_dy_before_cast": -1.6881863961552943e-07,
+            "post_silu_fp32_vs_fp64": [
+              -8.331758039048509e-08,
+              -8.331758039048509e-08,
+              -8.331758029699961e-08
+            ],
+            "contributions_fp64": [
+              -7.983923413883154e-10,
+              -7.983923413883154e-10,
+              -7.98392340492489e-10
+            ],
+            "normalized": [
+              -0.08154296875,
+              -0.08154296875,
+              -0.08154296875
+            ],
+            "rstd": [
+              14.292135238647461,
+              14.292135238647461,
+              14.292134926015615
+            ],
+            "fp32_dot_vs_fp64": [
+              2.9063187412248226e-09,
+              2.9063189632694275e-09
+            ]
+          },
+          {
+            "output_token": 3072,
+            "halo": true,
+            "weight": -0.0052490234375,
+            "preactivation_bf16": [
+              0.00118255615234375,
+              0.00118255615234375,
+              0.00118255615234375
+            ],
+            "packed_dy_bf16": [
+              -2.1886080503463745e-08,
+              -2.1886080503463745e-08,
+              -2.1886080503463745e-08
+            ],
+            "fp64_packed_dy_before_cast": -2.1834039306168626e-08,
+            "post_silu_fp32_vs_fp64": [
+              -1.0955981011306903e-08,
+              -1.0955981011306903e-08,
+              -1.0955981008290758e-08
+            ],
+            "contributions_fp64": [
+              5.750820110915489e-11,
+              5.750820110915489e-11,
+              5.750820109332307e-11
+            ],
+            "normalized": [
+              0.00830078125,
+              0.00830078125,
+              0.00830078125
+            ],
+            "rstd": [
+              14.0541353225708,
+              14.0541353225708,
+              14.054135818425237
+            ],
+            "fp32_dot_vs_fp64": [
+              -4.202129755270789e-10,
+              -4.20212753482474e-10
+            ]
+          },
+          {
+            "output_token": 3073,
+            "halo": true,
+            "weight": -0.010986328125,
+            "preactivation_bf16": [
+              -0.000545501708984375,
+              -0.000545501708984375,
+              -0.000545501708984375
+            ],
+            "packed_dy_bf16": [
+              2.5960616767406464e-08,
+              2.60770320892334e-08,
+              2.5960616767406464e-08
+            ],
+            "fp64_packed_dy_before_cast": 2.6018822353548087e-08,
+            "post_silu_fp32_vs_fp64": [
+              1.2973228713519802e-08,
+              1.303140440001016e-08,
+              1.297322760364795e-08
+            ],
+            "contributions_fp64": [
+              -1.4252814748740017e-10,
+              -1.4316728466808037e-10,
+              -1.4252813529398383e-10
+            ],
+            "normalized": [
+              -0.00335693359375,
+              -0.00335693359375,
+              -0.00335693359375
+            ],
+            "rstd": [
+              12.285489082336426,
+              12.285490036010742,
+              12.285489173999268
+            ],
+            "fp32_dot_vs_fp64": [
+              -2.00471506062172e-09,
+              -2.004715282666325e-09
+            ]
+          },
+          {
+            "output_token": 3074,
+            "halo": true,
+            "weight": 0.00885009765625,
+            "preactivation_bf16": [
+              0.01202392578125,
+              0.01202392578125,
+              0.01202392578125
+            ],
+            "packed_dy_bf16": [
+              5.797483026981354e-08,
+              5.797483026981354e-08,
+              5.797483026981354e-08
+            ],
+            "fp64_packed_dy_before_cast": 5.8048112588406585e-08,
+            "post_silu_fp32_vs_fp64": [
+              2.9335948781294974e-08,
+              2.9335948781294974e-08,
+              2.9335949264850754e-08
+            ],
+            "contributions_fp64": [
+              2.596260115532087e-10,
+              2.596260115532087e-10,
+              2.596260158327246e-10
+            ],
+            "normalized": [
+              0.083984375,
+              0.083984375,
+              0.083984375
+            ],
+            "rstd": [
+              13.910331726074219,
+              13.910329818725586,
+              13.910330483316878
+            ],
+            "fp32_dot_vs_fp64": [
+              -7.930168521852465e-09,
+              -7.930168521852465e-09
+            ]
+          }
+        ],
+        "fp64_lane_accumulation": [
+          -6.23786276213352e-10,
+          -6.244254133940322e-10,
+          -6.237862588604252e-10
+        ],
+        "fp64_lane_accumulation_rounded": [
+          -6.220943760126829e-10,
+          -6.257323548197746e-10,
+          -6.220943760126829e-10
+        ]
+      }
+    ],
+    "dw_outliers": [
+      {
+        "channel": 2846,
+        "tap": 0,
+        "native": -1.30385160446167e-08,
+        "fused": -1.3096723705530167e-08,
+        "instrumented": -1.3096723705530167e-08,
+        "native_accumulated_on_fused_derivative": -1.30385160446167e-08,
+        "instrumented_fp64_sum_of_partials": -1.3067914750308773e-08
+      },
+      {
+        "channel": 2861,
+        "tap": 3,
+        "native": -2.086162567138672e-07,
+        "fused": -2.076849341392517e-07,
+        "instrumented": -2.076849341392517e-07,
+        "native_accumulated_on_fused_derivative": -2.086162567138672e-07,
+        "instrumented_fp64_sum_of_partials": -2.0815028278775571e-07
+      },
+      {
+        "channel": 3812,
+        "tap": 1,
+        "native": -1.9311904907226562e-05,
+        "fused": -1.919269561767578e-05,
+        "instrumented": -1.919269561767578e-05,
+        "native_accumulated_on_fused_derivative": -1.9311904907226562e-05,
+        "instrumented_fp64_sum_of_partials": -1.925229878452228e-05
+      },
+      {
+        "channel": 3837,
+        "tap": 0,
+        "native": 6.577465683221817e-09,
+        "fused": 6.548361852765083e-09,
+        "instrumented": 6.548361852765083e-09,
+        "native_accumulated_on_fused_derivative": 6.577465683221817e-09,
+        "instrumented_fp64_sum_of_partials": 6.562686394318007e-09
+      },
+      {
+        "channel": 5498,
+        "tap": 3,
+        "native": -4.383764462545514e-10,
+        "fused": -4.3655745685100555e-10,
+        "instrumented": -4.3655745685100555e-10,
+        "native_accumulated_on_fused_derivative": -4.383764462545514e-10,
+        "instrumented_fp64_sum_of_partials": -4.376659035187913e-10
+      },
+      {
+        "channel": 5702,
+        "tap": 0,
+        "native": -3.14321368932724e-08,
+        "fused": -3.166496753692627e-08,
+        "instrumented": -3.166496753692627e-08,
+        "native_accumulated_on_fused_derivative": -3.14321368932724e-08,
+        "instrumented_fp64_sum_of_partials": -3.154888617018514e-08
+      },
+      {
+        "channel": 6023,
+        "tap": 2,
+        "native": 2.2910535335540771e-07,
+        "fused": 2.300366759300232e-07,
+        "instrumented": 2.300366759300232e-07,
+        "native_accumulated_on_fused_derivative": 2.2910535335540771e-07,
+        "instrumented_fp64_sum_of_partials": 2.2957067713491597e-07
+      }
+    ]
+  },
+  "synthetic": {
+    "native_vs_fused": {
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 11,
+        "finite": true,
+        "max_abs": 0.00048828125,
+        "rms": 1.1793648013735947e-07,
+        "relative_rms": 5.607834238978419e-07
+      },
+      "dw": {
+        "dtype": "torch.bfloat16",
+        "elements": 32768,
+        "different_elements": 8,
+        "finite": true,
+        "max_abs": 0.03125,
+        "rms": 0.00017306662630289793,
+        "relative_rms": 1.842129226942819e-05
+      }
+    },
+    "native_staged_replay_vs_native": {
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "dw": {
+        "dtype": "torch.bfloat16",
+        "elements": 32768,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      }
+    },
+    "instrumented_vs_fused": {
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "dw": {
+        "dtype": "torch.bfloat16",
+        "elements": 32768,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      }
+    },
+    "instrumented_vs_native": {
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 11,
+        "finite": true,
+        "max_abs": 0.00048828125,
+        "rms": 1.1793648013735947e-07,
+        "relative_rms": 5.607834238978419e-07
+      },
+      "dw": {
+        "dtype": "torch.bfloat16",
+        "elements": 32768,
+        "different_elements": 8,
+        "finite": true,
+        "max_abs": 0.03125,
+        "rms": 0.00017306662630289793,
+        "relative_rms": 1.842129226942819e-05
+      }
+    },
+    "stages": {
+      "rounded_preactivation": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "rounded_normalized_qk": {
+        "dtype": "torch.bfloat16",
+        "elements": 33554432,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "fp32_rstd": {
+        "dtype": "torch.float32",
+        "elements": 262144,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "rounded_packed_dy": {
+        "dtype": "torch.bfloat16",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      },
+      "fp32_post_silu": {
+        "dtype": "torch.float32",
+        "elements": 67108864,
+        "different_elements": 0,
+        "finite": true,
+        "max_abs": 0.0,
+        "rms": 0.0,
+        "relative_rms": 0.0
+      }
+    },
+    "replay_using_fused_main_derivative": {
+      "vs_original": {
+        "dx": {
+          "dtype": "torch.bfloat16",
+          "elements": 67108864,
+          "different_elements": 0,
+          "finite": true,
+          "max_abs": 0.0,
+          "rms": 0.0,
+          "relative_rms": 0.0
+        },
+        "dw": {
+          "dtype": "torch.bfloat16",
+          "elements": 32768,
+          "different_elements": 0,
+          "finite": true,
+          "max_abs": 0.0,
+          "rms": 0.0,
+          "relative_rms": 0.0
+        }
+      },
+      "vs_fused": {
+        "dx": {
+          "dtype": "torch.bfloat16",
+          "elements": 67108864,
+          "different_elements": 11,
+          "finite": true,
+          "max_abs": 0.00048828125,
+          "rms": 1.1793648013735947e-07,
+          "relative_rms": 5.607834238978419e-07
+        },
+        "dw": {
+          "dtype": "torch.bfloat16",
+          "elements": 32768,
+          "different_elements": 8,
+          "finite": true,
+          "max_abs": 0.03125,
+          "rms": 0.00017306662630289793,
+          "relative_rms": 1.842129413936525e-05
+        }
+      }
+    },
+    "dx_outliers": [
+      {
+        "point": [
+          1,
+          1149,
+          3297
+        ],
+        "native": 0.056884765625,
+        "fused": 0.056396484375,
+        "instrumented_before_dx_round": 0.05640626326203346,
+        "taps": [
+          {
+            "output_token": 1149,
+            "halo": false,
+            "weight": 0.259765625,
+            "preactivation_bf16": [
+              -0.279296875,
+              -0.279296875,
+              -0.279296875
+            ],
+            "packed_dy_bf16": [
+              0.033447265625,
+              0.033447265625,
+              0.033447265625
+            ],
+            "fp64_packed_dy_before_cast": 0.0333277897772969,
+            "post_silu_fp32_vs_fp64": [
+              0.012112797237932682,
+              0.012112797237932682,
+              0.012112797683492492
+            ],
+            "contributions_fp64": [
+              0.003146488345009857,
+              0.003146488345009857,
+              0.0031464884607509793
+            ],
+            "normalized": [
+              -0.035400390625,
+              -0.035400390625,
+              -0.035400390625
+            ],
+            "rstd": [
+              0.2942926585674286,
+              0.2942926585674286,
+              0.29429263653512255
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.15268859267234802,
+              -0.15268861129879951
+            ]
+          },
+          {
+            "output_token": 1150,
+            "halo": false,
+            "weight": -0.05126953125,
+            "preactivation_bf16": [
+              -0.2578125,
+              -0.2578125,
+              -0.2578125
+            ],
+            "packed_dy_bf16": [
+              -0.17578125,
+              -0.17578125,
+              -0.17578125
+            ],
+            "fp64_packed_dy_before_cast": -0.17553857263378592,
+            "post_silu_fp32_vs_fp64": [
+              -0.06547985225915909,
+              -0.06547985225915909,
+              -0.06547985988020082
+            ],
+            "contributions_fp64": [
+              0.00335712133164634,
+              0.00335712133164634,
+              0.003357121722373577
+            ],
+            "normalized": [
+              -0.037109375,
+              -0.037109375,
+              -0.037109375
+            ],
+            "rstd": [
+              0.33013594150543213,
+              0.33013594150543213,
+              0.3301359587372283
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.22308388352394104,
+              -0.22308388724923134
+            ]
+          },
+          {
+            "output_token": 1151,
+            "halo": false,
+            "weight": 0.5859375,
+            "preactivation_bf16": [
+              0.66015625,
+              0.66015625,
+              0.66015625
+            ],
+            "packed_dy_bf16": [
+              -0.09375,
+              -0.09375,
+              -0.09375
+            ],
+            "fp64_packed_dy_before_cast": -0.09356714398287476,
+            "post_silu_fp32_vs_fp64": [
+              -0.07571091502904892,
+              -0.07571091502904892,
+              -0.07571091095521226
+            ],
+            "contributions_fp64": [
+              -0.04436186427483335,
+              -0.04436186427483335,
+              -0.04436186188781969
+            ],
+            "normalized": [
+              0.189453125,
+              0.189453125,
+              0.189453125
+            ],
+            "rstd": [
+              0.43679583072662354,
+              0.43679583072662354,
+              0.4367958292294624
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.7146719694137573,
+              -0.7146719545125961
+            ]
+          },
+          {
+            "output_token": 1152,
+            "halo": true,
+            "weight": 0.578125,
+            "preactivation_bf16": [
+              0.71875,
+              0.71875,
+              0.71875
+            ],
+            "packed_dy_bf16": [
+              0.197265625,
+              0.1962890625,
+              0.197265625
+            ],
+            "fp64_packed_dy_before_cast": 0.19677734387577278,
+            "post_silu_fp32_vs_fp64": [
+              0.16386334598064423,
+              0.16305214166641235,
+              0.16386334834999636
+            ],
+            "contributions_fp64": [
+              0.09473349689505994,
+              0.09426451940089464,
+              0.09473349826484165
+            ],
+            "normalized": [
+              0.15234375,
+              0.15234375,
+              0.15234375
+            ],
+            "rstd": [
+              0.3164718747138977,
+              0.3164718449115753,
+              0.3164718717628979
+            ],
+            "fp32_dot_vs_fp64": [
+              0.17495222389698029,
+              0.17495220992714167
+            ]
+          }
+        ],
+        "fp64_lane_accumulation": [
+          0.05687524229688279,
+          0.05640626480271749,
+          0.05687524656014652
+        ],
+        "fp64_lane_accumulation_rounded": [
+          0.056884765625,
+          0.056396484375,
+          0.056884765625
+        ]
+      },
+      {
+        "point": [
+          1,
+          3390,
+          3739
+        ],
+        "native": 0.0076904296875,
+        "fused": 0.007568359375,
+        "instrumented_before_dx_round": 0.0075711957179009914,
+        "taps": [
+          {
+            "output_token": 3390,
+            "halo": false,
+            "weight": 0.455078125,
+            "preactivation_bf16": [
+              0.38671875,
+              0.38671875,
+              0.38671875
+            ],
+            "packed_dy_bf16": [
+              0.00921630859375,
+              0.00921630859375,
+              0.00921630859375
+            ],
+            "fp64_packed_dy_before_cast": 0.009242937236288275,
+            "post_silu_fp32_vs_fp64": [
+              0.00634677242487669,
+              0.00634677242487669,
+              0.006346772406057327
+            ],
+            "contributions_fp64": [
+              0.0028882772949145874,
+              0.0028882772949145874,
+              0.002888277286350307
+            ],
+            "normalized": [
+              0.0751953125,
+              0.0751953125,
+              0.0751953125
+            ],
+            "rstd": [
+              0.32635262608528137,
+              0.32635262608528137,
+              0.3263526206140832
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.3011578917503357,
+              -0.3011579215526581
+            ]
+          },
+          {
+            "output_token": 3391,
+            "halo": false,
+            "weight": 0.7109375,
+            "preactivation_bf16": [
+              0.306640625,
+              0.306640625,
+              0.306640625
+            ],
+            "packed_dy_bf16": [
+              0.0458984375,
+              0.0458984375,
+              0.0458984375
+            ],
+            "fp64_packed_dy_before_cast": 0.04597422453836664,
+            "post_silu_fp32_vs_fp64": [
+              0.029877636581659317,
+              0.029877636581659317,
+              0.029877635202852405
+            ],
+            "contributions_fp64": [
+              0.02124113225727342,
+              0.02124113225727342,
+              0.02124113127702788
+            ],
+            "normalized": [
+              0.06298828125,
+              0.06298828125,
+              0.06298828125
+            ],
+            "rstd": [
+              0.3559017777442932,
+              0.3559017777442932,
+              0.35590176597612605
+            ],
+            "fp32_dot_vs_fp64": [
+              0.8484191298484802,
+              0.8484191261231899
+            ]
+          },
+          {
+            "output_token": 3392,
+            "halo": true,
+            "weight": -0.1298828125,
+            "preactivation_bf16": [
+              0.72265625,
+              0.72265625,
+              0.72265625
+            ],
+            "packed_dy_bf16": [
+              0.1494140625,
+              0.150390625,
+              0.1494140625
+            ],
+            "fp64_packed_dy_before_cast": 0.1499023177938515,
+            "post_silu_fp32_vs_fp64": [
+              0.12433931231498718,
+              0.12515199184417725,
+              0.12433930552928185
+            ],
+            "contributions_fp64": [
+              -0.01614953958778642,
+              -0.016255092690698802,
+              -0.01614953870643993
+            ],
+            "normalized": [
+              0.1728515625,
+              0.1728515625,
+              0.1728515625
+            ],
+            "rstd": [
+              0.3571346402168274,
+              0.3571346700191498,
+              0.357134628214373
+            ],
+            "fp32_dot_vs_fp64": [
+              0.05757157504558563,
+              0.057571588549762964
+            ]
+          },
+          {
+            "output_token": 3393,
+            "halo": true,
+            "weight": 0.10498046875,
+            "preactivation_bf16": [
+              0.22265625,
+              0.22265625,
+              0.22265625
+            ],
+            "packed_dy_bf16": [
+              -0.004730224609375,
+              -0.004730224609375,
+              -0.004730224609375
+            ],
+            "fp64_packed_dy_before_cast": -0.004718810764460689,
+            "post_silu_fp32_vs_fp64": [
+              -0.0028874001000076532,
+              -0.0028874001000076532,
+              -0.00288740032169841
+            ],
+            "contributions_fp64": [
+              -0.0003031206159676003,
+              -0.0003031206159676003,
+              -0.00030312063924079987
+            ],
+            "normalized": [
+              0.0390625,
+              0.0390625,
+              0.0390625
+            ],
+            "rstd": [
+              0.3158137798309326,
+              0.3158137798309326,
+              0.31581378485042144
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.47999119758605957,
+              -0.4799911882728338
+            ]
+          }
+        ],
+        "fp64_lane_accumulation": [
+          0.007676749348433987,
+          0.007571196245521605,
+          0.007676749217697458
+        ],
+        "fp64_lane_accumulation_rounded": [
+          0.0076904296875,
+          0.007568359375,
+          0.0076904296875
+        ]
+      },
+      {
+        "point": [
+          1,
+          3967,
+          2107
+        ],
+        "native": 0.007781982421875,
+        "fused": 0.0076904296875,
+        "instrumented_before_dx_round": 0.007679026573896408,
+        "taps": [
+          {
+            "output_token": 3967,
+            "halo": false,
+            "weight": 0.369140625,
+            "preactivation_bf16": [
+              -0.427734375,
+              -0.427734375,
+              -0.427734375
+            ],
+            "packed_dy_bf16": [
+              0.1591796875,
+              0.1591796875,
+              0.1591796875
+            ],
+            "fp64_packed_dy_before_cast": 0.15886759973849915,
+            "post_silu_fp32_vs_fp64": [
+              0.04655680060386658,
+              0.04655680060386658,
+              0.04655680585498638
+            ],
+            "contributions_fp64": [
+              0.017186006472911686,
+              0.017186006472911686,
+              0.017186008411313333
+            ],
+            "normalized": [
+              -0.0478515625,
+              -0.0478515625,
+              -0.0478515625
+            ],
+            "rstd": [
+              0.2835925221443176,
+              0.2835925221443176,
+              0.2835925176403664
+            ],
+            "fp32_dot_vs_fp64": [
+              0.11513157188892365,
+              0.11513156816363335
+            ]
+          },
+          {
+            "output_token": 3968,
+            "halo": true,
+            "weight": -0.91796875,
+            "preactivation_bf16": [
+              -0.1533203125,
+              -0.1533203125,
+              -0.1533203125
+            ],
+            "packed_dy_bf16": [
+              0.08251953125,
+              0.08251953125,
+              0.08251953125
+            ],
+            "fp64_packed_dy_before_cast": 0.08234107762541594,
+            "post_silu_fp32_vs_fp64": [
+              0.034958500415086746,
+              0.034958500415086746,
+              0.03495850253356354
+            ],
+            "contributions_fp64": [
+              -0.03209081092791166,
+              -0.03209081092791166,
+              -0.032090812872607156
+            ],
+            "normalized": [
+              -0.01904296875,
+              -0.01904296875,
+              -0.01904296875
+            ],
+            "rstd": [
+              0.2694980204105377,
+              0.2694980204105377,
+              0.2694980179380225
+            ],
+            "fp32_dot_vs_fp64": [
+              0.14706887304782867,
+              0.1470688572153449
+            ]
+          },
+          {
+            "output_token": 3969,
+            "halo": true,
+            "weight": -0.353515625,
+            "preactivation_bf16": [
+              0.75390625,
+              0.75390625,
+              0.75390625
+            ],
+            "packed_dy_bf16": [
+              -0.154296875,
+              -0.154296875,
+              -0.154296875
+            ],
+            "fp64_packed_dy_before_cast": -0.15384120285734668,
+            "post_silu_fp32_vs_fp64": [
+              -0.13023756444454193,
+              -0.13023756444454193,
+              -0.13023756609431417
+            ],
+            "contributions_fp64": [
+              0.04604101399309002,
+              0.04604101399309002,
+              0.04604101457631028
+            ],
+            "normalized": [
+              0.171875,
+              0.171875,
+              0.171875
+            ],
+            "rstd": [
+              0.3330560028553009,
+              0.3330560028553009,
+              0.3330559991276273
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.289808452129364,
+              -0.2898084819316864
+            ]
+          },
+          {
+            "output_token": 3970,
+            "halo": true,
+            "weight": -0.5234375,
+            "preactivation_bf16": [
+              0.73828125,
+              0.73828125,
+              0.73828125
+            ],
+            "packed_dy_bf16": [
+              0.05322265625,
+              0.053466796875,
+              0.053466796875
+            ],
+            "fp64_packed_dy_before_cast": 0.05336508032092163,
+            "post_silu_fp32_vs_fp64": [
+              0.04460909217596054,
+              0.044813722372055054,
+              0.044813721448456675
+            ],
+            "contributions_fp64": [
+              -0.023350071685854346,
+              -0.023457182804122567,
+              -0.02345718232067654
+            ],
+            "normalized": [
+              0.197265625,
+              0.197265625,
+              0.197265625
+            ],
+            "rstd": [
+              0.39519229531288147,
+              0.3951922655105591,
+              0.3951922924499438
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.3503791391849518,
+              -0.350379154086113
+            ]
+          }
+        ],
+        "fp64_lane_accumulation": [
+          0.007786137852235697,
+          0.007679026733967476,
+          0.007679027794339918
+        ],
+        "fp64_lane_accumulation_rounded": [
+          0.007781982421875,
+          0.0076904296875,
+          0.0076904296875
+        ]
+      },
+      {
+        "point": [
+          1,
+          3967,
+          2129
+        ],
+        "native": -0.0052490234375,
+        "fused": -0.0054931640625,
+        "instrumented_before_dx_round": -0.005480519495904446,
+        "taps": [
+          {
+            "output_token": 3967,
+            "halo": false,
+            "weight": 0.53515625,
+            "preactivation_bf16": [
+              0.6328125,
+              0.6328125,
+              0.6328125
+            ],
+            "packed_dy_bf16": [
+              0.006622314453125,
+              0.006622314453125,
+              0.006622314453125
+            ],
+            "fp64_packed_dy_before_cast": 0.006628479870971527,
+            "post_silu_fp32_vs_fp64": [
+              0.005274619907140732,
+              0.005274619907140732,
+              0.005274620122257253
+            ],
+            "contributions_fp64": [
+              0.0028227458096807823,
+              0.0028227458096807823,
+              0.002822745924801733
+            ],
+            "normalized": [
+              0.1171875,
+              0.1171875,
+              0.1171875
+            ],
+            "rstd": [
+              0.2835925221443176,
+              0.2835925221443176,
+              0.2835925176403664
+            ],
+            "fp32_dot_vs_fp64": [
+              0.11513157188892365,
+              0.11513156816363335
+            ]
+          },
+          {
+            "output_token": 3968,
+            "halo": true,
+            "weight": 0.6640625,
+            "preactivation_bf16": [
+              -0.8984375,
+              -0.8984375,
+              -0.8984375
+            ],
+            "packed_dy_bf16": [
+              -0.072265625,
+              -0.072265625,
+              -0.072265625
+            ],
+            "fp64_packed_dy_before_cast": -0.072502487691014,
+            "post_silu_fp32_vs_fp64": [
+              -0.007560492027550936,
+              -0.007560492027550936,
+              -0.007560491610935437
+            ],
+            "contributions_fp64": [
+              -0.005020639237045543,
+              -0.005020639237045543,
+              -0.0050206389603868135
+            ],
+            "normalized": [
+              -0.06982421875,
+              -0.06982421875,
+              -0.06982421875
+            ],
+            "rstd": [
+              0.2694980204105377,
+              0.2694980204105377,
+              0.2694980179380225
+            ],
+            "fp32_dot_vs_fp64": [
+              0.14706887304782867,
+              0.1470688572153449
+            ]
+          },
+          {
+            "output_token": 3969,
+            "halo": true,
+            "weight": -0.8984375,
+            "preactivation_bf16": [
+              -0.038818359375,
+              -0.038818359375,
+              -0.038818359375
+            ],
+            "packed_dy_bf16": [
+              0.10400390625,
+              0.10400390625,
+              0.10400390625
+            ],
+            "fp64_packed_dy_before_cast": 0.10411780837042067,
+            "post_silu_fp32_vs_fp64": [
+              0.04998382553458214,
+              0.04998382553458214,
+              0.04998382947310959
+            ],
+            "contributions_fp64": [
+              -0.04490734325372614,
+              -0.04490734325372614,
+              -0.044907346792246894
+            ],
+            "normalized": [
+              -0.00634765625,
+              -0.00634765625,
+              -0.00634765625
+            ],
+            "rstd": [
+              0.3330560028553009,
+              0.3330560028553009,
+              0.3330559991276273
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.289808452129364,
+              -0.2898084819316864
+            ]
+          },
+          {
+            "output_token": 3970,
+            "halo": true,
+            "weight": 0.578125,
+            "preactivation_bf16": [
+              0.75,
+              0.75,
+              0.75
+            ],
+            "packed_dy_bf16": [
+              0.0859375,
+              0.08544921875,
+              0.08544921875
+            ],
+            "fp64_packed_dy_before_cast": 0.0856099685538418,
+            "post_silu_fp32_vs_fp64": [
+              0.0724109336733818,
+              0.07199951261281967,
+              0.07199950697604096
+            ],
+            "contributions_fp64": [
+              0.041862571029923856,
+              0.04162471822928637,
+              0.04162471497052368
+            ],
+            "normalized": [
+              0.201171875,
+              0.2001953125,
+              0.2001953125
+            ],
+            "rstd": [
+              0.39519229531288147,
+              0.3951922655105591,
+              0.3951922924499438
+            ],
+            "fp32_dot_vs_fp64": [
+              -0.3503791391849518,
+              -0.350379154086113
+            ]
+          }
+        ],
+        "fp64_lane_accumulation": [
+          -0.005242665651167044,
+          -0.005480518451804528,
+          -0.005480524857308293
+        ],
+        "fp64_lane_accumulation_rounded": [
+          -0.0052490234375,
+          -0.0054931640625,
+          -0.0054931640625
+        ]
+      }
+    ]
+  }
+}

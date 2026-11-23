@@ -1,0 +1,376 @@
+{
+  "command": [
+    "runs/linear-fixes/mla_component.py",
+    "--seqlen",
+    "4096",
+    "--input-fixtures",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/proddata-component-capture-001/native-inputs",
+    "--crop-kernel",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/kernel-fusion/native-mla-rope-001/gift/torchtitan/models/common/attention/softmax/mla_rope_pack.py",
+    "--mode",
+    "check",
+    "--output",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/mla-4k-check.json"
+  ],
+  "gift_revision": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+  "current_kernel_sha256": "699ac3d9621e85696a6ddedea4853ffe86d916bd83425627eb4c726e15db203f",
+  "harness_sha256": "a2b642b87435eec87d8ea474cb2d561f6f468540adf6a0c1a05be19222c16d82",
+  "crop_kernel": {
+    "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/kernel-fusion/native-mla-rope-001/gift/torchtitan/models/common/attention/softmax/mla_rope_pack.py",
+    "sha256": "1a5dc6ea665934ec696027ad5c211ad8e8bb1011d400a06284875ed97bf9bf9a",
+    "revision": "fe5950b56de5b2cec7ff4cd063f7338c98200c45"
+  },
+  "pytorch": "2.15.0.dev20260822+cu130",
+  "cuda": "13.0",
+  "cudnn": 92400,
+  "triton": "3.8.0",
+  "device": "NVIDIA H100 80GB HBM3",
+  "compute_capability": [
+    9,
+    0
+  ],
+  "shape": {
+    "batch": 2,
+    "sequence": 4096,
+    "heads": 32,
+    "model_dim": 4096
+  },
+  "q_lora_rank": 0,
+  "dtype": "bfloat16",
+  "inputs": "captured MTP hidden/upstream; rank sequences concatenated at 8K; causal arange",
+  "weights": "shared seeded Xavier matrices and zero vectors",
+  "mode": "check",
+  "seed": 19321,
+  "fixture_root": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/proddata-component-capture-001/native-inputs",
+  "fixture_receipts": [
+    {
+      "rank": 0,
+      "world_size": 8,
+      "source_head": "2ada87125e433e1f76c4cb2bfad244b641a78a93",
+      "capture_sha256": "12e8904181e6cd8ed3defc31f08dfab6a8270a38cbb0c3c2be677b1e082c695f",
+      "tensors_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+      "input_ids_int64_sha256": "4ae436688e47ba2af1c6cc8c1d0f18c015912e2b0f943c60fa773882f3f9193f"
+    }
+  ],
+  "selective_activation_checkpoint": "save:experts_up",
+  "compile": {
+    "backend": "inductor",
+    "fullgraph": true,
+    "dynamic": false,
+    "cudagraphs": false
+  },
+  "rope_flag": {
+    "baseline": 0,
+    "control": 0,
+    "candidate": 1,
+    "crop": 1
+  },
+  "results": {
+    "control": {
+      "output": {
+        "finite": true,
+        "elements": 33554432,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "input": {
+        "finite": true,
+        "elements": 33554432,
+        "mismatches": 58,
+        "max_abs": 3.637978807091713e-12,
+        "rmse": 1.2109016017145725e-15,
+        "relative_l2": 3.2607577935294755e-06,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wq.weight": {
+        "finite": true,
+        "elements": 25165824,
+        "mismatches": 100,
+        "max_abs": 9.313225746154785e-10,
+        "rmse": 4.427388835606437e-13,
+        "relative_l2": 5.304220920248946e-06,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wkv_a.weight": {
+        "finite": true,
+        "elements": 2359296,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.weight": {
+        "finite": true,
+        "elements": 512,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.gate_up_weight": {
+        "finite": true,
+        "elements": 8192,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.gate_down_weight": {
+        "finite": true,
+        "elements": 8192,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wkv_b.weight": {
+        "finite": true,
+        "elements": 4194304,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wo.weight": {
+        "finite": true,
+        "elements": 16777216,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "gate.gate_proj.weight": {
+        "finite": true,
+        "elements": 16777216,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      }
+    },
+    "candidate": {
+      "output": {
+        "finite": true,
+        "elements": 33554432,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "input": {
+        "finite": true,
+        "elements": 33554432,
+        "mismatches": 154,
+        "max_abs": 3.637978807091713e-12,
+        "rmse": 1.9632709468663647e-15,
+        "relative_l2": 5.286764037424635e-06,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wq.weight": {
+        "finite": true,
+        "elements": 25165824,
+        "mismatches": 339,
+        "max_abs": 9.313225746154785e-10,
+        "rmse": 4.852087863808196e-13,
+        "relative_l2": 5.81303041357383e-06,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wkv_a.weight": {
+        "finite": true,
+        "elements": 2359296,
+        "mismatches": 26,
+        "max_abs": 1.862645149230957e-09,
+        "rmse": 2.2212550521508818e-12,
+        "relative_l2": 1.0909466528090905e-05,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.weight": {
+        "finite": true,
+        "elements": 512,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.gate_up_weight": {
+        "finite": true,
+        "elements": 8192,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.gate_down_weight": {
+        "finite": true,
+        "elements": 8192,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wkv_b.weight": {
+        "finite": true,
+        "elements": 4194304,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wo.weight": {
+        "finite": true,
+        "elements": 16777216,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "gate.gate_proj.weight": {
+        "finite": true,
+        "elements": 16777216,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      }
+    },
+    "crop": {
+      "output": {
+        "finite": true,
+        "elements": 33554432,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "input": {
+        "finite": true,
+        "elements": 33554432,
+        "mismatches": 152,
+        "max_abs": 3.637978807091713e-12,
+        "rmse": 2.1899693591100277e-15,
+        "relative_l2": 5.897225377518333e-06,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wq.weight": {
+        "finite": true,
+        "elements": 25165824,
+        "mismatches": 157,
+        "max_abs": 1.862645149230957e-09,
+        "rmse": 7.008626593274136e-13,
+        "relative_l2": 8.396665659741113e-06,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wkv_a.weight": {
+        "finite": true,
+        "elements": 2359296,
+        "mismatches": 26,
+        "max_abs": 1.862645149230957e-09,
+        "rmse": 2.2212550521508818e-12,
+        "relative_l2": 1.0909466528090905e-05,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.weight": {
+        "finite": true,
+        "elements": 512,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.gate_up_weight": {
+        "finite": true,
+        "elements": 8192,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "kv_norm.gate_down_weight": {
+        "finite": true,
+        "elements": 8192,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wkv_b.weight": {
+        "finite": true,
+        "elements": 4194304,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "wo.weight": {
+        "finite": true,
+        "elements": 16777216,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      },
+      "gate.gate_proj.weight": {
+        "finite": true,
+        "elements": 16777216,
+        "mismatches": 0,
+        "max_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0,
+        "relative_l2_limit": 0.01,
+        "passed": true
+      }
+    }
+  }
+}

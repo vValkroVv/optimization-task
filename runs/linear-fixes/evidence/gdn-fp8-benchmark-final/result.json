@@ -1,0 +1,1175 @@
+{
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/gdn-qkv-rank0.pt",
+  "fixture_receipt": {
+    "fixture_sha256": "7e244453fe8d7de975438cc9584a112e687832fd06896bf4db47bc63eb4c52f3",
+    "rank": 0,
+    "world_size": 8,
+    "source_revision": "0f0bf5604f43d8150065f90f90216fd4ba3e5ec1",
+    "qkv_shape": [
+      2,
+      4096,
+      8192
+    ],
+    "weight_shape": [
+      8192,
+      4096
+    ]
+  },
+  "adaptation": "FLA scan replay from captured native QKV and real-data hidden, seeded gate/output weights, captured dV as projection cotangent",
+  "seed": 2048,
+  "git_revision": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+  "device": "NVIDIA H100 80GB HBM3",
+  "visible_device": "GPU-7affb26d-635e-7d29-8248-bb66771e44f5",
+  "torch": "2.15.0.dev20260822+cu130",
+  "cuda": "13.0",
+  "triton": "3.8.0",
+  "input_shape": [
+    2,
+    4096,
+    32,
+    128
+  ],
+  "input_dtype": "torch.bfloat16",
+  "projection_weight_shape": [
+    4096,
+    4096
+  ],
+  "norm_args": [
+    1e-06,
+    "sigmoid",
+    true,
+    2.0
+  ],
+  "source_sha256": {
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-followup/gdn_component.py": "8334f911b633a69a58700596d79b38b86d6f7de0dc11c0a7ae7dc44239a8fea7",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/runs/linear-fixes/gdn_output_fp8_component.py": "a96d40dc9d5f3c2b46188b40215ffa774ad59cd0dbd2ab0277ec735e0973adbe",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/torchtitan/models/common/attention/linear/fla_custom_ops.py": "8b218f879fe3b3da2ebc77fa1735a6ae2a501885bcadfb000dd294a19d16dcd7",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/torchtitan/models/common/attention/linear/gdn_output_fp8.py": "0d02ba26e7e5f422ab17d414066b00f22ab2827b9078e402f0988b3a604604e4",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/torchtitan/ops/float8/cuda_gemm.py": "e4f8e9249ee13951ee4ff7de9f87c641a272157a3eb8fbbb59de1d4ec6304f13"
+  },
+  "forward_payload": {
+    "parity": {
+      "fp8_bytes": {
+        "bitwise": true
+      },
+      "scales": {
+        "bitwise": true
+      }
+    },
+    "scope": "compiled norm, multiplier and FP8 packing, no projection GEMM",
+    "graph_replays_per_sample": 20,
+    "timing_us": {
+      "baseline": {
+        "graph_us": {
+          "samples": [
+            152.20160484313965,
+            152.02720165252686,
+            151.99999809265137,
+            151.89599990844727,
+            151.95519924163818,
+            152.21920013427734,
+            152.05119848251343,
+            151.8928050994873,
+            152.18240022659302,
+            151.76639556884766,
+            151.98400020599365,
+            151.8272042274475
+          ],
+          "median": 151.9919991493225
+        },
+        "event_elapsed_us": {
+          "samples": [
+            494.9760138988495,
+            286.655992269516,
+            279.83999252319336,
+            277.1199941635132,
+            272.15999364852905,
+            275.9679853916168,
+            282.46399760246277,
+            270.3680098056793,
+            270.4640030860901,
+            286.1439883708954,
+            286.97600960731506,
+            273.6000120639801
+          ],
+          "median": 278.47999334335327
+        },
+        "host_call_us": {
+          "samples": [
+            431.1680095270276,
+            198.2449903152883,
+            190.57904137298465,
+            185.05402840673923,
+            175.37601524963975,
+            182.88800492882729,
+            190.5940007418394,
+            174.32199092581868,
+            176.95699352771044,
+            198.62200133502483,
+            191.14103633910418,
+            186.61399371922016
+          ],
+          "median": 188.5965175461024
+        },
+        "event_record_wait_us": {
+          "samples": [
+            69.62596671655774,
+            95.25398490950465,
+            96.75498586148024,
+            98.4339858405292,
+            103.234953712672,
+            99.56397116184235,
+            98.41698920354247,
+            102.41998825222254,
+            100.07503442466259,
+            94.16998364031315,
+            102.13698260486126,
+            93.62399578094482
+          ],
+          "median": 98.42548752203584
+        },
+        "wall_us": {
+          "samples": [
+            500.79397624358535,
+            293.49897522479296,
+            287.3340272344649,
+            283.48801424726844,
+            278.61096896231174,
+            282.45197609066963,
+            289.0109899453819,
+            276.7419791780412,
+            277.032027952373,
+            292.791984975338,
+            293.27801894396544,
+            280.237989500165
+          ],
+          "median": 285.41102074086666
+        }
+      },
+      "candidate": {
+        "graph_us": {
+          "samples": [
+            69.09120082855225,
+            69.02239918708801,
+            69.14719939231873,
+            69.13599967956543,
+            69.08959746360779,
+            69.03200149536133,
+            69.02719736099243,
+            68.95840167999268,
+            69.04320120811462,
+            69.2143976688385,
+            69.02080178260803,
+            68.91199946403503
+          ],
+          "median": 69.03760135173798
+        },
+        "event_elapsed_us": {
+          "samples": [
+            200.3519982099533,
+            168.67199540138245,
+            156.22399747371674,
+            163.55200111865997,
+            155.4879993200302,
+            156.76799416542053,
+            156.54399991035461,
+            152.70400047302246,
+            159.93599593639374,
+            153.4080058336258,
+            155.10399639606476,
+            157.47199952602386
+          ],
+          "median": 156.65599703788757
+        },
+        "host_call_us": {
+          "samples": [
+            158.94300304353237,
+            125.46498328447342,
+            110.36795331165195,
+            119.70498599112034,
+            108.94297156482935,
+            110.46597501263022,
+            112.12402023375034,
+            106.22601257637143,
+            115.46997120603919,
+            108.62300405278802,
+            109.23895752057433,
+            111.41097638756037
+          ],
+          "median": 110.9384757000953
+        },
+        "event_record_wait_us": {
+          "samples": [
+            47.79902519658208,
+            49.614987801760435,
+            52.01500607654452,
+            50.246017053723335,
+            52.95604933053255,
+            52.61000478640199,
+            50.87599856778979,
+            53.050986025482416,
+            50.62803393229842,
+            51.08601180836558,
+            52.381015848368406,
+            52.50901449471712
+          ],
+          "median": 51.55050894245505
+        },
+        "wall_us": {
+          "samples": [
+            206.74202824011445,
+            175.07997108623385,
+            162.38295938819647,
+            169.95100304484367,
+            161.8990208953619,
+            163.0759797990322,
+            163.00001880154014,
+            159.27699860185385,
+            166.0980051383376,
+            159.7090158611536,
+            161.61997336894274,
+            163.9199908822775
+          ],
+          "median": 163.03799930028617
+        }
+      },
+      "control": {
+        "graph_us": {
+          "samples": [
+            151.44000053405762,
+            151.28159523010254,
+            151.45119428634644,
+            151.5936017036438,
+            151.41119956970215,
+            151.6208052635193,
+            151.50879621505737,
+            151.54720544815063,
+            151.47680044174194,
+            151.47680044174194,
+            151.4799952507019,
+            151.62880420684814
+          ],
+          "median": 151.47839784622192
+        },
+        "event_elapsed_us": {
+          "samples": [
+            306.4959943294525,
+            293.2159900665283,
+            273.75999093055725,
+            274.4640111923218,
+            282.4319899082184,
+            281.3119888305664,
+            274.84801411628723,
+            272.352010011673,
+            276.2559950351715,
+            271.67999744415283,
+            283.2320034503937,
+            274.1119861602783
+          ],
+          "median": 275.55200457572937
+        },
+        "host_call_us": {
+          "samples": [
+            222.72602654993534,
+            207.52102136611938,
+            178.86899877339602,
+            183.54097846895456,
+            199.4689810089767,
+            190.24801440536976,
+            185.19500736147165,
+            176.17095727473497,
+            183.29499289393425,
+            174.72897889092565,
+            189.27297787740827,
+            178.65601694211364
+          ],
+          "median": 184.3679929152131
+        },
+        "event_record_wait_us": {
+          "samples": [
+            90.24300379678607,
+            92.61496597900987,
+            101.40601079910994,
+            97.3720452748239,
+            89.50498886406422,
+            97.44998533278704,
+            95.90300032868981,
+            102.49402839690447,
+            99.313969258219,
+            103.41103188693523,
+            100.33801663666964,
+            101.75100760534406
+          ],
+          "median": 98.38197729550302
+        },
+        "wall_us": {
+          "samples": [
+            312.9690303467214,
+            300.13598734512925,
+            280.27500957250595,
+            280.91302374377847,
+            288.9739698730409,
+            287.6979997381568,
+            281.09800769016147,
+            278.66498567163944,
+            282.60896215215325,
+            278.1400107778609,
+            289.6109945140779,
+            280.4070245474577
+          ],
+          "median": 281.85348492115736
+        }
+      }
+    },
+    "memory": {
+      "baseline": {
+        "start_allocated_bytes": 335545856,
+        "start_reserved_bytes": 438304768,
+        "peak_allocated_bytes": 437257728,
+        "peak_reserved_bytes": 505413632
+      },
+      "candidate": {
+        "start_allocated_bytes": 335545856,
+        "start_reserved_bytes": 438304768,
+        "peak_allocated_bytes": 370148864,
+        "peak_reserved_bytes": 438304768
+      }
+    },
+    "traces": {
+      "baseline": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-fp8-benchmark-final/payload-baseline.json",
+        "sha256": "2c9833c8e0642c5e9353e1a91ef6a8a5db70dfde6a083926e25de8dd56dea94b",
+        "counts": {
+          "kernel": 3
+        },
+        "device_span_us": 202.56103515625,
+        "device_gap_us": 55.967875,
+        "kernel_time_us": 146.59300000000002,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            63.777
+          ],
+          [
+            "triton_poi_fused_mul_quantize_vec128_view_0",
+            [
+              32768,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            43.552
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              1024,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            39.264
+          ]
+        ]
+      },
+      "candidate": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-fp8-benchmark-final/payload-candidate.json",
+        "sha256": "24317fa6c4eedde8d52640bc0770ab331c13574bbfebb89e15461d52d41c088a",
+        "counts": {
+          "kernel": 1
+        },
+        "device_span_us": 69.630859375,
+        "device_gap_us": 0,
+        "kernel_time_us": 69.631,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            69.631
+          ]
+        ]
+      }
+    }
+  },
+  "projection_forward_backward": {
+    "parity": {
+      "output": {
+        "bitwise": true
+      },
+      "dx": {
+        "bitwise": true
+      },
+      "dgate": {
+        "bitwise": true
+      },
+      "dnorm_weight": {
+        "bitwise": true
+      },
+      "dprojection_weight": {
+        "bitwise": true
+      }
+    },
+    "scope": "Inductor fullgraph with selective AC, native FP8 GEMM forward, dgrad and wgrad, FLA norm gradients",
+    "timing_us": {
+      "baseline": {
+        "event_span_us": {
+          "samples": [
+            1624.8960494995117,
+            1610.1759672164917,
+            1647.2320556640625,
+            1630.4320096969604,
+            1605.7599782943726,
+            1610.144019126892,
+            1617.3759698867798,
+            1607.8720092773438,
+            1619.6800470352173,
+            1614.9120330810547,
+            1617.7599430084229,
+            1611.9040250778198
+          ],
+          "median": 1616.1440014839172
+        },
+        "host_call_us": {
+          "samples": [
+            1435.0220444612205,
+            1394.6469989605248,
+            1446.5730055235326,
+            1384.0289902873337,
+            1356.5659755840898,
+            1410.6740127317607,
+            1395.1660366728902,
+            1397.164014633745,
+            1389.6189630031586,
+            1428.0140167102218,
+            1377.2379606962204,
+            1370.9220220334828
+          ],
+          "median": 1394.9065178167075
+        },
+        "host_wait_us": {
+          "samples": [
+            195.80399384722114,
+            222.9830133728683,
+            207.75594748556614,
+            253.6990214139223,
+            256.1660367064178,
+            206.8390022031963,
+            229.43696239963174,
+            218.26900774613023,
+            237.26903600618243,
+            194.26498329266906,
+            247.88500741124153,
+            248.48402244970202
+          ],
+          "median": 226.20998788625002
+        },
+        "wall_us": {
+          "samples": [
+            1630.8260383084416,
+            1617.630012333393,
+            1654.3289530090988,
+            1637.728011701256,
+            1612.7320122905076,
+            1617.513014934957,
+            1624.602999072522,
+            1615.4330223798752,
+            1626.887999009341,
+            1622.2790000028908,
+            1625.122968107462,
+            1619.4060444831848
+          ],
+          "median": 1623.4409995377064
+        }
+      },
+      "candidate": {
+        "event_span_us": {
+          "samples": [
+            1445.7279443740845,
+            1453.05597782135,
+            1444.4799423217773,
+            1444.0640211105347,
+            1431.1039447784424,
+            1448.1600522994995,
+            1425.4720211029053,
+            1417.631983757019,
+            1439.039945602417,
+            1451.904058456421,
+            1427.1999597549438,
+            1447.5200176239014
+          ],
+          "median": 1444.271981716156
+        },
+        "host_call_us": {
+          "samples": [
+            1218.8699911348522,
+            1261.9569897651672,
+            1228.353998158127,
+            1241.4789525792003,
+            1245.2389928512275,
+            1214.2499908804893,
+            1232.9280143603683,
+            1199.3299704045057,
+            1245.8909768611193,
+            1232.1060057729483,
+            1206.6259514540434,
+            1224.912004545331
+          ],
+          "median": 1230.2300019655377
+        },
+        "host_wait_us": {
+          "samples": [
+            234.18298223987222,
+            203.84404342621565,
+            223.33301603794098,
+            209.7630058415234,
+            193.35601245984435,
+            241.43402697518468,
+            199.71397705376148,
+            225.61399964615703,
+            200.3870322369039,
+            227.1119737997651,
+            227.73200180381536,
+            229.59202760830522
+          ],
+          "median": 224.473507842049
+        },
+        "wall_us": {
+          "samples": [
+            1453.0529733747244,
+            1465.8010331913829,
+            1451.687014196068,
+            1451.2419584207237,
+            1438.5950053110719,
+            1455.684017855674,
+            1432.6419914141297,
+            1424.9439700506628,
+            1446.2780090980232,
+            1459.2179795727134,
+            1434.3579532578588,
+            1454.5040321536362
+          ],
+          "median": 1451.4644863083959
+        }
+      },
+      "control": {
+        "event_span_us": {
+          "samples": [
+            1627.2000074386597,
+            1622.6240396499634,
+            1618.5920238494873,
+            1603.4879684448242,
+            1600.0959873199463,
+            1647.5520133972168,
+            1621.0880279541016,
+            1603.5200357437134,
+            1620.7040548324585,
+            1611.9680404663086,
+            1633.6959600448608,
+            1627.3280382156372
+          ],
+          "median": 1620.89604139328
+        },
+        "host_call_us": {
+          "samples": [
+            1410.8219766058028,
+            1397.9419600218534,
+            1413.4500524960458,
+            1379.4510159641504,
+            1399.4909822940826,
+            1440.5670226551592,
+            1395.2819863334298,
+            1403.3620245754719,
+            1410.0279659032822,
+            1417.1609655022621,
+            1401.3709733262658,
+            1397.0619766041636
+          ],
+          "median": 1402.3664989508688
+        },
+        "host_wait_us": {
+          "samples": [
+            223.6749860458076,
+            232.3139924556017,
+            212.45097741484642,
+            231.50199558585882,
+            207.97998877242208,
+            214.27497267723083,
+            232.95899154618382,
+            207.6429664157331,
+            217.96004148200154,
+            202.2300031967461,
+            239.5919873379171,
+            237.86601377651095
+          ],
+          "median": 220.81751376390457
+        },
+        "wall_us": {
+          "samples": [
+            1634.4969626516104,
+            1630.2559524774551,
+            1625.9010299108922,
+            1610.9530115500093,
+            1607.4709710665047,
+            1654.84199533239,
+            1628.2409778796136,
+            1611.004990991205,
+            1627.9880073852837,
+            1619.3909686990082,
+            1640.962960664183,
+            1634.9279903806746
+          ],
+          "median": 1628.1144926324487
+        }
+      }
+    },
+    "memory": {
+      "baseline": {
+        "start_allocated_bytes": 335545856,
+        "start_reserved_bytes": 438304768,
+        "peak_allocated_bytes": 705761792,
+        "peak_reserved_bytes": 809500672
+      },
+      "candidate": {
+        "start_allocated_bytes": 335545856,
+        "start_reserved_bytes": 438304768,
+        "peak_allocated_bytes": 705761792,
+        "peak_reserved_bytes": 843055104
+      }
+    },
+    "traces": {
+      "baseline": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-fp8-benchmark-final/projection-baseline.json",
+        "sha256": "055a5e976c53a1a7bd516cc8bc8f28660c55a2993b459ba67f1095a064354fc7",
+        "counts": {
+          "kernel": 19,
+          "gpu_memset": 3
+        },
+        "device_span_us": 1640.13623046875,
+        "device_gap_us": 275.68218359375,
+        "kernel_time_us": 1362.118,
+        "copy_and_memset_time_us": 2.3360000000000003,
+        "kernels": [
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            67.104
+          ],
+          [
+            "triton_poi_fused_mul_quantize_vec128_view_0",
+            [
+              32768,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            44.288
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              1024,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            38.625
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            17.664
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            217.537
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              1024,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            33.985
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            18.528
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            216.961
+          ],
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            64.48
+          ],
+          [
+            "triton_poi_fused_mul_quantize_vec128_view_0",
+            [
+              32768,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            43.232
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              1024,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            39.936
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              64,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            26.144
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              64,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            28.736
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            263.521
+          ],
+          [
+            "triton_poi_fused_mul_quantize_vec128_view_0",
+            [
+              32768,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            40.608
+          ],
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            68.385
+          ],
+          [
+            "layer_norm_gated_bwd_kernel",
+            [
+              132,
+              1,
+              1
+            ],
+            [
+              512,
+              1,
+              1
+            ],
+            125.024
+          ],
+          [
+            "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              32,
+              4,
+              1
+            ],
+            6.112
+          ],
+          [
+            "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.248
+          ]
+        ]
+      },
+      "candidate": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-fp8-benchmark-final/projection-candidate.json",
+        "sha256": "61c8e5023429c532fe3bdfd59717de08155911a7aacbdb8ba1d98b4d43cdbeed",
+        "counts": {
+          "kernel": 15,
+          "gpu_memset": 3
+        },
+        "device_span_us": 1439.29150390625,
+        "device_gap_us": 234.04471875,
+        "kernel_time_us": 1202.942,
+        "copy_and_memset_time_us": 2.305,
+        "kernels": [
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            67.871
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            16.479
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            217.216
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              1024,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            33.984
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            18.527
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            215.968
+          ],
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            69.184
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              64,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            26.016
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              64,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            29.281
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            263.744
+          ],
+          [
+            "triton_poi_fused_fla_vjp_mul_view_0",
+            [
+              32768,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            41.568
+          ],
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            69.376
+          ],
+          [
+            "layer_norm_gated_bwd_kernel",
+            [
+              132,
+              1,
+              1
+            ],
+            [
+              512,
+              1,
+              1
+            ],
+            125.952
+          ],
+          [
+            "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              32,
+              4,
+              1
+            ],
+            6.496
+          ],
+          [
+            "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.28
+          ]
+        ]
+      }
+    }
+  }
+}

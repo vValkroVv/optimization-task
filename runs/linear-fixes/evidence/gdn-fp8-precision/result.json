@@ -1,0 +1,203 @@
+{
+  "device": "NVIDIA H100 80GB HBM3",
+  "torch": "2.15.0.dev20260822+cu130",
+  "fixture": {
+    "fixture_sha256": "7e244453fe8d7de975438cc9584a112e687832fd06896bf4db47bc63eb4c52f3",
+    "rank": 0,
+    "world_size": 8,
+    "source_revision": "0f0bf5604f43d8150065f90f90216fd4ba3e5ec1",
+    "qkv_shape": [
+      2,
+      4096,
+      8192
+    ],
+    "weight_shape": [
+      8192,
+      4096
+    ]
+  },
+  "10plus10_geometry": {
+    "run": "original-a-vs-cute-001-a2",
+    "resolved_config": "/workspace-SR008.nfs2/vkropotin/a10-cute-001/runs/production-data-abcd/artifacts/raw/original-a-vs-cute-001-a2/native/config/resolved_config.yaml",
+    "resolved_config_sha256": "5e389eebaf3f09d0c9d40232afee8f0ef52ce40530ce2a3dc3510f009ba2d6aa",
+    "value_shape": [
+      2,
+      4096,
+      32,
+      128
+    ],
+    "key_shape": [
+      2,
+      4096,
+      16,
+      128
+    ],
+    "model_dim": 4096,
+    "conv_size": 4,
+    "norm_args": [
+      1e-06,
+      "sigmoid",
+      true,
+      2.0
+    ]
+  },
+  "source_sha256": {
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/torchtitan/models/common/attention/linear/gdn_output_fp8.py": "0d02ba26e7e5f422ab17d414066b00f22ab2827b9078e402f0988b3a604604e4",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/contrib/flash-linear-attention/fla/modules/fused_norm_gate.py": "6e9dc5d94ebb142c82446ac0b80eaab42d535c56b0d97391fd77ba59b39836c9",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-fp8-precision-001/gdn_output_fp8_precision.py": "6c36bd47240650590d8df1dc81c0fdd50d484dcf3843590c9a17ce8493141d6c"
+  },
+  "native_crop": {
+    "shape": [
+      2,
+      4096,
+      32,
+      128
+    ],
+    "gate_dtype": "torch.bfloat16",
+    "multiplier": 2.0,
+    "native_norm_store_matches_bf16_round": {
+      "dtype": "torch.bfloat16",
+      "elements": 33554432,
+      "bitwise_mismatches": 0
+    },
+    "native_multiplier_matches_bf16_round": {
+      "dtype": "torch.bfloat16",
+      "elements": 33554432,
+      "bitwise_mismatches": 0
+    },
+    "candidate_fp8_bytes": {
+      "dtype": "torch.float8_e4m3fn",
+      "elements": 33554432,
+      "bitwise_mismatches": 0
+    },
+    "candidate_native_fp32_scale": {
+      "dtype": "torch.float32",
+      "elements": 262144,
+      "bitwise_mismatches": 0
+    },
+    "candidate_recomputed_fp32_scale": {
+      "dtype": "torch.float32",
+      "elements": 262144,
+      "bitwise_mismatches": 0
+    },
+    "candidate_input_to_fla_vjp": {
+      "dtype": "torch.bfloat16",
+      "elements": 33554432,
+      "bitwise_mismatches": 0
+    },
+    "fla_vjp_input_matches_bf16_round": {
+      "dtype": "torch.bfloat16",
+      "elements": 33554432,
+      "bitwise_mismatches": 0
+    },
+    "projection": {
+      "out": {
+        "dtype": "torch.bfloat16",
+        "elements": 33554432,
+        "bitwise_mismatches": 0
+      },
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 33554432,
+        "bitwise_mismatches": 0
+      },
+      "dgate": {
+        "dtype": "torch.bfloat16",
+        "elements": 33554432,
+        "bitwise_mismatches": 0
+      },
+      "dnorm_weight": {
+        "dtype": "torch.bfloat16",
+        "elements": 128,
+        "bitwise_mismatches": 0
+      },
+      "dprojection_weight": {
+        "dtype": "torch.bfloat16",
+        "elements": 16777216,
+        "bitwise_mismatches": 0
+      }
+    }
+  },
+  "mixed_gate_padded": {
+    "shape": [
+      2,
+      67,
+      3,
+      96
+    ],
+    "gate_dtype": "torch.float32",
+    "multiplier": 1.375,
+    "native_norm_store_matches_bf16_round": {
+      "dtype": "torch.bfloat16",
+      "elements": 38592,
+      "bitwise_mismatches": 0
+    },
+    "native_multiplier_matches_bf16_round": {
+      "dtype": "torch.bfloat16",
+      "elements": 38592,
+      "bitwise_mismatches": 0
+    },
+    "candidate_fp8_bytes": {
+      "dtype": "torch.float8_e4m3fn",
+      "elements": 98304,
+      "bitwise_mismatches": 0
+    },
+    "candidate_native_fp32_scale": {
+      "dtype": "torch.float32",
+      "elements": 768,
+      "bitwise_mismatches": 0
+    },
+    "candidate_recomputed_fp32_scale": {
+      "dtype": "torch.float32",
+      "elements": 768,
+      "bitwise_mismatches": 0
+    },
+    "fp8_bytes_if_norm_bf16_round_omitted": {
+      "dtype": "torch.float8_e4m3fn",
+      "elements": 98304,
+      "bitwise_mismatches": 813
+    },
+    "candidate_input_to_fla_vjp": {
+      "dtype": "torch.bfloat16",
+      "elements": 38592,
+      "bitwise_mismatches": 0
+    },
+    "fla_vjp_input_matches_bf16_round": {
+      "dtype": "torch.bfloat16",
+      "elements": 38592,
+      "bitwise_mismatches": 0
+    },
+    "fla_vjp_input_if_bf16_round_omitted": {
+      "dtype": "torch.float32",
+      "elements": 38592,
+      "bitwise_mismatches": 34697
+    },
+    "projection": {
+      "out": {
+        "dtype": "torch.bfloat16",
+        "elements": 19162,
+        "bitwise_mismatches": 0
+      },
+      "dx": {
+        "dtype": "torch.bfloat16",
+        "elements": 38592,
+        "bitwise_mismatches": 0
+      },
+      "dgate": {
+        "dtype": "torch.float32",
+        "elements": 38592,
+        "bitwise_mismatches": 0
+      },
+      "dnorm_weight": {
+        "dtype": "torch.bfloat16",
+        "elements": 96,
+        "bitwise_mismatches": 0
+      },
+      "dprojection_weight": {
+        "dtype": "torch.bfloat16",
+        "elements": 41184,
+        "bitwise_mismatches": 0
+      }
+    }
+  }
+}

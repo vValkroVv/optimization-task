@@ -1,0 +1,2405 @@
+{
+  "shape_name": "b2-s8192-h32-d128",
+  "input_shape": [
+    2,
+    8192,
+    32,
+    128
+  ],
+  "local_tokens": 16384,
+  "normalized_rows": 524288,
+  "fixture_sources": {
+    "rank0": {
+      "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/gdn-qkv-rank0.pt",
+      "fixture_sha256": "7e244453fe8d7de975438cc9584a112e687832fd06896bf4db47bc63eb4c52f3",
+      "rank": 0,
+      "world_size": 8,
+      "source_revision": "0f0bf5604f43d8150065f90f90216fd4ba3e5ec1",
+      "qkv_shape": [
+        2,
+        4096,
+        8192
+      ],
+      "weight_shape": [
+        8192,
+        4096
+      ]
+    }
+  },
+  "original_crop_geometry": {
+    "run": "original-a-vs-cute-001-a2",
+    "resolved_config": "/workspace-SR008.nfs2/vkropotin/a10-cute-001/runs/production-data-abcd/artifacts/raw/original-a-vs-cute-001-a2/native/config/resolved_config.yaml",
+    "resolved_config_sha256": "5e389eebaf3f09d0c9d40232afee8f0ef52ce40530ce2a3dc3510f009ba2d6aa",
+    "value_shape": [
+      2,
+      4096,
+      32,
+      128
+    ],
+    "key_shape": [
+      2,
+      4096,
+      16,
+      128
+    ],
+    "model_dim": 4096,
+    "conv_size": 4,
+    "norm_args": [
+      1e-06,
+      "sigmoid",
+      true,
+      2.0
+    ]
+  },
+  "fixture_adaptation": "Join the two distinct rank-0 batch sequences as [0|1, 1|0] along the token axis.",
+  "input_generation": "Native QKV/conv and hidden, replayed FLA scan, seeded FP8 gate weight, captured dV as output cotangent; isolated VJP uses native FP8 o_proj dgrad.",
+  "projection_weight_origin": "Reused the verified crop's seeded FP8 o_proj with matching dimensions.",
+  "inputs": [
+    {
+      "shape": [
+        2,
+        8192,
+        32,
+        128
+      ],
+      "stride": [
+        33554432,
+        4096,
+        128,
+        1
+      ],
+      "dtype": "torch.bfloat16",
+      "bytes": 134217728
+    },
+    {
+      "shape": [
+        2,
+        8192,
+        32,
+        128
+      ],
+      "stride": [
+        33554432,
+        4096,
+        128,
+        1
+      ],
+      "dtype": "torch.bfloat16",
+      "bytes": 134217728
+    },
+    {
+      "shape": [
+        128
+      ],
+      "stride": [
+        1
+      ],
+      "dtype": "torch.bfloat16",
+      "bytes": 256
+    }
+  ],
+  "projection_weight": {
+    "shape": [
+      4096,
+      4096
+    ],
+    "stride": [
+      4096,
+      1
+    ],
+    "dtype": "torch.bfloat16",
+    "bytes": 33554432
+  },
+  "projection_dgrad": {
+    "shape": [
+      2,
+      8192,
+      4096
+    ],
+    "stride": [
+      33554432,
+      4096,
+      1
+    ],
+    "dtype": "torch.bfloat16",
+    "bytes": 134217728
+  },
+  "projection_cotangent": {
+    "shape": [
+      2,
+      8192,
+      4096
+    ],
+    "stride": [
+      33554432,
+      4096,
+      1
+    ],
+    "dtype": "torch.bfloat16",
+    "bytes": 134217728
+  },
+  "norm_saved_tensors": {
+    "baseline": [
+      {
+        "shape": [
+          2,
+          8192,
+          32,
+          128
+        ],
+        "stride": [
+          33554432,
+          4096,
+          128,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 134217728
+      },
+      {
+        "shape": [
+          2,
+          8192,
+          32,
+          128
+        ],
+        "stride": [
+          33554432,
+          4096,
+          128,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 134217728
+      },
+      {
+        "shape": [
+          128
+        ],
+        "stride": [
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 256
+      }
+    ],
+    "candidate": [
+      {
+        "shape": [
+          2,
+          8192,
+          32,
+          128
+        ],
+        "stride": [
+          33554432,
+          4096,
+          128,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 134217728
+      },
+      {
+        "shape": [
+          2,
+          8192,
+          32,
+          128
+        ],
+        "stride": [
+          33554432,
+          4096,
+          128,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 134217728
+      },
+      {
+        "shape": [
+          128
+        ],
+        "stride": [
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 256
+      }
+    ]
+  },
+  "forward_payload": {
+    "fp8_bytes": {
+      "bitwise": true
+    },
+    "fp32_scales": {
+      "bitwise": true
+    }
+  },
+  "norm_args": [
+    1e-06,
+    "sigmoid",
+    true,
+    2.0
+  ],
+  "activation_checkpoint": {
+    "layer0_mode": "selective",
+    "mode": "selective",
+    "selective_save": [],
+    "module_modes": [
+      "layers.[01]=selective",
+      "layers.[23467]=save:experts_up",
+      "layers.5=save:experts_up+comm"
+    ],
+    "per_op_sac_force_recompute_mm_shapes_by_fqns": [
+      "moe.router.gate"
+    ],
+    "early_stop": false,
+    "memory_budget": 0.5,
+    "visualize_memory_budget_pareto": false,
+    "preserve_rng_state": true,
+    "determinism_check": "default",
+    "debug": false
+  },
+  "compile": {
+    "fullgraph": true,
+    "options": {
+      "triton.cudagraphs": false
+    }
+  },
+  "seed": 2048,
+  "git_revision": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+  "device": "NVIDIA H100 80GB HBM3",
+  "gpu_memory_bytes": 85028896768,
+  "gpu_multiprocessors": 132,
+  "visible_device": "GPU-88f1d954-f0f0-bae5-4051-7162e07d726f",
+  "torch": "2.15.0.dev20260822+cu130",
+  "cuda": "13.0",
+  "triton": "3.8.0",
+  "source_sha256": {
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-followup/gdn_component.py": "8334f911b633a69a58700596d79b38b86d6f7de0dc11c0a7ae7dc44239a8fea7",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/runs/linear-fixes/gdn_output_norm_backward_scaling.py": "4e73a14183de6b3e8c4e858def24612f14fdad3f2218b3cb652ab15c93fdfbee",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/runs/linear-fixes/gdn_output_norm_backward_bench.py": "76ab06a866f9d5915e629cfad112796a90903a12e7d54f2e566731e210445c60",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/torchtitan/models/common/attention/linear/fla_custom_ops.py": "8b218f879fe3b3da2ebc77fa1735a6ae2a501885bcadfb000dd294a19d16dcd7",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/contrib/flash-linear-attention/fla/modules/fused_norm_gate.py": "6e9dc5d94ebb142c82446ac0b80eaab42d535c56b0d97391fd77ba59b39836c9",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/torchtitan/models/common/attention/linear/gdn_output_fp8.py": "b3bbb20d5f13b4fecc55e9004461cfc7c0e168a47fc786d73ae79061889f23da",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/torchtitan/models/common/attention/linear/gdn_output_norm_backward.py": "e08e2b756084c39b3fd49f69c59bf27c5ea728e072cb883166e0c48d61d03453",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/torchtitan/ops/float8/cuda_gemm.py": "e4f8e9249ee13951ee4ff7de9f87c641a272157a3eb8fbbb59de1d4ec6304f13"
+  },
+  "measurement": {
+    "samples_per_variant": 24,
+    "warmup_calls_per_variant": 10,
+    "order_even": [
+      "baseline",
+      "candidate",
+      "control"
+    ],
+    "order_odd": [
+      "control",
+      "candidate",
+      "baseline"
+    ],
+    "control": "Second execution of the baseline at the same inputs.",
+    "event_span_us": "Single-stream CUDA event elapsed span, including possible host submission gaps.",
+    "host_call_us": "Python/autograd/allocator and launch submission until the call returns.",
+    "host_wait_us": "End-event record plus host blocking wait.",
+    "wall_us": "Call, end-event record, and blocking wait together.",
+    "profile": "Separate warmed CPU/CUDA trace with kernel, idle gap, and copy/memset times on one stream. No distributed communication.",
+    "memory": "Allocated/reserved peaks after an allocator cache flush and stats reset; includes output buffers until synchronization."
+  },
+  "errors": [],
+  "isolated_backward": {
+    "parity": {
+      "baseline_repeat": {
+        "dx": {
+          "shape": [
+            2,
+            8192,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        },
+        "dgate": {
+          "shape": [
+            2,
+            8192,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        },
+        "dnorm_weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        }
+      },
+      "candidate_vs_baseline": {
+        "dx": {
+          "shape": [
+            2,
+            8192,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        },
+        "dgate": {
+          "shape": [
+            2,
+            8192,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        },
+        "dnorm_weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        }
+      },
+      "baseline_vs_oracle": {
+        "dx": {
+          "shape": [
+            2,
+            8192,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 834,
+          "different_bytes": 836,
+          "max_abs": 3.814697265625e-06,
+          "relative_l2": 2.0778949619280447e-05
+        },
+        "dgate": {
+          "shape": [
+            2,
+            8192,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 844,
+          "different_bytes": 850,
+          "max_abs": 5.820766091346741e-11,
+          "relative_l2": 1.9014751685809606e-05
+        },
+        "dnorm_weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        }
+      },
+      "candidate_vs_oracle": {
+        "dx": {
+          "shape": [
+            2,
+            8192,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 834,
+          "different_bytes": 836,
+          "max_abs": 3.814697265625e-06,
+          "relative_l2": 2.0778949619280447e-05
+        },
+        "dgate": {
+          "shape": [
+            2,
+            8192,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 844,
+          "different_bytes": 850,
+          "max_abs": 5.820766091346741e-11,
+          "relative_l2": 1.9014751685809606e-05
+        },
+        "dnorm_weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        }
+      }
+    },
+    "traces": {
+      "baseline": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-scaling-001/b2-s8192-h32-d128/metrics/isolated_backward/baseline.json",
+        "sha256": "7a1e7ebcec9ad5ba0ca9767f3bcc9c5f4fe0602cce8bc36f0d9c9920686ab69a",
+        "counts": {
+          "kernel": 5
+        },
+        "device_span_us": 3571.93603515625,
+        "device_gap_us": 3099.491796875,
+        "kernel_time_us": 472.444,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "triton_poi_fused_fla_vjp_mul_view_0",
+            [
+              65536,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            88.191
+          ],
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              8192,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            135.103
+          ],
+          [
+            "layer_norm_gated_bwd_kernel",
+            [
+              132,
+              1,
+              1
+            ],
+            [
+              512,
+              1,
+              1
+            ],
+            241.918
+          ],
+          [
+            "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              32,
+              4,
+              1
+            ],
+            5.888
+          ],
+          [
+            "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.344
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::fla_vjp": 1
+        },
+        "legacy_multiplier_kernel": "triton_poi_fused_fla_vjp_mul_view_0",
+        "fp32_weight_partial_bytes": 67584
+      },
+      "candidate": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-scaling-001/b2-s8192-h32-d128/metrics/isolated_backward/candidate.json",
+        "sha256": "e84fcac0e5a7270de624f2b2f942745e3c12243bd665abed88584b3dc2022fbe",
+        "counts": {
+          "kernel": 2
+        },
+        "device_span_us": 286.494140625,
+        "device_gap_us": 1.152253906249996,
+        "kernel_time_us": 285.342,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "_gdn_output_norm_backward_kernel",
+            [
+              512,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            283.358
+          ],
+          [
+            "_gdn_output_norm_weight_grad_kernel",
+            [
+              16,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.984
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::gdn_output_norm_backward": 1
+        },
+        "fp32_weight_partial_bytes": 262144
+      }
+    },
+    "activation_errors": [],
+    "timing_us": {
+      "baseline": {
+        "event_span_us": {
+          "samples": [
+            609.3119978904724,
+            572.9280114173889,
+            560.5120062828064,
+            600.8639931678772,
+            609.44002866745,
+            568.2560205459595,
+            592.8320288658142,
+            573.4400153160095,
+            576.6080021858215,
+            599.3919968605042,
+            608.0639958381653,
+            603.007972240448,
+            601.5040278434753,
+            609.824001789093,
+            1239.7760152816772,
+            585.536003112793,
+            585.4079723358154,
+            622.6879954338074,
+            627.4880170822144,
+            582.751989364624,
+            610.5279922485352,
+            607.7439785003662,
+            582.0800065994263,
+            598.7840294837952
+          ],
+          "median": 600.1279950141907
+        },
+        "host_call_us": {
+          "samples": [
+            493.3649906888604,
+            437.9869787953794,
+            422.48296085745096,
+            490.31898379325867,
+            515.726045705378,
+            431.648048106581,
+            494.91802928969264,
+            441.06499990448356,
+            438.20199789479375,
+            496.5619882568717,
+            511.13899098709226,
+            507.43500469252467,
+            494.1480001434684,
+            509.05701937153935,
+            1222.6239778101444,
+            489.15803199633956,
+            462.3690037988126,
+            519.5120465941727,
+            528.1869671307504,
+            455.76400589197874,
+            521.2249816395342,
+            499.8969961889088,
+            456.10504457727075,
+            490.2840009890497
+          ],
+          "median": 493.7564954161644
+        },
+        "host_wait_us": {
+          "samples": [
+            121.49900430813432,
+            141.40503481030464,
+            144.4670488126576,
+            116.67999206110835,
+            99.88498641178012,
+            143.4669829905033,
+            104.08699745312333,
+            138.96398013457656,
+            145.08003368973732,
+            109.01602217927575,
+            103.3209846355021,
+            101.96201037615538,
+            113.54999151080847,
+            106.96897516027093,
+            23.664033506065607,
+            102.90398495271802,
+            129.26501221954823,
+            109.999964479357,
+            105.64003605395555,
+            133.3000254817307,
+            95.54397547617555,
+            114.64301496744156,
+            132.28197349235415,
+            114.90896577015519
+          ],
+          "median": 114.09650323912501
+        },
+        "wall_us": {
+          "samples": [
+            614.8639949969947,
+            579.392013605684,
+            566.9500096701086,
+            606.998975854367,
+            615.6110321171582,
+            575.1150310970843,
+            599.005026742816,
+            580.0289800390601,
+            583.2820315845311,
+            605.5780104361475,
+            614.4599756225944,
+            609.39701506868,
+            607.6979916542768,
+            616.0259945318103,
+            1246.28801131621,
+            592.0620169490576,
+            591.6340160183609,
+            629.5120110735297,
+            633.827003184706,
+            589.0640313737094,
+            616.7689571157098,
+            614.5400111563504,
+            588.3870180696249,
+            605.1929667592049
+          ],
+          "median": 606.2884931452572
+        }
+      },
+      "candidate": {
+        "event_span_us": {
+          "samples": [
+            455.77600598335266,
+            452.89599895477295,
+            452.60798931121826,
+            442.8800046443939,
+            430.9439957141876,
+            457.98400044441223,
+            438.4639859199524,
+            442.9439902305603,
+            450.78399777412415,
+            442.04801321029663,
+            444.38400864601135,
+            437.4080002307892,
+            446.75201177597046,
+            446.7200040817261,
+            454.71999049186707,
+            460.60800552368164,
+            445.8560049533844,
+            483.64800214767456,
+            448.06399941444397,
+            446.46400213241577,
+            435.84001064300537,
+            450.5920112133026,
+            446.27198576927185,
+            440.5440092086792
+          ],
+          "median": 446.5920031070709
+        },
+        "host_call_us": {
+          "samples": [
+            222.74604998528957,
+            222.48498862609267,
+            218.39700639247894,
+            205.76396491378546,
+            194.406951777637,
+            222.27002773433924,
+            205.09801106527448,
+            204.37996136024594,
+            216.57696925103664,
+            204.36197519302368,
+            210.56196419522166,
+            201.21800480410457,
+            212.23799558356404,
+            214.3179881386459,
+            221.3059924542904,
+            228.2210043631494,
+            209.9310513585806,
+            254.30996902287006,
+            212.61500660330057,
+            213.36902864277363,
+            201.51602802798152,
+            218.50899793207645,
+            214.12799833342433,
+            203.84398521855474
+          ],
+          "median": 212.9920176230371
+        },
+        "host_wait_us": {
+          "samples": [
+            238.9769651927054,
+            236.43497843295336,
+            240.4589904472232,
+            243.437010794878,
+            242.465001065284,
+            241.72296980395913,
+            239.9299992248416,
+            244.4980200380087,
+            240.3440303169191,
+            243.87403391301632,
+            240.25602033361793,
+            242.41098435595632,
+            240.5359991826117,
+            238.6990236118436,
+            239.17597718536854,
+            238.64395916461945,
+            241.973961237818,
+            235.56000087410212,
+            241.73699785023928,
+            239.6369818598032,
+            240.4879778623581,
+            238.13900770619512,
+            238.78703359514475,
+            243.11401648446918
+          ],
+          "median": 240.40151038207114
+        },
+        "wall_us": {
+          "samples": [
+            461.72301517799497,
+            458.91996705904603,
+            458.85599683970213,
+            449.20097570866346,
+            436.871952842921,
+            463.99299753829837,
+            445.0280102901161,
+            448.87798139825463,
+            456.92099956795573,
+            448.23600910604,
+            450.8179845288396,
+            443.6289891600609,
+            452.77399476617575,
+            453.0170117504895,
+            460.4819696396589,
+            466.86496352776885,
+            451.9050125963986,
+            489.8699698969722,
+            454.35200445353985,
+            453.0060105025768,
+            442.0040058903396,
+            456.64800563827157,
+            452.9150319285691,
+            446.9580017030239
+          ],
+          "median": 452.96052121557295
+        }
+      },
+      "control": {
+        "event_span_us": {
+          "samples": [
+            596.9280004501343,
+            584.1599702835083,
+            626.1759996414185,
+            586.5600109100342,
+            603.3920049667358,
+            575.1360058784485,
+            602.8800010681152,
+            611.519992351532,
+            592.7680134773254,
+            569.3439841270447,
+            601.248025894165,
+            595.1679944992065,
+            591.3280248641968,
+            592.960000038147,
+            627.45600938797,
+            579.9040198326111,
+            570.3679919242859,
+            615.8080101013184,
+            575.6160020828247,
+            580.672025680542,
+            603.6800146102905,
+            616.864025592804,
+            622.3359704017639,
+            616.6719794273376
+          ],
+          "median": 596.0479974746704
+        },
+        "host_call_us": {
+          "samples": [
+            485.35101814195514,
+            458.5100105032325,
+            531.8470066413283,
+            471.7669798992574,
+            476.42597928643227,
+            451.9920330494642,
+            501.3089976273477,
+            511.74400141462684,
+            462.3650456778705,
+            431.32301652804017,
+            497.3849863745272,
+            492.628023494035,
+            480.4300260730088,
+            482.388015370816,
+            501.9819946028292,
+            450.6399855017662,
+            433.70400089770555,
+            543.8629887066782,
+            448.52198334410787,
+            456.70801773667336,
+            509.5470114611089,
+            519.6929560042918,
+            524.0670288912952,
+            512.0330024510622
+          ],
+          "median": 483.86951675638556
+        },
+        "host_wait_us": {
+          "samples": [
+            117.93099110946059,
+            132.1969903074205,
+            104.07099034637213,
+            121.49603571742773,
+            133.32802336663008,
+            129.67002112418413,
+            107.87299834191799,
+            106.08002776280046,
+            136.79999392479658,
+            144.5119851268828,
+            110.20700912922621,
+            108.82498463615775,
+            117.32801795005798,
+            117.02702613547444,
+            132.2129974141717,
+            135.5889835394919,
+            143.00300972536206,
+            79.35403846204281,
+            133.35503172129393,
+            130.38702309131622,
+            100.54296581074595,
+            103.44601469114423,
+            104.67995889484882,
+            110.99595576524734
+          ],
+          "median": 117.62950452975929
+        },
+        "wall_us": {
+          "samples": [
+            603.2820092514157,
+            590.707000810653,
+            635.9179969877005,
+            593.2630156166852,
+            609.7540026530623,
+            581.6620541736484,
+            609.1819959692657,
+            617.8240291774273,
+            599.1650396026671,
+            575.835001654923,
+            607.5919955037534,
+            601.4530081301928,
+            597.7580440230668,
+            599.4150415062904,
+            634.1949920170009,
+            586.2289690412581,
+            576.7070106230676,
+            623.217027168721,
+            581.8770150654018,
+            587.0950408279896,
+            610.0899772718549,
+            623.138970695436,
+            628.746987786144,
+            623.0289582163095
+          ],
+          "median": 602.3675086908042
+        }
+      }
+    },
+    "paired_time_change_pct": {
+      "event_span_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -25.198255153137296,
+            -20.950627316277327,
+            -19.250973353306755,
+            -26.292803416387056,
+            -29.288531201920996,
+            -19.405341274801092,
+            -26.03908618790274,
+            -22.75670019531788,
+            -21.8214114155059,
+            -26.25059801838262,
+            -26.91821721273512,
+            -27.462318847026157,
+            -25.727511189297438,
+            -26.746077102386057,
+            -63.32240784731147,
+            -21.335664574847023,
+            -23.838412522058718,
+            -22.32899852024094,
+            -28.594014990450724,
+            -23.38696215877416,
+            -28.61260807422854,
+            -25.85825163991632,
+            -23.33150413867664,
+            -26.42689391891979
+          ],
+          "median": -25.792881414606878
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -2.032455865502958,
+            1.960448545417104,
+            11.715002109246765,
+            -2.3805690506481403,
+            -0.9923902953893893,
+            1.2107193032251606,
+            1.6949104827423733,
+            6.640620817948584,
+            2.8025992060887184,
+            -5.0130820716400954,
+            -1.1209297032305,
+            -1.3001449569750134,
+            -1.6917597402899776,
+            -2.7653883253972777,
+            -49.389567014214904,
+            -0.9618508939230774,
+            -2.569145129937167,
+            -1.1048848513124043,
+            -8.2666144352193,
+            -0.3569209066707435,
+            -1.1216484297507767,
+            1.5006396468035588,
+            6.915881553382541,
+            2.9873792657702403
+          ],
+          "median": -1.0486375733508968
+        }
+      },
+      "host_call_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -54.85167083414642,
+            -49.20283035856321,
+            -48.306316082137144,
+            -58.03467299554016,
+            -62.30422073957129,
+            -48.50665288321723,
+            -58.5591958814611,
+            -53.662167389272284,
+            -50.57599684813994,
+            -58.844619599173356,
+            -58.805341030901914,
+            -60.34605359438483,
+            -57.049710709758216,
+            -57.899021134560925,
+            -81.89909600409817,
+            -53.344115922672366,
+            -54.596642587675184,
+            -51.048301826669785,
+            -59.7462603520339,
+            -53.18431778630968,
+            -61.33799508340818,
+            -56.28919565471786,
+            -53.052920400851214,
+            -58.4232842990307
+          ],
+          "median": -56.66945318223804
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -1.6243496596132112,
+            4.685762979597885,
+            25.88602521671346,
+            -3.7836601288567806,
+            -7.620337725079141,
+            4.713095549052504,
+            1.2913185536658212,
+            16.02462256707049,
+            5.514134554192052,
+            -13.138132453079232,
+            -2.69085412286858,
+            -2.9180054709591507,
+            -2.7760861253059432,
+            -5.2389031063058145,
+            -58.942241955541,
+            -7.874356337843302,
+            -6.199594407409692,
+            4.6872718875617725,
+            -15.082724251869283,
+            0.20712733618510892,
+            -2.2404855081373465,
+            3.960007754857986,
+            14.900511433065432,
+            4.436000648223937
+          ],
+          "median": -1.9324175838752788
+        }
+      },
+      "host_wait_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            96.69047211830193,
+            67.204073567912,
+            66.44556140898699,
+            108.6364649968297,
+            142.74418986824676,
+            68.48682865238742,
+            130.50909825014077,
+            75.94344937532018,
+            65.66306486453522,
+            123.70476287601831,
+            132.53361471650513,
+            137.74637579394576,
+            111.83268794847585,
+            123.14790176703325,
+            910.7151729820806,
+            131.90934663440953,
+            87.19215438346222,
+            114.14552449088124,
+            128.83085511895538,
+            79.77264519926624,
+            151.7039684227136,
+            107.7222129702592,
+            80.51366130317564,
+            111.57097259995714
+          ],
+          "median": 111.70183027421649
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -2.936660443426242,
+            -6.511822238321829,
+            -27.962126172225187,
+            4.127565978747327,
+            33.48154528146965,
+            -9.616820245834855,
+            3.637342781935593,
+            -23.66365178942801,
+            -5.70722211344955,
+            32.56031750015082,
+            6.664691125444433,
+            6.730913047598497,
+            3.327192181154759,
+            9.402773991368619,
+            458.7086300409549,
+            31.762616969393243,
+            10.627777207401445,
+            -27.859941739404213,
+            26.23531447223566,
+            -2.1852976995969997,
+            5.23213557909461,
+            -9.766840377913354,
+            -20.866043852226557,
+            -3.4053130481870197
+          ],
+          "median": 3.482267481545176
+        }
+      },
+      "wall_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -24.906480305412625,
+            -20.79283865114293,
+            -19.065880763156372,
+            -25.996419503607683,
+            -29.034417830286863,
+            -19.321705667614097,
+            -25.7054631561231,
+            -22.61111136756884,
+            -21.66379644394424,
+            -25.982119333690324,
+            -26.631838945725704,
+            -27.201975364112485,
+            -25.49358382218224,
+            -26.461380563203384,
+            -63.05172115445916,
+            -21.145935702215635,
+            -23.617472903658378,
+            -22.182585672737343,
+            -28.316085908202403,
+            -23.09732280781811,
+            -28.33556215971861,
+            -25.6927136804292,
+            -23.024298970006363,
+            -26.14620026130273
+          ],
+          "median": -25.59314875130572
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -1.883666280644003,
+            1.9529070023857065,
+            12.164738714392541,
+            -2.2629297221380185,
+            -0.95141723564518,
+            1.1383849704075688,
+            1.6989789354170615,
+            6.516062203619888,
+            2.7230408546940144,
+            -4.911507397668402,
+            -1.1177261971997532,
+            -1.3035848128648886,
+            -1.6356722858588912,
+            -2.696469495275833,
+            -49.11328791912032,
+            -0.9852089377152873,
+            -2.5230133817778944,
+            -0.999978363252152,
+            -8.19624090773634,
+            -0.33425747301666364,
+            -1.082898185260306,
+            1.3992513722426825,
+            6.859425595236912,
+            2.9471577557512063
+          ],
+          "median": -0.9925936504837196
+        }
+      }
+    },
+    "memory": {
+      "baseline": {
+        "start_allocated_bytes": 671090176,
+        "start_reserved_bytes": 773849088,
+        "peak_allocated_bytes": 1210126848,
+        "peak_reserved_bytes": 1310720000
+      },
+      "candidate": {
+        "start_allocated_bytes": 671090176,
+        "start_reserved_bytes": 773849088,
+        "peak_allocated_bytes": 939788288,
+        "peak_reserved_bytes": 1042284544
+      }
+    },
+    "peak_memory_change_pct": {
+      "peak_allocated_bytes": -22.339687814281106,
+      "peak_reserved_bytes": -20.479999999999997
+    }
+  },
+  "projection_chain": {
+    "baseline_repeat": {
+      "output": {
+        "shape": [
+          2,
+          8192,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dx": {
+        "shape": [
+          2,
+          8192,
+          32,
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dgate": {
+        "shape": [
+          2,
+          8192,
+          32,
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dnorm_weight": {
+        "shape": [
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dprojection_weight": {
+        "shape": [
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      }
+    },
+    "candidate_vs_baseline": {
+      "output": {
+        "shape": [
+          2,
+          8192,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dx": {
+        "shape": [
+          2,
+          8192,
+          32,
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dgate": {
+        "shape": [
+          2,
+          8192,
+          32,
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dnorm_weight": {
+        "shape": [
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dprojection_weight": {
+        "shape": [
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      }
+    },
+    "traces": {
+      "baseline": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-scaling-001/b2-s8192-h32-d128/metrics/projection_chain/baseline.json",
+        "sha256": "d44fc5fcc4e7a9d0d6b274fc2db6b7b515b1dc71b0de45e2f6d207d9041e6887",
+        "counts": {
+          "kernel": 15,
+          "gpu_memset": 3
+        },
+        "device_span_us": 2351.26220703125,
+        "device_gap_us": 53.2801484375,
+        "kernel_time_us": 2295.678,
+        "copy_and_memset_time_us": 2.3040000000000003,
+        "kernels": [
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              8192,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            131.68
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            16.768
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            419.391
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              2048,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            68.192
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            18.816
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            417.824
+          ],
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              8192,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            127.52
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              128,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            49.216
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              128,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            53.088
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            521.983
+          ],
+          [
+            "triton_poi_fused_fla_vjp_mul_view_0",
+            [
+              65536,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            84.32
+          ],
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              8192,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            134.08
+          ],
+          [
+            "layer_norm_gated_bwd_kernel",
+            [
+              132,
+              1,
+              1
+            ],
+            [
+              512,
+              1,
+              1
+            ],
+            245.312
+          ],
+          [
+            "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              32,
+              4,
+              1
+            ],
+            6.303
+          ],
+          [
+            "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.185
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::fla_vjp": 1
+        },
+        "legacy_multiplier_kernel": "triton_poi_fused_fla_vjp_mul_view_0",
+        "fp32_weight_partial_bytes": 67584,
+        "fp8_forward_launches": {
+          "_gdn_output_norm_quantize_128_kernel": 2
+        }
+      },
+      "candidate": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-scaling-001/b2-s8192-h32-d128/metrics/projection_chain/candidate.json",
+        "sha256": "052465224a1347cdcda1a4802afd16eb21b725e00d9529b52757871b98f20f3e",
+        "counts": {
+          "kernel": 12,
+          "gpu_memset": 3
+        },
+        "device_span_us": 2162.67578125,
+        "device_gap_us": 56.160667968750055,
+        "kernel_time_us": 2103.699,
+        "copy_and_memset_time_us": 2.816,
+        "kernels": [
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              8192,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            129.951
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            16.64
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            420.894
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              2048,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            67.679
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            18.496
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            418.11
+          ],
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              8192,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            127.839
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              128,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            49.279
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              128,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            52.703
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            518.877
+          ],
+          [
+            "_gdn_output_norm_backward_kernel",
+            [
+              512,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            281.215
+          ],
+          [
+            "_gdn_output_norm_weight_grad_kernel",
+            [
+              16,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            2.016
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::gdn_output_norm_backward": 1
+        },
+        "fp32_weight_partial_bytes": 262144,
+        "fp8_forward_launches": {
+          "_gdn_output_norm_quantize_128_kernel": 2
+        }
+      }
+    },
+    "activation_errors": [],
+    "timing_us": {
+      "baseline": {
+        "event_span_us": {
+          "samples": [
+            2494.112014770508,
+            2550.3358840942383,
+            2551.424026489258,
+            2516.3838863372803,
+            2558.9759349823,
+            2561.5360736846924,
+            2570.2719688415527,
+            2606.46390914917,
+            2631.648063659668,
+            2554.431915283203,
+            2556.4160346984863,
+            2552.0639419555664,
+            2534.8799228668213,
+            2552.6719093322754,
+            2559.135913848877,
+            2552.9279708862305,
+            2560.159921646118,
+            2553.119897842407,
+            2543.423891067505,
+            2546.9119548797607,
+            2541.2158966064453,
+            2543.0400371551514,
+            2534.8799228668213,
+            2551.584005355835
+          ],
+          "median": 2552.367925643921
+        },
+        "host_call_us": {
+          "samples": [
+            1266.6640104725957,
+            1205.7580170221627,
+            1249.4990369305015,
+            1197.292993310839,
+            1240.6149762682617,
+            1214.6079679951072,
+            1225.7640482857823,
+            1908.2369981333613,
+            1416.4989697746933,
+            1223.4399910084903,
+            1238.6069865897298,
+            1223.8439521752298,
+            1220.0390337966383,
+            1196.503988467157,
+            1248.4139879234135,
+            1226.9000289961696,
+            1229.4889893382788,
+            1200.5919707007706,
+            1224.840001668781,
+            1203.081978019327,
+            1218.3719663880765,
+            1216.2210186943412,
+            1248.3689934015274,
+            1212.2110347263515
+          ],
+          "median": 1224.3419769220054
+        },
+        "host_wait_us": {
+          "samples": [
+            1233.3919876255095,
+            1351.6980106942356,
+            1308.829989284277,
+            1326.1089916341007,
+            1325.5070080049336,
+            1353.9069914259017,
+            1351.5829923562706,
+            705.3380249999464,
+            1222.115010023117,
+            1337.9520387388766,
+            1324.6230082586408,
+            1335.0980007089674,
+            1322.0430118963122,
+            1363.0270259454846,
+            1317.8940280340612,
+            1332.9029898159206,
+            1337.3980182223022,
+            1360.4340492747724,
+            1325.4430377855897,
+            1350.8990523405373,
+            1329.6950492076576,
+            1333.8360004127026,
+            1293.7980354763567,
+            1346.3629875332117
+          ],
+          "median": 1331.299019511789
+        },
+        "wall_us": {
+          "samples": [
+            2500.055998098105,
+            2557.4560277163982,
+            2558.3290262147784,
+            2523.4019849449396,
+            2566.1219842731953,
+            2568.514959421009,
+            2577.347040642053,
+            2613.5750231333077,
+            2638.6139797978103,
+            2561.392029747367,
+            2563.2299948483706,
+            2558.9419528841972,
+            2542.0820456929505,
+            2559.5310144126415,
+            2566.3080159574747,
+            2559.80301881209,
+            2566.887007560581,
+            2561.026019975543,
+            2550.2830394543707,
+            2553.9810303598642,
+            2548.067015595734,
+            2550.0570191070437,
+            2542.167028877884,
+            2558.574022259563
+          ],
+          "median": 2559.2364836484194
+        }
+      },
+      "candidate": {
+        "event_span_us": {
+          "samples": [
+            2292.0639514923096,
+            2360.5120182037354,
+            2368.511915206909,
+            2327.4240493774414,
+            2378.592014312744,
+            2379.8720836639404,
+            2386.9121074676514,
+            2372.0641136169434,
+            2384.511947631836,
+            2371.583938598633,
+            2358.9439392089844,
+            2373.2481002807617,
+            2361.248016357422,
+            2355.3919792175293,
+            2364.0639781951904,
+            2360.1279258728027,
+            2363.584041595459,
+            2355.0078868865967,
+            2355.32808303833,
+            2355.2639484405518,
+            2347.2321033477783,
+            2370.464086532593,
+            2348.5119342803955,
+            2377.3438930511475
+          ],
+          "median": 2362.4160289764404
+        },
+        "host_call_us": {
+          "samples": [
+            1002.8929682448506,
+            1008.9490097016096,
+            1029.6580148860812,
+            1004.4540395028889,
+            989.6630072034895,
+            982.0600389502943,
+            981.2690550461411,
+            1008.0529609695077,
+            1039.4119890406728,
+            1016.1069803871214,
+            981.2730131670833,
+            984.2150029726326,
+            1027.5000240653753,
+            971.4789921417832,
+            1002.2890055552125,
+            995.2840046025813,
+            1014.6929998882115,
+            990.3270401991904,
+            977.2320045158267,
+            1004.8319818452001,
+            986.3739833235741,
+            1044.1210470162332,
+            982.7380417846143,
+            1010.2190426550806
+          ],
+          "median": 1002.5909869000316
+        },
+        "host_wait_us": {
+          "samples": [
+            1295.978028792888,
+            1358.6310087703168,
+            1345.8390021696687,
+            1329.9139682203531,
+            1396.0329815745354,
+            1404.7360164113343,
+            1412.7809554338455,
+            1371.678023133427,
+            1352.032006252557,
+            1362.4749844893813,
+            1384.4920322299004,
+            1395.7580085843801,
+            1340.3589837253094,
+            1390.73800528422,
+            1368.8690378330648,
+            1371.7729598283768,
+            1355.769985821098,
+            1371.763995848596,
+            1385.3280106559396,
+            1357.4500335380435,
+            1367.6210073754191,
+            1333.3569513633847,
+            1372.994971461594,
+            1374.0920112468302
+          ],
+          "median": 1370.2735304832458
+        },
+        "wall_us": {
+          "samples": [
+            2298.8709970377386,
+            2367.5800184719265,
+            2375.49701705575,
+            2334.368007723242,
+            2385.695988778025,
+            2386.7960553616285,
+            2394.0500104799867,
+            2379.7309841029346,
+            2391.44399529323,
+            2378.5819648765028,
+            2365.7650453969836,
+            2379.973011557013,
+            2367.8590077906847,
+            2362.216997426003,
+            2371.1580433882773,
+            2367.056964430958,
+            2370.4629857093096,
+            2362.0910360477865,
+            2362.5600151717663,
+            2362.2820153832436,
+            2353.994990698993,
+            2377.477998379618,
+            2355.7330132462084,
+            2384.311053901911
+          ],
+          "median": 2369.160996749997
+        }
+      },
+      "control": {
+        "event_span_us": {
+          "samples": [
+            2564.160108566284,
+            2546.9439029693604,
+            2552.992105484009,
+            2516.92795753479,
+            2568.928003311157,
+            2559.2000484466553,
+            2582.655906677246,
+            2565.5999183654785,
+            2579.6799659729004,
+            2565.984010696411,
+            2567.744016647339,
+            2550.431966781616,
+            2554.8160076141357,
+            2539.9041175842285,
+            2550.431966781616,
+            2540.735960006714,
+            2550.5919456481934,
+            2539.0400886535645,
+            2549.855947494507,
+            2533.087968826294,
+            2546.9439029693604,
+            2560.159921646118,
+            2568.3839321136475,
+            2544.480085372925
+          ],
+          "median": 2551.792025566101
+        },
+        "host_call_us": {
+          "samples": [
+            1249.5709815993905,
+            1231.4330087974668,
+            1225.4829634912312,
+            1210.5730129405856,
+            1199.7139663435519,
+            1234.7130104899406,
+            1235.349045600742,
+            1217.7950120531023,
+            1273.8200020976365,
+            1235.642994288355,
+            1237.206975929439,
+            1231.629983521998,
+            1217.6359887234867,
+            1232.786977197975,
+            1220.7510299049318,
+            1210.122019983828,
+            1193.5519869439304,
+            1231.4320192672312,
+            1201.2380175292492,
+            1203.5089894197881,
+            1202.1560105495155,
+            1290.2359594590962,
+            1246.175030246377,
+            1240.7739995978773
+          ],
+          "median": 1231.432514032349
+        },
+        "host_wait_us": {
+          "samples": [
+            1321.353018283844,
+            1322.6299779489636,
+            1334.3149912543595,
+            1313.688000664115,
+            1376.0930160060525,
+            1331.362989731133,
+            1354.2879605665803,
+            1354.713982436806,
+            1312.8400314599276,
+            1337.1980166994035,
+            1337.2700195759535,
+            1325.5749945528805,
+            1344.0210022963583,
+            1313.809014391154,
+            1336.492015980184,
+            1337.5579728744924,
+            1363.8589880429208,
+            1314.5389966666698,
+            1355.4379693232477,
+            1336.4559854380786,
+            1351.9759522750974,
+            1277.0179891958833,
+            1329.1820068843663,
+            1310.6500264257193
+          ],
+          "median": 1335.385488346219
+        },
+        "wall_us": {
+          "samples": [
+            2570.9239998832345,
+            2554.0629867464304,
+            2559.7979547455907,
+            2524.2610136047006,
+            2575.8069823496044,
+            2566.0760002210736,
+            2589.6370061673224,
+            2572.508994489908,
+            2586.660033557564,
+            2572.8410109877586,
+            2574.4769955053926,
+            2557.2049780748785,
+            2561.656991019845,
+            2546.595991589129,
+            2557.243045885116,
+            2547.6799928583205,
+            2557.410974986851,
+            2545.971015933901,
+            2556.675986852497,
+            2539.9649748578668,
+            2554.131962824613,
+            2567.2539486549795,
+            2575.3570371307433,
+            2551.4240260235965
+          ],
+          "median": 2558.604464866221
+        }
+      }
+    },
+    "paired_time_change_pct": {
+      "event_span_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -8.101001963089027,
+            -7.443092773559101,
+            -7.1690204914325655,
+            -7.509181646957652,
+            -7.049066706866213,
+            -7.09199420953045,
+            -7.13387001829785,
+            -8.993019036612782,
+            -9.390925763992753,
+            -7.158068124289718,
+            -7.724568020587952,
+            -7.00671479013899,
+            -6.849709327179109,
+            -7.72837000295703,
+            -7.6225703604895,
+            -7.552114560697875,
+            -7.67826565788382,
+            -7.759604675175313,
+            -7.39537788764848,
+            -7.524720517802774,
+            -7.633503061180836,
+            -6.786206591368337,
+            -7.352142675683549,
+            -6.828703736147956
+          ],
+          "median": -7.4761372102583765
+        },
+        "control_vs_baseline": {
+          "samples": [
+            2.8085384048888384,
+            -0.13300134880400716,
+            0.06145897265492639,
+            0.021621152498374485,
+            0.3889082422702028,
+            -0.09119626547663406,
+            0.4818142977015327,
+            -1.567794230345998,
+            -1.9747358472583465,
+            0.45223735829840184,
+            0.4431196563899009,
+            -0.06394726821380425,
+            0.7864705766720492,
+            -0.500173629888323,
+            -0.3401127318075958,
+            -0.4775697167548443,
+            -0.373725716000306,
+            -0.5514746565855155,
+            0.25288967559011777,
+            -0.5427743988943412,
+            0.22540416068403957,
+            0.6732054643590502,
+            1.321719776333019,
+            -0.2784121537052653
+          ],
+          "median": -0.021163057857714884
+        }
+      },
+      "host_call_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -20.82407331754309,
+            -16.322429918949123,
+            -17.594333052427004,
+            -16.106245913516805,
+            -20.228029958144568,
+            -19.145924872258835,
+            -19.94633417267906,
+            -47.17359730706481,
+            -26.621055770622938,
+            -16.946724984072393,
+            -20.776079596577034,
+            -19.58002478802029,
+            -15.781381119594261,
+            -18.806873900491837,
+            -19.7150131886619,
+            -18.878149720404924,
+            -17.47034673044712,
+            -17.513438006656934,
+            -20.215538096045304,
+            -16.478511007247597,
+            -19.041638306261422,
+            -14.15038624006546,
+            -21.278240089344735,
+            -16.6631045490251
+          ],
+          "median": -18.959894013333173
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -1.3494524776801464,
+            2.129365213653167,
+            -1.9220561784719536,
+            1.109170412250049,
+            -3.296833482353967,
+            1.655270097397743,
+            0.7819610412268307,
+            -36.182192607922914,
+            -10.072648884435909,
+            0.9974337417077317,
+            -0.11303106436896249,
+            0.636194780627819,
+            -0.1969646057695007,
+            3.0324168645104344,
+            -2.215848130995046,
+            -1.367512316881192,
+            -2.922921856639804,
+            2.5687368664026433,
+            -1.926944262709851,
+            0.03549312584369968,
+            -1.3309528030782003,
+            6.085648876896799,
+            -0.17574636719968062,
+            2.3562699936957587
+          ],
+          "median": -0.14438871578432155
+        }
+      },
+      "host_wait_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            5.074302557118693,
+            0.5129102818254738,
+            2.827640960888256,
+            0.28692789282454,
+            5.320679041580689,
+            3.75424791417176,
+            4.527873125340687,
+            94.4710159548723,
+            10.630504916798511,
+            1.8328718100851793,
+            4.519702858699692,
+            4.543487282821257,
+            1.3854293441425192,
+            2.033046947070849,
+            3.867914165681774,
+            2.9161889731993407,
+            1.3737097968199663,
+            0.8328185096413643,
+            4.518109881990817,
+            0.48493491694705515,
+            2.8522297793287965,
+            -0.03591513868044238,
+            6.121275022347539,
+            2.0595503568040963
+          ],
+          "median": 2.8842093762640686
+        },
+        "control_vs_baseline": {
+          "samples": [
+            7.131636295746868,
+            -2.1504827642930713,
+            1.9471590793865179,
+            -0.9366493288519129,
+            3.8163516070169656,
+            -1.6651071186969735,
+            0.20013334183748288,
+            92.06592221324081,
+            7.423607491335393,
+            -0.056356432640425336,
+            0.9547630713389488,
+            -0.7132814333502102,
+            1.6624262752632513,
+            -3.610934384825548,
+            1.41118994020073,
+            0.3492364481240129,
+            1.9785411268809172,
+            -3.373559536573534,
+            2.26301173891037,
+            -1.0691447949004673,
+            1.6756400710611574,
+            -4.259744916109565,
+            2.734891415643692,
+            -2.652550719098812
+          ],
+          "median": 0.6519997597314808
+        }
+      },
+      "wall_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -8.047219790813342,
+            -7.4244095377082875,
+            -7.14654007696347,
+            -7.491235179710076,
+            -7.031076332338603,
+            -7.0748625929880955,
+            -7.111849016514449,
+            -8.94728626347321,
+            -9.3674173788589,
+            -7.137137257700255,
+            -7.703754631783177,
+            -6.993864832512808,
+            -6.853556839262998,
+            -7.708991056391545,
+            -7.604308265248827,
+            -7.529722129579264,
+            -7.652227046719185,
+            -7.767784566658031,
+            -7.3608702006177085,
+            -7.505890321730768,
+            -7.616441157508847,
+            -6.767653406740603,
+            -7.3336650784102115,
+            -6.810941049255037
+          ],
+          "median": -7.457822358709182
+        },
+        "control_vs_baseline": {
+          "samples": [
+            2.834656577254324,
+            -0.13267250475456072,
+            0.057417498521905586,
+            0.03404248173244362,
+            0.37741768067787174,
+            -0.09495600525858405,
+            0.47684558313139114,
+            -1.5712588420043527,
+            -1.9689862419446258,
+            0.4469827776234947,
+            0.43878234413714523,
+            -0.06787863270446559,
+            0.7700359380634625,
+            -0.5053669109956416,
+            -0.3532300104271302,
+            -0.47359214223426926,
+            -0.3691643826089219,
+            -0.5878504913349403,
+            0.2506759955355431,
+            -0.548792466951975,
+            0.2380214959715632,
+            0.6743743147342496,
+            1.305579368933496,
+            -0.2794523892512668
+          ],
+          "median": -0.016918075486010986
+        }
+      }
+    },
+    "memory": {
+      "baseline": {
+        "start_allocated_bytes": 671090176,
+        "start_reserved_bytes": 773849088,
+        "peak_allocated_bytes": 1377899008,
+        "peak_reserved_bytes": 1646264320
+      },
+      "candidate": {
+        "start_allocated_bytes": 671090176,
+        "start_reserved_bytes": 773849088,
+        "peak_allocated_bytes": 1241778176,
+        "peak_reserved_bytes": 1512046592
+      }
+    },
+    "peak_memory_change_pct": {
+      "peak_allocated_bytes": -9.878868567993049,
+      "peak_reserved_bytes": -8.152866242038215
+    }
+  }
+}

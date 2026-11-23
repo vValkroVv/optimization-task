@@ -1,0 +1,313 @@
+{
+  "scope": "GDN output epilogue normal forward and selective activation checkpoint (SAC) replay through the FP8 activation payload. GPU kernel duration sums in milliseconds per rank in one traced update.",
+  "update": 11,
+  "microbatches_per_rank": 32,
+  "gdn_calls_per_phase_per_rank": 192,
+  "gdn_calls_total_per_rank": 384,
+  "raw_trace_root": "/workspace-SR008.nfs2/vkropotin/linear-accept-001/runs/linear-fixes/artifacts/raw",
+  "trace_template": "profile-10x1-mb32-001-ep{8,4}-{baseline,combined}/native/profiling/traces/iteration_11/rank{rank}_trace.json",
+  "analyzer": "../../gdn_output_fp8_profile.py",
+  "analyzer_sha256": "490a435af3bdaf7cf3e474f46d0582781abc47dced4666fbf490bbc17fba04d8",
+  "boundary": {
+    "baseline": [
+      "torchtitan::gated_rmsnorm -> layer_norm_gated_fwd_kernel",
+      "triton_poi_fused_mul_quantize_vec128_view_3",
+      "cudacherry::quantize_vec128 -> quantize_vec128_kernel<8, 2, true, false, false>"
+    ],
+    "combined": [
+      "torchtitan::gdn_output_norm_quantize -> _gdn_output_norm_quantize_128_kernel"
+    ],
+    "phase_owners": {
+      "forward": "CompiledFunction",
+      "sac_replay": "CompiledFunctionBackward"
+    },
+    "excluded": [
+      "normalization VJP replay inside torchtitan::fla_vjp",
+      "projection weight packing",
+      "projection GEMM"
+    ],
+    "validation": "Each selected kernel has a unique CUDA launch. Six calls in each phase per microbatch. Both variants were bounded after by the projection weight pack on the same launch thread."
+  },
+  "topologies": {
+    "ep8": {
+      "summary": {
+        "baseline_median_kernel_sum_ms": 67.758536,
+        "combined_median_kernel_sum_ms": 33.46516,
+        "median_change_of_rank_pairs_ms": -34.211999,
+        "range_change_of_rank_pairs_ms": [
+          -36.076214,
+          -32.925109
+        ],
+        "median_change_of_rank_pairs_pct": -50.632722
+      },
+      "kernel_launches_per_rank": {
+        "baseline": 1152,
+        "combined": 384
+      },
+      "phase_median_kernel_sum_ms": {
+        "forward": {
+          "baseline": 28.300371,
+          "combined": 13.214297
+        },
+        "sac_replay": {
+          "baseline": 39.472503,
+          "combined": 20.194968
+        }
+      },
+      "ranks": [
+        {
+          "rank": 0,
+          "baseline": {
+            "forward_ms": 28.323024,
+            "sac_replay_ms": 38.0519,
+            "total_ms": 66.374924
+          },
+          "combined": {
+            "forward_ms": 13.209048,
+            "sac_replay_ms": 17.089662,
+            "total_ms": 30.29871
+          }
+        },
+        {
+          "rank": 1,
+          "baseline": {
+            "forward_ms": 28.294298,
+            "sac_replay_ms": 39.404136,
+            "total_ms": 67.698434
+          },
+          "combined": {
+            "forward_ms": 13.219546,
+            "sac_replay_ms": 21.003077,
+            "total_ms": 34.222623
+          }
+        },
+        {
+          "rank": 2,
+          "baseline": {
+            "forward_ms": 28.27598,
+            "sac_replay_ms": 39.853484,
+            "total_ms": 68.129464
+          },
+          "combined": {
+            "forward_ms": 13.117567,
+            "sac_replay_ms": 19.617165,
+            "total_ms": 32.734732
+          }
+        },
+        {
+          "rank": 3,
+          "baseline": {
+            "forward_ms": 28.316487,
+            "sac_replay_ms": 36.69269,
+            "total_ms": 65.009177
+          },
+          "combined": {
+            "forward_ms": 13.259856,
+            "sac_replay_ms": 17.8243,
+            "total_ms": 31.084156
+          }
+        },
+        {
+          "rank": 4,
+          "baseline": {
+            "forward_ms": 28.324163,
+            "sac_replay_ms": 38.47793,
+            "total_ms": 66.802093
+          },
+          "combined": {
+            "forward_ms": 13.303648,
+            "sac_replay_ms": 20.307012,
+            "total_ms": 33.61066
+          }
+        },
+        {
+          "rank": 5,
+          "baseline": {
+            "forward_ms": 28.281343,
+            "sac_replay_ms": 40.6896,
+            "total_ms": 68.970943
+          },
+          "combined": {
+            "forward_ms": 13.207078,
+            "sac_replay_ms": 21.005282,
+            "total_ms": 34.21236
+          }
+        },
+        {
+          "rank": 6,
+          "baseline": {
+            "forward_ms": 28.277768,
+            "sac_replay_ms": 39.54087,
+            "total_ms": 67.818638
+          },
+          "combined": {
+            "forward_ms": 13.236737,
+            "sac_replay_ms": 20.082924,
+            "total_ms": 33.319661
+          }
+        },
+        {
+          "rank": 7,
+          "baseline": {
+            "forward_ms": 28.306444,
+            "sac_replay_ms": 40.331413,
+            "total_ms": 68.637857
+          },
+          "combined": {
+            "forward_ms": 13.154103,
+            "sac_replay_ms": 22.558645,
+            "total_ms": 35.712748
+          }
+        }
+      ],
+      "preceding_device_kernel_launches_all_ranks": {
+        "baseline": {
+          "chunk_fwd_kernel_o": 3072
+        },
+        "combined": {
+          "chunk_fwd_kernel_o": 3072
+        }
+      }
+    },
+    "ep4": {
+      "summary": {
+        "baseline_median_kernel_sum_ms": 75.489315,
+        "combined_median_kernel_sum_ms": 35.607865,
+        "median_change_of_rank_pairs_ms": -39.665484,
+        "range_change_of_rank_pairs_ms": [
+          -40.531858,
+          -39.478742
+        ],
+        "median_change_of_rank_pairs_pct": -52.685149
+      },
+      "kernel_launches_per_rank": {
+        "baseline": 1152,
+        "combined": 384
+      },
+      "phase_median_kernel_sum_ms": {
+        "forward": {
+          "baseline": 36.889375,
+          "combined": 17.426866
+        },
+        "sac_replay": {
+          "baseline": 38.506335,
+          "combined": 18.209059
+        }
+      },
+      "ranks": [
+        {
+          "rank": 0,
+          "baseline": {
+            "forward_ms": 36.695954,
+            "sac_replay_ms": 38.289418,
+            "total_ms": 74.985372
+          },
+          "combined": {
+            "forward_ms": 17.444986,
+            "sac_replay_ms": 18.061644,
+            "total_ms": 35.50663
+          }
+        },
+        {
+          "rank": 1,
+          "baseline": {
+            "forward_ms": 36.629348,
+            "sac_replay_ms": 38.642261,
+            "total_ms": 75.271609
+          },
+          "combined": {
+            "forward_ms": 17.388866,
+            "sac_replay_ms": 18.235303,
+            "total_ms": 35.624169
+          }
+        },
+        {
+          "rank": 2,
+          "baseline": {
+            "forward_ms": 37.190767,
+            "sac_replay_ms": 38.661858,
+            "total_ms": 75.852625
+          },
+          "combined": {
+            "forward_ms": 17.32896,
+            "sac_replay_ms": 17.991807,
+            "total_ms": 35.320767
+          }
+        },
+        {
+          "rank": 3,
+          "baseline": {
+            "forward_ms": 36.61822,
+            "sac_replay_ms": 38.819258,
+            "total_ms": 75.437478
+          },
+          "combined": {
+            "forward_ms": 17.479376,
+            "sac_replay_ms": 18.274573,
+            "total_ms": 35.753949
+          }
+        },
+        {
+          "rank": 4,
+          "baseline": {
+            "forward_ms": 37.160354,
+            "sac_replay_ms": 38.473102,
+            "total_ms": 75.633456
+          },
+          "combined": {
+            "forward_ms": 17.586968,
+            "sac_replay_ms": 18.417709,
+            "total_ms": 36.004677
+          }
+        },
+        {
+          "rank": 5,
+          "baseline": {
+            "forward_ms": 37.082797,
+            "sac_replay_ms": 38.502467,
+            "total_ms": 75.585264
+          },
+          "combined": {
+            "forward_ms": 17.408746,
+            "sac_replay_ms": 18.182815,
+            "total_ms": 35.591561
+          }
+        },
+        {
+          "rank": 6,
+          "baseline": {
+            "forward_ms": 37.086999,
+            "sac_replay_ms": 38.454153,
+            "total_ms": 75.541152
+          },
+          "combined": {
+            "forward_ms": 17.473432,
+            "sac_replay_ms": 18.259198,
+            "total_ms": 35.73263
+          }
+        },
+        {
+          "rank": 7,
+          "baseline": {
+            "forward_ms": 36.552813,
+            "sac_replay_ms": 38.510203,
+            "total_ms": 75.063016
+          },
+          "combined": {
+            "forward_ms": 17.346818,
+            "sac_replay_ms": 18.136417,
+            "total_ms": 35.483235
+          }
+        }
+      ],
+      "preceding_device_kernel_launches_all_ranks": {
+        "baseline": {
+          "chunk_fwd_kernel_o": 3072
+        },
+        "combined": {
+          "chunk_fwd_kernel_o": 3072
+        }
+      }
+    }
+  }
+}

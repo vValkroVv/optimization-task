@@ -1,0 +1,654 @@
+{
+  "scope": "Existing 10+1 native optimizer-update 11 traces, baseline and combined at EP8 and EP4, global ranks 0–7 in each arm. Every matched section has 96 calls per rank and arm (32 microbatches, three MLA sites).",
+  "trace_paths": "runs/linear-fixes/artifacts/raw/profile-10x1-mb32-001-ep{8,4}-{baseline,combined}/native/profiling/traces/iteration_11/rank{0..7}_trace.json",
+  "timing": "Summed device kernel durations on stream 7, in milliseconds per rank per profiled optimizer update. CUDA driver/runtime activity is linked by correlation to enclosing CompiledFunction and CompiledFunctionBackward CPU scopes. GPU memset and memcpy events, host gaps, cuDNN attention kernels and the gradient-join kernel are excluded. Rank medians and paired rank differences are descriptive statistics for this profiled update.",
+  "sections": {
+    "matched_total": "Disjoint sum of forward, selective activation checkpoint replay, backward-input preparation and post-SDPA backward. Includes matching projection GEMMs and common projection/norm work.",
+    "forward": "From the earliest of the Q and KV-A projection GEMM launches, inclusive, to the start of aten::_scaled_dot_product_cudnn_attention. One launch for each of Q, KV-A and KV-B is required. Earliest projection serves as the anchor since SAC may schedule Q after KV preparation.",
+    "replay": "The same start and end in CompiledFunctionBackward before recomputed SDPA.",
+    "backward_inputs": "One corresponding Inductor SDPA-backward preparation fusion per MLA site, between the recomputed SDPA forward call and the SDPA backward call. Original and combined carry the same non-RoPE work and differ in the cat/expand work absorbed by the separate pack.",
+    "backward": "From the end of aten::_scaled_dot_product_cudnn_attention_backward to the attention input-gradient join feeding the gated-norm backward (first triton_poi_fused_*add_cute_gated_norm_bwd_view_*). The join itself is excluded.",
+    "backward_rotary_and_qkv_a_packing": "Subset of backward for inverse RoPE, dQ layout reconstruction and concat of the original shared rotary-key gradient with the KV-A latent gradient. Baseline has seven launches (shared-K sum/transpose/cast, conjugate, two complex multiplies, Q slice/cast, dQ cat, and dKV-A cat). Combined has two launches (_mla_rope_unpack and corresponding dKV-A cat, identified by its output grid and placement before the same downstream projection). This subset is already in matched_total."
+  },
+  "verification": {
+    "num_trace_files": 32,
+    "num_calls_per_section_per_rank_and_arm": 96,
+    "known_gdn_signatures": "gdn_|fla_vjp|qkv_conv1d_unpack|gated_delta_rule",
+    "gdn_matches": "Zero in enclosing MLA CPU scopes and selected GPU sections.",
+    "gemm_matching": "Projection GEMM name/count histograms match within every section for each paired rank. Forward/replay each have one Q, one KV-A and one KV-B GEMM per call.",
+    "forward_launch_anchors": {
+      "q": "nvjet_sm90_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+      "kv_a": "nvjet_sm90_tst_192x192_64x4_1x2_h_bz_coopB_TNN",
+      "kv_b": "nvjet_sm90_tst_256x128_64x4_1x2_h_bz_coopA_TNT"
+    }
+  },
+  "source_map": {
+    "mla_entry": "gift/torchtitan/models/common/attention/softmax/mla.py:131–215",
+    "combined_pack_and_unpack": "gift/torchtitan/models/common/attention/softmax/mla_rope_pack.py:325,369",
+    "baseline_generated_forward": "runs/production-data-abcd/artifacts/raw/original-a-vs-cute-001-a2/cache/torchinductor/42/c42jjmays3fsvxi24d6ig72j5ls3p33ngqmewoa7rp7caq5t7wh4.py:318,404,767–775",
+    "baseline_generated_backward": "runs/production-data-abcd/artifacts/raw/original-a-vs-cute-001-a2/cache/torchinductor/6v/c6vjarcipljeycflprvyefjqljty7m2e2uf3cxev7lxibncnmxqe.py:4352–4426"
+  },
+  "limitations": "Equal logical boundaries allow an enclosing comparison; common work and fused neighbors remain in matched_total. The result does not identify an isolated rotary-only cost or a causal throughput gain.",
+  "rank_value_column_order": [
+    "matched_total",
+    "forward",
+    "replay",
+    "backward_inputs",
+    "backward",
+    "backward_rotary_and_qkv_a_packing"
+  ],
+  "topologies": {
+    "ep8": {
+      "summary": {
+        "matched_total": {
+          "baseline_ms": {
+            "median": 401.610119,
+            "min": 395.191582,
+            "max": 407.887725
+          },
+          "combined_ms": {
+            "median": 358.495734,
+            "min": 353.991048,
+            "max": 362.498745
+          },
+          "paired_delta_ms": {
+            "median": -42.795575,
+            "min": -46.00111,
+            "max": -39.235625
+          },
+          "paired_delta_percent": {
+            "median": -10.60925,
+            "min": -11.277885,
+            "max": -9.928254
+          },
+          "launches_per_rank": {
+            "baseline": 4928,
+            "combined": 3296
+          }
+        },
+        "forward": {
+          "baseline_ms": {
+            "median": 120.028996,
+            "min": 119.180767,
+            "max": 120.984324
+          },
+          "combined_ms": {
+            "median": 96.874751,
+            "min": 96.382061,
+            "max": 97.798223
+          },
+          "paired_delta_ms": {
+            "median": -23.176792,
+            "min": -23.495737,
+            "max": -22.34958
+          },
+          "paired_delta_percent": {
+            "median": -19.28319,
+            "min": -19.564629,
+            "max": -18.752673
+          },
+          "launches_per_rank": {
+            "baseline": 1536,
+            "combined": 960
+          }
+        },
+        "replay": {
+          "baseline_ms": {
+            "median": 122.859374,
+            "min": 120.91239,
+            "max": 127.443511
+          },
+          "combined_ms": {
+            "median": 112.998515,
+            "min": 111.630822,
+            "max": 115.135209
+          },
+          "paired_delta_ms": {
+            "median": -10.074814,
+            "min": -12.308302,
+            "max": -8.728661
+          },
+          "paired_delta_percent": {
+            "median": -8.126893,
+            "min": -9.657849,
+            "max": -7.218996
+          },
+          "launches_per_rank": {
+            "baseline": 1472,
+            "combined": 896
+          }
+        },
+        "backward_inputs": {
+          "baseline_ms": {
+            "median": 10.206976,
+            "min": 10.196427,
+            "max": 10.222514
+          },
+          "combined_ms": {
+            "median": 10.212345,
+            "min": 10.19311,
+            "max": 10.217894
+          },
+          "paired_delta_ms": {
+            "median": 0.007661,
+            "min": -0.029404,
+            "max": 0.020911
+          },
+          "paired_delta_percent": {
+            "median": 0.075055,
+            "min": -0.28764,
+            "max": 0.20507
+          },
+          "launches_per_rank": {
+            "baseline": 96,
+            "combined": 96
+          }
+        },
+        "backward": {
+          "baseline_ms": {
+            "median": 147.596719,
+            "min": 144.901442,
+            "max": 150.129383
+          },
+          "combined_ms": {
+            "median": 137.834916,
+            "min": 135.764747,
+            "max": 139.942141
+          },
+          "paired_delta_ms": {
+            "median": -9.669089,
+            "min": -10.406097,
+            "max": -8.178295
+          },
+          "paired_delta_percent": {
+            "median": -6.528925,
+            "min": -7.119133,
+            "max": -5.64404
+          },
+          "launches_per_rank": {
+            "baseline": 1824,
+            "combined": 1344
+          }
+        },
+        "backward_rotary_and_qkv_a_packing": {
+          "baseline_ms": {
+            "median": 18.330356,
+            "min": 18.281408,
+            "max": 18.434409
+          },
+          "combined_ms": {
+            "median": 8.742659,
+            "min": 8.725805,
+            "max": 8.774158
+          },
+          "paired_delta_ms": {
+            "median": -9.585425,
+            "min": -9.660251,
+            "max": -9.555603
+          },
+          "paired_delta_percent": {
+            "median": -52.308547,
+            "min": -52.403367,
+            "max": -52.222852
+          },
+          "launches_per_rank": {
+            "baseline": 672,
+            "combined": 192
+          }
+        }
+      },
+      "rank_values_ms": {
+        "0": {
+          "baseline": [
+            398.926566,
+            119.696622,
+            122.362093,
+            10.222514,
+            146.645337,
+            18.329122
+          ],
+          "combined": [
+            356.89762,
+            96.52914,
+            112.81608,
+            10.19311,
+            137.35929,
+            8.739899
+          ]
+        },
+        "1": {
+          "baseline": [
+            401.874217,
+            120.739208,
+            123.56109,
+            10.20578,
+            147.368139,
+            18.32043
+          ],
+          "combined": [
+            358.212756,
+            97.266943,
+            113.18095,
+            10.212496,
+            137.552367,
+            8.738804
+          ]
+        },
+        "2": {
+          "baseline": [
+            401.584625,
+            120.984324,
+            122.566228,
+            10.208775,
+            147.825298,
+            18.309611
+          ],
+          "combined": [
+            358.778712,
+            97.798223,
+            112.65083,
+            10.212195,
+            138.117464,
+            8.74781
+          ]
+        },
+        "3": {
+          "baseline": [
+            405.283982,
+            120.588202,
+            125.358689,
+            10.198785,
+            149.138306,
+            18.335154
+          ],
+          "combined": [
+            362.498745,
+            97.655218,
+            115.124459,
+            10.211107,
+            139.507961,
+            8.753591
+          ]
+        },
+        "4": {
+          "baseline": [
+            407.887725,
+            120.092934,
+            127.443511,
+            10.221897,
+            150.129383,
+            18.434409
+          ],
+          "combined": [
+            361.886615,
+            96.597197,
+            115.135209,
+            10.212068,
+            139.942141,
+            8.774158
+          ]
+        },
+        "5": {
+          "baseline": [
+            395.191582,
+            119.180767,
+            120.91239,
+            10.196983,
+            144.901442,
+            18.281408
+          ],
+          "combined": [
+            355.955957,
+            96.831187,
+            112.183729,
+            10.217894,
+            136.723147,
+            8.725805
+          ]
+        },
+        "6": {
+          "baseline": [
+            401.635613,
+            119.965057,
+            123.152519,
+            10.208171,
+            148.309866,
+            18.355811
+          ],
+          "combined": [
+            359.225906,
+            96.918315,
+            113.407372,
+            10.216777,
+            138.683442,
+            8.744861
+          ]
+        },
+        "7": {
+          "baseline": [
+            398.162057,
+            119.729501,
+            122.065285,
+            10.196427,
+            146.170844,
+            18.331589
+          ],
+          "combined": [
+            353.991048,
+            96.382061,
+            111.630822,
+            10.213418,
+            135.764747,
+            8.740457
+          ]
+        }
+      }
+    },
+    "ep4": {
+      "summary": {
+        "matched_total": {
+          "baseline_ms": {
+            "median": 399.74326,
+            "min": 394.604851,
+            "max": 405.648763
+          },
+          "combined_ms": {
+            "median": 364.331494,
+            "min": 360.31003,
+            "max": 370.505362
+          },
+          "paired_delta_ms": {
+            "median": -35.152729,
+            "min": -38.217637,
+            "max": -32.533862
+          },
+          "paired_delta_percent": {
+            "median": -8.725717,
+            "min": -9.589707,
+            "max": -8.12426
+          },
+          "launches_per_rank": {
+            "baseline": 4928,
+            "combined": 3296
+          }
+        },
+        "forward": {
+          "baseline_ms": {
+            "median": 115.11337,
+            "min": 113.329385,
+            "max": 118.85307
+          },
+          "combined_ms": {
+            "median": 101.82134,
+            "min": 100.969695,
+            "max": 103.174821
+          },
+          "paired_delta_ms": {
+            "median": -12.991136,
+            "min": -16.87317,
+            "max": -10.973219
+          },
+          "paired_delta_percent": {
+            "median": -11.331499,
+            "min": -14.196663,
+            "max": -9.613147
+          },
+          "launches_per_rank": {
+            "baseline": 1536,
+            "combined": 960
+          }
+        },
+        "replay": {
+          "baseline_ms": {
+            "median": 127.319593,
+            "min": 125.273356,
+            "max": 128.715233
+          },
+          "combined_ms": {
+            "median": 113.800027,
+            "min": 112.943367,
+            "max": 118.113039
+          },
+          "paired_delta_ms": {
+            "median": -12.955494,
+            "min": -14.496735,
+            "max": -10.335046
+          },
+          "paired_delta_percent": {
+            "median": -10.158631,
+            "min": -11.325106,
+            "max": -8.046088
+          },
+          "launches_per_rank": {
+            "baseline": 1472,
+            "combined": 896
+          }
+        },
+        "backward_inputs": {
+          "baseline_ms": {
+            "median": 10.205436,
+            "min": 10.193077,
+            "max": 10.210633
+          },
+          "combined_ms": {
+            "median": 10.217312,
+            "min": 10.191399,
+            "max": 10.473591
+          },
+          "paired_delta_ms": {
+            "median": 0.007486,
+            "min": -0.009168,
+            "max": 0.280514
+          },
+          "paired_delta_percent": {
+            "median": 0.073316,
+            "min": -0.089789,
+            "max": 2.752005
+          },
+          "launches_per_rank": {
+            "baseline": 96,
+            "combined": 96
+          }
+        },
+        "backward": {
+          "baseline_ms": {
+            "median": 146.527113,
+            "min": 145.731219,
+            "max": 148.143858
+          },
+          "combined_ms": {
+            "median": 137.144054,
+            "min": 136.198117,
+            "max": 140.193347
+          },
+          "paired_delta_ms": {
+            "median": -9.017876,
+            "min": -10.552194,
+            "max": -7.589048
+          },
+          "paired_delta_percent": {
+            "median": -6.18674,
+            "min": -7.147711,
+            "max": -5.188959
+          },
+          "launches_per_rank": {
+            "baseline": 1824,
+            "combined": 1344
+          }
+        },
+        "backward_rotary_and_qkv_a_packing": {
+          "baseline_ms": {
+            "median": 18.316958,
+            "min": 18.282818,
+            "max": 18.346383
+          },
+          "combined_ms": {
+            "median": 8.740248,
+            "min": 8.735138,
+            "max": 8.818444
+          },
+          "paired_delta_ms": {
+            "median": -9.571104,
+            "min": -9.59306,
+            "max": -9.527939
+          },
+          "paired_delta_percent": {
+            "median": -52.239753,
+            "min": -52.328055,
+            "max": -51.93361
+          },
+          "launches_per_rank": {
+            "baseline": 672,
+            "combined": 192
+          }
+        }
+      },
+      "rank_values_ms": {
+        "0": {
+          "baseline": [
+            394.604851,
+            113.329385,
+            125.273356,
+            10.210633,
+            145.791477,
+            18.318301
+          ],
+          "combined": [
+            361.735271,
+            101.653638,
+            113.110369,
+            10.201465,
+            136.769799,
+            8.738364
+          ]
+        },
+        "1": {
+          "baseline": [
+            399.368868,
+            114.541216,
+            127.820161,
+            10.207033,
+            146.800458,
+            18.332537
+          ],
+          "combined": [
+            364.811277,
+            103.093764,
+            114.044146,
+            10.463452,
+            137.209915,
+            8.739477
+          ]
+        },
+        "2": {
+          "baseline": [
+            400.620784,
+            114.786885,
+            128.005289,
+            10.198223,
+            147.630387,
+            18.309872
+          ],
+          "combined": [
+            363.851712,
+            103.073566,
+            113.508554,
+            10.191399,
+            137.078193,
+            8.74476
+          ]
+        },
+        "3": {
+          "baseline": [
+            400.453238,
+            114.14804,
+            128.715233,
+            10.210528,
+            147.379437,
+            18.333119
+          ],
+          "combined": [
+            367.919376,
+            103.174821,
+            115.587419,
+            10.215549,
+            138.941587,
+            8.756023
+          ]
+        },
+        "4": {
+          "baseline": [
+            405.648763,
+            118.85307,
+            128.448085,
+            10.20375,
+            148.143858,
+            18.346383
+          ],
+          "combined": [
+            370.505362,
+            101.9799,
+            118.113039,
+            10.219076,
+            140.193347,
+            8.818444
+          ]
+        },
+        "5": {
+          "baseline": [
+            397.703232,
+            115.439855,
+            126.339081,
+            10.193077,
+            145.731219,
+            18.282818
+          ],
+          "combined": [
+            361.917544,
+            101.170902,
+            113.555907,
+            10.473591,
+            136.717144,
+            8.737258
+          ]
+        },
+        "6": {
+          "baseline": [
+            400.117652,
+            116.834261,
+            126.819026,
+            10.210596,
+            146.253769,
+            18.286532
+          ],
+          "combined": [
+            364.955595,
+            101.66278,
+            114.407547,
+            10.220547,
+            138.664721,
+            8.741018
+          ]
+        },
+        "7": {
+          "baseline": [
+            398.527667,
+            116.335692,
+            126.189134,
+            10.203839,
+            145.799002,
+            18.315614
+          ],
+          "combined": [
+            360.31003,
+            100.969695,
+            112.943367,
+            10.198851,
+            136.198117,
+            8.735138
+          ]
+        }
+      }
+    }
+  }
+}

@@ -50,6 +50,32 @@ records completion of the requested cumulative rerun. Any future comparison
 must use this input contract; this requirement does not itself launch
 additional compute.
 
+## Linear-fixes comparison
+
+The `linear-fixes` branch starts from original A at `e9b7cdbb4`, which uses
+native FLA as recorded in the [production-data campaign
+plan](../runs/production-data-abcd/campaign-plan.json). The switches default off.
+The direct output-norm backward switch applies when the FP8 output-norm
+epilogue is active.
+
+| Switch | Candidate path |
+| --- | --- |
+| `GIFT_GDN_DIRECT_FLA_BACKWARD` | Replay only the gate cumsum and solve matrix for native FLA backward. Dense and packed inputs use the same chunk size as forward. The replay drops the recurrent pass, scan output, and duplicate W/U computation. |
+| `GIFT_GDN_FUSE_SHORT_CONV_BWD` | Recompute short convolution in the gradient tile using the configured Q/K and V head widths and tap count. Use FLA's causal gradient pass for wide filters to bound the overlap between tiles. |
+| `GIFT_GDN_FUSE_OUTPUT_NORM_FP8` | Use the configured norm multiplier and write CudaCherry's padded FP8 projection payload and scales from its BF16 input. Norm statistics are per value head and each quantization block covers 128 flattened features. |
+| `GIFT_GDN_DIRECT_OUTPUT_NORM_BWD` | Recompute the FP32 inverse RMS in the gradient tile and apply the output multiplier with the existing rounding. Reduce the FP32 weight-gradient partials in a second kernel. |
+| `GIFT_MLA_FUSED_ROPE` | Pack rotated Q/K directly for compatible compiled CUDA tensors. The launch uses the actual batch, sequence, head counts, projection strides, and cache dimensions. Eager and DTensor inputs use PyTorch RoPE and packing. |
+
+The MLA fusion accepts implicit positions and shared or per-batch position IDs.
+Its backward reads projection gradients with their existing strides and sums
+the shared K gradient in FP32 before inverse rotation.
+
+These switches use native FLA for the direct GDN path and leave FlashQLA out of
+the component comparisons. The [isolated benchmark report](../runs/linear-fixes/report.md)
+covers the compiled module and custom-op entry points with selective
+activation checkpointing. Training-step throughput requires a separate
+end-to-end comparison.
+
 ## Current final task baseline
 
 **Owner decision, 14 November 2026:** the current final task baseline is this

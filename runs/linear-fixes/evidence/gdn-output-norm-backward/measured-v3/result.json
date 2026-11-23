@@ -1,0 +1,3560 @@
+{
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/gdn-qkv-rank0.pt",
+  "fixture_receipt": {
+    "fixture_sha256": "7e244453fe8d7de975438cc9584a112e687832fd06896bf4db47bc63eb4c52f3",
+    "rank": 0,
+    "world_size": 8,
+    "source_revision": "0f0bf5604f43d8150065f90f90216fd4ba3e5ec1",
+    "qkv_shape": [
+      2,
+      4096,
+      8192
+    ],
+    "weight_shape": [
+      8192,
+      4096
+    ]
+  },
+  "fixture_adaptation": "Native QKV/conv and hidden, replayed FLA scan, seeded gate/output FP8 weights, captured dV as output cotangent; native FP8 projection dgrad feeds isolated VJP",
+  "crop_geometry": {
+    "run": "original-a-vs-cute-001-a2",
+    "resolved_config": "/workspace-SR008.nfs2/vkropotin/a10-cute-001/runs/production-data-abcd/artifacts/raw/original-a-vs-cute-001-a2/native/config/resolved_config.yaml",
+    "resolved_config_sha256": "5e389eebaf3f09d0c9d40232afee8f0ef52ce40530ce2a3dc3510f009ba2d6aa",
+    "value_shape": [
+      2,
+      4096,
+      32,
+      128
+    ],
+    "key_shape": [
+      2,
+      4096,
+      16,
+      128
+    ],
+    "model_dim": 4096,
+    "conv_size": 4,
+    "norm_args": [
+      1e-06,
+      "sigmoid",
+      true,
+      2.0
+    ]
+  },
+  "crop_inputs": [
+    {
+      "shape": [
+        2,
+        4096,
+        32,
+        128
+      ],
+      "stride": [
+        16777216,
+        4096,
+        128,
+        1
+      ],
+      "dtype": "torch.bfloat16",
+      "bytes": 67108864
+    },
+    {
+      "shape": [
+        2,
+        4096,
+        32,
+        128
+      ],
+      "stride": [
+        16777216,
+        4096,
+        128,
+        1
+      ],
+      "dtype": "torch.bfloat16",
+      "bytes": 67108864
+    },
+    {
+      "shape": [
+        128
+      ],
+      "stride": [
+        1
+      ],
+      "dtype": "torch.bfloat16",
+      "bytes": 256
+    }
+  ],
+  "crop_projection_dgrad": {
+    "shape": [
+      2,
+      4096,
+      4096
+    ],
+    "stride": [
+      16777216,
+      4096,
+      1
+    ],
+    "dtype": "torch.bfloat16",
+    "bytes": 67108864
+  },
+  "crop_projection_cotangent": {
+    "shape": [
+      2,
+      4096,
+      4096
+    ],
+    "stride": [
+      16777216,
+      4096,
+      1
+    ],
+    "dtype": "torch.bfloat16",
+    "bytes": 67108864
+  },
+  "crop_local_tokens": 8192,
+  "crop_normalized_rows": 262144,
+  "activation_checkpoint": {
+    "layer0_mode": "selective",
+    "mode": "selective",
+    "selective_save": [],
+    "module_modes": [
+      "layers.[01]=selective",
+      "layers.[23467]=save:experts_up",
+      "layers.5=save:experts_up+comm"
+    ],
+    "per_op_sac_force_recompute_mm_shapes_by_fqns": [
+      "moe.router.gate"
+    ],
+    "early_stop": false,
+    "memory_budget": 0.5,
+    "visualize_memory_budget_pareto": false,
+    "preserve_rng_state": true,
+    "determinism_check": "default",
+    "debug": false
+  },
+  "forward_payload": {
+    "fp8_bytes": {
+      "bitwise": true
+    },
+    "fp32_scales": {
+      "bitwise": true
+    }
+  },
+  "norm_saved_tensors": {
+    "baseline": [
+      {
+        "shape": [
+          2,
+          4096,
+          32,
+          128
+        ],
+        "stride": [
+          16777216,
+          4096,
+          128,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 67108864
+      },
+      {
+        "shape": [
+          2,
+          4096,
+          32,
+          128
+        ],
+        "stride": [
+          16777216,
+          4096,
+          128,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 67108864
+      },
+      {
+        "shape": [
+          128
+        ],
+        "stride": [
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 256
+      }
+    ],
+    "candidate": [
+      {
+        "shape": [
+          2,
+          4096,
+          32,
+          128
+        ],
+        "stride": [
+          16777216,
+          4096,
+          128,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 67108864
+      },
+      {
+        "shape": [
+          2,
+          4096,
+          32,
+          128
+        ],
+        "stride": [
+          16777216,
+          4096,
+          128,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 67108864
+      },
+      {
+        "shape": [
+          128
+        ],
+        "stride": [
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 256
+      }
+    ]
+  },
+  "oracle_precision": "FP64 norm arithmetic after the FP32 multiplier, rounding to dgrad dtype then FLA output dtype; dgate rounds to x dtype before gate dtype",
+  "seed": 2048,
+  "git_revision": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+  "device": "NVIDIA H100 80GB HBM3",
+  "gpu_memory_bytes": 85028896768,
+  "gpu_multiprocessors": 132,
+  "visible_device": "GPU-8f5a8eb7-d9b2-6c7d-b377-5953bcf6c246",
+  "torch": "2.15.0.dev20260822+cu130",
+  "cuda": "13.0",
+  "triton": "3.8.0",
+  "source_sha256": {
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-followup/gdn_component.py": "8334f911b633a69a58700596d79b38b86d6f7de0dc11c0a7ae7dc44239a8fea7",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/runs/linear-fixes/gdn_output_norm_backward_bench.py": "76ab06a866f9d5915e629cfad112796a90903a12e7d54f2e566731e210445c60",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/torchtitan/models/common/attention/linear/fla_custom_ops.py": "8b218f879fe3b3da2ebc77fa1735a6ae2a501885bcadfb000dd294a19d16dcd7",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/contrib/flash-linear-attention/fla/modules/fused_norm_gate.py": "6e9dc5d94ebb142c82446ac0b80eaab42d535c56b0d97391fd77ba59b39836c9",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/torchtitan/models/common/attention/linear/gdn_output_fp8.py": "b3bbb20d5f13b4fecc55e9004461cfc7c0e168a47fc786d73ae79061889f23da",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/torchtitan/models/common/attention/linear/gdn_output_norm_backward.py": "e08e2b756084c39b3fd49f69c59bf27c5ea728e072cb883166e0c48d61d03453",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/source/gift/torchtitan/ops/float8/cuda_gemm.py": "e4f8e9249ee13951ee4ff7de9f87c641a272157a3eb8fbbb59de1d4ec6304f13"
+  },
+  "compile": {
+    "fullgraph": true,
+    "options": {
+      "triton.cudagraphs": false
+    }
+  },
+  "measurement": {
+    "samples_per_variant": 24,
+    "order_even": [
+      "baseline",
+      "candidate",
+      "control"
+    ],
+    "order_odd": [
+      "control",
+      "candidate",
+      "baseline"
+    ],
+    "control": "Second execution of baseline at the same inputs",
+    "warmup_calls_per_variant": 10,
+    "event_span_us": "Single-stream CUDA elapsed span, may include host submission gaps",
+    "host_call_us": "Python/autograd/dispatch/allocator and CUDA submission until return",
+    "host_wait_us": "End-event record and blocking host wait",
+    "wall_us": "Synchronized component call including submission and wait",
+    "profile": "Separate warmed CPU/CUDA trace; kernel, copies/memset and idle gaps in us on one stream. No distributed communication",
+    "memory": "Allocated/reserved peaks after cache flush and stats reset, including returned tensors until synchronization"
+  },
+  "errors": [],
+  "edges": {
+    "padded_v128": {
+      "inputs": [
+        {
+          "shape": [
+            2,
+            67,
+            3,
+            128
+          ],
+          "stride": [
+            25728,
+            384,
+            128,
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 102912
+        },
+        {
+          "shape": [
+            2,
+            67,
+            3,
+            128
+          ],
+          "stride": [
+            25728,
+            384,
+            128,
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 102912
+        },
+        {
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 256
+        }
+      ],
+      "incoming": {
+        "shape": [
+          2,
+          128,
+          384
+        ],
+        "stride": [
+          49152,
+          384,
+          1
+        ],
+        "dtype": "torch.bfloat16",
+        "bytes": 196608
+      },
+      "norm_args": [
+        1e-06,
+        "sigmoid",
+        true,
+        2.0
+      ],
+      "parity": {
+        "baseline_repeat": {
+          "dx": {
+            "shape": [
+              2,
+              67,
+              3,
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              67,
+              3,
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "candidate_vs_baseline": {
+          "dx": {
+            "shape": [
+              2,
+              67,
+              3,
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              67,
+              3,
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "baseline_vs_oracle": {
+          "dx": {
+            "shape": [
+              2,
+              67,
+              3,
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 1,
+            "different_bytes": 1,
+            "max_abs": 0.0078125,
+            "relative_l2": 2.983418695867375e-05
+          },
+          "dgate": {
+            "shape": [
+              2,
+              67,
+              3,
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 1,
+            "different_bytes": 1,
+            "max_abs": 0.0009765625,
+            "relative_l2": 9.604857111711983e-06
+          },
+          "dnorm_weight": {
+            "shape": [
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "candidate_vs_oracle": {
+          "dx": {
+            "shape": [
+              2,
+              67,
+              3,
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 1,
+            "different_bytes": 1,
+            "max_abs": 0.0078125,
+            "relative_l2": 2.983418695867375e-05
+          },
+          "dgate": {
+            "shape": [
+              2,
+              67,
+              3,
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 1,
+            "different_bytes": 1,
+            "max_abs": 0.0009765625,
+            "relative_l2": 9.604857111711983e-06
+          },
+          "dnorm_weight": {
+            "shape": [
+              128
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        }
+      },
+      "trace": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/measured-v3/edge-padded_v128.json",
+        "sha256": "c52efcd1949207c1cf5180efae175d4415b2aee22bd70b52a6fe2058cd1ba096",
+        "counts": {
+          "kernel": 2
+        },
+        "device_span_us": 80.51123046875,
+        "device_gap_us": 75.29521875,
+        "kernel_time_us": 5.216,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "_gdn_output_norm_backward_kernel",
+            [
+              13,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            3.904
+          ],
+          [
+            "_gdn_output_norm_weight_grad_kernel",
+            [
+              16,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.312
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::gdn_output_norm_backward": 1
+        }
+      }
+    },
+    "mixed_v96": {
+      "inputs": [
+        {
+          "shape": [
+            2,
+            7,
+            3,
+            96
+          ],
+          "stride": [
+            2016,
+            288,
+            96,
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 8064
+        },
+        {
+          "shape": [
+            2,
+            7,
+            3,
+            96
+          ],
+          "stride": [
+            2016,
+            288,
+            96,
+            1
+          ],
+          "dtype": "torch.float32",
+          "bytes": 16128
+        },
+        {
+          "shape": [
+            96
+          ],
+          "stride": [
+            1
+          ],
+          "dtype": "torch.float32",
+          "bytes": 384
+        }
+      ],
+      "incoming": {
+        "shape": [
+          2,
+          128,
+          384
+        ],
+        "stride": [
+          49152,
+          384,
+          1
+        ],
+        "dtype": "torch.float16",
+        "bytes": 196608
+      },
+      "norm_args": [
+        1e-06,
+        "swish",
+        false,
+        1.7
+      ],
+      "parity": {
+        "baseline_repeat": {
+          "dx": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "candidate_vs_baseline": {
+          "dx": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 59,
+            "different_bytes": 61,
+            "max_abs": 3.814697265625e-06,
+            "relative_l2": 9.56488428409828e-08
+          }
+        },
+        "baseline_vs_oracle": {
+          "dx": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 79,
+            "different_bytes": 80,
+            "max_abs": 3.814697265625e-06,
+            "relative_l2": 1.2284654809585312e-07
+          }
+        },
+        "candidate_vs_oracle": {
+          "dx": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 69,
+            "different_bytes": 72,
+            "max_abs": 5.7220458984375e-06,
+            "relative_l2": 1.252893201873072e-07
+          }
+        },
+        "oracle_with_omitted_gradient_rounding": {
+          "dx": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 618,
+            "different_bytes": 625,
+            "max_abs": 0.015625,
+            "relative_l2": 0.001288295231901486
+          },
+          "dgate": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 227,
+            "different_bytes": 228,
+            "max_abs": 0.0078125,
+            "relative_l2": 0.0013457803683225268
+          },
+          "dnorm_weight": {
+            "shape": [
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 86,
+            "different_bytes": 197,
+            "max_abs": 0.04759025573730469,
+            "relative_l2": 0.0012777372708469548
+          }
+        },
+        "candidate_vs_omitted_gradient_rounding": {
+          "dx": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 618,
+            "different_bytes": 625,
+            "max_abs": 0.015625,
+            "relative_l2": 0.0012882257338970356
+          },
+          "dgate": {
+            "shape": [
+              2,
+              7,
+              3,
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 227,
+            "different_bytes": 228,
+            "max_abs": 0.0078125,
+            "relative_l2": 0.001345835471723638
+          },
+          "dnorm_weight": {
+            "shape": [
+              96
+            ],
+            "dtype": "torch.float32",
+            "finite": true,
+            "different_elements": 94,
+            "different_bytes": 205,
+            "max_abs": 0.047591209411621094,
+            "relative_l2": 0.001277938054975481
+          }
+        }
+      },
+      "trace": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/measured-v3/edge-mixed_v96.json",
+        "sha256": "bd2ba9cb686e1052700843d924cdfe1921e3ddf3db79397ff6a282d68748c3ca",
+        "counts": {
+          "kernel": 2
+        },
+        "device_span_us": 64.70263671875,
+        "device_gap_us": 59.39279296875,
+        "kernel_time_us": 5.31,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "_gdn_output_norm_backward_kernel",
+            [
+              2,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            4.095
+          ],
+          [
+            "_gdn_output_norm_weight_grad_kernel",
+            [
+              12,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.215
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::gdn_output_norm_backward": 1
+        }
+      }
+    },
+    "strided_odd_v127": {
+      "inputs": [
+        {
+          "shape": [
+            2,
+            19,
+            3,
+            127
+          ],
+          "stride": [
+            7239,
+            381,
+            127,
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 28956
+        },
+        {
+          "shape": [
+            2,
+            19,
+            3,
+            127
+          ],
+          "stride": [
+            7239,
+            381,
+            127,
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 28956
+        },
+        {
+          "shape": [
+            127
+          ],
+          "stride": [
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 254
+        }
+      ],
+      "incoming": {
+        "shape": [
+          2,
+          128,
+          384
+        ],
+        "stride": [
+          98304,
+          768,
+          2
+        ],
+        "dtype": "torch.float32",
+        "bytes": 393216
+      },
+      "norm_args": [
+        1e-06,
+        "sigmoid",
+        true,
+        0.8
+      ],
+      "parity": {
+        "baseline_repeat": {
+          "dx": {
+            "shape": [
+              2,
+              19,
+              3,
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              19,
+              3,
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "candidate_vs_baseline": {
+          "dx": {
+            "shape": [
+              2,
+              19,
+              3,
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              19,
+              3,
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "baseline_vs_oracle": {
+          "dx": {
+            "shape": [
+              2,
+              19,
+              3,
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              19,
+              3,
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "candidate_vs_oracle": {
+          "dx": {
+            "shape": [
+              2,
+              19,
+              3,
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              2,
+              19,
+              3,
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              127
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        }
+      },
+      "trace": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/measured-v3/edge-strided_odd_v127.json",
+        "sha256": "357c466de985c09b2621ac971ff08abc05a285656ee1b974ad02c31d07491105",
+        "counts": {
+          "kernel": 2
+        },
+        "device_span_us": 66.62255859375,
+        "device_gap_us": 57.5027734375,
+        "kernel_time_us": 9.12,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "_gdn_output_norm_backward_kernel",
+            [
+              4,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            7.84
+          ],
+          [
+            "_gdn_output_norm_weight_grad_kernel",
+            [
+              16,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.28
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::gdn_output_norm_backward": 1
+        }
+      }
+    },
+    "wide_v513": {
+      "inputs": [
+        {
+          "shape": [
+            1,
+            17,
+            2,
+            513
+          ],
+          "stride": [
+            17442,
+            1026,
+            513,
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 34884
+        },
+        {
+          "shape": [
+            1,
+            17,
+            2,
+            513
+          ],
+          "stride": [
+            17442,
+            1026,
+            513,
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 34884
+        },
+        {
+          "shape": [
+            513
+          ],
+          "stride": [
+            1
+          ],
+          "dtype": "torch.bfloat16",
+          "bytes": 1026
+        }
+      ],
+      "incoming": {
+        "shape": [
+          1,
+          128,
+          1152
+        ],
+        "stride": [
+          147456,
+          1152,
+          1
+        ],
+        "dtype": "torch.float16",
+        "bytes": 294912
+      },
+      "norm_args": [
+        1e-06,
+        "silu",
+        true,
+        2.0
+      ],
+      "parity": {
+        "baseline_repeat": {
+          "dx": {
+            "shape": [
+              1,
+              17,
+              2,
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              1,
+              17,
+              2,
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "candidate_vs_baseline": {
+          "dx": {
+            "shape": [
+              1,
+              17,
+              2,
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              1,
+              17,
+              2,
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "baseline_vs_oracle": {
+          "dx": {
+            "shape": [
+              1,
+              17,
+              2,
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              1,
+              17,
+              2,
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        },
+        "candidate_vs_oracle": {
+          "dx": {
+            "shape": [
+              1,
+              17,
+              2,
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dgate": {
+            "shape": [
+              1,
+              17,
+              2,
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          },
+          "dnorm_weight": {
+            "shape": [
+              513
+            ],
+            "dtype": "torch.bfloat16",
+            "finite": true,
+            "different_elements": 0,
+            "different_bytes": 0,
+            "max_abs": 0.0,
+            "relative_l2": 0.0
+          }
+        }
+      },
+      "trace": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/measured-v3/edge-wide_v513.json",
+        "sha256": "796f7af94e93b1eb8453d905599934c536a6c15ad39df470defe219fdb7d417a",
+        "counts": {
+          "kernel": 2
+        },
+        "device_span_us": 73.05517578125,
+        "device_gap_us": 68.5109375,
+        "kernel_time_us": 4.5440000000000005,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "_gdn_output_norm_backward_kernel",
+            [
+              9,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            3.2
+          ],
+          [
+            "_gdn_output_norm_weight_grad_kernel",
+            [
+              65,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.344
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::gdn_output_norm_backward": 1
+        }
+      }
+    }
+  },
+  "isolated_backward": {
+    "scope": "Compiled fullgraph norm VJP including legacy multiplier, replay, gradients and weight reduction",
+    "parity": {
+      "baseline_repeat": {
+        "dx": {
+          "shape": [
+            2,
+            4096,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        },
+        "dgate": {
+          "shape": [
+            2,
+            4096,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        },
+        "dnorm_weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        }
+      },
+      "candidate_vs_baseline": {
+        "dx": {
+          "shape": [
+            2,
+            4096,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        },
+        "dgate": {
+          "shape": [
+            2,
+            4096,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        },
+        "dnorm_weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        }
+      },
+      "baseline_vs_oracle": {
+        "dx": {
+          "shape": [
+            2,
+            4096,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 417,
+          "different_bytes": 418,
+          "max_abs": 3.814697265625e-06,
+          "relative_l2": 2.0778949619280444e-05
+        },
+        "dgate": {
+          "shape": [
+            2,
+            4096,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 422,
+          "different_bytes": 425,
+          "max_abs": 5.820766091346741e-11,
+          "relative_l2": 1.9014751685809606e-05
+        },
+        "dnorm_weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        }
+      },
+      "candidate_vs_oracle": {
+        "dx": {
+          "shape": [
+            2,
+            4096,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 417,
+          "different_bytes": 418,
+          "max_abs": 3.814697265625e-06,
+          "relative_l2": 2.0778949619280444e-05
+        },
+        "dgate": {
+          "shape": [
+            2,
+            4096,
+            32,
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 422,
+          "different_bytes": 425,
+          "max_abs": 5.820766091346741e-11,
+          "relative_l2": 1.9014751685809606e-05
+        },
+        "dnorm_weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "torch.bfloat16",
+          "finite": true,
+          "different_elements": 0,
+          "different_bytes": 0,
+          "max_abs": 0.0,
+          "relative_l2": 0.0
+        }
+      }
+    },
+    "traces": {
+      "baseline": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/measured-v3/isolated_backward/baseline.json",
+        "sha256": "65ce5ebfadbe4e15a20926bc51f2d12c4c51825351f3170e735dff6897edcef9",
+        "counts": {
+          "kernel": 5
+        },
+        "device_span_us": 1162.783203125,
+        "device_gap_us": 916.4143828125,
+        "kernel_time_us": 246.369,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "triton_poi_fused_fla_vjp_mul_view_0",
+            [
+              32768,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            45.184
+          ],
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            68.673
+          ],
+          [
+            "layer_norm_gated_bwd_kernel",
+            [
+              132,
+              1,
+              1
+            ],
+            [
+              512,
+              1,
+              1
+            ],
+            124.8
+          ],
+          [
+            "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              32,
+              4,
+              1
+            ],
+            6.496
+          ],
+          [
+            "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.216
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::fla_vjp": 1
+        },
+        "legacy_multiplier_kernel": "triton_poi_fused_fla_vjp_mul_view_0",
+        "fp32_weight_partial_bytes": 67584
+      },
+      "candidate": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/measured-v3/isolated_backward/candidate.json",
+        "sha256": "2613c3cce8e78b1ac27a49a76de6f3e142b7b2386a8264bdddfb9bcb0419d04f",
+        "counts": {
+          "kernel": 2
+        },
+        "device_span_us": 147.677734375,
+        "device_gap_us": 1.183882812500002,
+        "kernel_time_us": 146.494,
+        "copy_and_memset_time_us": 0,
+        "kernels": [
+          [
+            "_gdn_output_norm_backward_kernel",
+            [
+              512,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            144.446
+          ],
+          [
+            "_gdn_output_norm_weight_grad_kernel",
+            [
+              16,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            2.048
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::gdn_output_norm_backward": 1
+        },
+        "fp32_weight_partial_bytes": 262144
+      }
+    },
+    "activation_errors": [],
+    "timing_us": {
+      "baseline": {
+        "event_span_us": {
+          "samples": [
+            507.2000026702881,
+            481.9520115852356,
+            472.1600115299225,
+            471.6799855232239,
+            462.1120095252991,
+            481.6319942474365,
+            481.7279875278473,
+            497.5680112838745,
+            474.7200012207031,
+            466.0800099372864,
+            466.5600061416626,
+            457.8559994697571,
+            453.92000675201416,
+            455.9679925441742,
+            453.66400480270386,
+            453.66400480270386,
+            458.46399664878845,
+            459.1679871082306,
+            481.440007686615,
+            454.6560049057007,
+            457.7920138835907,
+            459.7119987010956,
+            463.3919894695282,
+            477.05599665641785
+          ],
+          "median": 464.7359997034073
+        },
+        "host_call_us": {
+          "samples": [
+            476.296991109848,
+            463.2989875972271,
+            448.35603330284357,
+            452.49704271554947,
+            443.4789880178869,
+            462.8569586202502,
+            463.0879848264158,
+            477.7340218424797,
+            455.8200016617775,
+            447.68204679712653,
+            447.28501234203577,
+            440.03798393532634,
+            434.50697558000684,
+            438.22097359225154,
+            435.982015915215,
+            435.39400212466717,
+            440.3580096550286,
+            441.85202568769455,
+            461.9700484909117,
+            436.51898158714175,
+            439.4279676489532,
+            441.8410244397819,
+            445.245997980237,
+            460.6019938364625
+          ],
+          "median": 446.2655051611364
+        },
+        "host_wait_us": {
+          "samples": [
+            36.65901022031903,
+            25.303976144641638,
+            30.028983019292355,
+            25.679997634142637,
+            25.091052521020174,
+            25.5799968726933,
+            24.851993657648563,
+            26.488967705518007,
+            25.201996322721243,
+            25.01998096704483,
+            25.661021936684847,
+            24.777022190392017,
+            25.65502654761076,
+            24.322012905031443,
+            23.76700285822153,
+            25.060027837753296,
+            24.334003683179617,
+            23.85699190199375,
+            25.911955162882805,
+            24.834007490426302,
+            24.575041607022285,
+            24.30600579828024,
+            24.53097840771079,
+            22.897962480783463
+          ],
+          "median": 25.040004402399063
+        },
+        "wall_us": {
+          "samples": [
+            512.956001330167,
+            488.60296374186873,
+            478.3850163221359,
+            478.1770403496921,
+            468.57004053890705,
+            488.4369554929435,
+            487.93997848406434,
+            504.2229895479977,
+            481.02199798449874,
+            472.70202776417136,
+            472.9460342787206,
+            464.81500612571836,
+            460.1620021276176,
+            462.542986497283,
+            459.74901877343655,
+            460.45402996242046,
+            464.6920133382082,
+            465.7090175896883,
+            487.8820036537945,
+            461.35298907756805,
+            464.0030092559755,
+            466.14703023806214,
+            469.7769763879478,
+            483.49995631724596
+          ],
+          "median": 471.2395020760596
+        }
+      },
+      "candidate": {
+        "event_span_us": {
+          "samples": [
+            330.6559920310974,
+            314.2719864845276,
+            314.33600187301636,
+            309.82398986816406,
+            309.56798791885376,
+            312.9279911518097,
+            314.2719864845276,
+            311.6160035133362,
+            316.5760040283203,
+            323.61599802970886,
+            311.2320005893707,
+            317.05600023269653,
+            307.48799443244934,
+            313.8880133628845,
+            305.63199520111084,
+            309.9839985370636,
+            308.9599907398224,
+            309.82398986816406,
+            317.984014749527,
+            310.04801392555237,
+            315.0399923324585,
+            309.34399366378784,
+            313.34400177001953,
+            307.8080117702484
+          ],
+          "median": 312.27199733257294
+        },
+        "host_call_us": {
+          "samples": [
+            240.31801149249077,
+            221.4530250057578,
+            220.78701294958591,
+            213.31000607460737,
+            217.84595446661115,
+            221.26000840216875,
+            219.0780360251665,
+            219.00201682001352,
+            221.5359709225595,
+            231.5360470674932,
+            217.97599038109183,
+            221.6660068370402,
+            210.82203602418303,
+            220.64597578719258,
+            216.20694315060973,
+            217.29501895606518,
+            215.68202646449208,
+            214.1879522241652,
+            225.2080012112856,
+            213.71798356994987,
+            222.03201660886407,
+            215.67201474681497,
+            222.84098668023944,
+            214.20902339741588
+          ],
+          "median": 219.04002642259002
+        },
+        "host_wait_us": {
+          "samples": [
+            96.70300642028451,
+            99.20098818838596,
+            100.36700405180454,
+            102.59897680953145,
+            98.06203888729215,
+            98.22600986808538,
+            101.51800233870745,
+            98.91303488984704,
+            101.42405517399311,
+            98.23899017646909,
+            99.62799958884716,
+            101.50601156055927,
+            102.92598744854331,
+            99.57299334928393,
+            95.77401215210557,
+            98.78596756607294,
+            99.78801244869828,
+            102.12702909484506,
+            99.35401612892747,
+            102.51597268506885,
+            99.5720038190484,
+            99.8459872789681,
+            96.92099411040545,
+            99.74301792681217
+          ],
+          "median": 99.60049646906555
+        },
+        "wall_us": {
+          "samples": [
+            337.0210179127753,
+            320.6540131941438,
+            321.15401700139046,
+            315.9089828841388,
+            315.9079933539033,
+            319.48601827025414,
+            320.59603836387396,
+            317.91505170986056,
+            322.9600260965526,
+            329.7750372439623,
+            317.603989969939,
+            323.17201839759946,
+            313.74802347272635,
+            320.2189691364765,
+            311.9809553027153,
+            316.0809865221381,
+            315.47003891319036,
+            316.31498131901026,
+            324.56201734021306,
+            316.2339562550187,
+            321.6040204279125,
+            315.51800202578306,
+            319.7619807906449,
+            313.95204132422805
+          ],
+          "median": 318.70053499005735
+        }
+      },
+      "control": {
+        "event_span_us": {
+          "samples": [
+            467.45601296424866,
+            462.14398741722107,
+            448.7999975681305,
+            463.29599618911743,
+            457.3119878768921,
+            448.2879936695099,
+            457.8559994697571,
+            461.5040123462677,
+            461.88798546791077,
+            489.6000027656555,
+            479.8080027103424,
+            465.31200408935547,
+            476.79999470710754,
+            475.77598690986633,
+            470.14400362968445,
+            466.91200137138367,
+            478.2080054283142,
+            473.88800978660583,
+            470.5280065536499,
+            479.8400104045868,
+            477.34400629997253,
+            476.4159917831421,
+            476.03198885917664,
+            466.592013835907
+          ],
+          "median": 468.80000829696655
+        },
+        "host_call_us": {
+          "samples": [
+            448.6350226216018,
+            442.72298691794276,
+            430.7760391384363,
+            444.82399243861437,
+            438.82604222744703,
+            430.2269662730396,
+            439.4050338305533,
+            443.60599713400006,
+            442.03398283571005,
+            470.210041385144,
+            460.8799936249852,
+            446.5210367925465,
+            454.8419965431094,
+            457.15499436482787,
+            452.68505346029997,
+            448.7819969654083,
+            459.1619945131242,
+            455.39403799921274,
+            452.5140393525362,
+            461.2480406649411,
+            459.9550156854093,
+            453.1239974312484,
+            458.702037576586,
+            448.9789716899395
+          ],
+          "median": 450.74650552123785
+        },
+        "host_wait_us": {
+          "samples": [
+            25.725981686264277,
+            25.662011466920376,
+            25.009969249367714,
+            24.96002707630396,
+            25.237968657165766,
+            24.360022507607937,
+            24.962995667010546,
+            24.1899979300797,
+            26.44903725013137,
+            25.67499177530408,
+            25.679997634142637,
+            24.912995286285877,
+            28.634967748075724,
+            24.968001525849104,
+            24.23400292173028,
+            24.382956326007843,
+            25.819987058639526,
+            24.729000870138407,
+            24.607987143099308,
+            24.71799962222576,
+            23.67497654631734,
+            29.471993912011385,
+            24.007982574403286,
+            23.585977032780647
+          ],
+          "median": 24.961511371657252
+        },
+        "wall_us": {
+          "samples": [
+            474.3610043078661,
+            468.38499838486314,
+            455.78600838780403,
+            469.7840195149183,
+            464.0640108846128,
+            454.5869887806475,
+            464.36802949756384,
+            467.79599506407976,
+            468.4830200858414,
+            495.8850331604481,
+            486.55999125912786,
+            471.4340320788324,
+            483.47696429118514,
+            482.122995890677,
+            476.91905638203025,
+            473.16495329141617,
+            484.98198157176375,
+            480.12303886935115,
+            477.1220264956355,
+            485.96604028716683,
+            483.62999223172665,
+            482.5959913432598,
+            482.7100201509893,
+            472.56494872272015
+          ],
+          "median": 475.6400303449482
+        }
+      }
+    },
+    "paired_time_change_pct": {
+      "event_span_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -34.80757289229657,
+            -34.79185086273947,
+            -33.425958531624666,
+            -34.314789819948935,
+            -33.010183345623275,
+            -35.02757397984566,
+            -34.76152629260295,
+            -37.372178989305695,
+            -33.31311020932942,
+            -30.566428267701685,
+            -33.292181821758916,
+            -30.752026707113366,
+            -32.259431208451595,
+            -31.160077352913095,
+            -32.6303184811789,
+            -31.671017480905494,
+            -32.60975932718557,
+            -32.52491494030585,
+            -33.9514768875392,
+            -31.80602244770553,
+            -31.18272429877551,
+            -32.70917562782104,
+            -32.380358553732734,
+            -35.47759300216157
+          ],
+          "median": -32.85967948672216
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -7.835960074289572,
+            -4.10995777419042,
+            -4.947478268246264,
+            -1.777474048386063,
+            -1.0387138939188745,
+            -6.923128234042586,
+            -4.9554912058561325,
+            -7.248054159380324,
+            -2.703070382498296,
+            5.046342328977782,
+            2.839505400010056,
+            1.6284606138683655,
+            5.040533048721341,
+            4.344163338125795,
+            3.6326441270445597,
+            2.920222108968362,
+            4.306556005236528,
+            3.205803342493385,
+            -2.266533931278114,
+            5.539134032576887,
+            4.270933485823902,
+            3.6335777898430344,
+            2.7277121048463027,
+            -2.1934495937270815
+          ],
+          "median": 2.178086359357334
+        }
+      },
+      "host_call_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -49.54450353916546,
+            -52.20083986061289,
+            -50.75631940912133,
+            -52.859359081226266,
+            -50.877953555304686,
+            -52.19689273728713,
+            -52.69191963438959,
+            -54.15817027738843,
+            -51.39836555769636,
+            -48.28114088470091,
+            -51.266869140160885,
+            -49.62571075009309,
+            -51.480172270476274,
+            -49.64960851177892,
+            -50.40920605480771,
+            -50.09232605509189,
+            -51.021209621359006,
+            -51.524958635007955,
+            -51.25051895746092,
+            -51.04039169318789,
+            -49.472488563531925,
+            -51.18787011227186,
+            -49.95104106693608,
+            -53.493682992290495
+          ],
+          "median": -51.114130902729876
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -5.807714305267686,
+            -4.441192670417027,
+            -3.920989762288485,
+            -1.6957128008808997,
+            -1.0491919383229464,
+            -7.049692510722705,
+            -5.114136356774579,
+            -7.14372917734808,
+            -3.024443590849002,
+            5.032141616844044,
+            3.039444852346951,
+            1.473293918684293,
+            4.680021750159047,
+            4.3206559963042235,
+            3.8311299400783483,
+            3.0749148530777815,
+            4.270158472381702,
+            3.0648297448544026,
+            -2.0468879247182548,
+            5.665059280557916,
+            4.671311238171949,
+            2.5536272929324255,
+            3.022158460129787,
+            -2.5234415617075623
+          ],
+          "median": 2.0134606058083593
+        }
+      },
+      "host_wait_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            163.79055473430327,
+            292.0371550357817,
+            234.23377670606752,
+            299.5287627017605,
+            290.82473246245894,
+            283.9953943580887,
+            308.49037601240417,
+            273.412191782929,
+            302.44452810491333,
+            292.64214591475894,
+            288.24642227681335,
+            309.6780104589044,
+            301.1922858763471,
+            309.3945420474861,
+            302.9705079913988,
+            294.1973576631485,
+            310.07642535073137,
+            328.0800761235544,
+            283.42925303932935,
+            312.80479086828626,
+            305.17532141469843,
+            310.7873095547137,
+            295.09632473501506,
+            335.5977874036565
+          ],
+          "median": 300.36052428905384
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -29.823578073569735,
+            1.4149370052838783,
+            -16.71389859157114,
+            -2.803623925889487,
+            0.5855319780727175,
+            -4.769251423903375,
+            0.44665233256977466,
+            -8.678970811532993,
+            4.948183117881966,
+            2.617950865438301,
+            0.07394755167822176,
+            0.5487870771919701,
+            11.615428247305726,
+            2.6559833815565037,
+            1.964909358973732,
+            -2.7017987215697925,
+            6.106612766262809,
+            3.655150539208507,
+            -5.032302701925584,
+            -0.46713309660255664,
+            -3.6625169352622944,
+            21.253957382404074,
+            -2.131981140805672,
+            3.004697699957304
+          ],
+          "median": 0.49771970488087236
+        }
+      },
+      "wall_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -34.298260077115316,
+            -34.37329754644165,
+            -32.867040972468274,
+            -33.9347237054473,
+            -32.58041145981626,
+            -34.590121677459805,
+            -34.29600924279577,
+            -36.949512755289035,
+            -32.859614019781226,
+            -30.236170383325423,
+            -32.84561726914368,
+            -30.472980833542362,
+            -31.817920205911744,
+            -30.769900639633306,
+            -32.14102856922922,
+            -31.35449665888802,
+            -32.112016161640454,
+            -32.07883691921578,
+            -33.47530449790372,
+            -31.455097562649637,
+            -30.689238213432812,
+            -32.313630344347054,
+            -31.933237075760523,
+            -35.066790136744075
+          ],
+          "median": -32.44702090208166
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -7.524036549376301,
+            -4.137912959465151,
+            -4.724020854180377,
+            -1.7552120086392953,
+            -0.9616555188018072,
+            -6.930263226731837,
+            -4.8309115928016455,
+            -7.224381918121647,
+            -2.6067368958584303,
+            4.90435920191199,
+            2.878543426454483,
+            1.4240129655632927,
+            5.066685657609238,
+            4.233122102157094,
+            3.7346545413846854,
+            2.760519509414028,
+            4.366326007584798,
+            3.0950702552988263,
+            -2.205446619792595,
+            5.334971657777765,
+            4.2299257944949264,
+            3.528706617909183,
+            2.7530177963343228,
+            -2.261635694409636
+          ],
+          "median": 2.0885153809488077
+        }
+      }
+    },
+    "memory": {
+      "baseline": {
+        "start_allocated_bytes": 403021824,
+        "start_reserved_bytes": 505413632,
+        "peak_allocated_bytes": 672574464,
+        "peak_reserved_bytes": 775946240
+      },
+      "candidate": {
+        "start_allocated_bytes": 403021824,
+        "start_reserved_bytes": 505413632,
+        "peak_allocated_bytes": 537502208,
+        "peak_reserved_bytes": 639631360
+      }
+    },
+    "peak_memory_change_pct": {
+      "peak_allocated_bytes": -20.082870110275252,
+      "peak_reserved_bytes": -17.567567567567565
+    }
+  },
+  "projection_chain": {
+    "scope": "Inductor fullgraph forward and backward with crop layer-0 SAC, rowwise FP8 projection forward/dgrad/wgrad and norm gradients",
+    "baseline_repeat": {
+      "output": {
+        "shape": [
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dx": {
+        "shape": [
+          2,
+          4096,
+          32,
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dgate": {
+        "shape": [
+          2,
+          4096,
+          32,
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dnorm_weight": {
+        "shape": [
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dprojection_weight": {
+        "shape": [
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      }
+    },
+    "candidate_vs_baseline": {
+      "output": {
+        "shape": [
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dx": {
+        "shape": [
+          2,
+          4096,
+          32,
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dgate": {
+        "shape": [
+          2,
+          4096,
+          32,
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dnorm_weight": {
+        "shape": [
+          128
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      },
+      "dprojection_weight": {
+        "shape": [
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "finite": true,
+        "different_elements": 0,
+        "different_bytes": 0,
+        "max_abs": 0.0,
+        "relative_l2": 0.0
+      }
+    },
+    "traces": {
+      "baseline": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/measured-v3/projection_chain/baseline.json",
+        "sha256": "ffa269a9aebf1bc802e9db0a733da168a035a8f311e5685c3e0989deba991784",
+        "counts": {
+          "kernel": 15,
+          "gpu_memset": 3
+        },
+        "device_span_us": 1527.5390625,
+        "device_gap_us": 326.52598046874994,
+        "kernel_time_us": 1198.741,
+        "copy_and_memset_time_us": 2.2720000000000002,
+        "kernels": [
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            70.943
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            16.512
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            214.238
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              1024,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            34.752
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            18.623
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            213.598
+          ],
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            68.671
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              64,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            26.528
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              64,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            28.672
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            261.502
+          ],
+          [
+            "triton_poi_fused_fla_vjp_mul_view_0",
+            [
+              32768,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            41.023
+          ],
+          [
+            "layer_norm_gated_fwd_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            70.432
+          ],
+          [
+            "layer_norm_gated_bwd_kernel",
+            [
+              132,
+              1,
+              1
+            ],
+            [
+              512,
+              1,
+              1
+            ],
+            125.375
+          ],
+          [
+            "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              32,
+              4,
+              1
+            ],
+            6.688
+          ],
+          [
+            "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.184
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::fla_vjp": 1
+        },
+        "legacy_multiplier_kernel": "triton_poi_fused_fla_vjp_mul_view_0",
+        "fp32_weight_partial_bytes": 67584
+      },
+      "candidate": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-output-norm-backward-001/measured-v3/projection_chain/candidate.json",
+        "sha256": "5ac196ad6ed145b2ab98accd9427cb877d9a94156b3ced39911488d5ea90650b",
+        "counts": {
+          "kernel": 12,
+          "gpu_memset": 3
+        },
+        "device_span_us": 1369.80126953125,
+        "device_gap_us": 273.0523828125,
+        "kernel_time_us": 1094.413,
+        "copy_and_memset_time_us": 2.3360000000000003,
+        "kernels": [
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            68.863
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            16.735
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            213.788
+          ],
+          [
+            "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)",
+            [
+              16,
+              1024,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            34.111
+          ],
+          [
+            "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)",
+            [
+              32,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            18.56
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            214.588
+          ],
+          [
+            "_gdn_output_norm_quantize_128_kernel",
+            [
+              4096,
+              1,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            69.151
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              64,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            25.984
+          ],
+          [
+            "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)",
+            [
+              64,
+              32,
+              1
+            ],
+            [
+              256,
+              1,
+              1
+            ],
+            28.671
+          ],
+          [
+            "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT",
+            [
+              2,
+              66,
+              1
+            ],
+            [
+              384,
+              1,
+              1
+            ],
+            261.596
+          ],
+          [
+            "_gdn_output_norm_backward_kernel",
+            [
+              512,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            140.382
+          ],
+          [
+            "_gdn_output_norm_weight_grad_kernel",
+            [
+              16,
+              1,
+              1
+            ],
+            [
+              128,
+              1,
+              1
+            ],
+            1.984
+          ]
+        ],
+        "custom_op_counts": {
+          "torchtitan::gdn_output_norm_backward": 1
+        },
+        "fp32_weight_partial_bytes": 262144
+      }
+    },
+    "activation_errors": [],
+    "timing_us": {
+      "baseline": {
+        "event_span_us": {
+          "samples": [
+            1444.1280364990234,
+            1437.0239973068237,
+            1435.7759952545166,
+            1463.96803855896,
+            1448.799967765808,
+            2020.7679271697998,
+            1548.1599569320679,
+            1443.4880018234253,
+            1475.2320051193237,
+            1423.967957496643,
+            1488.319993019104,
+            1460.8319997787476,
+            1451.904058456421,
+            1460.5439901351929,
+            1442.8479671478271,
+            1466.5600061416626,
+            1479.3599843978882,
+            1453.9519548416138,
+            1476.9279956817627,
+            1461.6320133209229,
+            1476.5759706497192,
+            1436.7680549621582,
+            1435.6160163879395,
+            1446.7519521713257
+          ],
+          "median": 1457.2479724884033
+        },
+        "host_call_us": {
+          "samples": [
+            1252.7870130725205,
+            1259.4310101121664,
+            1238.060009200126,
+            1312.2769887559116,
+            1262.8600234165788,
+            1995.6739852204919,
+            1413.7360267341137,
+            1264.404971152544,
+            1301.176962442696,
+            1269.150001462549,
+            1306.322985328734,
+            1282.3049910366535,
+            1281.3109788112342,
+            1314.6399869583547,
+            1273.0270391330123,
+            1278.9539759978652,
+            1343.7059824354947,
+            1291.3899845443666,
+            1288.1220318377018,
+            1274.9870074912906,
+            1319.7409571148455,
+            1278.0240504071116,
+            1251.518027856946,
+            1252.860005479306
+          ],
+          "median": 1280.1324774045497
+        },
+        "host_wait_us": {
+          "samples": [
+            196.63700368255377,
+            184.8359825089574,
+            205.33701172098517,
+            158.8320010341704,
+            193.02702276036143,
+            32.450014259666204,
+            2152.7520148083568,
+            186.1780183389783,
+            181.77501624450088,
+            161.90996393561363,
+            189.0630228444934,
+            185.96299923956394,
+            177.78301844373345,
+            153.37200602516532,
+            177.02695913612843,
+            195.42500376701355,
+            142.72000407800078,
+            169.56799663603306,
+            196.14596385508776,
+            193.74600378796458,
+            164.4270378164947,
+            165.9889821894467,
+            191.2059960886836,
+            200.7469884119928
+          ],
+          "median": 185.39949087426066
+        },
+        "wall_us": {
+          "samples": [
+            1449.4240167550743,
+            1444.2669926211238,
+            1443.397020921111,
+            1471.108989790082,
+            1455.8870461769402,
+            2028.123999480158,
+            3566.4880415424705,
+            1450.5829894915223,
+            1482.951978687197,
+            1431.0599653981626,
+            1495.3860081732273,
+            1468.2679902762175,
+            1459.0939972549677,
+            1468.01199298352,
+            1450.0539982691407,
+            1474.3789797648787,
+            1486.4259865134954,
+            1460.9579811803997,
+            1484.2679956927896,
+            1468.7330112792552,
+            1484.1679949313402,
+            1444.0130325965583,
+            1442.7240239456296,
+            1453.6069938912988
+          ],
+          "median": 1464.4849870819598
+        }
+      },
+      "candidate": {
+        "event_span_us": {
+          "samples": [
+            1340.60800075531,
+            1338.2079601287842,
+            1342.4639701843262,
+            1376.6720294952393,
+            1351.9680500030518,
+            1361.791968345642,
+            1916.8959856033325,
+            1358.6560487747192,
+            1386.240005493164,
+            1351.9359827041626,
+            1398.4320163726807,
+            1398.8159894943237,
+            1379.5839548110962,
+            1376.6720294952393,
+            1363.0720376968384,
+            1368.0319786071777,
+            1394.2400217056274,
+            1380.9280395507812,
+            1358.3359718322754,
+            1363.2639646530151,
+            1360.9280586242676,
+            1353.5360097885132,
+            1339.6480083465576,
+            1374.0479946136475
+          ],
+          "median": 1363.1680011749268
+        },
+        "host_call_us": {
+          "samples": [
+            1012.0680090039968,
+            997.7099834941328,
+            1029.3449740856886,
+            1051.5369940549135,
+            1031.8260174244642,
+            1053.29102370888,
+            1627.0899795927107,
+            1054.9839935265481,
+            1076.8280480988324,
+            1026.4660231769085,
+            1082.1010218933225,
+            1085.2389968931675,
+            1079.446985386312,
+            1062.1119872666895,
+            1058.925990946591,
+            1067.1420022845268,
+            1079.6510032378137,
+            1071.4210220612586,
+            1051.7180198803544,
+            1046.2829959578812,
+            1041.7969897389412,
+            1026.8589830957353,
+            1012.2260428033769,
+            1059.2840262688696
+          ],
+          "median": 1054.137508617714
+        },
+        "host_wait_us": {
+          "samples": [
+            335.8829999342561,
+            348.15899562090635,
+            320.6389956176281,
+            332.1819822303951,
+            327.6979550719261,
+            315.63598895445466,
+            296.88799986615777,
+            310.84095826372504,
+            316.50200253352523,
+            333.1229672767222,
+            323.7029886804521,
+            321.2579758837819,
+            307.54198087379336,
+            321.87101896852255,
+            312.53701308742166,
+            308.56800731271505,
+            321.68300822377205,
+            316.99001556262374,
+            313.94202960655093,
+            324.63500974699855,
+            326.6070270910859,
+            334.0570256114006,
+            335.1479535922408,
+            321.94500090554357
+          ],
+          "median": 321.7770135961473
+        },
+        "wall_us": {
+          "samples": [
+            1347.951008938253,
+            1345.868979115039,
+            1349.9839697033167,
+            1383.7189762853086,
+            1359.5239724963903,
+            1368.9270126633346,
+            1923.9779794588685,
+            1365.8249517902732,
+            1393.3300506323576,
+            1359.5889904536307,
+            1405.8040105737746,
+            1406.4969727769494,
+            1386.9889662601054,
+            1383.983006235212,
+            1371.4630040340126,
+            1375.7100095972419,
+            1401.3340114615858,
+            1388.4110376238823,
+            1365.6600494869053,
+            1370.9180057048798,
+            1368.404016830027,
+            1360.916008707136,
+            1347.3739963956177,
+            1381.2290271744132
+          ],
+          "median": 1371.1905048694462
+        }
+      },
+      "control": {
+        "event_span_us": {
+          "samples": [
+            1449.728012084961,
+            1443.1359767913818,
+            1448.1279850006104,
+            1445.1199769973755,
+            1421.887993812561,
+            1428.447961807251,
+            1496.448040008545,
+            1473.0240106582642,
+            1460.6080055236816,
+            1458.016037940979,
+            1467.6799774169922,
+            1464.8959636688232,
+            1466.5919542312622,
+            1500.5760192871094,
+            1463.487982749939,
+            1471.4239835739136,
+            1466.0160541534424,
+            1493.5040473937988,
+            1447.648048400879,
+            1449.5999813079834,
+            1440.51194190979,
+            1483.199954032898,
+            1468.7680006027222,
+            1464.8000001907349
+          ],
+          "median": 1464.143991470337
+        },
+        "host_call_us": {
+          "samples": [
+            1284.6639729104936,
+            1249.083026777953,
+            1253.747963346541,
+            1391.2779977545142,
+            1240.6680034473538,
+            1229.6600034460425,
+            1420.3929458744824,
+            1284.5400488004088,
+            1278.5139842890203,
+            1305.2179710939527,
+            1288.5259930044413,
+            1281.9769908674061,
+            1294.2050234414637,
+            1347.2699793055654,
+            1287.8900161013007,
+            1286.5460012108088,
+            1306.2410289421678,
+            1323.4129874035716,
+            1281.2750064767897,
+            1277.340983506292,
+            1262.7180549316108,
+            1316.4840056560934,
+            1283.9929549954832,
+            1253.227994311601
+          ],
+          "median": 1284.6020108554512
+        },
+        "host_wait_us": {
+          "samples": [
+            172.42302419617772,
+            201.15496590733528,
+            201.4290075749159,
+            61.12200208008289,
+            188.39200492948294,
+            206.2179846689105,
+            83.2460355013609,
+            195.84200344979763,
+            189.13601525127888,
+            159.99801689758897,
+            186.85002578422427,
+            189.93299454450607,
+            179.30899048224092,
+            160.78801127150655,
+            182.52700101584196,
+            192.21700495108962,
+            166.7579635977745,
+            177.21299082040787,
+            173.6119738779962,
+            179.43303100764751,
+            185.0979751907289,
+            173.88100968673825,
+            191.77701324224472,
+            219.0489904023707
+          ],
+          "median": 183.81248810328543
+        },
+        "wall_us": {
+          "samples": [
+            1457.0869971066713,
+            1450.2379926852882,
+            1455.1769709214568,
+            1452.399999834597,
+            1429.0600083768368,
+            1435.877988114953,
+            1503.6389813758433,
+            1480.3820522502065,
+            1467.6499995402992,
+            1465.2159879915416,
+            1475.3760187886655,
+            1471.9099854119122,
+            1473.5140139237046,
+            1508.057990577072,
+            1470.4170171171427,
+            1478.7630061618984,
+            1472.9989925399423,
+            1500.6259782239795,
+            1454.886980354786,
+            1456.7740145139396,
+            1447.8160301223397,
+            1490.3650153428316,
+            1475.7699682377279,
+            1472.2769847139716
+          ],
+          "median": 1471.1635012645274
+        }
+      }
+    },
+    "paired_time_change_pct": {
+      "event_span_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -7.168341942496692,
+            -6.876436118202212,
+            -6.4990656884223235,
+            -5.962972330300975,
+            -6.683594693343398,
+            -32.61017507077574,
+            23.81769577621522,
+            -5.876872751387308,
+            -6.032407059861855,
+            -5.058539022121944,
+            -6.039559843853393,
+            -4.245252725420623,
+            -4.981052516804119,
+            -5.742515200257003,
+            -5.529059974952666,
+            -6.718308635300907,
+            -5.753837036960629,
+            -5.022443489117034,
+            -8.029641539481025,
+            -6.730014652895367,
+            -7.832168091870317,
+            -5.793004993825335,
+            -6.684796418114692,
+            -5.025322927580089
+          ],
+          "median": -5.997689695081415
+        },
+        "control_vs_baseline": {
+          "samples": [
+            0.387775560366066,
+            0.4253220193965346,
+            0.8603006170126326,
+            -1.2874640063957554,
+            -1.8575355157377627,
+            -29.311627396626715,
+            -3.3402179595187653,
+            2.0461554787797764,
+            -0.9913016762715388,
+            2.391070688429875,
+            -1.3867995927571264,
+            0.2781951580120845,
+            1.011629913787604,
+            2.7408985571335753,
+            1.4305052279979469,
+            0.33165894418787367,
+            -0.9020069749876902,
+            2.720316336484019,
+            -1.9824898279734993,
+            -0.8231916038566989,
+            -2.4424092939871134,
+            3.2316906622734454,
+            2.309251487608388,
+            1.247487379735146
+          ],
+          "median": 0.3597172522769698
+        }
+      },
+      "host_call_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -19.214679076066467,
+            -20.78089427024069,
+            -16.85823252212807,
+            -19.869280413747823,
+            -18.294506256288667,
+            -47.221288070631076,
+            15.091498612472098,
+            -16.562808783890038,
+            -17.241998653487844,
+            -19.121772682974836,
+            -17.164358734680484,
+            -15.368106302399397,
+            -15.754488704389791,
+            -19.20890906992203,
+            -16.81826399635892,
+            -16.561344480600127,
+            -19.651246824031844,
+            -17.033503830426433,
+            -18.352609932467434,
+            -17.937752321367995,
+            -21.060494173305955,
+            -19.652608824643657,
+            -19.120138881524863,
+            -15.450727005718413
+          ],
+          "median": -18.116129288828333
+        },
+        "control_vs_baseline": {
+          "samples": [
+            2.544483579837986,
+            -0.8216395539833443,
+            1.2671400440880554,
+            6.020147398416142,
+            -1.7572826408097098,
+            -38.38372336600943,
+            0.470874266092447,
+            1.5924547994706995,
+            -1.741729127384073,
+            2.841899664329639,
+            -1.3623730520070487,
+            -0.025578951305660347,
+            1.0063165651005512,
+            2.4820477599122537,
+            1.1675303439281803,
+            0.5936120732585426,
+            -2.7881808954531073,
+            2.479731393495621,
+            -0.5315509859841305,
+            0.1846274511952295,
+            -4.320764758858086,
+            3.009329537791583,
+            2.5948429359939906,
+            0.029371903539554545
+          ],
+          "median": 0.5322431696754948
+        }
+      },
+      "host_wait_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            70.81372968665542,
+            88.36104902033031,
+            56.1525576564428,
+            109.14046292153112,
+            69.76791662934963,
+            872.6836679599703,
+            -86.20890851227063,
+            66.95900033578093,
+            74.11743872865706,
+            105.74581031294308,
+            71.21433044403491,
+            72.75370756411941,
+            72.98726479386856,
+            109.86295172778134,
+            76.54769342057672,
+            57.89586867839647,
+            125.39447802142898,
+            86.93976566994696,
+            60.05530954411618,
+            67.55700938341869,
+            98.63340690695208,
+            101.25252965894708,
+            75.281089739882,
+            60.37351466753576
+          ],
+          "median": 73.55235176126281
+        },
+        "control_vs_baseline": {
+          "samples": [
+            -12.314050271772114,
+            8.828899642193356,
+            -1.903214677819276,
+            -61.51782910111836,
+            -2.4012274367577913,
+            535.4942805841213,
+            -96.13304110604808,
+            5.190722941966186,
+            4.0495108507524025,
+            -1.1808705230673677,
+            -1.17050760480506,
+            2.134830757288353,
+            0.8583339690513947,
+            4.835305632713971,
+            3.1068950777628057,
+            -1.6415498293905761,
+            16.84274021365375,
+            4.508512417460642,
+            -11.488378110976383,
+            -7.387493161397629,
+            12.571495326275684,
+            4.754549002706843,
+            0.2986397734599633,
+            9.116949716235201
+          ],
+          "median": 1.4965823631698738
+        }
+      },
+      "wall_us": {
+        "candidate_vs_baseline": {
+          "samples": [
+            -7.000919444124842,
+            -6.813007152334583,
+            -6.471750312896063,
+            -5.940417338979309,
+            -6.618856451370503,
+            -32.50279504536145,
+            -46.05399045087595,
+            -5.84303265068341,
+            -6.043481470935985,
+            -4.994268351616327,
+            -5.9905601035338485,
+            -4.207066959734473,
+            -4.9417673659486905,
+            -5.72399865600085,
+            -5.419866731096801,
+            -6.692239344281193,
+            -5.724602221971253,
+            -4.965710478401453,
+            -7.99100610874004,
+            -6.659822093137214,
+            -7.799924166042171,
+            -5.754589606438742,
+            -6.609027504043641,
+            -4.979197748844766
+          ],
+          "median": -6.017020787234917
+        },
+        "control_vs_baseline": {
+          "samples": [
+            0.528691415556426,
+            0.41342771763606123,
+            0.816126805695383,
+            -1.2717609698078558,
+            -1.8426592825693033,
+            -29.201666738178112,
+            -57.839786258598124,
+            2.054281828379212,
+            -1.0318593836358803,
+            2.386763896639077,
+            -1.338115327761169,
+            0.2480470295487036,
+            0.9882856550616825,
+            2.727906705459837,
+            1.4042938312854858,
+            0.2973473209526345,
+            -0.9033072682647969,
+            2.7152045133789215,
+            -1.979495308344903,
+            -0.814238985130411,
+            -2.4493160432746186,
+            3.209942133480981,
+            2.2905242959580407,
+            1.2843905471790151
+          ],
+          "median": 0.35538751929434786
+        }
+      }
+    },
+    "memory": {
+      "baseline": {
+        "start_allocated_bytes": 403021824,
+        "start_reserved_bytes": 505413632,
+        "peak_allocated_bytes": 773237760,
+        "peak_reserved_bytes": 912261120
+      },
+      "candidate": {
+        "start_allocated_bytes": 403021824,
+        "start_reserved_bytes": 505413632,
+        "peak_allocated_bytes": 705274368,
+        "peak_reserved_bytes": 845152256
+      }
+    },
+    "peak_memory_change_pct": {
+      "peak_allocated_bytes": -8.789455910689103,
+      "peak_reserved_bytes": -7.35632183908046
+    }
+  }
+}

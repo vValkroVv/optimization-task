@@ -1,0 +1,459 @@
+{
+  "scope": "short-conv forward plus backward, Inductor fullgraph and selective AC",
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/gdn-qkv-rank0.pt",
+  "fixture_receipt": {
+    "fixture_sha256": "7e244453fe8d7de975438cc9584a112e687832fd06896bf4db47bc63eb4c52f3",
+    "rank": 0,
+    "world_size": 8,
+    "source_revision": "0f0bf5604f43d8150065f90f90216fd4ba3e5ec1",
+    "qkv_shape": [
+      2,
+      4096,
+      8192
+    ],
+    "weight_shape": [
+      8192,
+      4096
+    ]
+  },
+  "git_revision": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+  "device": "NVIDIA H100 80GB HBM3",
+  "visible_devices": "GPU-7a35d02e-1b06-4a5b-7f2c-76b40a15e03f",
+  "torch": "2.15.0.dev20260822+cu130",
+  "cuda": "13.0",
+  "triton": "3.8.0",
+  "file_sha256": {
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/fusion-followup/gdn_component.py": "8334f911b633a69a58700596d79b38b86d6f7de0dc11c0a7ae7dc44239a8fea7",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-short-conv-specialized/gdn_short_conv_component.py": "54c2ad141127296f1f01893389f22f981908d1cbc84f920b92014b0a562ce585",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/contrib/flash-linear-attention/fla/ops/common/fused_conv_qkv.py": "5abe9c02fa191f58df29031b52f023f780d7c5d4b84cf2d1f3c77397a5e881cf",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/contrib/flash-linear-attention/fla/modules/conv/triton/kernels.py": "5ce6a327ea1ba92987cec2ab2b568179439650cdd0fd615b28fa7b25e230345d",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/torchtitan/models/common/attention/linear/fla_custom_ops.py": "8b218f879fe3b3da2ebc77fa1735a6ae2a501885bcadfb000dd294a19d16dcd7",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/source/gift/torchtitan/models/common/attention/linear/gdn_short_conv.py": "fe4f093de05a64cd2a5c72bba03494a4ae30447ebb502875febbbba32a4632af"
+  },
+  "taps": 4,
+  "heads": [
+    16,
+    32
+  ],
+  "packed": false,
+  "samples": 7,
+  "graph_replays_per_sample": 20,
+  "baseline": "historical specialized",
+  "historical_specialized": {
+    "revision": "fe5950b56de5b2cec7ff4cd063f7338c98200c45",
+    "source": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-short-conv-specialized/specialized_short_conv.py",
+    "source_sha256": "02e92ec483524f05c87a207ddd7b3dccc85f62bdb4cbd071579d82a2c3a21edd",
+    "resolved_original_a_config": "/workspace-SR008.nfs2/vkropotin/a10-cute-001/runs/production-data-abcd/artifacts/raw/original-a-vs-cute-001-a2/native/config/resolved_config.yaml",
+    "resolved_original_a_config_sha256": "5e389eebaf3f09d0c9d40232afee8f0ef52ce40530ce2a3dc3510f009ba2d6aa"
+  },
+  "comparison": {
+    "q": {
+      "dtype": "torch.bfloat16",
+      "shape": [
+        2,
+        4096,
+        16,
+        128
+      ],
+      "equal_elements": 16777216,
+      "total_elements": 16777216,
+      "max_abs_error": 0.0
+    },
+    "k": {
+      "dtype": "torch.bfloat16",
+      "shape": [
+        2,
+        4096,
+        16,
+        128
+      ],
+      "equal_elements": 16777216,
+      "total_elements": 16777216,
+      "max_abs_error": 0.0
+    },
+    "v": {
+      "dtype": "torch.bfloat16",
+      "shape": [
+        2,
+        4096,
+        32,
+        128
+      ],
+      "equal_elements": 33554432,
+      "total_elements": 33554432,
+      "max_abs_error": 0.0
+    },
+    "dqkv": {
+      "dtype": "torch.bfloat16",
+      "shape": [
+        2,
+        4096,
+        8192
+      ],
+      "equal_elements": 67108864,
+      "total_elements": 67108864,
+      "max_abs_error": 0.0
+    },
+    "dweight": {
+      "dtype": "torch.bfloat16",
+      "shape": [
+        8192,
+        1,
+        4
+      ],
+      "equal_elements": 32768,
+      "total_elements": 32768,
+      "max_abs_error": 0.0
+    }
+  },
+  "trace": {
+    "baseline": {
+      "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-short-conv-specialized/paired/baseline-trace.json",
+      "sha256": "71898c45f3076d9268da924edd56b451d1ed4d344e2ee76c99fa5e0b3a78fc61",
+      "counts": {
+        "kernel": 4
+      },
+      "device_span_us": 3127.9697265625,
+      "device_gap_us": 2324.06571484375,
+      "kernel_time_us": 803.9040000000001,
+      "copy_and_memset_time_us": 0,
+      "kernels": [
+        [
+          "_qkv_conv1d_unpack_kernel",
+          [
+            64,
+            64,
+            2
+          ],
+          [
+            128,
+            1,
+            1
+          ],
+          162.144
+        ],
+        [
+          "_gdn_short_conv_backward_kernel",
+          [
+            64,
+            64,
+            2
+          ],
+          [
+            128,
+            1,
+            1
+          ],
+          628.416
+        ],
+        [
+          "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+          [
+            256,
+            1,
+            1
+          ],
+          [
+            32,
+            4,
+            1
+          ],
+          12.032
+        ],
+        [
+          "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+          [
+            32,
+            1,
+            1
+          ],
+          [
+            128,
+            1,
+            1
+          ],
+          1.312
+        ]
+      ]
+    },
+    "candidate": {
+      "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/artifacts/linear-fixes/results/gdn-short-conv-specialized/paired/candidate-trace.json",
+      "sha256": "f8ae9fb6e9ba6bed1a4303873185c16b8607d817e375e91c3a2a5eec2deb0b68",
+      "counts": {
+        "kernel": 4
+      },
+      "device_span_us": 1074.689453125,
+      "device_gap_us": 333.5676679687501,
+      "kernel_time_us": 741.122,
+      "copy_and_memset_time_us": 0,
+      "kernels": [
+        [
+          "_qkv_conv1d_unpack_kernel",
+          [
+            64,
+            64,
+            2
+          ],
+          [
+            128,
+            1,
+            1
+          ],
+          163.969
+        ],
+        [
+          "_gdn_short_conv_backward_kernel",
+          [
+            64,
+            64,
+            2
+          ],
+          [
+            128,
+            1,
+            1
+          ],
+          563.425
+        ],
+        [
+          "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+          [
+            256,
+            1,
+            1
+          ],
+          [
+            32,
+            4,
+            1
+          ],
+          12.448
+        ],
+        [
+          "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+          [
+            32,
+            1,
+            1
+          ],
+          [
+            128,
+            1,
+            1
+          ],
+          1.28
+        ]
+      ]
+    }
+  },
+  "activation": {
+    "baseline_pack": false,
+    "baseline_causal_backward": false,
+    "candidate_fused_backward": true,
+    "candidate_replayed_fla_pack": false,
+    "baseline_specialized_backward": true,
+    "candidate_generalized_backward": true
+  },
+  "timing_us": {
+    "baseline": {
+      "graph_us": {
+        "samples": [
+          801.5616416931152,
+          801.6592025756836,
+          801.483154296875,
+          800.4400253295898,
+          801.6688346862793,
+          801.8943786621094,
+          801.4191627502441
+        ],
+        "median": 801.5616416931152
+      },
+      "event_elapsed_us": {
+        "samples": [
+          1850.4639863967896,
+          1103.775978088379,
+          1086.527943611145,
+          1148.5439538955688,
+          1126.047968864441,
+          1100.640058517456,
+          1105.728030204773
+        ],
+        "median": 1105.728030204773
+      },
+      "host_call_us": {
+        "samples": [
+          1358.6600543931127,
+          578.6289693787694,
+          557.418039534241,
+          620.977021753788,
+          594.0459668636322,
+          568.0579924955964,
+          554.1900172829628
+        ],
+        "median": 578.6289693787694
+      },
+      "event_record_wait_us": {
+        "samples": [
+          497.22695257514715,
+          531.8890325725079,
+          536.0369686968625,
+          533.9389899745584,
+          538.7970013543963,
+          539.3229657784104,
+          558.6729967035353
+        ],
+        "median": 536.0369686968625
+      },
+      "wall_us": {
+        "samples": [
+          1855.8870069682598,
+          1110.5180019512773,
+          1093.4550082311034,
+          1154.9160117283463,
+          1132.8429682180285,
+          1107.3809582740068,
+          1112.8630139864981
+        ],
+        "median": 1112.8630139864981
+      }
+    },
+    "candidate": {
+      "graph_us": {
+        "samples": [
+          737.1391773223877,
+          736.9840145111084,
+          737.0783805847168,
+          736.9296073913574,
+          737.3311996459961,
+          737.4112129211426,
+          737.505578994751
+        ],
+        "median": 737.1391773223877
+      },
+      "event_elapsed_us": {
+        "samples": [
+          1121.9199895858765,
+          1082.4639797210693,
+          1112.1280193328857,
+          1082.2399854660034,
+          1056.22398853302,
+          1043.7120199203491,
+          1033.344030380249
+        ],
+        "median": 1082.2399854660034
+      },
+      "host_call_us": {
+        "samples": [
+          662.3879889957607,
+          620.1050127856433,
+          652.5369826704264,
+          627.0879530347884,
+          582.2340026497841,
+          562.945962883532,
+          549.6170488186181
+        ],
+        "median": 620.1050127856433
+      },
+      "event_record_wait_us": {
+        "samples": [
+          465.9219994209707,
+          469.46899965405464,
+          466.3650179281831,
+          461.74204908311367,
+          481.3169944100082,
+          487.8710024058819,
+          490.77696166932583
+        ],
+        "median": 469.46899965405464
+      },
+      "wall_us": {
+        "samples": [
+          1128.3099884167314,
+          1089.574012439698,
+          1118.9020005986094,
+          1088.830002117902,
+          1063.5509970597923,
+          1050.816965289414,
+          1040.394010487944
+        ],
+        "median": 1088.830002117902
+      }
+    },
+    "control": {
+      "graph_us": {
+        "samples": [
+          801.369571685791,
+          802.2239685058594,
+          801.039981842041,
+          801.6016006469727,
+          800.7599830627441,
+          800.443172454834,
+          800.3104209899902
+        ],
+        "median": 801.039981842041
+      },
+      "event_elapsed_us": {
+        "samples": [
+          1125.3759860992432,
+          1108.031988143921,
+          2281.503915786743,
+          1151.74400806427,
+          1110.3359460830688,
+          1096.5759754180908,
+          1076.3839483261108
+        ],
+        "median": 1110.3359460830688
+      },
+      "host_call_us": {
+        "samples": [
+          598.9050259813666,
+          569.5820436812937,
+          1807.033026125282,
+          632.0140091702342,
+          575.8359911851585,
+          554.7230248339474,
+          532.7350227162242
+        ],
+        "median": 575.8359911851585
+      },
+      "event_record_wait_us": {
+        "samples": [
+          533.5949826985598,
+          545.3889607451856,
+          480.7819495908916,
+          526.482006534934,
+          541.8169894255698,
+          548.7360176630318,
+          550.5339941009879
+        ],
+        "median": 541.8169894255698
+      },
+      "wall_us": {
+        "samples": [
+          1132.5000086799264,
+          1114.9710044264793,
+          2287.8149757161736,
+          1158.4960157051682,
+          1117.6529806107283,
+          1103.4590424969792,
+          1083.269016817212
+        ],
+        "median": 1117.6529806107283
+      }
+    }
+  },
+  "memory": {
+    "baseline": {
+      "start_allocated_bytes": 402718720,
+      "start_reserved_bytes": 404750336,
+      "peak_allocated_bytes": 688128000,
+      "peak_reserved_bytes": 689963008
+    },
+    "candidate": {
+      "start_allocated_bytes": 402718720,
+      "start_reserved_bytes": 404750336,
+      "peak_allocated_bytes": 688128000,
+      "peak_reserved_bytes": 689963008
+    }
+  }
+}
