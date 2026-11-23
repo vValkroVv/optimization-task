@@ -1,0 +1,670 @@
+diff --git a/gift/torchtitan/distributed/gfsdp/_collectives.py b/gift/torchtitan/distributed/gfsdp/_collectives.py
+index 9156d86..d7d278b 100644
+--- a/gift/torchtitan/distributed/gfsdp/_collectives.py
++++ b/gift/torchtitan/distributed/gfsdp/_collectives.py
+@@ -8,6 +8,7 @@ from torch.distributed.device_mesh import _get_device_handle
+ from ._param import GFSDPParam
+ 
+ if TYPE_CHECKING:
++    from ._owner_transport import ExpertOwnerTransport
+     from ._param_group import GFSDPParamGroup
+     from ._tensor import RaggedShardDTensor
+ 
+@@ -119,10 +120,44 @@ def reduce_scatter(
+     force_sum_reduction_for_comms: bool,
+     bit32_acc_for_bit16_reduce_scatter: bool,
+     yccl_handle: "yccl.Handle | None",
++    *,
++    owner_transport: "ExpertOwnerTransport | None" = None,
++    owner_fqn: str | None = None,
+ ) -> torch.Event:
+     device_handle = _get_device_handle(device.type)
+     reduce_scatter_stream.wait_stream(device_handle.current_stream())
+     with device_handle.stream(reduce_scatter_stream):
++        if owner_transport is not None:
++            if (
++                owner_fqn is None
++                or len(fsdp_params) != 2
++                or fsdp_params_with_grad != fsdp_params
++                or not all(param.sharded_param.requires_grad for param in fsdp_params)
++                or (orig_dtype, param_dtype, reduce_dtype)
++                != (torch.float32, torch.bfloat16, torch.float32)
++                or gradient_divide_factor != 1.0
++                or force_sum_reduction_for_comms
++                or bit32_acc_for_bit16_reduce_scatter
++                or all_reduce_group is not None
++                or yccl_handle is not None
++            ):
++                raise RuntimeError(f"Invalid compact BF16 owner reduction at {owner_fqn}")
++            has_grad = [param.sharded_param.grad is not None for param in fsdp_params]
++            if has_grad[0] != has_grad[1]:
++                raise RuntimeError(f"Mixed persistent gradient readiness at {owner_fqn}")
++            owner_transport.reduce(
++                owner_fqn,
++                padded_unsharded_param_grad,
++                padded_sharded_param_grad,
++                reduce_scatter_group,
++                reduce_scatter_stream,
++                accumulate=has_grad[0],
++            )
++            event = reduce_scatter_stream.record_event()
++            for param in fsdp_params:
++                param.sharded_param.grad = param.sharded_param_grad
++            return event
++
+         reduce_in_sharded = (
+             (
+                 (reduce_dtype is None and param_dtype is None)
+diff --git a/gift/torchtitan/distributed/gfsdp/_owner_transport.py b/gift/torchtitan/distributed/gfsdp/_owner_transport.py
+new file mode 100644
+index 0000000..117ad10
+--- /dev/null
++++ b/gift/torchtitan/distributed/gfsdp/_owner_transport.py
+@@ -0,0 +1,269 @@
++"""Compact BF16 staging for the pinned EP4 direct expert gradients."""
++
++import logging
++import os
++from collections.abc import Callable
++
++import torch
++import torch.distributed as dist
++import triton
++import triton.language as tl
++from torch.profiler import record_function
++
++TORCH_REVISION = "8b353065ce260336c5fdfa74d754e8bd9b91b062"
++NCCL_REVISION = (2, 30, 7)
++OWNER_SHAPES = ((32, 3072, 4096), (32, 4096, 1536))
++OWNER_ELEMENTS = 301_989_888
++FQNS = tuple(f"layers.{index}[efsdp]" for index in range(7, 0, -1))
++logger = logging.getLogger("gfsdp")
++
++
++@triton.jit
++def _write_owner(
++    local, peer, destination, n, accumulate: tl.constexpr, block: tl.constexpr
++):
++    # One chunk contains 150,994,944 elements in the pinned recipe.
++    index = tl.program_id(0) * block + tl.arange(0, block)
++    mask = index < n
++    local_value = tl.load(local + index, mask, other=0).to(tl.float32)
++    peer_value = tl.load(peer + index, mask, other=0).to(tl.float32)
++    reduced = tl.inline_asm_elementwise(
++        "add.rn.f32 $0, $1, $2;",
++        "=f,f,f",
++        [local_value, peer_value],
++        dtype=tl.float32,
++        is_pure=True,
++        pack=1,
++    )
++    if accumulate:
++        previous = tl.load(destination + index, mask, other=0)
++        reduced = tl.inline_asm_elementwise(
++            "add.rn.f32 $0, $1, $2;",
++            "=f,f,f",
++            [previous, reduced],
++            dtype=tl.float32,
++            is_pure=True,
++            pack=1,
++        )
++    tl.store(destination + index, reduced, mask)
++
++
++def require_recipe(dims, parallelism, training, compile_config, ac_config) -> None:
++    if (
++        (dims.world_size, dims.ep, dims.dp_shard, dims.dp_replicate) != (8, 4, 8, 1)
++        or (dims.tp, dims.pp, dims.cp) != (1, 1, 1)
++        or parallelism.fsdp_backend != "gfsdp2"
++        or not (
++            parallelism.gfsdp_fp8_expert_weights
++            and parallelism.gfsdp_direct_expert_dw
++            and parallelism.gfsdp_retain_tail_weights
++        )
++        or parallelism.enable_fsdp_symm_mem
++        or (training.mixed_precision_param, training.mixed_precision_reduce)
++        != ("bfloat16", "float32")
++        or training.enable_cpu_offload
++        or (training.local_batch_size, training.global_batch_size, training.seq_len)
++        != (2, 512, 4096)
++        or not (compile_config.enable and "model" in compile_config.components)
++        or compile_config.backend != "inductor"
++        or ac_config.mode != "selective"
++    ):
++        raise RuntimeError(
++            "Compact BF16 owner transport requires the pinned native EP4 recipe"
++        )
++
++
++def require_runtime(device: torch.device, group: dist.ProcessGroup) -> None:
++    if (
++        device.type != "cuda"
++        or torch.version.git_version != TORCH_REVISION
++        or torch.cuda.nccl.version() != NCCL_REVISION
++        or torch.cuda.get_device_capability(device) != (9, 0)
++        or "H100" not in torch.cuda.get_device_name(device)
++        or group.size() != 2
++        or dist.get_backend(group) != "nccl"
++        or os.environ.get("TORCH_NCCL_NAN_CHECK", "").strip().lower()
++        not in ("", "0", "false")
++    ):
++        raise RuntimeError(
++            "Compact BF16 owner transport requires pinned H100/NCCL eFSDP2"
++        )
++
++
++class ExpertOwnerTransport:
++    """One disjoint receive buffer on the existing shared communication stream."""
++
++    def __init__(
++        self,
++        group: dist.ProcessGroup,
++        device: torch.device,
++        stream: torch.Stream,
++        is_last_backward: Callable[[], bool],
++    ) -> None:
++        self.group = group
++        self.rank = group.rank()
++        self.stream = stream
++        self.is_last_backward = is_last_backward
++        self.index = 0
++        self.chunk = OWNER_ELEMENTS // 2
++        self.splits = [0, self.chunk] if self.rank == 0 else [self.chunk, 0]
++        self.slot_ptr = None
++        with torch.cuda.stream(stream):
++            self.receive = torch.empty(self.chunk, device=device, dtype=torch.bfloat16)
++
++    def bind_slot(self, slot: torch.Tensor) -> None:
++        if (
++            slot.dtype != torch.bfloat16
++            or slot.shape != (2 * OWNER_ELEMENTS,)
++            or not slot.is_contiguous()
++            or slot.device != self.receive.device
++            or slot.untyped_storage().nbytes()
++            != 2 * OWNER_ELEMENTS * slot.element_size()
++            or slot.data_ptr() == self.receive.data_ptr()
++        ):
++            raise RuntimeError(
++                "Compact BF16 owner transport received invalid shared storage"
++            )
++        if self.slot_ptr is not None and slot.data_ptr() != self.slot_ptr:
++            raise RuntimeError(
++                "Compact BF16 owner transport requires one shared gradient slot"
++            )
++        self.slot_ptr = slot.data_ptr()
++
++    def finish_backward(self) -> None:
++        expected = len(FQNS) if self.is_last_backward() else 0
++        if self.index != expected:
++            raise RuntimeError(
++                f"Compact BF16 owner transport completed {self.index} of {expected} expert reductions"
++            )
++        self.index = 0
++
++    def reduce(
++        self,
++        fqn: str,
++        slot: torch.Tensor,
++        output: torch.Tensor,
++        group: dist.ProcessGroup,
++        stream: torch.Stream,
++        *,
++        accumulate: bool,
++    ) -> None:
++        if (
++            not self.is_last_backward()
++            or self.index >= len(FQNS)
++            or fqn != FQNS[self.index]
++        ):
++            raise RuntimeError(
++                f"Unexpected compact BF16 owner transport order at {fqn}, index {self.index}"
++            )
++        if (
++            group is not self.group
++            or stream != self.stream
++            or slot.data_ptr() != self.slot_ptr
++            or slot.shape != (2 * OWNER_ELEMENTS,)
++            or slot.dtype != torch.bfloat16
++            or output.shape != (OWNER_ELEMENTS,)
++            or output.dtype != torch.float32
++            or output.device != slot.device
++            or not output.is_contiguous()
++            or output.untyped_storage().data_ptr() == slot.untyped_storage().data_ptr()
++        ):
++            raise RuntimeError(f"Invalid compact BF16 owner storage at {fqn}")
++
++        own = slot.narrow(0, self.rank * OWNER_ELEMENTS, OWNER_ELEMENTS)
++        other = slot.narrow(0, (1 - self.rank) * OWNER_ELEMENTS, OWNER_ELEMENTS)
++        with record_function(f"GFSDP::bf16_slot_owner_reduce ({fqn})"):
++            for offset in (0, self.chunk):
++                dist.all_to_all_single(
++                    self.receive,
++                    other.narrow(0, offset, self.chunk),
++                    output_split_sizes=self.splits,
++                    input_split_sizes=self.splits,
++                    group=group,
++                    async_op=False,
++                )
++                _write_owner[(triton.cdiv(self.chunk, 1024),)](
++                    own.narrow(0, offset, self.chunk),
++                    self.receive,
++                    output.narrow(0, offset, self.chunk),
++                    self.chunk,
++                    accumulate,
++                    1024,
++                )
++        self.index += 1
++
++
++def admit_expert_owner_transport(
++    groups,
++    contexts,
++    handles,
++    region_groups,
++    comm,
++    is_last_backward,
++):
++    """Validate all members before giving any group the compact allocation."""
++    by_name = {
++        group._module_fqn: group
++        for group in groups
++        if group._direct_expert_dw_requested
++    }
++    chosen = set(by_name.values())
++    if set(by_name) != set(FQNS) or sum(
++        group._direct_expert_dw_requested for group in groups
++    ) != len(FQNS):
++        raise RuntimeError(
++            "Compact BF16 owner transport requires the seven pinned expert groups"
++        )
++    matching = [
++        ctx for ctx, members in contexts.items() if not chosen.isdisjoint(members)
++    ]
++    if (
++        len(matching) != 1
++        or set(contexts[matching[0]]) != chosen
++        or handles[matching[0]] is not None
++        or not chosen.isdisjoint(region_groups)
++    ):
++        raise RuntimeError(
++            "Compact BF16 owner transport requires one complete native gradient context"
++        )
++    first = by_name[FQNS[0]]
++    pair = first._reduce_scatter_process_group
++    base_rank = dist.get_rank() % 4
++    if (
++        dist.get_process_group_ranks(pair) != [base_rank, base_rank + 4]
++        or comm.reduce_scatter_stream != comm.all_gather_stream
++        or not comm.retain_tail_weights
++    ):
++        raise RuntimeError(
++            "Compact BF16 owner transport requires the pinned mesh and stream"
++        )
++    require_runtime(first.device, pair)
++    for group in chosen:
++        layout = group._fp8_cache_layout
++        if (
++            group.comm_ctx is not comm
++            or group.device != first.device
++            or group._reduce_scatter_process_group is not pair
++            or group._all_reduce_process_group is not None
++            or (group.orig_dtype, group.param_dtype, group.reduce_dtype)
++            != (torch.float32, torch.bfloat16, torch.float32)
++            or not group.reduce_grads
++            or group.gradient_divide_factor != 1.0
++            or group.force_sum_reduction_for_comms
++            or group.mp_policy.bit32_acc_for_bit16_reduce_scatter
++            or layout is None
++            or tuple(part.shape for part in layout.global_slices) != OWNER_SHAPES
++            or layout.global_numel != 2 * OWNER_ELEMENTS
++            or layout.local_numel != OWNER_ELEMENTS
++            or group.padded_unsharded_param_numel != {None: 2 * OWNER_ELEMENTS}
++            or set(group._all_gather_dtype_to_fsdp_params) != {None}
++            or len(group.fsdp_params) != 2
++            or not all(param.sharded_param.requires_grad for param in group.fsdp_params)
++        ):
++            raise RuntimeError(f"Invalid compact BF16 owner group {group._module_fqn}")
++    transport = ExpertOwnerTransport(
++        pair, first.device, comm.reduce_scatter_stream, is_last_backward
++    )
++    for group in chosen:
++        group._owner_transport = transport
++    return transport
+diff --git a/gift/torchtitan/distributed/gfsdp/_param_group.py b/gift/torchtitan/distributed/gfsdp/_param_group.py
+index f316d96..e9eed80 100644
+--- a/gift/torchtitan/distributed/gfsdp/_param_group.py
++++ b/gift/torchtitan/distributed/gfsdp/_param_group.py
+@@ -26,6 +26,8 @@ from ._param import ParamModuleInfo, ShardedState, GFSDPParam
+ if TYPE_CHECKING:
+     from torchtitan.ops.float8.direct_expert_dw import DirectExpertDwLease
+ 
++    from ._owner_transport import ExpertOwnerTransport
++
+     try:
+         import yccl
+     except ImportError:
+@@ -303,6 +305,7 @@ class GFSDPParamGroup:
+             tuple[tuple[int, int, int], tuple[int, int, int]] | None
+         ) = None
+         self._direct_expert_dw_lease: DirectExpertDwLease | None = None
++        self._owner_transport: ExpertOwnerTransport | None = None
+ 
+         self._init_mp_dtypes()
+         self._requires_grad = any(param.requires_grad for param in params)
+@@ -566,7 +569,7 @@ class GFSDPParamGroup:
+                     .view(ag_dtype)
+                 )
+ 
+-            rs_dtype = self.reduce_dtype or self.param_dtype or self.orig_dtype
++            rs_dtype = self._grad_slot_dtype
+             rs_size_bytes = padded_unsharded_param_numel * rs_dtype.itemsize
+             self._reduce_scatter_input[all_gather_dtype] = (
+                 self.grad_buffer_ctx.buffers[all_gather_dtype]
+@@ -599,12 +602,18 @@ class GFSDPParamGroup:
+                     param_all_gather_output, param_reduce_scatter_input
+                 )
+ 
++    @property
++    def _grad_slot_dtype(self) -> torch.dtype:
++        if self._owner_transport is not None:
++            return torch.bfloat16
++        return self.reduce_dtype or self.param_dtype or self.orig_dtype
++
+     def _init_reduce_scatter_output(
+         self,
+         all_gather_dtype: torch.dtype | None,
+         fsdp_params: list[GFSDPParam],
+     ) -> None:
+-        if self.grad_buffer_ctx is None:
++        if self.grad_buffer_ctx is None or self._owner_transport is not None:
+             return
+         reduce_scatter_input = self._reduce_scatter_input[all_gather_dtype]
+         assert reduce_scatter_input is not None
+@@ -928,7 +937,7 @@ class GFSDPParamGroup:
+             or not all(param.sharded_param.requires_grad for param in params)
+         ):
+             raise ValueError(
+-                f"{self} requires a native FP32 reduce-scatter slot for two trainable expert projections"
++                f"{self} requires native gradient staging for two trainable expert projections"
+             )
+         by_name = {param._module_info.param_name: param for param in params}
+         if by_name.keys() != {"w13_E2FD", "w2_EDF"}:
+@@ -957,6 +966,8 @@ class GFSDPParamGroup:
+             w2._unsharded_accumulated_grad,
+         )
+         assert slot is not None and w13_grad is not None and w2_grad is not None
++        if slot.dtype != self._grad_slot_dtype:
++            raise RuntimeError(f"{self} has a mismatched direct expert dW slot dtype")
+         if slot.numel() != w13_grad.numel() + w2_grad.numel():
+             raise ValueError(f"{self} has padding in its direct expert dW slot")
+         self._direct_expert_dw_offsets = (
+@@ -982,11 +993,17 @@ class GFSDPParamGroup:
+                 f"{self} tried to acquire a gradient slot owned by {owner}"
+             )
+         assert self._direct_expert_dw_shapes is not None
++        lease_options = {}
++        if slot.dtype == torch.bfloat16:
++            if self._owner_transport is None:
++                raise RuntimeError(f"{self} has a BF16 slot without owner transport")
++            lease_options["compact_bf16"] = True
+         self._direct_expert_dw_lease = acquire_direct_expert_dw(
+             slot,
+             self._direct_expert_dw_offsets,
+             self._direct_expert_dw_shapes,
+             release_events=grad_buffer_ctx.pending_release_events(),
++            **lease_options,
+         )
+         grad_buffer_ctx.owner = self
+ 
+@@ -1307,10 +1324,23 @@ class GFSDPParamGroup:
+         # This method should be idempotent and safe to call even when this
+         # FSDP parameter group was not used in backward (should be a no-op)
+         logger.debug("%s", self._with_fqn("GFSDP::post_backward"))
++        lease = self._direct_expert_dw_lease
++        if self._owner_transport is not None:
++            if not self.reduce_grads:
++                raise RuntimeError(f"{self} requires owner reduction after each direct dW")
++            if lease is None and (
++                self._training_state == TrainingState.PRE_BACKWARD
++                or any(
++                    param.unsharded_param.grad is not None
++                    or param.unsharded_accumulated_grad is not None
++                    for param in self.fsdp_params
++                )
++            ):
++                raise RuntimeError(f"{self} requires a complete direct dW lease for owner reduction")
+         self._training_state = TrainingState.POST_BACKWARD
+         grad_buffer_ctx = self.grad_buffer_ctx
+-        if self._direct_expert_dw_lease is not None:
+-            self._finish_direct_expert_dw(self._direct_expert_dw_lease)
++        if lease is not None:
++            self._finish_direct_expert_dw(lease)
+         elif grad_buffer_ctx is not None:
+             if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
+                 raise RuntimeError(
+@@ -1432,6 +1462,8 @@ class GFSDPParamGroup:
+                     cast("GFSDPBufferContext", self.grad_buffer_ctx).yccl_handles.get(
+                         all_gather_dtype
+                     ),
++                    owner_transport=self._owner_transport,
++                    owner_fqn=self._module_fqn,
+                 )
+         grad_buffer_ctx.release_event = self._post_reduce_event
+         grad_buffer_ctx.owner = None
+diff --git a/gift/torchtitan/distributed/gfsdp/_state.py b/gift/torchtitan/distributed/gfsdp/_state.py
+index d260307..766ede9 100644
+--- a/gift/torchtitan/distributed/gfsdp/_state.py
++++ b/gift/torchtitan/distributed/gfsdp/_state.py
+@@ -26,6 +26,7 @@ from ._param_group import (
+ )
+ 
+ if TYPE_CHECKING:
++    from ._owner_transport import ExpertOwnerTransport
+     from ._param import GFSDPParam
+ 
+     try:
+@@ -53,6 +54,7 @@ class GFSDPStateContext:
+         self.post_backward_final_callback_queued: bool = False
+         # Whether to finalize backward in this backward's final callback
+         self.is_last_backward: bool = True
++        self.owner_transport: ExpertOwnerTransport | None = None
+         # Keep unused weight prefetches live between chunked-head backwards.
+         self.retain_tail_weights: bool = False
+         # Optional user-provided event recorded after optimizer for the
+@@ -78,6 +80,7 @@ class GFSDPState(_State):
+         # ``None`` shard order means fall back to ``named_modules()`` traversal.
+         self._shard_order: "list[GFSDPState] | None" = None
+         self._own_grad_buffer: bool = False
++        self._owner_transport_requested = False
+         self._buffer_region_child: GFSDPState | None = None
+         self._allow_no_grad_reduce: bool = False
+ 
+@@ -188,6 +191,19 @@ class GFSDPState(_State):
+         for state in self._state_ctx.all_states:
+             for fsdp_param_group in state._fsdp_param_groups:
+                 fsdp_param_group.lazy_init()
++        if (transport := self._state_ctx.owner_transport) is not None:
++            for state in self._state_ctx.all_states:
++                for group in state._fsdp_param_groups:
++                    if group._owner_transport is transport:
++                        slot = group._direct_expert_dw_slot
++                        if slot is None or group._fp8_cache is None:
++                            raise RuntimeError(f"{group} lost its compact BF16 producer")
++                        transport.bind_slot(slot)
++            logger.info(
++                "GFSDP compact BF16 owner transport active: slot_bytes=%d receive_bytes=%d",
++                4 * transport.receive.nbytes,
++                transport.receive.nbytes,
++            )
+         requested_cache_groups = [
+             group
+             for state in self._state_ctx.all_states
+@@ -227,6 +243,14 @@ class GFSDPState(_State):
+         grad_buffer_ctx_idx_to_yccl_handle: "dict[int, yccl.Handle] | None",
+     ) -> None:
+         """Share communication and EMA state across the root module tree."""
++        if self._owner_transport_requested and (
++            allow_no_grad_reduce
++            or yccl_handle is not None
++            or process_group_to_yccl_handle
++            or param_group_to_data_buffer_ctx_idx is not None
++            or grad_buffer_ctx_idx_to_yccl_handle is not None
++        ):
++            raise RuntimeError("Compact BF16 owner transport requires native gradient buffers")
+         self._comm_ctx.lazy_init(self._device)
+         self._comm_ctx.retain_tail_weights = self._state_ctx.retain_tail_weights
+         for state in self._state_ctx.all_states:
+@@ -300,9 +324,7 @@ class GFSDPState(_State):
+         def buffer_sizes(group: GFSDPParamGroup, *, grad: bool) -> dict:
+             if not grad and group._fp8_cache_layout is not None:
+                 return group._fp8_cache_layout.receive_sizes_by_dtype()
+-            itemsize = (
+-                group.reduce_dtype or group.param_dtype or group.orig_dtype
+-            ).itemsize
++            itemsize = group._grad_slot_dtype.itemsize
+             return {
+                 dtype: numel
+                 * (
+@@ -420,6 +442,18 @@ class GFSDPState(_State):
+             )
+         )
+ 
++        if self._owner_transport_requested:
++            from ._owner_transport import admit_expert_owner_transport
++
++            self._state_ctx.owner_transport = admit_expert_owner_transport(
++                [*param_groups, *child_groups],
++                grad_buffer_ctx2ctx_using_param_groups,
++                grad_buffer_ctx2yccl_handle,
++                region_children.keys() | child_groups,
++                self._comm_ctx,
++                lambda: self._state_ctx.is_last_backward,
++            )
++
+         for (
+             data_buffer_ctx,
+             ctx_using_param_groups,
+@@ -764,6 +798,8 @@ class GFSDPState(_State):
+                         for yccl_handle in grad_buffer_ctx.yccl_handles.values():
+                             if yccl_handle is not None:
+                                 yccl_handle.process_profiling_events()
++            if (transport := self._state_ctx.owner_transport) is not None:
++                transport.finish_backward()
+             if self._state_ctx.is_last_backward:
+                 self._comm_ctx.post_forward_order.clear()
+             self._state_ctx.post_backward_final_callback_queued = False
+diff --git a/gift/torchtitan/models/gift_moe/_base/parallelize.py b/gift/torchtitan/models/gift_moe/_base/parallelize.py
+index 87a816c..79d9f04 100644
+--- a/gift/torchtitan/models/gift_moe/_base/parallelize.py
++++ b/gift/torchtitan/models/gift_moe/_base/parallelize.py
+@@ -99,6 +99,9 @@ def parallelize_gift_moe(
+         parallelism=parallelism,
+     )
+     _validate_tail_weight_retention_request(parallelism)
++    from torchtitan.distributed.gfsdp._owner_transport import require_recipe
++
++    require_recipe(parallel_dims, parallelism, training, compile_config, ac_config)
+     if parallelism.gfsdp_fp8_expert_weights and parallelism.fsdp_backend != "gfsdp2":
+         raise ValueError("gfsdp_fp8_expert_weights requires fsdp_backend='gfsdp2'")
+     if parallelism.gfsdp_direct_expert_dw and (
+@@ -192,6 +195,7 @@ def parallelize_gift_moe(
+             retain_tail_weights=parallelism.gfsdp_retain_tail_weights,
+             **fsdp_kwargs,
+         )
++        model._get_fsdp_state()._owner_transport_requested = True
+     elif parallelism.fsdp_backend == "fsdp2":
+         if parallelism.gfsdp_reuse_bf16_expert_weights:
+             logger.warning(
+diff --git a/gift/torchtitan/ops/float8/direct_expert_dw.py b/gift/torchtitan/ops/float8/direct_expert_dw.py
+index 7151d43..cffb4ef 100644
+--- a/gift/torchtitan/ops/float8/direct_expert_dw.py
++++ b/gift/torchtitan/ops/float8/direct_expert_dw.py
+@@ -43,12 +43,12 @@ def is_supported_direct_expert_dw_shape(shape: _Shape) -> bool:
+ def _slot_key(slot: torch.Tensor) -> tuple[int, int]:
+     if (
+         not slot.is_cuda
+-        or slot.dtype != torch.float32
++        or slot.dtype not in (torch.float32, torch.bfloat16)
+         or slot.ndim != 1
+         or not slot.is_contiguous()
+         or slot.requires_grad
+     ):
+-        raise ValueError("Direct expert dW requires a flat contiguous FP32 CUDA slot")
++        raise ValueError("Direct expert dW requires a flat contiguous CUDA slot with an admitted dtype")
+     device_index = slot.get_device()
+     return device_index, slot.data_ptr()
+ 
+@@ -62,10 +62,12 @@ class DirectExpertDwLease:
+         shapes: dict[int, _Shape],
+         stream: torch.cuda.Stream,
+         release_events: tuple[torch.Event, ...],
++        dtype: torch.dtype,
+     ) -> None:
+         self._key = key
+         self._shapes = shapes
+         self._stream = stream
++        self._dtype = dtype
+         self._release_events = release_events
+         self._next_release_event = 0
+         self._written: set[int] = set()
+@@ -116,10 +118,13 @@ def acquire_direct_expert_dw(
+     shapes: tuple[_Shape, _Shape],
+     *,
+     release_events: tuple[torch.Event, ...] = (),
++    compact_bf16: bool = False,
+ ) -> DirectExpertDwLease:
+     """Bind the actual collective input and the w13/w2 offsets for this backward."""
+     if _native_writer is None:
+         raise RuntimeError("Configure the native direct expert dW writer before use")
++    if slot.dtype != (torch.bfloat16 if compact_bf16 else torch.float32):
++        raise ValueError("Direct expert dW received a slot dtype outside its lease policy")
+     if any(not is_supported_direct_expert_dw_shape(shape) for shape in shapes):
+         raise ValueError("Direct expert dW requires supported 128-aligned SM90 shapes")
+     if shapes[0][0] != shapes[1][0]:
+@@ -141,6 +146,7 @@ def acquire_direct_expert_dw(
+         dict(zip(offsets, shapes, strict=True)),
+         torch.cuda.current_stream(slot.device),
+         release_events,
++        slot.dtype,
+     )
+     _leases[key] = lease
+     return lease
+@@ -148,8 +154,8 @@ def acquire_direct_expert_dw(
+ 
+ def _get_lease(slot: torch.Tensor) -> DirectExpertDwLease:
+     lease = _leases.get(_slot_key(slot))
+-    if lease is None:
+-        raise RuntimeError("Direct expert dW did not receive the leased FP32 slot")
++    if lease is None or slot.dtype != lease._dtype:
++        raise RuntimeError("Direct expert dW did not receive the leased slot")
+     return lease
+ 
+ 
+@@ -181,12 +187,23 @@ def _write_direct_expert_dw(
+     blocks = rows // 128
+     if rows * m > a_data.numel() or rows * n > b_data.numel():
+         raise ValueError("Direct expert dW K counts exceed the operand capacity")
+-    writer = _native_writer
+-    assert writer is not None  # Acquiring a lease requires the native writer.
+     a = a_data[: rows * m], a_scale[:, :blocks]
+     b = b_data[: rows * n], b_scale[:, :blocks]
+-    lease._wait_for_release()
+-    writer(a, b, destination, ks, ks_tensor)
++    if lease._dtype == torch.bfloat16:
++        from .deep_gemm_handle import _load_deep_gemm
++
++        writer = _load_deep_gemm().k_grouped_fp8_gemm_nt_contiguous if rows else None
++        lease._wait_for_release()
++        # Stock DeepGEMM adds its rounded BF16 result to C. Start each
++        # projection at positive zero, including experts with no local tokens.
++        destination.zero_()
++        if writer is not None:
++            writer(a, b, destination, ks, ks_tensor, destination)
++    else:
++        writer = _native_writer
++        assert writer is not None  # Acquiring a lease requires the native writer.
++        lease._wait_for_release()
++        writer(a, b, destination, ks, ks_tensor)
+     lease._written.add(offset)
+ 
+ 

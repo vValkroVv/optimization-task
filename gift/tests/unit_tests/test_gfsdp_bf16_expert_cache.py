@@ -4,9 +4,11 @@ import shutil
 import sys
 import traceback
 import uuid
+from datetime import timedelta
 from functools import wraps
 from pathlib import Path
 
+import pytest
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -27,6 +29,7 @@ from torchtitan.components.optimizer import OptimizersContainer
 from torchtitan.config import ActivationCheckpointConfig, ParallelismConfig
 from torchtitan.distributed.activation_checkpoint import apply_ac
 from torchtitan.distributed.backends.gfsdp2 import GFSDP2Backend
+from torchtitan.distributed.gfsdp import MixedPrecisionPolicy, fully_shard
 from torchtitan.distributed.gfsdp._dcp import GFSDPCheckpointAdapter
 from torchtitan.distributed.gfsdp._param import ExtensionsData
 from torchtitan.distributed.parallel_dims import ParallelDims
@@ -718,6 +721,85 @@ class TestGFSDPBF16ExpertWeightCache(DTensorTestBase):
 
 def test_parallelism_config_defaults_bf16_expert_cache_off():
     assert ParallelismConfig().gfsdp_reuse_bf16_expert_weights is False
+
+
+def _run_multirank_bf16_cache(rank: int, rendezvous: str) -> None:
+    dist.init_process_group(
+        "gloo",
+        init_method=rendezvous,
+        rank=rank,
+        world_size=2,
+        timeout=timedelta(seconds=20),
+    )
+    try:
+        mesh = dist.device_mesh.init_device_mesh("cpu", (2,))
+        reference = nn.Linear(8, 8, bias=False)
+        candidate = nn.Linear(8, 8, bias=False)
+        with torch.no_grad():
+            weights = torch.arange(64, dtype=torch.float32).view(8, 8) / 97
+            reference.weight.copy_(weights)
+            candidate.weight.copy_(weights)
+
+        for model, cache_params in ((reference, None), (candidate, {candidate.weight})):
+            fully_shard(
+                model,
+                mesh=mesh,
+                mp_policy=MixedPrecisionPolicy(
+                    param_dtype=torch.bfloat16, reduce_dtype=torch.float32
+                ),
+                reshard_after_forward=True,
+                bf16_cache_params=cache_params,
+            )
+            model.set_force_sum_reduction_for_comms(True)
+            model.lazy_init()
+        candidate.set_bf16_cache_debug(True)
+        group = candidate._get_fsdp_state()._fsdp_param_groups[0]
+        assert group._bf16_cache_enabled
+        assert group._all_gather_process_group.size() == 2
+        assert (
+            group._all_gather_input[None].data_ptr()
+            != group._all_gather_output[None].data_ptr()
+        )
+
+        for update in range(2):
+            for microbatch in range(2):
+                x = torch.arange(16, dtype=torch.bfloat16).view(2, 8)
+                x = x / (rank + microbatch + 2)
+                expected = reference(x)
+                actual = candidate(x)
+                torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+                expected.float().square().sum().backward()
+                actual.float().square().sum().backward()
+                torch.testing.assert_close(
+                    candidate.weight.grad._local_tensor,
+                    reference.weight.grad._local_tensor,
+                    rtol=0,
+                    atol=0,
+                )
+
+            stats = candidate.bf16_cache_stats()[0]
+            assert stats["refreshes"] == update + 1
+            assert stats["hits"] >= update + 1
+            assert stats["direct_uses"] == 0
+            group.invalidate_bf16_weight_cache()
+            with torch.no_grad():
+                for model in (reference, candidate):
+                    model.weight._local_tensor.sub_(
+                        model.weight.grad._local_tensor * 0.001
+                    )
+                    model.weight.grad = None
+            group.record_weight_write()
+    finally:
+        dist.destroy_process_group()
+
+
+@pytest.mark.skipif(not dist.is_gloo_available(), reason="Requires Gloo")
+def test_multirank_bf16_cache_reuses_local_cast_and_reduces_gradients(tmp_path):
+    torch.multiprocessing.spawn(
+        _run_multirank_bf16_cache,
+        args=((tmp_path / "rendezvous").as_uri(),),
+        nprocs=2,
+    )
 
 
 if __name__ == "__main__":

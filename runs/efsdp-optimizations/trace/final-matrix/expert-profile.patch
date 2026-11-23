@@ -1,0 +1,184 @@
+--- a/runs/efsdp-optimizations/run.py
++++ b/runs/efsdp-optimizations/run.py
+@@ -142,7 +142,7 @@
+     return metadata["argv"], resolved
+ 
+ 
+-def configure_driver(base, args, base_config):
++def configure_driver(base, args, base_config, trace):
+     # Let the native runner produce and record all four CLI switches.
+     if args.original_a_source is None:
+         base.NATIVE_FEATURE_CONTROLS += tuple(
+@@ -168,7 +168,17 @@
+         return
+     expected = base_config.copy()
+     expected.pop("dump_folder")
+-    expected["training"] = {**expected["training"], "steps": 20}
++    expected["training"] = {
++        **expected["training"], "steps": trace.UPDATE if trace else 20
++    }
++    if trace:
++        expected["profiler"] = {
++            **expected["profiler"],
++            **{
++                key.removeprefix("profiler."): value
++                for key, value in trace.profile_settings(base).items()
++            },
++        }
+     expected["parallelism"] = {
+         **expected["parallelism"],
+         "expert_parallel_degree": args.ep,
+@@ -198,6 +208,13 @@
+ 
+ 
+ def driver(args):
++    trace = (
++        load_bridge(
++            HERE / "trace/final-matrix/bounded_profile.py", "_expert_gfsdp_trace"
++        )
++        if args.trace_expert
++        else None
++    )
+     task_root = args.original_a_source or ROOT
+     bridge_path = task_root / BRIDGE_PATH
+     raw = task_root / RAW_PATH
+@@ -224,9 +241,11 @@
+         sms = base._load_yaml(base.BASE_CONFIG)["fp8"]["sparse_deep_gemm_num_sms"]
+     if type(sms) is not int or sms <= 0:
+         raise RuntimeError("Original A must provide a positive DeepGEMM SM budget")
+-    configure_driver(base, args, reference_config)
++    configure_driver(base, args, reference_config, trace)
+     expected_cli = native_overrides(reference_command)
+-    expected_cli["--training.steps"] = "20"
++    expected_cli["--training.steps"] = str(trace.UPDATE) if trace else "20"
++    if trace:
++        expected_cli.update(trace.profile_cli(base))
+     if args.ep != 8:
+         expected_cli["--parallelism.expert_parallel_degree"] = str(args.ep)
+     for name in supplied:
+@@ -276,6 +295,8 @@
+     def config_hashes():
+         hashes = base_config_hashes()
+         hashes["expert_gfsdp_runner_sha256"] = base.sha256_file(Path(__file__))
++        if trace:
++            hashes["bounded_expert_trace_sha256"] = base.sha256_file(Path(trace.__file__))
+         if build is not None:
+             current = base.sha256_file(build / "manifest.json")
+             if current != build_hash:
+@@ -296,11 +317,11 @@
+         "--epoch-size",
+         "102400",
+         "--steps",
+-        "20",
++        str(trace.UPDATE) if trace else "20",
+         "--warmup",
+-        "10",
++        str(trace.WARMUP) if trace else "10",
+         "--window",
+-        "10",
++        "0" if trace else "10",
+         "--observe-compiler-cache",
+         "--run-id",
+         args.run_id,
+@@ -308,6 +329,8 @@
+         str(raw),
+     ]
+     argv.extend("--" + FLAGS[name].replace("_", "-") for name in sorted(supplied))
++    if trace:
++        argv.extend(trace.native_args())
+     if args.compiler_cache_root is not None:
+         argv.extend(("--compiler-cache-root", str(args.compiler_cache_root)))
+     if args.mode == "plan":
+@@ -330,12 +353,12 @@
+     # The native rank wrapper resolves its standard raw root strictly.
+     raw.mkdir(parents=True, exist_ok=True)
+     result = flash.main(argv)
+-    if result == 0:
++    if result == 0 and trace is None:
+         summarize(raw / args.run_id)
+     return result
+ 
+ 
+-def capture_activation(measurement, ep, selected):
++def capture_activation(measurement, ep, selected, *, shard_ranks=None):
+     from torchtitan.distributed.gfsdp.fully_shard import _iter_fsdp_param_groups
+ 
+     resolved = measurement.trainer.config.parallelism
+@@ -378,14 +401,22 @@
+             raise RuntimeError(f"Unexpected Expert GFSDP activation for {row}")
+         rows.append(row)
+     path = measurement.output_dir / f"expert-gfsdp-rank-{measurement.rank:02d}.json"
++    receipt = {"ep": ep, "requested": sorted(selected), "groups": rows}
++    if shard_ranks is not None:
++        receipt["shard_ranks"] = shard_ranks
+     with path.open("x") as output:
+-        json.dump(
+-            {"ep": ep, "requested": sorted(selected), "groups": rows}, output, indent=2
+-        )
++        json.dump(receipt, output, indent=2)
+         output.write("\n")
+ 
+ 
+ def run_rank(task_root, ep, selected, build, sms, native_args):
++    trace = (
++        load_bridge(
++            HERE / "trace/final-matrix/bounded_profile.py", "_expert_gfsdp_trace"
++        )
++        if "--profile-update" in native_args
++        else None
++    )
+     measure = (Path(task_root) / BRIDGE_PATH).with_name("measure.py")
+     flash = load_bridge(measure, "_expert_gfsdp_measure")
+     native_main = flash._bootstrap_and_run
+@@ -395,9 +426,17 @@
+         base = load_base()
+ 
+         class ExpertMeasurement(base.WindowMeasurement):
++            def __init__(self, *args, **kwargs):
++                super().__init__(*args, **kwargs)
++                self.expert_shard_ranks = (
++                    trace.verify_shard_group(self, ep) if trace else None
++                )
++
+             def capture_after_train(self):
+                 super().capture_after_train()
+-                capture_activation(self, ep, selected)
++                capture_activation(
++                    self, ep, selected, shard_ranks=self.expert_shard_ranks
++                )
+ 
+             def _capture_bf16_cache_stats(self, *, update, boundary, require_active):
+                 super()._capture_bf16_cache_stats(
+@@ -423,6 +462,11 @@
+                 configure_direct_expert_dw(
+                     extension.k_grouped_fp8_gemm_nt_contiguous_rounded_f32
+                 )
++            if trace:
++                from os import environ
++
++                with trace.capture_cuda_sync(int(environ["RANK"])):
++                    return train(train_argv, training_adapter)
+             return train(train_argv, training_adapter)
+ 
+         return native_main(argv, adapter, configure_then_train)
+@@ -541,6 +585,11 @@
+     parser.add_argument("mode", choices=("plan", "run", "summarize"))
+     parser.add_argument("run_id")
+     parser.add_argument("--ep", type=int, choices=(4, 8), default=8)
++    parser.add_argument(
++        "--trace-expert",
++        action="store_true",
++        help="capture the first three microbatches of update 11 on ranks 0 and 4",
++    )
+     parser.add_argument("--optimization", action="append", choices=FLAGS, default=[])
+     parser.add_argument("--direct-dw-build", type=Path)
+     parser.add_argument("--reference", type=Path)
+@@ -555,6 +604,8 @@
+                 "the clean original A source does not support candidate switches"
+             )
+         args.original_a_source = args.original_a_source.resolve(strict=True)
++    if args.trace_expert and args.mode == "summarize":
++        parser.error("--trace-expert requires plan or run")
+     if args.mode == "summarize":
+         summarize((args.original_a_source or ROOT) / RAW_PATH / args.run_id)
+         return 0

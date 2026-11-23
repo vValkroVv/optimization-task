@@ -1,0 +1,173 @@
+diff --git a/gift/torchtitan/distributed/gfsdp/_param_group.py b/gift/torchtitan/distributed/gfsdp/_param_group.py
+--- a/gift/torchtitan/distributed/gfsdp/_param_group.py
++++ b/gift/torchtitan/distributed/gfsdp/_param_group.py
+@@ -66,16 +66,6 @@
+                 if ctx.owner is not None and ctx.owner is not owner
+             ),
+             None,
+-        )
+-
+-    def pending_release_events(self) -> tuple[torch.Event, ...]:
+-        # A context can publish a new fence while a lease holds the old one.
+-        return tuple(
+-            {
+-                id(event): event
+-                for ctx in self.overlapping_contexts()
+-                if (event := ctx.release_event) is not None
+-            }.values()
+         )
+ 
+     def wait_for_release(self, stream: torch.Stream) -> None:
+@@ -981,18 +971,14 @@
+             raise RuntimeError(
+                 f"{self} tried to acquire a gradient slot owned by {owner}"
+             )
++        grad_buffer_ctx.wait_for_release(self.device_handle.current_stream())
+         assert self._direct_expert_dw_shapes is not None
+         self._direct_expert_dw_lease = acquire_direct_expert_dw(
+-            slot,
+-            self._direct_expert_dw_offsets,
+-            self._direct_expert_dw_shapes,
+-            release_events=grad_buffer_ctx.pending_release_events(),
++            slot, self._direct_expert_dw_offsets, self._direct_expert_dw_shapes
+         )
+         grad_buffer_ctx.owner = self
+ 
+     def _finish_direct_expert_dw(self, lease: "DirectExpertDwLease") -> None:
+-        if self._direct_expert_dw_lease is not lease:
+-            raise RuntimeError(f"{self} tried to finish a stale direct dW lease")
+         grad_buffer_ctx = self.grad_buffer_ctx
+         assert grad_buffer_ctx is not None and grad_buffer_ctx.owner is self
+         try:
+@@ -1004,11 +990,11 @@
+                 raise RuntimeError(f"{self} received another gradient during direct dW")
+             lease.finish()
+         except BaseException:
+-            if (stream := lease.abort()) is not None:
+-                grad_buffer_ctx.release(self, stream)
++            lease.abort()
++            grad_buffer_ctx.release(self, self.device_handle.current_stream())
++            raise
++        finally:
+             self._direct_expert_dw_lease = None
+-            raise
+-        self._direct_expert_dw_lease = None
+         for param in self.fsdp_params:
+             param.unsharded_accumulated_grad = param._unsharded_accumulated_grad
+ 
+diff --git a/gift/torchtitan/ops/float8/direct_expert_dw.py b/gift/torchtitan/ops/float8/direct_expert_dw.py
+--- a/gift/torchtitan/ops/float8/direct_expert_dw.py
++++ b/gift/torchtitan/ops/float8/direct_expert_dw.py
+@@ -54,27 +54,15 @@
+ 
+ 
+ class DirectExpertDwLease:
+-    """Host readiness and captured slot fences for one backward."""
++    """Host readiness for one backward. GFSDP keeps event and storage ownership."""
+ 
+     def __init__(
+-        self,
+-        key: tuple[int, int],
+-        shapes: dict[int, _Shape],
+-        stream: torch.cuda.Stream,
+-        release_events: tuple[torch.Event, ...],
++        self, key: tuple[int, int], shapes: dict[int, _Shape], stream: torch.cuda.Stream
+     ) -> None:
+         self._key = key
+         self._shapes = shapes
+         self._stream = stream
+-        self._release_events = release_events
+-        self._next_release_event = 0
+         self._written: set[int] = set()
+-
+-    def _wait_for_release(self) -> None:
+-        while self._next_release_event < len(self._release_events):
+-            event = self._release_events[self._next_release_event]
+-            self._stream.wait_event(event)
+-            self._next_release_event += 1
+ 
+     def _check_stream(self) -> None:
+         if torch.cuda.current_stream(self._key[0]) != self._stream:
+@@ -101,21 +89,14 @@
+             )
+         del _leases[self._key]
+ 
+-    def abort(self) -> torch.cuda.Stream | None:
+-        """Join old users before GFSDP replaces the fence on this stream."""
+-        if _leases.get(self._key) is not self:
+-            return None
+-        self._wait_for_release()
+-        del _leases[self._key]
+-        return self._stream
++    def abort(self) -> None:
++        """Clear host readiness. The GFSDP owner must fence any queued writes."""
++        if _leases.get(self._key) is self:
++            del _leases[self._key]
+ 
+ 
+ def acquire_direct_expert_dw(
+-    slot: torch.Tensor,
+-    offsets: tuple[int, int],
+-    shapes: tuple[_Shape, _Shape],
+-    *,
+-    release_events: tuple[torch.Event, ...] = (),
++    slot: torch.Tensor, offsets: tuple[int, int], shapes: tuple[_Shape, _Shape]
+ ) -> DirectExpertDwLease:
+     """Bind the actual collective input and the w13/w2 offsets for this backward."""
+     if _native_writer is None:
+@@ -140,7 +121,6 @@
+         key,
+         dict(zip(offsets, shapes, strict=True)),
+         torch.cuda.current_stream(slot.device),
+-        release_events,
+     )
+     _leases[key] = lease
+     return lease
+@@ -183,10 +163,13 @@
+         raise ValueError("Direct expert dW K counts exceed the operand capacity")
+     writer = _native_writer
+     assert writer is not None  # Acquiring a lease requires the native writer.
+-    a = a_data[: rows * m], a_scale[:, :blocks]
+-    b = b_data[: rows * n], b_scale[:, :blocks]
+-    lease._wait_for_release()
+-    writer(a, b, destination, ks, ks_tensor)
++    writer(
++        (a_data[: rows * m], a_scale[:, :blocks]),
++        (b_data[: rows * n], b_scale[:, :blocks]),
++        destination,
++        ks,
++        ks_tensor,
++    )
+     lease._written.add(offset)
+ 
+ 
+@@ -220,9 +203,7 @@
+ ) -> None:
+     # The cotangent keeps this write in backward under AOT partitioning.
+     lease = _get_lease(slot)
+-    destination = lease._destination(slot, offset)
+-    lease._wait_for_release()
+-    destination.zero_()
++    lease._destination(slot, offset).zero_()
+     lease._written.add(offset)
+ 
+ 
+diff --git a/gift/tests/unit_tests/test_direct_expert_dw.py b/gift/tests/unit_tests/test_direct_expert_dw.py
+--- a/gift/tests/unit_tests/test_direct_expert_dw.py
++++ b/gift/tests/unit_tests/test_direct_expert_dw.py
+@@ -155,13 +155,11 @@
+         for view in slot.split(4)
+     ]
+     lease = Mock()
+-    lease.abort.return_value = stream
+     if not complete:
+         lease.finish.side_effect = RuntimeError("unfinished direct gradient")
+ 
+-    def acquire(real_slot, offsets, shapes, *, release_events):
+-        stream.wait_event.assert_not_called()
+-        assert release_events == (previous_release,)
++    def acquire(real_slot, offsets, shapes):
++        stream.wait_event.assert_called_once_with(previous_release)
+         assert real_slot is slot and offsets == (0, 4)
+         assert shapes == ((1, 2, 2), (1, 2, 2))
+         return lease

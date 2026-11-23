@@ -1,0 +1,112 @@
+# Direct FP32 expert gradient component
+
+The Hopper extension takes the local expert count and projection dimensions
+from its output view. It writes the legacy rounded BF16 result into an existing
+FP32 slot view. The component harness uses the crop's `w13=(E,3072,4096)` and
+`w2=(E,4096,1536)` projections and compares with the installed DeepGEMM
+accumulation entry.
+
+## Build and verify
+
+Use the baseline Torch environment, its CUDA toolkit, and a task-owned build
+directory. The donor is the flattened `sources/donors/deepgemm-baseline`
+directory from the hybrid-ep-overlap checkout. Its DeepGEMM revision is
+`f093a4cd643bc06a7894a90dee852ec70e989a53`, CUTLASS is
+`f3fde58372d33e9a5650ba7b80fc48b3b49d40c8`, and fmt is
+`553ec11ec06fbe0beebfbb45f9dc3c9eabd83d28`. The build checks the staged
+donor hash and the five corresponding headers from installed DeepGEMM
+`2.3.0+f093a4c`. It validates that exact installed `deep-gemm` distribution
+version and matches its recorded `deep_gemm/__init__.py` path to the imported
+module. The build receipt records both the distribution and module versions.
+It compiles only the focused host binding. The source slice can stage without
+Torch or CUDA by adding `--stage-only`.
+
+```bash
+python direct_dw.py --donor "$direct_dw_donor" --build-root "$direct_dw_build"
+DG_CACHE_FORCE_SKIP=1 DG_JIT_CACHE_DIR="$direct_dw_legacy_jit_cache" \
+  python verify_direct_dw.py --build-root "$direct_dw_build" \
+  --evidence-dir "$direct_dw_evidence" --num-sms 116 --local-experts 32 --samples 12
+```
+
+Use 32 local experts for EP4, 16 for EP8, or four for EP32 with this
+128-expert model. Each invocation writes a separate evidence directory.
+
+The example uses the 116-SM budget from the fixed EP8 recipe. Use the resolved
+sparse GEMM budget of the recipe being checked. The standalone check applies
+`--num-sms` to both the installed DeepGEMM reference and the candidate and
+records it in `component.json`.
+
+The build writes `manifest.json` and the extension under `extension/`.
+Make the host build serial before importing it in workers. The candidate
+compiler uses `$direct_dw_build/jit` and ignores the shared JIT cache.
+`DG_JIT_CACHE_DIR` in the command selects the task-owned cache for the
+installed reference. The candidate uses the same NVCC/NVRTC environment
+selectors as the pinned donor.
+
+## Native training arm
+
+Pass the verified build to the [Expert GFSDP runner](../run.py). Compare against
+a control with the same resolved topology. Inspect compiled backward for a
+write to the actual FP32 slot and verify the rounded-FP32 kernel and the removal
+of expert gradient packing in the trace.
+
+## Native contract
+
+Import `load_direct_dw` from `direct_dw.py` once per process after selecting
+the rank's GPU. The returned extension exposes
+`k_grouped_fp8_gemm_nt_contiguous_rounded_f32(a, b, d, ks, ks_tensor, compiled_dims="mn")`.
+It returns `None` and overwrites `d` on the selected CUDA device's current
+stream. The caller owns slot acquisition and publication, keeps inputs alive
+on that stream and provides disjoint inputs and output.
+
+- `a` and `b` are contiguous E4M3FN data packed consecutively by expert
+  with each expert's features as rows. The matching FP32 scale views have
+  width `total_k/128` and row stride 1. The data and scales are TMA aligned.
+- `d` is a contiguous, TMA-aligned FP32 view shaped `[E, M, N]`, with a positive
+  expert count and positive `M` and `N` divisible by 128. The binding checks
+  the pinned launcher's integer dimension and tile-count bounds. The view can
+  start at a nonzero aligned slot offset.
+- `ks` contains `E` nonnegative multiples of 128. The contiguous CUDA
+  int32 `ks_tensor` on the same device must contain the same values. The
+  caller supplies both from the same routing result. The extension checks
+  tensor metadata without reading counts back from the GPU.
+- Each nonempty expert performs one FP32-accumulated WGMMA result per output
+  element. The epilogue uses the original RN-even BF16 conversion, explicitly
+  adds BF16 positive zero, widens the individual bits, and uses a FP32 TMA
+  overwrite. The host enqueues one zero fill per contiguous run of empty
+  experts, or one full-view zero fill when all experts are empty.
+
+[Pinned source provenance](https://gitlab.ai.cloud.ru/gigallms/deepgemm/-/tree/f093a4cd643bc06a7894a90dee852ec70e989a53) · [DeepGEMM build reference](https://github.com/deepseek-ai/DeepGEMM/blob/main/setup.py) · [NVIDIA PTX ISA](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-reduce-async-bulk-tensor)
+
+## Acceptance and remaining checks
+
+The component harness compares whole-tensor FP32 bits for both slot views,
+including zero-token experts, and checks guard regions around the views. The
+reference allocates the two zeroed BF16 gradients, runs the installed native
+GEMMs, and widens both with one `torch._foreach_copy_`. The Hopper probe
+runs the original BF16 TMA reduce-add and the new FP32 TMA overwrite on
+paired FP32 inputs containing rounding ties, signed zeros, subnormals,
+infinities, and quiet and signaling NaNs. It records the resulting bits.
+
+Profiler traces check the distinct legacy and candidate GEMM kernel names,
+pack call count, and capture device work duration. Allocation peaks bound
+candidate materialization relative to a full BF16 gradient. Optional warm
+CUDA Graph replay records raw single-stream CUDA-event spans and the median
+of each variant and the identical legacy control. These replay spans exclude
+the original Python and dispatcher execution. Synthetic K counts exercise
+full, mixed, and all-empty groups. The harness leaves full training,
+distributed memory, host/wait attribution, and steady-state throughput open.
+
+The BF16-selected WGMMA tile, K reduction order, and routing scheduler are
+unchanged. The candidate uses more shared memory for the per-CTA output tile
+and may require fewer pipeline stages. It adds a BF16 pair instruction and
+retains the small TMA descriptor workspace. Nonempty experts require no
+destination prefill, global BF16 intermediate, or packing pass. Empty groups
+add only their destination zero writes. Benchmark the tradeoff on Hopper
+before interpreting the bytes saved as latency saved.
+
+The generalized binding passed the H100 component checks at 116 SMs for 16
+and 32 local experts. Both projections matched the legacy BF16 results after
+widening to FP32 and preserved canaries with full, mixed and all-empty K
+counts. The training checks also cover real FP32 reduce-scatter, slot lifetime
+across asynchronous collectives, compiled SAC and accumulated shard updates.

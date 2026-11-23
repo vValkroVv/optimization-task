@@ -44,9 +44,10 @@ def all_gather(
 ) -> AllGatherResult:
     device_handle = _get_device_handle(device.type)
     with device_handle.stream(all_gather_stream):
-        direct_cache_use = (
+        cache_enabled = (
             param_group._bf16_cache_enabled and all_gather_dtype is None
         )
+        direct_cache_use = cache_enabled and all_gather_group.size() == 1
         if direct_cache_use and all_gather_output is not all_gather_input:
             raise AssertionError(
                 "An enabled BF16 expert cache must use its input as output"
@@ -61,9 +62,9 @@ def all_gather(
                 with torch.autograd._unsafe_preserve_version_counter(all_gather_input):  # type: ignore[attr-defined]
                     all_gather_input.copy_(padded_sharded_param_data)
             param_group._all_gather_input_set_dtypes.add(all_gather_dtype)
-            if direct_cache_use:
+            if cache_enabled:
                 param_group._bf16_cache_note_refresh()
-        elif direct_cache_use:
+        elif cache_enabled:
             param_group._bf16_cache_note_hit()
         if direct_cache_use:
             param_group._bf16_cache_note_direct_use()

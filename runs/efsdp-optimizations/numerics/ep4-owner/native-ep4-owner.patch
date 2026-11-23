@@ -1,0 +1,115 @@
+--- a/runs/efsdp-optimizations/run.py
++++ b/runs/efsdp-optimizations/run.py
+@@ -205,12 +205,13 @@
+     return expected
+ 
+ 
+-def load_numerics():
+-    return load_bridge(HERE / "numerics/ep8.py", "_expert_gfsdp_numerics")
++def load_numerics(ep=8):
++    path = "numerics/ep4-owner/ep4.py" if ep == 4 else "numerics/ep8.py"
++    return load_bridge(HERE / path, "_expert_gfsdp_numerics")
+ 
+ 
+ def driver(args):
+-    numerics = load_numerics() if args.numerical_ep8 else None
++    numerics = load_numerics(args.ep) if args.numerical_ep8 or args.numerical_ep4_owner else None
+     task_root = args.original_a_source or ROOT
+     bridge_path = task_root / BRIDGE_PATH
+     raw = task_root / RAW_PATH
+@@ -225,6 +226,9 @@
+             raise RuntimeError(
+                 "Original A requires clean GIFT at the pinned e9b7cdbb4 revision"
+             )
++    if args.numerical_ep4_owner and args.mode == "run":
++        source = base.source_snapshot(task_root)["tracked_and_untracked_sha256"]
++        numerics.require_source(args.expected_gift_source, source)
+     configure_data(base)
+     supplied = set(args.optimization)
+     if args.reference:
+@@ -286,9 +290,10 @@
+                 str(sms),
+             ]
+             if numerics:
+-                argv[measure + 7 : measure + 7] = [
+-                    "--numerical-config-digest", numerics_digest
+-                ]
++                guard = ["--numerical-config-digest", numerics_digest]
++                if args.numerical_ep4_owner:
++                    guard.extend(("--numerical-ep4-owner", args.numerical_ep4_owner))
++                argv[measure + 7 : measure + 7] = guard
+             return argv
+ 
+         return patched
+@@ -302,6 +307,8 @@
+         hashes["expert_gfsdp_runner_sha256"] = base.sha256_file(Path(__file__))
+         if numerics:
+             hashes["expert_gfsdp_numerics_sha256"] = base.sha256_file(Path(numerics.__file__))
++            if args.numerical_ep4_owner:
++                hashes["expert_gfsdp_numerics_shared_sha256"] = base.sha256_file(numerics.SHARED)
+         if build is not None:
+             current = base.sha256_file(build / "manifest.json")
+             if current != build_hash:
+@@ -350,6 +357,10 @@
+                 if child_args[:2] != ["--numerical-config-digest", numerics_digest]:
+                     raise RuntimeError("numerical config guard did not reach the rank launcher")
+                 child_args = child_args[2:]
++                if args.numerical_ep4_owner:
++                    if child_args[:2] != ["--numerical-ep4-owner", args.numerical_ep4_owner]:
++                        raise RuntimeError("EP4 owner source role did not reach the rank launcher")
++                    child_args = child_args[2:]
+             measure._parse_args(child_args)
+         print(
+             json.dumps({"bridge": vars(bridge), "argv": command}, default=str, indent=2)
+@@ -415,11 +426,16 @@
+ 
+ def run_rank(task_root, ep, selected, build, sms, native_args):
+     numerics = None
++    observe_kwargs = {}
+     if native_args[:1] == ["--numerical-config-digest"]:
+         _, config_digest, *native_args = native_args
+-        if ep != 8 or not re.fullmatch(r"[0-9a-f]{64}", config_digest):
++        if not re.fullmatch(r"[0-9a-f]{64}", config_digest):
+             raise RuntimeError("numerical rank requires a verified original A resolved digest")
+-        numerics = load_numerics()
++        numerics = load_numerics(ep)
++        if ep == 4:
++            if tuple(native_args[:2]) not in tuple(("--numerical-ep4-owner", role) for role in numerics.ROLES):
++                raise RuntimeError("numerical EP4 rank requires its staged owner role")
++            _, observe_kwargs["role"], *native_args = native_args
+     measure = (Path(task_root) / BRIDGE_PATH).with_name("measure.py")
+     flash = load_bridge(measure, "_expert_gfsdp_measure")
+     native_main = flash._bootstrap_and_run
+@@ -458,7 +474,7 @@
+                     extension.k_grouped_fp8_gemm_nt_contiguous_rounded_f32
+                 )
+             if numerics:
+-                with numerics.observe(training_adapter, selected, config_digest):
++                with numerics.observe(training_adapter, selected, config_digest, **observe_kwargs):
+                     return train(train_argv, training_adapter)
+             return train(train_argv, training_adapter)
+ 
+@@ -579,6 +595,8 @@
+     parser.add_argument("run_id")
+     parser.add_argument("--ep", type=int, choices=(4, 8), default=8)
+     parser.add_argument("--numerical-ep8", action="store_true")
++    parser.add_argument("--numerical-ep4-owner", choices=("baseline", "compact"))
++    parser.add_argument("--expected-gift-source")
+     parser.add_argument("--optimization", action="append", choices=FLAGS, default=[])
+     parser.add_argument("--direct-dw-build", type=Path)
+     parser.add_argument("--reference", type=Path)
+@@ -593,6 +611,14 @@
+                 "the clean original A source does not support candidate switches"
+             )
+         args.original_a_source = args.original_a_source.resolve(strict=True)
++    if args.numerical_ep4_owner and (
++        args.ep != 4 or args.mode == "summarize" or args.numerical_ep8
++        or args.original_a_source is not None or set(args.optimization) != set(FLAGS)
++        or (args.mode == "run" and not re.fullmatch(r"[0-9a-f]{64}", args.expected_gift_source or ""))
++    ):
++        parser.error("numerical EP4 owner requires the staged EP4 source, all four flags and a verified source SHA for run")
++    if args.expected_gift_source is not None and not args.numerical_ep4_owner:
++        parser.error("--expected-gift-source requires --numerical-ep4-owner")
+     if args.numerical_ep8 and (
+         args.ep != 8 or args.mode == "summarize"
+         or (args.original_a_source is None and set(args.optimization) != set(FLAGS))

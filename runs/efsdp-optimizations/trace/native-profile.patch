@@ -1,0 +1,393 @@
+--- a/runs/efsdp-optimizations/run.py
++++ b/runs/efsdp-optimizations/run.py
+@@ -142,7 +142,7 @@
+     return metadata["argv"], resolved
+ 
+ 
+-def configure_driver(base, args, base_config):
++def configure_driver(base, args, base_config, trace):
+     # Let the native runner produce and record all four CLI switches.
+     if args.original_a_source is None:
+         base.NATIVE_FEATURE_CONTROLS += tuple(
+@@ -168,7 +168,17 @@
+         return
+     expected = base_config.copy()
+     expected.pop("dump_folder")
+-    expected["training"] = {**expected["training"], "steps": 20}
++    expected["training"] = {
++        **expected["training"], "steps": trace.UPDATE if trace else 20
++    }
++    if trace:
++        expected["profiler"] = {
++            **expected["profiler"],
++            **{
++                key.removeprefix("profiler."): value
++                for key, value in trace.profile_settings(base).items()
++            },
++        }
+     expected["parallelism"] = {
+         **expected["parallelism"],
+         "expert_parallel_degree": args.ep,
+@@ -198,6 +208,10 @@
+ 
+ 
+ def driver(args):
++    trace = (
++        load_bridge(HERE / "trace/bounded_ep4.py", "_expert_gfsdp_trace")
++        if args.trace_expert_pair else None
++    )
+     task_root = args.original_a_source or ROOT
+     bridge_path = task_root / BRIDGE_PATH
+     raw = task_root / RAW_PATH
+@@ -224,9 +238,11 @@
+         sms = base._load_yaml(base.BASE_CONFIG)["fp8"]["sparse_deep_gemm_num_sms"]
+     if type(sms) is not int or sms <= 0:
+         raise RuntimeError("Original A must provide a positive DeepGEMM SM budget")
+-    configure_driver(base, args, reference_config)
++    configure_driver(base, args, reference_config, trace)
+     expected_cli = native_overrides(reference_command)
+-    expected_cli["--training.steps"] = "20"
++    expected_cli["--training.steps"] = str(trace.UPDATE) if trace else "20"
++    if trace:
++        expected_cli.update(trace.profile_cli(base))
+     if args.ep != 8:
+         expected_cli["--parallelism.expert_parallel_degree"] = str(args.ep)
+     for name in supplied:
+@@ -276,6 +292,8 @@
+     def config_hashes():
+         hashes = base_config_hashes()
+         hashes["expert_gfsdp_runner_sha256"] = base.sha256_file(Path(__file__))
++        if trace:
++            hashes["bounded_ep4_trace_sha256"] = base.sha256_file(Path(trace.__file__))
+         if build is not None:
+             current = base.sha256_file(build / "manifest.json")
+             if current != build_hash:
+@@ -296,11 +314,11 @@
+         "--epoch-size",
+         "102400",
+         "--steps",
+-        "20",
++        str(trace.UPDATE) if trace else "20",
+         "--warmup",
+-        "10",
++        str(trace.WARMUP) if trace else "10",
+         "--window",
+-        "10",
++        "0" if trace else "10",
+         "--observe-compiler-cache",
+         "--run-id",
+         args.run_id,
+@@ -308,6 +326,8 @@
+         str(raw),
+     ]
+     argv.extend("--" + FLAGS[name].replace("_", "-") for name in sorted(supplied))
++    if trace:
++        argv.extend(trace.native_args())
+     if args.compiler_cache_root is not None:
+         argv.extend(("--compiler-cache-root", str(args.compiler_cache_root)))
+     if args.mode == "plan":
+@@ -330,7 +350,7 @@
+     # The native rank wrapper resolves its standard raw root strictly.
+     raw.mkdir(parents=True, exist_ok=True)
+     result = flash.main(argv)
+-    if result == 0:
++    if result == 0 and trace is None:
+         summarize(raw / args.run_id)
+     return result
+ 
+@@ -386,6 +406,10 @@
+ 
+ 
+ def run_rank(task_root, ep, selected, build, sms, native_args):
++    trace = (
++        load_bridge(HERE / "trace/bounded_ep4.py", "_expert_gfsdp_trace")
++        if "--profile-update" in native_args else None
++    )
+     measure = (Path(task_root) / BRIDGE_PATH).with_name("measure.py")
+     flash = load_bridge(measure, "_expert_gfsdp_measure")
+     native_main = flash._bootstrap_and_run
+@@ -395,6 +419,11 @@
+         base = load_base()
+ 
+         class ExpertMeasurement(base.WindowMeasurement):
++            def __init__(self, *args, **kwargs):
++                super().__init__(*args, **kwargs)
++                if trace:
++                    trace.verify_shard_group(self)
++
+             def capture_after_train(self):
+                 super().capture_after_train()
+                 capture_activation(self, ep, selected)
+@@ -423,6 +452,11 @@
+                 configure_direct_expert_dw(
+                     extension.k_grouped_fp8_gemm_nt_contiguous_rounded_f32
+                 )
++            if trace:
++                from os import environ
++
++                with trace.capture_cuda_sync(int(environ["RANK"])):
++                    return train(train_argv, training_adapter)
+             return train(train_argv, training_adapter)
+ 
+         return native_main(argv, adapter, configure_then_train)
+@@ -541,6 +575,10 @@
+     parser.add_argument("mode", choices=("plan", "run", "summarize"))
+     parser.add_argument("run_id")
+     parser.add_argument("--ep", type=int, choices=(4, 8), default=8)
++    parser.add_argument(
++        "--trace-expert-pair", action="store_true",
++        help="capture three microbatches of update 21 on one EP4 expert shard pair",
++    )
+     parser.add_argument("--optimization", action="append", choices=FLAGS, default=[])
+     parser.add_argument("--direct-dw-build", type=Path)
+     parser.add_argument("--reference", type=Path)
+@@ -555,6 +593,10 @@
+                 "the clean original A source does not support candidate switches"
+             )
+         args.original_a_source = args.original_a_source.resolve(strict=True)
++    if args.trace_expert_pair and (
++        args.ep != 4 or args.original_a_source is not None or args.mode == "summarize"
++    ):
++        parser.error("--trace-expert-pair requires EP4 plan or run on the candidate source")
+     if args.mode == "summarize":
+         summarize((args.original_a_source or ROOT) / RAW_PATH / args.run_id)
+         return 0
+--- a/runs/overnight-streaming-perf/run.py
++++ b/runs/overnight-streaming-perf/run.py
+@@ -298,6 +298,10 @@
+     if not args.window and args.warmup and args.profile_update is None:
+         raise ValueError("warmup must be zero when window is disabled")
+     if args.profile_update is not None:
++        if len(set(args.profile_ranks)) != 2 or any(
++            rank < 0 or rank >= 8 for rank in args.profile_ranks
++        ):
++            raise ValueError("profile-ranks must contain two distinct ranks from 0 to 7")
+         if args.window:
+             raise ValueError("profile-update requires window 0")
+         if args.warmup <= 0:
+@@ -361,7 +365,8 @@
+         help="record completed forward/backward calls per optimizer update",
+     )
+     parser.add_argument("--profile-microbatches", type=int, default=0, help="stop collection after this many complete microbatches; 0 captures the full update")
+-    parser.add_argument("--profile-update", type=int, help="capture one native profiler update on global ranks 0 and 1")
++    parser.add_argument("--profile-update", type=int, help="capture one native profiler update")
++    parser.add_argument("--profile-ranks", nargs=2, type=int, default=PROFILE_RANKS)
+     parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
+     args = parser.parse_args(argv)
+     try:
+@@ -964,7 +969,7 @@
+     if args.profile_update is not None:
+         values.update(
+             {
+-                "profiler.profile_ranks": PROFILE_RANKS,
++                "profiler.profile_ranks": args.profile_ranks,
+                 "profiler.save_traces_folder": "profiling/traces",
+                 "profiler.record_shapes": False,
+                 "profiler.profile_freq": 2,
+@@ -991,7 +996,7 @@
+     spec = {
+         "target_update": args.profile_update,
+         "warmup_updates": args.warmup,
+-        "profile_ranks": PROFILE_RANKS,
++        "profile_ranks": args.profile_ranks,
+         "settings": _profile_config_values(args),
+         "native_hardcoded": {"with_stack": False, "profile_memory": False},
+         "trace_directory": (
+@@ -1119,6 +1124,7 @@
+     ]
+     if args.profile_update is not None:
+         helper_args.extend(("--profile-update", str(args.profile_update)))
++        helper_args.extend(("--profile-ranks", *(str(rank) for rank in args.profile_ranks)))
+     if args.capture_microbatches:
+         helper_args.append("--capture-microbatches")
+     if args.bf16_cache_counters:
+@@ -1413,7 +1419,7 @@
+             "profiler": (
+                 "disabled"
+                 if args.profile_update is None
+-                else "enabled for one update on global ranks 0 and 1"
++                else f"enabled for one update on global ranks {args.profile_ranks}"
+             ),
+             "checkpointing": "disabled",
+             "validation": "disabled",
+--- a/runs/overnight-streaming-perf/measure.py
++++ b/runs/overnight-streaming-perf/measure.py
+@@ -955,7 +955,11 @@
+         self.window_options = {
+             name: value
+             for name, value in options.items()
+-            if name not in {"compiler_guard_identity", "gfsdp_buffer_inventory"}
++            if name not in {
++                "compiler_guard_identity",
++                "gfsdp_buffer_inventory",
++                "profile_ranks",
++            }
+         }
+         self._compiler_guard_previous_value: str | None = None
+         self._compiler_guard_activated = False
+@@ -1034,6 +1038,7 @@
+ 
+     def __enter__(self) -> "NativeAdapter":
+         profile_update = self.options.get("profile_update")
++        profile_ranks = self.options.get("profile_ranks", (0, 1))
+         if profile_update is not None:
+             import torch
+ 
+@@ -1136,7 +1141,7 @@
+                 is_active_trainer = active is not None and trainer is active.trainer
+                 step = int(trainer.step) if is_active_trainer else None
+                 mark_profile = is_active_trainer and step == profile_update
+-                if mark_profile and active.rank in (0, 1) and not active.collection_stopped:
++                if mark_profile and active.rank in profile_ranks and not active.collection_stopped:
+                     scope = torch.profiler.record_function(
+                         f"task.profile_update.{profile_update}.microbatch.rank{active.rank}"
+                     )
+@@ -1146,7 +1151,7 @@
+                     result = original_forward_backward(trainer, *args, **kwargs)
+                 if mark_profile:
+                     active.note_profile_microbatch_complete(step)
+-                    if active.rank in (0, 1) and not active.collection_stopped:
++                    if active.rank in profile_ranks and not active.collection_stopped:
+                         active.collected_microbatches += 1
+                         if active.profile_microbatches and active.collected_microbatches == active.profile_microbatches:
+                             self.cuda_synchronize()
+@@ -1172,7 +1177,7 @@
+                 mark_profile = (
+                     is_active_trainer and step == profile_update
+                 )
+-                if mark_profile and active.rank in (0, 1):
++                if mark_profile and active.rank in profile_ranks:
+                     scope = torch.profiler.record_function(
+                         f"task.profile_update.{profile_update}.train_step.rank{active.rank}"
+                     )
+@@ -1204,7 +1209,7 @@
+                 mark_profile = (
+                     is_active_optimizer and step == profile_update
+                 )
+-                if mark_profile and active.rank in (0, 1) and not active.collection_stopped:
++                if mark_profile and active.rank in profile_ranks and not active.collection_stopped:
+                     scope = torch.profiler.record_function(
+                         f"task.profile_update.{profile_update}.optimizer_step.rank{active.rank}"
+                     )
+@@ -1228,7 +1233,7 @@
+         if profile_update is not None and self.options.get("profile_microbatches"):
+             def collecting() -> bool:
+                 active = self.active
+-                return (active is not None and active.rank in (0, 1)
++                return (active is not None and active.rank in profile_ranks
+                         and int(active.trainer.step) == profile_update
+                         and not active.collection_stopped)
+ 
+@@ -1368,6 +1373,7 @@
+     parser.add_argument("--gfsdp-buffer-inventory", action="store_true")
+     parser.add_argument("--profile-update", type=int)
+     parser.add_argument("--profile-microbatches", type=int, default=0)
++    parser.add_argument("--profile-ranks", nargs=2, type=int, default=[0, 1])
+     args = parser.parse_args(helper_argv)
+     if not 0 <= args.profile_microbatches <= 3 or (args.profile_microbatches and args.profile_update is None):
+         parser.error("profile-microbatches requires profile-update and a value from 0 to 3")
+@@ -1398,6 +1404,10 @@
+     if not args.window and args.warmup and args.profile_update is None:
+         parser.error("warmup must be zero when measurement window is disabled")
+     if args.profile_update is not None:
++        if len(set(args.profile_ranks)) != 2 or any(
++            rank < 0 or rank >= 8 for rank in args.profile_ranks
++        ):
++            parser.error("profile-ranks must contain two distinct ranks from 0 to 7")
+         if args.window != 0:
+             parser.error("profile-update requires window 0")
+         if args.warmup <= 0:
+@@ -1607,6 +1617,7 @@
+         "gfsdp_buffer_inventory": args.gfsdp_buffer_inventory,
+         "profile_update": args.profile_update,
+         "profile_microbatches": args.profile_microbatches,
++        "profile_ranks": args.profile_ranks,
+     }
+     if args.observe_compiler_cache and args.window:
+         from compiler_stats import CompilationWindowObserver
+--- a/runs/overnight-streaming-perf/parse_results.py
++++ b/runs/overnight-streaming-perf/parse_results.py
+@@ -76,15 +76,17 @@
+     }
+ 
+ 
+-def _expected_profile_spec(target_update: int, warmup_updates: int) -> dict[str, Any]:
++def _expected_profile_spec(
++    target_update: int, warmup_updates: int, profile_ranks: list[int] = PROFILE_RANKS
++) -> dict[str, Any]:
+     return {
+         "target_update": target_update,
+         "warmup_updates": warmup_updates,
+-        "profile_ranks": PROFILE_RANKS,
++        "profile_ranks": profile_ranks,
+         "settings": {
+             "profiler.enable_profiling": True,
+             "profiler.enable_memory_snapshot": False,
+-            "profiler.profile_ranks": PROFILE_RANKS,
++            "profiler.profile_ranks": profile_ranks,
+             "profiler.save_traces_folder": "profiling/traces",
+             "profiler.record_shapes": False,
+             "profiler.profile_freq": 2,
+@@ -150,7 +152,16 @@
+     if type(bounded) is not int or not 0 <= bounded <= 3:
+         errors.append("profile_microbatches must be an integer from 0 to 3")
+         bounded = 0
+-    expected_spec = _expected_profile_spec(target_update, warmup)
++    profile_ranks = spec.get("profile_ranks") if isinstance(spec, dict) else None
++    if (
++        not isinstance(profile_ranks, list)
++        or len(profile_ranks) != 2
++        or any(type(rank) is not int or not 0 <= rank < WORLD_SIZE for rank in profile_ranks)
++        or len(set(profile_ranks)) != 2
++    ):
++        errors.append("profile_ranks must contain two distinct ranks from 0 to 7")
++        profile_ranks = PROFILE_RANKS
++    expected_spec = _expected_profile_spec(target_update, warmup, profile_ranks)
+     if bounded:
+         expected_spec["profile_microbatches"] = bounded
+     if spec != expected_spec:
+@@ -201,7 +212,7 @@
+         ):
+             if type(receipt.get(key)) is not int or receipt.get(key) != expected:
+                 errors.append(f"rank {rank} profile receipt {key}={receipt.get(key)!r}, expected {expected}")
+-        expected_constructed = rank in PROFILE_RANKS
++        expected_constructed = rank in profile_ranks
+         if receipt.get("native_profiler_created") is not expected_constructed:
+             errors.append(
+                 f"rank {rank} native profiler constructed={receipt.get('native_profiler_created')!r}; "
+@@ -228,7 +239,7 @@
+     trace_root = run_dir / "native/profiling/traces"
+     expected_paths = {
+         trace_root / f"iteration_{target_update}" / f"rank{rank}_trace.json"
+-        for rank in PROFILE_RANKS
++        for rank in profile_ranks
+     }
+     observed_paths = (
+         {path for path in trace_root.rglob("*_trace.json") if path.is_file()}
+@@ -245,7 +256,7 @@
+         )
+ 
+     traces: dict[str, Any] = {}
+-    for rank in PROFILE_RANKS:
++    for rank in profile_ranks:
+         path = trace_root / f"iteration_{target_update}" / f"rank{rank}_trace.json"
+         if not path.is_file():
+             continue
+@@ -299,7 +310,7 @@
+             if (len(prefixes) != 1 or not token_spans or not mb_spans
+                 or prefixes[0].get("ts", 0) > token_spans[0].get("ts", 0)
+                 or prefixes[0].get("ts", 0) + prefixes[0].get("dur", 0) < max(event.get("ts", 0) + event.get("dur", 0) for event in mb_spans)):
+-                errors.append(f"rank {rank} trace lacks the complete input/three-microbatch prefix")
++                errors.append(f"rank {rank} trace lacks the complete input/microbatch prefix")
+             if not any(event.get("cat") == "kernel" for event in events):
+                 errors.append(f"rank {rank} bounded trace lacks GPU kernel coverage")
+             if gpu_projection_counts.get(f"task.profile_update.{target_update}.microbatch.rank{rank}", 0) < bounded:
+@@ -352,7 +363,7 @@
+         "profile_capture": {
+             "target_update": target_update,
+             "warmup_updates": warmup,
+-            "profile_ranks": PROFILE_RANKS,
++            "profile_ranks": profile_ranks,
+             "settings": expected_spec["settings"],
+             "native_hardcoded": expected_spec["native_hardcoded"],
+             "call_counts_by_rank": per_rank_counts,

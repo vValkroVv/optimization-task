@@ -151,6 +151,12 @@ class ParallelismConfig:
     writing and `record_bf16_weight_write()` after the write completes.
     """
 
+    gfsdp_fp8_expert_weights: bool = False
+    """Cache GFSDP routed-expert weight shards as E4M3 with FP32 block scales."""
+
+    gfsdp_direct_expert_dw: bool = False
+    """Write Hopper EP8 expert gradients directly into the FP32 reduce-scatter slot."""
+
     gfsdp_split_layer0_ffn: bool = False
     """Give layers.0's dense w1/w2/w3 FFN its own compiled GFSDP boundary."""
 
@@ -159,6 +165,9 @@ class ParallelismConfig:
 
     gfsdp_row_owner_embeddings: bool = False
     """Route input embedding rows to dense GFSDP owners instead of sharding the full table."""
+
+    gfsdp_retain_tail_weights: bool = False
+    """Retain unused GFSDP weight prefetches between nonfinal head backward callbacks."""
 
     fsdp_reshard_after_forward: Literal["default", "always", "never"] = "default"
     """

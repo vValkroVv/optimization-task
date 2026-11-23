@@ -1,0 +1,181 @@
+--- a/runs/efsdp-optimizations/run.py
++++ b/runs/efsdp-optimizations/run.py
+@@ -142,7 +142,7 @@
+     return metadata["argv"], resolved
+ 
+ 
+-def configure_driver(base, args, base_config):
++def configure_driver(base, args, base_config, numerics):
+     # Let the native runner produce and record all four CLI switches.
+     if args.original_a_source is None:
+         base.NATIVE_FEATURE_CONTROLS += tuple(
+@@ -155,6 +155,8 @@
+ 
+     def training_overrides(parsed, paths):
+         overrides = native_args(parsed, paths)
++        if numerics:
++            overrides.extend(numerics.CONFIG_OVERRIDE)
+         if args.ep != 8:
+             overrides.extend(("--parallelism.expert_parallel_degree", str(args.ep)))
+         return overrides
+@@ -163,12 +165,17 @@
+     base._resolved_config_expectations = lambda parsed: {
+         **expect_config(parsed),
+         "parallelism.expert_parallel_degree": args.ep,
++        **({"debug.deterministic": True} if numerics else {}),
+     }
+     if base_config is None:
+         return
+     expected = base_config.copy()
+     expected.pop("dump_folder")
+-    expected["training"] = {**expected["training"], "steps": 20}
++    expected["training"] = {
++        **expected["training"], "steps": numerics.STEPS if numerics else 20
++    }
++    if numerics:
++        expected["debug"] = {**expected["debug"], "deterministic": True}
+     expected["parallelism"] = {
+         **expected["parallelism"],
+         "expert_parallel_degree": args.ep,
+@@ -195,9 +202,15 @@
+         return digest
+ 
+     base._verify_resolved_config = verify_resolved
++    return expected
++
++
++def load_numerics():
++    return load_bridge(HERE / "numerics/ep8.py", "_expert_gfsdp_numerics")
+ 
+ 
+ def driver(args):
++    numerics = load_numerics() if args.numerical_ep8 else None
+     task_root = args.original_a_source or ROOT
+     bridge_path = task_root / BRIDGE_PATH
+     raw = task_root / RAW_PATH
+@@ -224,9 +237,16 @@
+         sms = base._load_yaml(base.BASE_CONFIG)["fp8"]["sparse_deep_gemm_num_sms"]
+     if type(sms) is not int or sms <= 0:
+         raise RuntimeError("Original A must provide a positive DeepGEMM SM budget")
+-    configure_driver(base, args, reference_config)
++    expected_resolved = configure_driver(base, args, reference_config, numerics)
+     expected_cli = native_overrides(reference_command)
+-    expected_cli["--training.steps"] = "20"
++    expected_cli["--training.steps"] = str(numerics.STEPS) if numerics else "20"
++    if numerics:
++        flag, value = numerics.CONFIG_OVERRIDE
++        expected_cli[flag] = value
++    numerics_digest = (
++        numerics.resolved_digest(expected_resolved)
++        if numerics and expected_resolved else ""
++    )
+     if args.ep != 8:
+         expected_cli["--parallelism.expert_parallel_degree"] = str(args.ep)
+     for name in supplied:
+@@ -265,6 +285,10 @@
+                 str(build or ""),
+                 str(sms),
+             ]
++            if numerics:
++                argv[measure + 7 : measure + 7] = [
++                    "--numerical-config-digest", numerics_digest
++                ]
+             return argv
+ 
+         return patched
+@@ -276,6 +300,8 @@
+     def config_hashes():
+         hashes = base_config_hashes()
+         hashes["expert_gfsdp_runner_sha256"] = base.sha256_file(Path(__file__))
++        if numerics:
++            hashes["expert_gfsdp_numerics_sha256"] = base.sha256_file(Path(numerics.__file__))
+         if build is not None:
+             current = base.sha256_file(build / "manifest.json")
+             if current != build_hash:
+@@ -296,17 +322,15 @@
+         "--epoch-size",
+         "102400",
+         "--steps",
+-        "20",
++        str(numerics.STEPS) if numerics else "20",
+         "--warmup",
+-        "10",
++        "0" if numerics else "10",
+         "--window",
+-        "10",
+-        "--observe-compiler-cache",
+-        "--run-id",
+-        args.run_id,
+-        "--output-root",
+-        str(raw),
++        "0" if numerics else "10",
+     ]
++    if not numerics:
++        argv.append("--observe-compiler-cache")
++    argv.extend(("--run-id", args.run_id, "--output-root", str(raw)))
+     argv.extend("--" + FLAGS[name].replace("_", "-") for name in sorted(supplied))
+     if args.compiler_cache_root is not None:
+         argv.extend(("--compiler-cache-root", str(args.compiler_cache_root)))
+@@ -322,6 +346,10 @@
+             command = wrap_command(base)(parsed, paths)
+             measure = load_bridge(base.HELPER_DIR / "measure.py", "_gfsdp_plan")
+             child_args = command[command.index("rank") + 6 :]
++            if numerics:
++                if child_args[:2] != ["--numerical-config-digest", numerics_digest]:
++                    raise RuntimeError("numerical config guard did not reach the rank launcher")
++                child_args = child_args[2:]
+             measure._parse_args(child_args)
+         print(
+             json.dumps({"bridge": vars(bridge), "argv": command}, default=str, indent=2)
+@@ -330,7 +358,7 @@
+     # The native rank wrapper resolves its standard raw root strictly.
+     raw.mkdir(parents=True, exist_ok=True)
+     result = flash.main(argv)
+-    if result == 0:
++    if result == 0 and not numerics:
+         summarize(raw / args.run_id)
+     return result
+ 
+@@ -386,6 +414,12 @@
+ 
+ 
+ def run_rank(task_root, ep, selected, build, sms, native_args):
++    numerics = None
++    if native_args[:1] == ["--numerical-config-digest"]:
++        _, config_digest, *native_args = native_args
++        if ep != 8 or not re.fullmatch(r"[0-9a-f]{64}", config_digest):
++            raise RuntimeError("numerical rank requires a verified original A resolved digest")
++        numerics = load_numerics()
+     measure = (Path(task_root) / BRIDGE_PATH).with_name("measure.py")
+     flash = load_bridge(measure, "_expert_gfsdp_measure")
+     native_main = flash._bootstrap_and_run
+@@ -423,6 +457,9 @@
+                 configure_direct_expert_dw(
+                     extension.k_grouped_fp8_gemm_nt_contiguous_rounded_f32
+                 )
++            if numerics:
++                with numerics.observe(training_adapter, selected, config_digest):
++                    return train(train_argv, training_adapter)
+             return train(train_argv, training_adapter)
+ 
+         return native_main(argv, adapter, configure_then_train)
+@@ -541,6 +578,7 @@
+     parser.add_argument("mode", choices=("plan", "run", "summarize"))
+     parser.add_argument("run_id")
+     parser.add_argument("--ep", type=int, choices=(4, 8), default=8)
++    parser.add_argument("--numerical-ep8", action="store_true")
+     parser.add_argument("--optimization", action="append", choices=FLAGS, default=[])
+     parser.add_argument("--direct-dw-build", type=Path)
+     parser.add_argument("--reference", type=Path)
+@@ -555,6 +593,11 @@
+                 "the clean original A source does not support candidate switches"
+             )
+         args.original_a_source = args.original_a_source.resolve(strict=True)
++    if args.numerical_ep8 and (
++        args.ep != 8 or args.mode == "summarize"
++        or (args.original_a_source is None and set(args.optimization) != set(FLAGS))
++    ):
++        parser.error("numerical EP8 requires clean original A or all four candidate switches")
+     if args.mode == "summarize":
+         summarize((args.original_a_source or ROOT) / RAW_PATH / args.run_id)
+         return 0

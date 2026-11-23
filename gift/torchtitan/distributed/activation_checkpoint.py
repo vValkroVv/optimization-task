@@ -36,6 +36,7 @@ from torchtitan.tools.logging import logger
 
 # DeepGEMM's fp8 grouped GEMM; registered only with fp8 grouped experts.
 _FP8_GROUPED_GEMM = "torchtitan.m_grouped_fp8_gemm_nt_contiguous.default"
+_FP8_PREPARED_GROUPED_GEMM = "torchtitan.m_grouped_fp8_gemm_prepared_weight.default"
 
 
 # --- SAC save categories ------------------------------------------------------
@@ -100,9 +101,12 @@ def _op_categories() -> tuple[dict, set]:
     experts = [
         aten._grouped_mm.default,
         (torch.ops, _FP8_GROUPED_GEMM),
+        (torch.ops, _FP8_PREPARED_GROUPED_GEMM),
     ]
     always = [
         (torch.ops, "torchtitan.router_topk_indices.default"),
+        # A recomputed GEMM still has to use the original weight generation.
+        (torch.ops, "torchtitan.bind_prepared_fp8_weight.default"),
         aten.max.default,  # fp8 amax -> scaling factor
         (torch._higher_order_ops, "inductor_compiled_code"),
     ]
@@ -161,6 +165,9 @@ def _sac_context_fn(save, mm_recompute_shapes):
     """Bind policy values explicitly so Dynamo guards distinct SAC policies."""
     op_category, always_ops = _op_categories()
     fp8_grouped_gemm = next(iter(_resolve_ops([(torch.ops, _FP8_GROUPED_GEMM)])), None)
+    fp8_prepared_grouped_gemm = next(
+        iter(_resolve_ops([(torch.ops, _FP8_PREPARED_GROUPED_GEMM)])), None
+    )
     # Some backends (e.g. PrivateUse1) register aten.linear as a leaf op
     # instead of decomposing it into aten.mm, so we must handle both.
     mm_ops = (torch.ops.aten.mm.default, torch.ops.aten.linear.default)
@@ -202,7 +209,9 @@ def _sac_context_fn(save, mm_recompute_shapes):
             # input: dim -> moe_hidden), the cheaper half to keep in memory.
             # _grouped_mm(x [R, in], w [E, in, out]) and the fp8 GEMM
             # (x [R, in], x_scale, w [E, out, in], ...): up/gate is in > out.
-            if func is fp8_grouped_gemm:
+            if func is fp8_prepared_grouped_gemm:
+                out_features = args[4]
+            elif func is fp8_grouped_gemm:
                 out_features = args[2].shape[1]
             else:
                 out_features = args[1].shape[-1]

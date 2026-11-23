@@ -549,7 +549,7 @@ def load_gfsdp_dcp(
         param_group
         for model in adapter._model_parts
         for param_group in _iter_fsdp_param_groups(model, recurse=True)
-        if param_group._bf16_cache_requested
+        if param_group._bf16_cache_requested or param_group._fp8_cache_requested
     )
     for param_group in cache_groups:
         param_group.invalidate_bf16_weight_cache()

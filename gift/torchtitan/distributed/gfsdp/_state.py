@@ -53,6 +53,8 @@ class GFSDPStateContext:
         self.post_backward_final_callback_queued: bool = False
         # Whether to finalize backward in this backward's final callback
         self.is_last_backward: bool = True
+        # Keep unused weight prefetches live between chunked-head backwards.
+        self.retain_tail_weights: bool = False
         # Optional user-provided event recorded after optimizer for the
         # all-gather streams to wait on in the root pre-forward
         self.post_optim_event: torch.Event | None = None
@@ -193,12 +195,24 @@ class GFSDPState(_State):
             if group._bf16_cache_requested
         ]
         if requested_cache_groups and not any(
-            group._bf16_cache_enabled for group in requested_cache_groups
+            group._bf16_cache_enabled or group._fp8_cache is not None
+            for group in requested_cache_groups
         ):
             warning_once(
                 logger,
                 "BF16 expert weight reuse was requested, but no GFSDP parameter "
                 "group met the supported layout; using the ordinary all-gather path",
+                stacklevel=2,
+            )
+        if any(
+            group._fp8_cache_requested and group._fp8_cache is None
+            for state in self._state_ctx.all_states
+            for group in state._fsdp_param_groups
+        ):
+            warning_once(
+                logger,
+                "FP8 expert weight reuse was requested for an unsupported GFSDP "
+                "layout; those groups are using their regular weight path",
                 stacklevel=2,
             )
 
@@ -214,6 +228,7 @@ class GFSDPState(_State):
     ) -> None:
         """Share communication and EMA state across the root module tree."""
         self._comm_ctx.lazy_init(self._device)
+        self._comm_ctx.retain_tail_weights = self._state_ctx.retain_tail_weights
         for state in self._state_ctx.all_states:
             self._state_ctx._ema_tracked_param_groups.update(
                 state._state_ctx._ema_tracked_param_groups
@@ -272,7 +287,19 @@ class GFSDPState(_State):
         # Deal the original units, so splitting cannot change alternating slots.
         param_groups = [group for group in param_groups if group not in child_groups]
 
+        if not (
+            yccl_handle is not None
+            or process_group_to_yccl_handle
+            or param_group_to_data_buffer_ctx_idx is not None
+            or data_buffer_ctx_idx_to_yccl_handle is not None
+        ):
+            for group in param_groups:
+                if group not in region_children:
+                    group._fp8_cache_layout = group._select_fp8_weight_cache_layout()
+
         def buffer_sizes(group: GFSDPParamGroup, *, grad: bool) -> dict:
+            if not grad and group._fp8_cache_layout is not None:
+                return group._fp8_cache_layout.receive_sizes_by_dtype()
             itemsize = (
                 group.reduce_dtype or group.param_dtype or group.orig_dtype
             ).itemsize
@@ -694,14 +721,35 @@ class GFSDPState(_State):
     def _root_post_backward_final_callback(self) -> None:
         logger.debug("GFSDP::root_post_backward")
         with torch.profiler.record_function("GFSDP::root_post_backward_callback"):
+            retain_tail_weights = (
+                self._state_ctx.retain_tail_weights
+                and not self._state_ctx.is_last_backward
+            )
             for state in self._state_ctx.all_states:
+                if retain_tail_weights:
+                    state_participated = state._training_state in (
+                        TrainingState.PRE_BACKWARD,
+                        TrainingState.POST_BACKWARD,
+                    ) or any(
+                        fsdp_param_group._training_state
+                        in (TrainingState.PRE_BACKWARD, TrainingState.POST_BACKWARD)
+                        for fsdp_param_group in state._fsdp_param_groups
+                    )
                 for fsdp_param_group in state._fsdp_param_groups:
+                    if retain_tail_weights and fsdp_param_group._training_state in (
+                        TrainingState.IDLE,
+                        TrainingState.FORWARD,
+                    ):
+                        continue
                     if fsdp_param_group._training_state != TrainingState.POST_BACKWARD:
                         # Run post-backward in case forward inputs did not require
                         # gradient so the autograd backward did not run
                         fsdp_param_group.post_backward()
                     fsdp_param_group._training_state = TrainingState.IDLE
-                state._training_state = TrainingState.IDLE
+                if not retain_tail_weights:
+                    state._training_state = TrainingState.IDLE
+                elif state_participated:
+                    state._training_state = TrainingState.IDLE
                 if self._state_ctx.is_last_backward:
                     state._finalize_backward()
                 for fsdp_param_group in state._fsdp_param_groups:
