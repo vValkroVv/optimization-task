@@ -1,0 +1,1352 @@
+{
+  "branch": "shared-sm90-kernels-fix",
+  "revision": "529d8f27d79d36f3b7fb3031ea0d3b17dd413da9",
+  "worktree": "/workspace-SR008.nfs2/vkropotin/optimization-task/.worktrees/shared-sm90-kernels-fix",
+  "raw_artifacts": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001",
+  "measurements": {
+    "order": "ABBA on the same device for each pair with a fresh process per round",
+    "rounds_per_case": 4,
+    "warmup_calls_after_compiling": 10,
+    "measured_calls_per_round": 30,
+    "component_shape": [
+      2,
+      4096,
+      4096
+    ],
+    "dense_ffn_hidden_width": 10944,
+    "phase_time": "CUDA-event stream span, including queue gaps",
+    "wall_time": "synchronized forward and backward, with CUDA event recording and no memory report inside the timer",
+    "memory": "maximum GIFT total GPU memory estimate across all measured calls in each arm",
+    "activation": "one separate synchronized phase-specific trace per arm"
+  },
+  "dense_fixture_provenance": {
+    "schema_version": 1,
+    "case": "dense-fp8",
+    "input": "native layer-0 hidden through the reconstructed production prefix",
+    "tangent": "Reconstructed suffix VJP with native layer-0 upstream",
+    "weights": "Single-device production crop init with FP32 masters and BF16 compute",
+    "initialization_seed": 2048,
+    "native_checkpoint_weights_recovered": false,
+    "native_fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/proddata-component-capture-001/native-inputs",
+    "native_rank": 0,
+    "native_source_head": "2ada87125e433e1f76c4cb2bfad244b641a78a93",
+    "native_tensors_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+    "native_input_ids_sha256": "4ae436688e47ba2af1c6cc8c1d0f18c015912e2b0f943c60fa773882f3f9193f",
+    "sha256": "03d22fbb727e7675f3aaf7b25402c28d9fdb6bc6abee5a7b3264c34acbe8fbad",
+    "torch": "2.15.0.dev20260822+cu130",
+    "gdn_backend": {
+      "variant": "external_gate",
+      "direct_backward": false,
+      "fla_upstream_revision": "1d2281ff1b7988d8070f00dba5ffa9747ae3a60e",
+      "flash_qla_upstream_revision": "a14dbf3474514e1674526431e960325f72081e9f",
+      "task_head": "529d8f27d79d36f3b7fb3031ea0d3b17dd413da9",
+      "fla": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/.worktrees/shared-sm90-kernels-fix/gift/contrib/flash-linear-attention/fla/ops/gated_delta_rule/chunk.py",
+        "sha256": "fd4e01dc22a8c139c2a6eb61e47ae472a50322e4b4fff006cc5039a4602b310e"
+      },
+      "backend": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/.worktrees/shared-sm90-kernels-fix/gift/torchtitan/experiments/flash_qla/backend.py",
+        "sha256": "d8b36358ab51adfc6c67473cfcb2c75e28c6236607aece6b752d04fc359ad099"
+      },
+      "flash_qla": {
+        "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/.worktrees/shared-sm90-kernels-fix/gift/contrib/flash-qla/flash_qla/ops/gated_delta_rule/chunk/__init__.py",
+        "sha256": "23920e8e506ad21ede7a021fcbf387505054030111cf79369ab270ebdb352f16"
+      }
+    },
+    "precision": "bfloat16",
+    "activation_checkpoint": {
+      "mode": "selective",
+      "selective_save": [],
+      "module_modes": [
+        "layers.[01]=selective",
+        "layers.[23467]=save:experts_up",
+        "layers.5=save:experts_up+comm"
+      ],
+      "per_op_sac_force_recompute_mm_shapes_by_fqns": [
+        "moe.router.gate"
+      ],
+      "early_stop": false,
+      "memory_budget": 0.5,
+      "visualize_memory_budget_pareto": false,
+      "preserve_rng_state": true,
+      "determinism_check": "default",
+      "debug": false
+    },
+    "compile": {
+      "enable": true,
+      "components": [
+        "model",
+        "loss"
+      ],
+      "backend": "inductor",
+      "cudagraph_exclude_blocks": [
+        "layers.0"
+      ]
+    }
+  },
+  "residual_cute_tangent": "same-shape captured native tangent shared across both arms, from another CuTe call",
+  "initial_diagnostic_attempt": "Both baseline calls compiled and measured. The first trace parser treated the CUDA and CPU copies of an annotation as two CPU scopes. The corrected parser passed against those traces. Both baseline arms were rerun. Original logs and traces are in diagnostic-parser-001.",
+  "cases": [
+    {
+      "case": "norm-residual",
+      "gpu_uuid": "GPU-3c3cc54c-79ab-9be9-e436-174442096f85",
+      "receipt_paths": [
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/norm-residual/1-A.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/norm-residual/2-B.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/norm-residual/3-B.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/norm-residual/4-A.json"
+      ],
+      "bitwise_parity": {
+        "y": true,
+        "x": true,
+        "weight": true,
+        "up": true,
+        "down": true,
+        "residual": true
+      },
+      "forward_ms": {
+        "A": 0.44817599654197693,
+        "B": 0.34164799749851227,
+        "delta": -0.10652799904346466,
+        "delta_pct": -23.7692334853741,
+        "A_rounds": [
+          0.5182879865169525,
+          0.3869760036468506
+        ],
+        "B_rounds": [
+          0.3493119925260544,
+          0.3356800079345703
+        ],
+        "maximum_within_arm_spread": 0.13131198287010193,
+        "bracket_deltas": [
+          -0.16897599399089813,
+          -0.05129599571228027
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "backward_ms": {
+        "A": 0.4513920098543167,
+        "B": 0.4789920002222061,
+        "delta": 0.027599990367889404,
+        "delta_pct": 6.1144171286499045,
+        "A_rounds": [
+          0.46721599996089935,
+          0.4236000031232834
+        ],
+        "B_rounds": [
+          0.4898560047149658,
+          0.4732000082731247
+        ],
+        "maximum_within_arm_spread": 0.04361599683761597,
+        "bracket_deltas": [
+          0.022640004754066467,
+          0.04960000514984131
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "wall_ms": {
+        "A": 0.9211385000000001,
+        "B": 0.8394995,
+        "delta": -0.08163900000000013,
+        "delta_pct": -8.862836587549008,
+        "A_rounds": [
+          1.014226,
+          0.8282835
+        ],
+        "B_rounds": [
+          0.8588665,
+          0.823191
+        ],
+        "maximum_within_arm_spread": 0.18594250000000012,
+        "bracket_deltas": [
+          -0.1553595000000001,
+          -0.005092499999999944
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "host_submission_ms": {
+        "A": 0.8547549999999999,
+        "B": 0.7592105,
+        "delta": -0.09554449999999992,
+        "delta_pct": -11.17799837380301,
+        "A_rounds": [
+          0.9471240000000001,
+          0.7548365
+        ],
+        "B_rounds": [
+          0.783728,
+          0.7415309999999999
+        ],
+        "maximum_within_arm_spread": 0.19228750000000006,
+        "bracket_deltas": [
+          -0.1633960000000001,
+          -0.013305500000000081
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "wall_drain_ms": {
+        "A": 0.0682435,
+        "B": 0.0778355,
+        "delta": 0.009592000000000003,
+        "delta_pct": 14.055551078124662,
+        "A_rounds": [
+          0.063719,
+          0.074023
+        ],
+        "B_rounds": [
+          0.07567499999999999,
+          0.0800085
+        ],
+        "maximum_within_arm_spread": 0.010304000000000008,
+        "bracket_deltas": [
+          0.011955999999999994,
+          0.005985499999999991
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "total_gpu_gib": {
+        "A": 1.0008544921875,
+        "B": 0.8485107421875,
+        "delta": -0.15234375,
+        "delta_pct": -15.22136845956824,
+        "A_rounds": [
+          1.0008544921875,
+          0.8485107421875
+        ],
+        "B_rounds": [
+          0.8485107421875,
+          0.8485107421875
+        ],
+        "maximum_within_arm_spread": 0.15234375,
+        "bracket_deltas": [
+          -0.15234375,
+          0.0
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "trace_activation": {
+        "A": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/norm-residual/1-A.trace.json",
+          "sha256": "91abe3a83a774a2b7bff76a69c82151f181d59d0d69e5c6d9df53a922240c98d",
+          "forward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "triton_poi_fused_add_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_fwd": 1
+            },
+            "gpu_work_events": 4,
+            "kernel_sum_us": 159.937,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 365.15380859375,
+            "gpu_busy_union_us": 159.93701171875,
+            "gpu_gaps_us": 205.216796875,
+            "streams": [
+              7
+            ]
+          },
+          "backward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdFin_object_at__tensorptrf32gmemalign16o4i6416i64div16161_tensorptrf32gmemo4i64i641_tensorptrf32gmemalign16oi64_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdWFin_object_at__tensorptrf32gmemalign16o2940961665536161_tensorptrf32gmemalign16o1440961665536161_tensorptrf32_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_fwd": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            },
+            "gpu_work_events": 7,
+            "kernel_sum_us": 267.138,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 477.5068359375,
+            "gpu_busy_union_us": 266.9140625,
+            "gpu_gaps_us": 210.5927734375,
+            "streams": [
+              7
+            ]
+          },
+          "kernel_activation": {
+            "forward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1
+            },
+            "backward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1,
+              "GnBwdDs": 1,
+              "GnBwdFin": 1,
+              "GnBwdDx": 1,
+              "GnBwdWFin": 1
+            },
+            "other_forward": {
+              "triton_poi_fused_add_0": 1
+            }
+          },
+          "custom_op_activation": {
+            "forward": {
+              "torchtitan::cute_gated_norm_fwd": 1
+            },
+            "backward": {
+              "torchtitan::cute_gated_norm_fwd": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            }
+          }
+        },
+        "B": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/norm-residual/2-B.trace.json",
+          "sha256": "8461142b0cb039ee4e88c238d1627923fd02ae8e2384a1c32a29ed7a99791faf",
+          "forward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1
+            },
+            "gpu_work_events": 3,
+            "kernel_sum_us": 113.888,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 222.046875,
+            "gpu_busy_union_us": 113.8876953125,
+            "gpu_gaps_us": 108.1591796875,
+            "streams": [
+              7
+            ]
+          },
+          "backward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdFin_object_at__tensorptrf32gmemalign16o4i6416i64div16161_tensorptrf32gmemo4i64i641_tensorptrf32gmemalign16oi64_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdWFin_object_at__tensorptrf32gmemalign16o2940961665536161_tensorptrf32gmemalign16o1440961665536161_tensorptrf32_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            },
+            "gpu_work_events": 7,
+            "kernel_sum_us": 287.904,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 443.3916015625,
+            "gpu_busy_union_us": 287.7119140625,
+            "gpu_gaps_us": 155.6796875,
+            "streams": [
+              7
+            ]
+          },
+          "kernel_activation": {
+            "forward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1
+            },
+            "backward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1,
+              "GnBwdDs": 1,
+              "GnBwdFin": 1,
+              "GnBwdDx": 1,
+              "GnBwdWFin": 1
+            },
+            "other_forward": {}
+          },
+          "custom_op_activation": {
+            "forward": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1
+            },
+            "backward": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            }
+          }
+        }
+      },
+      "physical_gpu": 6,
+      "provenance_log": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/norm-residual/provenance.log",
+      "provenance_sha256": "7f0d3f1c8f4b58d0249152889ea1a2cbdefad3ac3832e7c68ec63efdf038a8bb",
+      "receipt_sha256": {
+        "1-A.json": "e79fae9953c930c5beabd538153a92d8c603ae66302f60e04453b0011a33dc2d",
+        "2-B.json": "9926b623e2b0a40672fe30f3fcb80cc3ba55c751077be9c0cdcd30ada2425e86",
+        "3-B.json": "7bbddbe2472dfad5310126e4df0eeee0a2d69997640ce1009f8c33e46259e216",
+        "4-A.json": "b3cb0ca164439f64f5d7d6a6c85144eae057a6e3226ab8e6dfe339ec0ee024d0"
+      },
+      "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/cute-rank0.pt",
+      "resolved_config": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "9a030559092640711a7c8a1f9b05626193b6dcee42a1b7b838d7cd70862cd485",
+      "fixture_sha256": "dd683ca5aea0725650fe307c27b9c74d205daea2034ff1ab9a71d0c4f669db4f",
+      "runtime": {
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "torch_revision": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+        "cuda_version": "13.0",
+        "hostname": "lm-mpi-job-84fd3579-7bd2-4969-ae47-b7af17b73ca2-mpimaster-0"
+      }
+    },
+    {
+      "case": "dense-fp8",
+      "gpu_uuid": "GPU-4bffb471-5f19-db78-3a59-576f5d2bb780",
+      "receipt_paths": [
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/dense-fp8/1-A.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/dense-fp8/2-B.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/dense-fp8/3-B.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/dense-fp8/4-A.json"
+      ],
+      "bitwise_parity": {
+        "y": true,
+        "w1.weight": true,
+        "w2.weight": true,
+        "w3.weight": true,
+        "input": true
+      },
+      "forward_ms": {
+        "A": 2.513200044631958,
+        "B": 2.411247968673706,
+        "delta": -0.10195207595825195,
+        "delta_pct": -4.0566637811429045,
+        "A_rounds": [
+          2.466800093650818,
+          2.5443679094314575
+        ],
+        "B_rounds": [
+          2.4156960248947144,
+          2.4083200693130493
+        ],
+        "maximum_within_arm_spread": 0.07756781578063965,
+        "bracket_deltas": [
+          -0.051104068756103516,
+          -0.1360478401184082
+        ],
+        "resolved_beyond_repeat_spread": true
+      },
+      "backward_ms": {
+        "A": 6.7432639598846436,
+        "B": 6.5826239585876465,
+        "delta": -0.16064000129699707,
+        "delta_pct": -2.3822291734779597,
+        "A_rounds": [
+          6.591840028762817,
+          6.829056024551392
+        ],
+        "B_rounds": [
+          6.604511976242065,
+          6.568464040756226
+        ],
+        "maximum_within_arm_spread": 0.23721599578857422,
+        "bracket_deltas": [
+          0.012671947479248047,
+          -0.260591983795166
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "wall_ms": {
+        "A": 9.2794185,
+        "B": 9.0256475,
+        "delta": -0.2537710000000004,
+        "delta_pct": -2.7347726584375995,
+        "A_rounds": [
+          9.0793565,
+          9.4022235
+        ],
+        "B_rounds": [
+          9.06242,
+          8.995564
+        ],
+        "maximum_within_arm_spread": 0.32286700000000046,
+        "bracket_deltas": [
+          -0.01693649999999991,
+          -0.40665949999999995
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "host_submission_ms": {
+        "A": 1.4124094999999999,
+        "B": 1.367486,
+        "delta": -0.044923499999999894,
+        "delta_pct": -3.1806285641664047,
+        "A_rounds": [
+          1.46726,
+          1.3684705
+        ],
+        "B_rounds": [
+          1.3512855,
+          1.375367
+        ],
+        "maximum_within_arm_spread": 0.09878950000000009,
+        "bracket_deltas": [
+          -0.11597450000000009,
+          0.006896500000000083
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "wall_drain_ms": {
+        "A": 7.891657,
+        "B": 7.601732,
+        "delta": -0.2899250000000002,
+        "delta_pct": -3.6738165381490884,
+        "A_rounds": [
+          7.586775,
+          7.9775015
+        ],
+        "B_rounds": [
+          7.6585304999999995,
+          7.5685455
+        ],
+        "maximum_within_arm_spread": 0.39072649999999953,
+        "bracket_deltas": [
+          0.0717554999999992,
+          -0.4089559999999999
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "total_gpu_gib": {
+        "A": 2.1063232421875,
+        "B": 1.9324951171875,
+        "delta": -0.173828125,
+        "delta_pct": -8.252680382497827,
+        "A_rounds": [
+          2.1063232421875,
+          2.1004638671875
+        ],
+        "B_rounds": [
+          1.9324951171875,
+          1.9324951171875
+        ],
+        "maximum_within_arm_spread": 0.005859375,
+        "bracket_deltas": [
+          -0.173828125,
+          -0.16796875
+        ],
+        "resolved_beyond_repeat_spread": true
+      },
+      "trace_activation": {
+        "A": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/dense-fp8/1-A.trace.json",
+          "sha256": "65dcfa2248574a637b36f8ab6bd39836d1c7f62c01ccc5942b791a74fbc4210b",
+          "forward": {
+            "kernel_counts": {
+              "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)": 1,
+              "triton_poi_fused_constant_pad_nd_quantize_blk128x128_0": 2,
+              "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)": 3,
+              "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN": 3,
+              "void (anonymous namespace)::swiglu_forward_kernel<8, 2, true, true, false, false>(__nv_bfloat16 const*, __nv_bfloat16 const*, unsigned char*, float*, unsigned char*, unsigned char*, float*, float*, int, int, int, int, float, long*)": 1,
+              "triton_poi_fused_constant_pad_nd_quantize_blk128x128_1": 1,
+              "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1})": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::fp8_dense_gemm": 3
+            },
+            "gpu_work_events": 15,
+            "kernel_sum_us": 2248.895,
+            "copy_memset_event_count": 3,
+            "copy_memset_sum_us": 2.208,
+            "gpu_span_us": 2506.49462890625,
+            "gpu_busy_union_us": 2251.1025390625,
+            "gpu_gaps_us": 255.39208984375,
+            "streams": [
+              7
+            ]
+          },
+          "backward": {
+            "kernel_counts": {
+              "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)": 2,
+              "triton_poi_fused_constant_pad_nd_quantize_blk128x128_0": 1,
+              "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)": 3,
+              "triton_poi_fused_constant_pad_nd_quantize_blk128x128_1": 2,
+              "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)": 2,
+              "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN": 5,
+              "void (anonymous namespace)::swiglu_forward_kernel<8, 2, true, true, false, false>(__nv_bfloat16 const*, __nv_bfloat16 const*, unsigned char*, float*, unsigned char*, unsigned char*, float*, float*, int, int, int, int, float, long*)": 1,
+              "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)": 5,
+              "void (anonymous namespace)::swiglu_backward_kernel<8, 2, true, true, false>(__nv_bfloat16 const*, __nv_bfloat16 const*, unsigned char const*, unsigned char const*, float const*, float const*, __nv_bfloat16 const*, unsigned char*, unsigned char*, float*, float*, int, int, int, int, float)": 1,
+              "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1})": 2,
+              "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT": 3,
+              "triton_poi_fused_clone_slice_2": 1,
+              "triton_poi_fused_add_3": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::fp8_dense_gemm": 8
+            },
+            "gpu_work_events": 37,
+            "kernel_sum_us": 6213.787,
+            "copy_memset_event_count": 8,
+            "copy_memset_sum_us": 6.466,
+            "gpu_span_us": 6322.39697265625,
+            "gpu_busy_union_us": 6220.251953125,
+            "gpu_gaps_us": 102.14501953125,
+            "streams": [
+              7
+            ]
+          },
+          "kernel_activation": {
+            "weight_tail": false,
+            "forward": {
+              "pad": 3,
+              "nt": 3,
+              "nt_row_tail": 0,
+              "nt_col_tail": 0,
+              "t": 0,
+              "t_row_tail": 0,
+              "t_col_tail": 0,
+              "swiglu_forward": 1,
+              "swiglu_backward": 0,
+              "fp8_gemm": 3,
+              "wgrad_gemm": 0
+            },
+            "backward": {
+              "pad": 3,
+              "nt": 2,
+              "nt_row_tail": 0,
+              "nt_col_tail": 0,
+              "t": 3,
+              "t_row_tail": 0,
+              "t_col_tail": 0,
+              "swiglu_forward": 1,
+              "swiglu_backward": 1,
+              "fp8_gemm": 5,
+              "wgrad_gemm": 3
+            }
+          },
+          "custom_op_activation": null
+        },
+        "B": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/dense-fp8/2-B.trace.json",
+          "sha256": "52d8a80602aa923896c229f6284e8bb6a434aabf20b9e057be04694a894bf032",
+          "forward": {
+            "kernel_counts": {
+              "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)": 1,
+              "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, true, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)": 2,
+              "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN": 3,
+              "void (anonymous namespace)::swiglu_forward_kernel<8, 2, true, true, false, false>(__nv_bfloat16 const*, __nv_bfloat16 const*, unsigned char*, float*, unsigned char*, unsigned char*, float*, float*, int, int, int, int, float, long*)": 1,
+              "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1})": 1,
+              "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, false, true>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::fp8_dense_gemm": 3
+            },
+            "gpu_work_events": 12,
+            "kernel_sum_us": 2079.064,
+            "copy_memset_event_count": 3,
+            "copy_memset_sum_us": 2.3360000000000003,
+            "gpu_span_us": 2366.71044921875,
+            "gpu_busy_union_us": 2081.40087890625,
+            "gpu_gaps_us": 285.3095703125,
+            "streams": [
+              7
+            ]
+          },
+          "backward": {
+            "kernel_counts": {
+              "void (anonymous namespace)::quantize_vec128_kernel<8, 2, true, false, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int)": 2,
+              "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, false, true>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)": 1,
+              "void (anonymous namespace)::quantize_blk128x128_kernel_nt_computed_scale<true, true, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)": 2,
+              "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Ablk128_Bvec128_TNN": 5,
+              "void (anonymous namespace)::swiglu_forward_kernel<8, 2, true, true, false, false>(__nv_bfloat16 const*, __nv_bfloat16 const*, unsigned char*, float*, unsigned char*, unsigned char*, float*, float*, int, int, int, int, float, long*)": 1,
+              "void scaling_aware_fp8_transpose_kernel<true, false, false>(unsigned char const*, float const*, unsigned char*, float*, int, int, int, long, long, long, long)": 5,
+              "void (anonymous namespace)::swiglu_backward_kernel<8, 2, true, true, false>(__nv_bfloat16 const*, __nv_bfloat16 const*, unsigned char const*, unsigned char const*, float const*, float const*, __nv_bfloat16 const*, unsigned char*, unsigned char*, float*, float*, int, int, int, int, float)": 1,
+              "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::FillFunctor<float> >(at::TensorIteratorBase&, at::native::FillFunctor<float> const&)::{lambda(int)#1})": 2,
+              "void (anonymous namespace)::quantize_blk128x128_kernel_t_computed_scale<true, true, false>(__nv_bfloat16 const*, unsigned char*, float*, int, int, int, int, int, int, int)": 2,
+              "nvjet_sm90_qqtst_128x128_128x6_1x2_h_bz_coopA_algo2_Avec128_Bvec128_TNT": 3,
+              "triton_poi_fused_clone_slice_0": 1,
+              "triton_poi_fused_add_1": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::fp8_dense_gemm": 8
+            },
+            "gpu_work_events": 34,
+            "kernel_sum_us": 5990.086,
+            "copy_memset_event_count": 8,
+            "copy_memset_sum_us": 6.688000000000001,
+            "gpu_span_us": 6147.43017578125,
+            "gpu_busy_union_us": 5996.7734375,
+            "gpu_gaps_us": 150.65673828125,
+            "streams": [
+              7
+            ]
+          },
+          "kernel_activation": {
+            "weight_tail": true,
+            "forward": {
+              "pad": 0,
+              "nt": 3,
+              "nt_row_tail": 2,
+              "nt_col_tail": 1,
+              "t": 0,
+              "t_row_tail": 0,
+              "t_col_tail": 0,
+              "swiglu_forward": 1,
+              "swiglu_backward": 0,
+              "fp8_gemm": 3,
+              "wgrad_gemm": 0
+            },
+            "backward": {
+              "pad": 0,
+              "nt": 2,
+              "nt_row_tail": 2,
+              "nt_col_tail": 0,
+              "t": 3,
+              "t_row_tail": 2,
+              "t_col_tail": 1,
+              "swiglu_forward": 1,
+              "swiglu_backward": 1,
+              "fp8_gemm": 5,
+              "wgrad_gemm": 3
+            }
+          },
+          "custom_op_activation": null
+        }
+      },
+      "physical_gpu": 7,
+      "provenance_log": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/dense-fp8/provenance.log",
+      "provenance_sha256": "318905c8772e4801c5d1da03cdc33fc487b60e19c4de841f7fff6aa82fe2017e",
+      "receipt_sha256": {
+        "1-A.json": "6711641d9f43c5c596beed2e2cd57d888ce726e0ee73039b6c311c95959ec4eb",
+        "2-B.json": "d543bbfdf7a971d6e613d46743be83b5ae6019be50a2cc22b80919e4289b4363",
+        "3-B.json": "1f1a7da5570aca04bae0d89defffcd64df0344a0e868f86460821f66b6e24c7a",
+        "4-A.json": "3e0fb4aa12a8b59189fa183dded1280ce27615905308a08248c38083d4fa12f1"
+      },
+      "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/dense.pt",
+      "resolved_config": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/production-data-abcd/artifacts/raw/proddata-component-capture-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "16faeb3e9267991dea1c7db3d1380a6bde3057eee2cd0d25b2967eb99d46230c",
+      "fixture_sha256": "03d22fbb727e7675f3aaf7b25402c28d9fdb6bc6abee5a7b3264c34acbe8fbad",
+      "runtime": {
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "torch_revision": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+        "cuda_version": "13.0",
+        "hostname": "lm-mpi-job-84fd3579-7bd2-4969-ae47-b7af17b73ca2-mpimaster-0"
+      }
+    },
+    {
+      "case": "sac-plain",
+      "gpu_uuid": "GPU-3c3cc54c-79ab-9be9-e436-174442096f85",
+      "receipt_paths": [
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-plain/1-A.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-plain/2-B.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-plain/3-B.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-plain/4-A.json"
+      ],
+      "bitwise_parity": {
+        "y": true,
+        "x": true,
+        "weight": true,
+        "up": true,
+        "down": true
+      },
+      "forward_ms": {
+        "A": 0.320592001080513,
+        "B": 0.3499840050935745,
+        "delta": 0.029392004013061523,
+        "delta_pct": 9.168040348480204,
+        "A_rounds": [
+          0.3264160007238388,
+          0.3176959902048111
+        ],
+        "B_rounds": [
+          0.3165600001811981,
+          0.38228800892829895
+        ],
+        "maximum_within_arm_spread": 0.06572800874710083,
+        "bracket_deltas": [
+          -0.009856000542640686,
+          0.06459201872348785
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "backward_ms": {
+        "A": 0.46747200191020966,
+        "B": 0.4678400009870529,
+        "delta": 0.0003679990768432617,
+        "delta_pct": 0.07872109459807727,
+        "A_rounds": [
+          0.4657920002937317,
+          0.47011199593544006
+        ],
+        "B_rounds": [
+          0.4320160001516342,
+          0.4991360157728195
+        ],
+        "maximum_within_arm_spread": 0.0671200156211853,
+        "bracket_deltas": [
+          -0.03377600014209747,
+          0.029024019837379456
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "wall_ms": {
+        "A": 0.808745,
+        "B": 0.8292915000000001,
+        "delta": 0.020546500000000023,
+        "delta_pct": 2.540541208910104,
+        "A_rounds": [
+          0.811388,
+          0.8032524999999999
+        ],
+        "B_rounds": [
+          0.761197,
+          0.904032
+        ],
+        "maximum_within_arm_spread": 0.14283499999999993,
+        "bracket_deltas": [
+          -0.050190999999999986,
+          0.10077950000000002
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "host_submission_ms": {
+        "A": 0.7295615,
+        "B": 0.7718995,
+        "delta": 0.04233799999999999,
+        "delta_pct": 5.803211929357564,
+        "A_rounds": [
+          0.7321895,
+          0.7243515
+        ],
+        "B_rounds": [
+          0.690239,
+          0.857738
+        ],
+        "maximum_within_arm_spread": 0.16749899999999995,
+        "bracket_deltas": [
+          -0.0419505,
+          0.13338649999999996
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "wall_drain_ms": {
+        "A": 0.0783315,
+        "B": 0.06606200000000001,
+        "delta": -0.012269499999999989,
+        "delta_pct": -15.663558083274275,
+        "A_rounds": [
+          0.07775,
+          0.07897850000000001
+        ],
+        "B_rounds": [
+          0.07092599999999999,
+          0.0479735
+        ],
+        "maximum_within_arm_spread": 0.022952499999999987,
+        "bracket_deltas": [
+          -0.006824000000000011,
+          -0.031005000000000005
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "total_gpu_gib": {
+        "A": 0.7860107421875,
+        "B": 0.7860107421875,
+        "delta": 0.0,
+        "delta_pct": 0.0,
+        "A_rounds": [
+          0.7860107421875,
+          0.7860107421875
+        ],
+        "B_rounds": [
+          0.7860107421875,
+          0.7860107421875
+        ],
+        "maximum_within_arm_spread": 0.0,
+        "bracket_deltas": [
+          0.0,
+          0.0
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "trace_activation": {
+        "A": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-plain/1-A.trace.json",
+          "sha256": "2c6014ecdbb03d9a1a0ef145059e0586968c93f494f1563b64bc1797747fd4d8",
+          "forward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_fwd": 1
+            },
+            "gpu_work_events": 3,
+            "kernel_sum_us": 92.896,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 157.087890625,
+            "gpu_busy_union_us": 92.89599609375,
+            "gpu_gaps_us": 64.19189453125,
+            "streams": [
+              7
+            ]
+          },
+          "backward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdFin_object_at__tensorptrf32gmemalign16o4i6416i64div16161_tensorptrf32gmemo4i64i641_tensorptrf32gmemalign16oi64_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdWFin_object_at__tensorptrf32gmemalign16o2940961665536161_tensorptrf32gmemalign16o1440961665536161_tensorptrf32_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_fwd": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            },
+            "gpu_work_events": 7,
+            "kernel_sum_us": 269.633,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 391.52197265625,
+            "gpu_busy_union_us": 269.37646484375,
+            "gpu_gaps_us": 122.1455078125,
+            "streams": [
+              7
+            ]
+          },
+          "kernel_activation": {
+            "forward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1
+            },
+            "backward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1,
+              "GnBwdDs": 1,
+              "GnBwdFin": 1,
+              "GnBwdDx": 1,
+              "GnBwdWFin": 1
+            },
+            "other_forward": {}
+          },
+          "custom_op_activation": {
+            "forward": {
+              "torchtitan::cute_gated_norm_fwd": 1
+            },
+            "backward": {
+              "torchtitan::cute_gated_norm_fwd": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            }
+          }
+        },
+        "B": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-plain/2-B.trace.json",
+          "sha256": "db61c377468639b7d06128f11bc0903c8f64c65e0f64bb544e8633d28c944012",
+          "forward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_fwd": 1
+            },
+            "gpu_work_events": 3,
+            "kernel_sum_us": 93.985,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 164.89697265625,
+            "gpu_busy_union_us": 93.98486328125,
+            "gpu_gaps_us": 70.912109375,
+            "streams": [
+              7
+            ]
+          },
+          "backward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdFinalizeStats_object_at__tensorptrf32gmemalign16o8i6416i64div16161_tensorptrf32gmemo8i64i641_tensorptrf32gmemal_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdFin_object_at__tensorptrf32gmemalign16o4i6416i64div16161_tensorptrf32gmemo4i64i641_tensorptrf32gmemalign16oi64_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdWFin_object_at__tensorptrf32gmemalign16o2940961665536161_tensorptrf32gmemalign16o1440961665536161_tensorptrf32_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_fwd_stats": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            },
+            "gpu_work_events": 7,
+            "kernel_sum_us": 210.97799999999998,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 398.62646484375,
+            "gpu_busy_union_us": 210.46484375,
+            "gpu_gaps_us": 188.16162109375,
+            "streams": [
+              7
+            ]
+          },
+          "kernel_activation": {
+            "forward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1
+            },
+            "backward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdFinalizeStats": 1,
+              "GnBwdDs": 1,
+              "GnBwdFin": 1,
+              "GnBwdDx": 1,
+              "GnBwdWFin": 1
+            },
+            "other_forward": {}
+          },
+          "custom_op_activation": {
+            "forward": {
+              "torchtitan::cute_gated_norm_fwd": 1
+            },
+            "backward": {
+              "torchtitan::cute_gated_norm_fwd_stats": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            }
+          }
+        }
+      },
+      "physical_gpu": 6,
+      "provenance_log": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-plain/provenance.log",
+      "provenance_sha256": "883cf45eda9802cfc94a631c7a5cc42cf41220e28c9b57c9d6c8b34513d7b3c8",
+      "receipt_sha256": {
+        "1-A.json": "bad0ead20c863d7396205c47a87faf1deaa1873b4b51ae725c4879faedeed2b3",
+        "2-B.json": "a283df4669200e28da388a2f4c5a0e3de2764ab0cd4bdc79be8697c680e7d7c8",
+        "3-B.json": "36685237585755fc1beef490f5a38e1ec790785f8d699bf42e508abf4277ebea",
+        "4-A.json": "f1d5a32ebb7d0001fdad7e5e36000341bebf4f0a92d3c211b5576674cdd50583"
+      },
+      "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/cute-rank0.pt",
+      "resolved_config": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "9a030559092640711a7c8a1f9b05626193b6dcee42a1b7b838d7cd70862cd485",
+      "fixture_sha256": "dd683ca5aea0725650fe307c27b9c74d205daea2034ff1ab9a71d0c4f669db4f",
+      "runtime": {
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "torch_revision": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+        "cuda_version": "13.0",
+        "hostname": "lm-mpi-job-84fd3579-7bd2-4969-ae47-b7af17b73ca2-mpimaster-0"
+      }
+    },
+    {
+      "case": "sac-residual",
+      "gpu_uuid": "GPU-3c3cc54c-79ab-9be9-e436-174442096f85",
+      "receipt_paths": [
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-residual/1-A.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-residual/2-B.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-residual/3-B.json",
+        "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-residual/4-A.json"
+      ],
+      "bitwise_parity": {
+        "y": true,
+        "x": true,
+        "weight": true,
+        "up": true,
+        "down": true,
+        "residual": true
+      },
+      "forward_ms": {
+        "A": 0.3386240005493164,
+        "B": 0.3400319963693619,
+        "delta": 0.0014079958200454712,
+        "delta_pct": 0.4157991807318495,
+        "A_rounds": [
+          0.341279998421669,
+          0.33716799318790436
+        ],
+        "B_rounds": [
+          0.3356959968805313,
+          0.3465760052204132
+        ],
+        "maximum_within_arm_spread": 0.010880008339881897,
+        "bracket_deltas": [
+          -0.005584001541137695,
+          0.00940801203250885
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "backward_ms": {
+        "A": 0.4777120053768158,
+        "B": 0.4305119961500168,
+        "delta": -0.04720000922679901,
+        "delta_pct": -9.880431870153227,
+        "A_rounds": [
+          0.48236800730228424,
+          0.47649599611759186
+        ],
+        "B_rounds": [
+          0.4281439930200577,
+          0.4407360106706619
+        ],
+        "maximum_within_arm_spread": 0.012592017650604248,
+        "bracket_deltas": [
+          -0.05422401428222656,
+          -0.03575998544692993
+        ],
+        "resolved_beyond_repeat_spread": true
+      },
+      "wall_ms": {
+        "A": 0.831153,
+        "B": 0.7905985,
+        "delta": -0.04055450000000005,
+        "delta_pct": -4.879306216785603,
+        "A_rounds": [
+          0.837663,
+          0.8280475
+        ],
+        "B_rounds": [
+          0.7833509999999999,
+          0.80721
+        ],
+        "maximum_within_arm_spread": 0.023859000000000075,
+        "bracket_deltas": [
+          -0.05431200000000014,
+          -0.020837500000000064
+        ],
+        "resolved_beyond_repeat_spread": true
+      },
+      "host_submission_ms": {
+        "A": 0.7581359999999999,
+        "B": 0.72546,
+        "delta": -0.03267599999999993,
+        "delta_pct": -4.310044635790931,
+        "A_rounds": [
+          0.770464,
+          0.7557659999999999
+        ],
+        "B_rounds": [
+          0.7146315,
+          0.7442584999999999
+        ],
+        "maximum_within_arm_spread": 0.02962699999999996,
+        "bracket_deltas": [
+          -0.05583250000000006,
+          -0.011507500000000004
+        ],
+        "resolved_beyond_repeat_spread": true
+      },
+      "wall_drain_ms": {
+        "A": 0.07281950000000001,
+        "B": 0.0670415,
+        "delta": -0.005778000000000005,
+        "delta_pct": -7.934687824003192,
+        "A_rounds": [
+          0.0711605,
+          0.076349
+        ],
+        "B_rounds": [
+          0.06764200000000001,
+          0.06646
+        ],
+        "maximum_within_arm_spread": 0.005188499999999999,
+        "bracket_deltas": [
+          -0.003518499999999994,
+          -0.009888999999999995
+        ],
+        "resolved_beyond_repeat_spread": true
+      },
+      "total_gpu_gib": {
+        "A": 0.8485107421875,
+        "B": 0.8485107421875,
+        "delta": 0.0,
+        "delta_pct": 0.0,
+        "A_rounds": [
+          0.8485107421875,
+          0.8485107421875
+        ],
+        "B_rounds": [
+          0.8485107421875,
+          0.8485107421875
+        ],
+        "maximum_within_arm_spread": 0.0,
+        "bracket_deltas": [
+          0.0,
+          0.0
+        ],
+        "resolved_beyond_repeat_spread": false
+      },
+      "trace_activation": {
+        "A": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-residual/1-A.trace.json",
+          "sha256": "a22d9b08bf6e2046be29d6b4d6eea8aec85100c52fb6c06ba7145bcccd219e5d",
+          "forward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1
+            },
+            "gpu_work_events": 3,
+            "kernel_sum_us": 114.14299999999999,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 197.791015625,
+            "gpu_busy_union_us": 114.14306640625,
+            "gpu_gaps_us": 83.64794921875,
+            "streams": [
+              7
+            ]
+          },
+          "backward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdFin_object_at__tensorptrf32gmemalign16o4i6416i64div16161_tensorptrf32gmemo4i64i641_tensorptrf32gmemalign16oi64_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdWFin_object_at__tensorptrf32gmemalign16o2940961665536161_tensorptrf32gmemalign16o1440961665536161_tensorptrf32_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            },
+            "gpu_work_events": 7,
+            "kernel_sum_us": 287.775,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 443.10205078125,
+            "gpu_busy_union_us": 287.5517578125,
+            "gpu_gaps_us": 155.55029296875,
+            "streams": [
+              7
+            ]
+          },
+          "kernel_activation": {
+            "forward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1
+            },
+            "backward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1,
+              "GnBwdDs": 1,
+              "GnBwdFin": 1,
+              "GnBwdDx": 1,
+              "GnBwdWFin": 1
+            },
+            "other_forward": {}
+          },
+          "custom_op_activation": {
+            "forward": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1
+            },
+            "backward": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            }
+          }
+        },
+        "B": {
+          "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-residual/2-B.trace.json",
+          "sha256": "32115f1b97bbb59a3f57918f3c8a126d20564aeec1c8277d4be84a52be2129bb",
+          "forward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdOut_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1
+            },
+            "gpu_work_events": 3,
+            "kernel_sum_us": 114.65599999999999,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 185.919921875,
+            "gpu_busy_union_us": 114.65576171875,
+            "gpu_gaps_us": 71.26416015625,
+            "streams": [
+              7
+            ]
+          },
+          "backward": {
+            "kernel_counts": {
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnPrep_object_at__tensorptrbf16gmemalign16o16409640961_tensorptrf32gmemalign16o40961_tensorptrbf16gmemalign16o409616_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdStats_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_Copy_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normforwardGnFwdFinalizeStats_object_at__tensorptrf32gmemalign16o8i6416i64div16161_tensorptrf32gmemo8i64i641_tensorptrf32gmemal_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDs_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdFin_object_at__tensorptrf32gmemalign16o4i6416i64div16161_tensorptrf32gmemo4i64i641_tensorptrf32gmemalign16oi64_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdDx_object_at__CopyAtom_ThrID10_TVLayoutSrc1409601_TVLayoutDst1409601_Valuetypebf16_tensor00oi6440961110_CopyAt_0": 1,
+              "kernel_cutlass_kernel_torchtitanmodelscommonnormscute_gated_normbackwardGnBwdWFin_object_at__tensorptrf32gmemalign16o2940961665536161_tensorptrf32gmemalign16o1440961665536161_tensorptrf32_0": 1
+            },
+            "custom_op_counts": {
+              "torchtitan::cute_gated_norm_fwd_stats": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            },
+            "gpu_work_events": 7,
+            "kernel_sum_us": 211.521,
+            "copy_memset_event_count": 0,
+            "copy_memset_sum_us": 0,
+            "gpu_span_us": 385.1845703125,
+            "gpu_busy_union_us": 211.263671875,
+            "gpu_gaps_us": 173.9208984375,
+            "streams": [
+              7
+            ]
+          },
+          "kernel_activation": {
+            "forward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdOut": 1
+            },
+            "backward": {
+              "GnPrep": 1,
+              "GnFwdStats": 1,
+              "GnFwdFinalizeStats": 1,
+              "GnBwdDs": 1,
+              "GnBwdFin": 1,
+              "GnBwdDx": 1,
+              "GnBwdWFin": 1
+            },
+            "other_forward": {}
+          },
+          "custom_op_activation": {
+            "forward": {
+              "torchtitan::cute_gated_norm_residual_fwd": 1
+            },
+            "backward": {
+              "torchtitan::cute_gated_norm_fwd_stats": 1,
+              "torchtitan::cute_gated_norm_bwd": 1
+            }
+          }
+        }
+      },
+      "physical_gpu": 6,
+      "provenance_log": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/shared-sm90-kernels/artifacts/raw/isolated-001/sac-residual/provenance.log",
+      "provenance_sha256": "4977f9e03218ae28cf7a60d74e6f866a528251120ac869377baa2ae4d828a928",
+      "receipt_sha256": {
+        "1-A.json": "3560910cc20c07012cf12cdbcb441d923a2132a84653b48b8d0e30c1e76ca282",
+        "2-B.json": "2b9a8e1da52e13c62d9e08806c6235f7d4d4bcbc23aea09f65ce880c557f719c",
+        "3-B.json": "6d8b85d0de9202615e5e5a8fc2b61d51ed2ec45e91083294db297311bc23281d",
+        "4-A.json": "d87610c7fd4ee2627bdfc8aa86c14ac2cc71e0930112976427234033d3ca600a"
+      },
+      "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/component-inputs/cute-rank0.pt",
+      "resolved_config": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/followup-fixtures-001/native/config/resolved_config.yaml",
+      "resolved_config_sha256": "9a030559092640711a7c8a1f9b05626193b6dcee42a1b7b838d7cd70862cd485",
+      "fixture_sha256": "dd683ca5aea0725650fe307c27b9c74d205daea2034ff1ab9a71d0c4f669db4f",
+      "runtime": {
+        "torch_version": "2.15.0.dev20260822+cu130",
+        "torch_revision": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+        "cuda_version": "13.0",
+        "hostname": "lm-mpi-job-84fd3579-7bd2-4969-ae47-b7af17b73ca2-mpimaster-0"
+      }
+    }
+  ]
+}
