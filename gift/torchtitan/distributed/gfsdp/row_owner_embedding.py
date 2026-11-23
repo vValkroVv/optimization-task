@@ -9,6 +9,7 @@ uses native embedding backward to retain its source-local BF16 boundary.
 
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
+from functools import cache
 from typing import Any
 import logging
 
@@ -25,6 +26,24 @@ from ._common import FSDPMeshInfo
 from ._tensor import RaggedShard, RaggedShardDTensor, install
 
 logger = logging.getLogger("gfsdp")
+
+
+@cache
+def _compact_min_ordered_rows(device: torch.device, width: int) -> int | None:
+    # The dispatch bound mirrors EmbeddingBackwardKernel.cu in this CUDA build.
+    if (
+        device.type != "cuda"
+        or torch.__version__ != "2.15.0.dev20260822+cu130"
+        or torch.version.git_version != "8b353065ce260336c5fdfa74d754e8bd9b91b062"
+        or torch.version.cuda != "13.0"
+    ):
+        return None
+    num_sms = torch.cuda.get_device_properties(device).multi_processor_count
+    stride_warped = (width + 31) // 32 * 32
+    block_size = min(stride_warped, 1024)
+    # Keep ceil(min(num_ids, num_weights) * stride_warped / block_size)
+    # at least 4 * num_sms to exclude unordered atomic partial summation.
+    return ((4 * num_sms - 1) * block_size) // stride_warped + 1
 
 
 class RowOwnerEmbedding(Module):
@@ -100,11 +119,14 @@ class RowOwnerEmbedding(Module):
         result.num_embeddings = vocab
         result.embedding_dim = width
         result.mesh_info = info
+        result._route_process_group = info.shard_process_group
         result.rows_per_owner = vocab // info.shard_mesh_size
         result.row_start = result.rows_per_owner * info.shard_mesh_rank
         result._comm_ctx = None
         result._sync_groups = ()
         result._using_ema_weights = False
+        result._weight_fqn = "weight"
+        result._compact_source_logged = False
         result.register_buffer("_ema_weight", None, persistent=False)
         placement = RaggedShard(
             local_numel,
@@ -129,6 +151,31 @@ class RowOwnerEmbedding(Module):
         )
         result.train(embedding.training)
         return result
+
+    def enable_dedicated_nccl_process_group(self, max_ctas: int) -> None:
+        """Create a separate, rank-identical communicator for the row protocol."""
+        dense_group = self.mesh_info.shard_process_group
+        if self._route_process_group is not dense_group:
+            raise RuntimeError("row-owner already has a dedicated process group")
+        ranks = dist.get_process_group_ranks(dense_group)
+        if ranks != list(range(dist.get_world_size())):
+            raise ValueError("dedicated row-owner routing requires the ordered world mesh")
+        if self.mesh_info.mesh.device_type != "cuda" or dist.group.WORLD.bound_device_id is not None:
+            raise ValueError("dedicated row-owner routing requires a lazily initialized CUDA default group")
+
+        options = dist.ProcessGroupNCCL.Options()
+        options.config.max_ctas = max_ctas
+        route_group = dist.new_group(
+            ranks=ranks,
+            backend="nccl",
+            pg_options=options,
+            sort_ranks=False,
+            group_desc="row_owner_embedding",
+        )
+        if route_group is dense_group or route_group.rank() != self.mesh_info.shard_mesh_rank:
+            raise RuntimeError("dedicated row-owner routing changed the shard rank mapping")
+        self._route_process_group = route_group
+        logger.info("row_owner_embedding dedicated NCCL communicator active max_ctas=%d", max_ctas)
 
     def reset_parameters(self) -> None:
         # Configurable embedding initialization normally uses _param_init.
@@ -171,6 +218,7 @@ class RowOwnerEmbedding(Module):
             (name for name, value in root.named_parameters() if value is self.weight),
             "weight",
         )
+        self._weight_fqn = fqn
         logger.info(
             "row_owner_embedding active fqn=%s global_shape=%s local_rows=%d "
             "owner_rank=%d owner_world=%d gfsdp_gather_reduce=excluded",
@@ -198,6 +246,8 @@ class RowOwnerEmbedding(Module):
                 "attach the initialized GFSDP root communication context before lookup"
             )
         current = torch.cuda.current_stream(self.weight.device)
+        # Synchronous c10d calls join this same origin stream for both
+        # communicators, preserving the order with dense GFSDP collectives.
         stream = self._comm_ctx.all_gather_stream
         stream.wait_event(current.record_event())
         for tensor in inputs:
@@ -278,7 +328,7 @@ class RowOwnerEmbedding(Module):
         with self._stage("counts"):
             matrix = metadata.new_empty(world * (world + 1))
             dist.all_gather_into_tensor(
-                matrix, metadata, group=self.mesh_info.shard_process_group
+                matrix, metadata, group=self._route_process_group
             )
             # One explicit host read supplies splits and coordinated validity.
             host = matrix.view(world, world + 1).cpu()
@@ -295,7 +345,7 @@ class RowOwnerEmbedding(Module):
                 unique,
                 list(receive),
                 list(send),
-                group=self.mesh_info.shard_process_group,
+                group=self._route_process_group,
             )
         return unique, inverse, requested, send, receive
 
@@ -369,7 +419,7 @@ class _OwnerLookup(torch.autograd.Function):
                         values,
                         list(send),
                         list(receive),
-                        group=owner.mesh_info.shard_process_group,
+                        group=owner._route_process_group,
                     )
                 with owner._stage("reconstruct"):
                     output = returned.index_select(0, inverse).view(*ids.shape, width)
@@ -379,29 +429,70 @@ class _OwnerLookup(torch.autograd.Function):
             output.record_stream(torch.cuda.current_stream(output.device))
         ctx.owner = owner
         ctx.splits = (send, receive)
-        ctx.save_for_backward(ids, unique, local_rows)
+        num_unique = unique.numel()
+        compact_rows = _compact_min_ordered_rows(weight.device, width)
+        if compact_rows is not None:
+            num_ids = ids.numel()
+            if num_ids <= 3072:
+                # ATen uses the feature kernel for these unscaled gradients.
+                compact_rows = num_unique
+            elif min(num_ids, owner.num_embeddings) >= compact_rows:
+                compact_rows = max(num_unique, compact_rows)
+            else:
+                compact_rows = None
+        ctx.compact_rows = compact_rows
+        if compact_rows is None:
+            ctx.save_for_backward(ids, unique, local_rows)
+        else:
+            ctx.num_unique = num_unique
+            ctx.save_for_backward(inverse, local_rows)
         return output
 
     @staticmethod
     @once_differentiable
     def backward(ctx: Any, grad_output: torch.Tensor) -> tuple:
         owner = ctx.owner
-        ids, unique, local_rows = ctx.saved_tensors
+        compact_rows = ctx.compact_rows
+        saved_route = ctx.saved_tensors
+        local_rows = saved_route[-1]
         send, receive = ctx.splits
-        with owner._communication(grad_output, ids, unique, local_rows):
-            with owner._stage("source_coalescing"):
-                # Preserve native CUDA dispatch, original order/duplicate IDs,
-                # and BF16 row rounding before any cross-source FP32 addition.
-                dense = torch.ops.aten.embedding_dense_backward.default(
-                    grad_output.to(torch.bfloat16).contiguous(),
-                    ids,
-                    owner.num_embeddings,
-                    -1,
-                    False,
-                )
+        with owner._communication(grad_output, *saved_route):
             width = owner.embedding_dim
-            received_offset = unique.numel() * width * 2
-            wide_offset = received_offset + sum(receive) * width * 2
+            if compact_rows is None:
+                ids, unique, _ = saved_route
+                with owner._stage("source_coalescing"):
+                    dense = torch.ops.aten.embedding_dense_backward.default(
+                        grad_output.to(torch.bfloat16).contiguous(),
+                        ids,
+                        owner.num_embeddings,
+                        -1,
+                        False,
+                    )
+                received_offset = unique.numel() * width * 2
+            else:
+                inverse, _ = saved_route
+                with owner._stage("compact_source_coalescing"):
+                    # The inverse preserves token order and duplicate groups.
+                    # Send only the BF16 rows consumed by the existing splits.
+                    coalesced = torch.ops.aten.embedding_dense_backward.default(
+                        grad_output.to(torch.bfloat16).contiguous().view(-1, width),
+                        inverse,
+                        compact_rows,
+                        -1,
+                        False,
+                    ).narrow(0, 0, ctx.num_unique)
+                if not owner._compact_source_logged:
+                    owner._compact_source_logged = True
+                    logger.info(
+                        "row_owner_embedding compact source coalescing active fqn=%s "
+                        "unique_rows=%d padded_rows=%d",
+                        owner._weight_fqn,
+                        ctx.num_unique,
+                        compact_rows,
+                    )
+                received_offset = 0
+            receive_count = sum(receive)
+            wide_offset = received_offset + receive_count * width * 2
             # Align FP32 views even when an odd hidden dimension is supported.
             wide_offset = (wide_offset + 3) // 4 * 4
             gradient_offset = wide_offset + max(receive, default=0) * width * 4
@@ -411,21 +502,26 @@ class _OwnerLookup(torch.autograd.Function):
                 device=owner.weight.device,
             )
             with owner._scratch(gradient_offset) as scratch:
-                with owner._stage("source_coalescing"):
-                    coalesced = _view(scratch, 0, unique.numel(), width, torch.bfloat16)
-                    torch.index_select(dense, 0, unique, out=coalesced)
-                    del dense
+                if compact_rows is None:
+                    with owner._stage("source_coalescing"):
+                        coalesced = _view(
+                            scratch, 0, unique.numel(), width, torch.bfloat16
+                        )
+                        torch.index_select(dense, 0, unique, out=coalesced)
+                        del dense
                 with owner._stage("gradient_exchange"):
                     received = _view(
-                        scratch, received_offset, sum(receive), width, torch.bfloat16
+                        scratch, received_offset, receive_count, width, torch.bfloat16
                     )
                     dist.all_to_all_single(
                         received,
                         coalesced,
                         list(receive),
                         list(send),
-                        group=owner.mesh_info.shard_process_group,
+                        group=owner._route_process_group,
                     )
+                    # The communication stream now orders the compact buffer's read.
+                    del coalesced
                 with owner._stage("owner_reduction"):
                     offset = 0
                     for count in receive:

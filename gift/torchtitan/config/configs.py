@@ -160,6 +160,9 @@ class ParallelismConfig:
     gfsdp_row_owner_embeddings: bool = False
     """Route input embedding rows to dense GFSDP owners instead of sharding the full table."""
 
+    gfsdp_mtp_transition_prefetch: bool = False
+    """Prefetch the last trunk layer after split MTP FFN backward using its released buffer region."""
+
     fsdp_reshard_after_forward: Literal["default", "always", "never"] = "default"
     """
     `reshard_after_forward` specifies the policy for applying `reshard_after_forward`
