@@ -1,0 +1,105 @@
+{
+  "source": "2c67c182e8de6145f3796d62203714ab1b815446",
+  "loss_source": "/workspace-SR008.nfs2/vkropotin/optimization-task/.worktrees/lm-head-mtp-fix/gift/torchtitan/components/loss.py",
+  "variant": "current",
+  "chunks": 16,
+  "writer": "cublas",
+  "vendor": null,
+  "vendor_chunk_calls": null,
+  "logit_storage": "native",
+  "folded_rows_per_chunk": 1024,
+  "compile": {
+    "backend": "inductor",
+    "scope": "native loss",
+    "counters": {
+      "calls_captured": 5,
+      "unique_graphs": 1
+    },
+    "cuda_graphs": false
+  },
+  "head": "bias-free BF16; FP32 rank-local GFSDP accumulation/reduction",
+  "activation": {
+    "ce": "torchtitan.experiments.four_fusion.stable_ce.cross_entropy_loss",
+    "folded": true,
+    "staged_chunk_calls": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "GIFT_STABLE_CE_FOLDED_BACKWARD": "1",
+    "GIFT_DIRECT_BF16_DHIDDEN": "1",
+    "GIFT_STAGED_HEAD_DW": "1",
+    "GIFT_FUSED_HIDDEN_Z_LOSS": "1"
+  },
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+  "device": {
+    "torch": "2.15.0.dev20260822+cu130",
+    "cuda": "13.0",
+    "name": "NVIDIA H100 80GB HBM3",
+    "visible": "GPU-7affb26d-635e-7d29-8248-bb66771e44f5"
+  },
+  "scope": "host wall incl. device sync; native label packing, head CE and BF16 dHidden, FP32 GFSDP dW, independent z-loss retained across head backward",
+  "singleton_reduction": "force-sum",
+  "allocator_retries_and_ooms": {
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "ce_route_calls": {
+    "folded": 16,
+    "ce": 0
+  },
+  "accumulation": "pre-existing sharded weight gradient retained across timed calls",
+  "warmup": 9,
+  "elapsed_ms": [
+    93.31374103203416,
+    94.45852099452168,
+    95.37367598386481,
+    93.62005302682519,
+    94.0223079524003,
+    92.49136399012059,
+    94.4170739967376,
+    92.45025302516297,
+    91.91068803193048,
+    94.72765302052721,
+    93.91628101002425,
+    92.15903899166733,
+    93.7285500112921,
+    93.24257803382352
+  ],
+  "median_ms": 93.67430151905864,
+  "total_gpu_gib": [
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875,
+    10.2801513671875
+  ],
+  "peak_total_gpu_gib": 10.2801513671875,
+  "loss": [
+    0.059884004294872284,
+    2.7444108127383515e-05
+  ]
+}
