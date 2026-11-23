@@ -20,7 +20,7 @@ GUARD_SIZE = 256
 GUARD_VALUE = -23.5
 
 
-def positive_int(value):
+def positive_int(value: str) -> int:
     try:
         parsed = int(value)
     except ValueError as exc:

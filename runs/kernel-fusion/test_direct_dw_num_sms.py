@@ -9,7 +9,9 @@ import pytest
 
 
 RUNNER_PATH = Path(__file__).with_name("run.py")
-SPEC = importlib.util.spec_from_file_location("kernel_fusion_runner_test", RUNNER_PATH)
+SPEC = importlib.util.spec_from_file_location(
+    "kernel_fusion_runner_test", RUNNER_PATH
+)
 runner = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = runner
 SPEC.loader.exec_module(runner)
@@ -42,7 +44,14 @@ def fixed_recipe_base(tmp_path):
             "canonical_experiment_sha256": "canonical",
             "generated_experiment_sha256": "generated",
         },
-        "argv": ["python", "run.py", "--", "experiment.yaml", "--dump_folder", "control"],
+        "argv": [
+            "python",
+            "run.py",
+            "--",
+            "experiment.yaml",
+            "--dump_folder",
+            "control",
+        ],
     }
     captured = {}
 
@@ -74,7 +83,14 @@ def fixed_recipe_base(tmp_path):
 
 
 def launch_command(controls):
-    command = ["python", "run.py", "--", "experiment.yaml", "--dump_folder", "candidate"]
+    command = [
+        "python",
+        "run.py",
+        "--",
+        "experiment.yaml",
+        "--dump_folder",
+        "candidate",
+    ]
     for dotted, enabled in controls.items():
         command.extend((f"--{dotted}", str(enabled).lower()))
     return command
@@ -112,9 +128,8 @@ def test_other_gfsdp_controls_do_not_set_direct_dw_budget(tmp_path, monkeypatch,
 
 
 def prepare_rank_environment(monkeypatch, *, build=None, num_sms=None):
-    import os
-
-    monkeypatch.setattr(runner, "load", lambda *_args: SimpleNamespace(run_rank=lambda _args: None))
+    baseline = SimpleNamespace(run_rank=lambda _args: None)
+    monkeypatch.setattr(runner, "load", lambda *_args: baseline)
     monkeypatch.setattr(sys, "argv", ["run.py", "rank", runner.PRODUCTION])
     for switch in runner.SWITCHES.values():
         if switch in runner.variant_switches(runner.PRODUCTION):
@@ -159,7 +174,11 @@ def test_rank_without_direct_dw_build_skips_extension_setup(monkeypatch):
 @pytest.mark.parametrize("num_sms", [None, "0", "invalid"])
 def test_direct_dw_rank_rejects_missing_or_invalid_budget(monkeypatch, num_sms):
     prepare_rank_environment(monkeypatch, build="/task/build", num_sms=num_sms)
-    monkeypatch.setattr(runner, "configure_direct_dw_rank", lambda *_args: pytest.fail("configured"))
+    monkeypatch.setattr(
+        runner,
+        "configure_direct_dw_rank",
+        lambda *_args: pytest.fail("configured"),
+    )
 
     with pytest.raises(RuntimeError, match=runner.DIRECT_DW_NUM_SMS_ENV):
         runner.main()
