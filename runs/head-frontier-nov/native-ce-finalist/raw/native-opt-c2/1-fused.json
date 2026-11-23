@@ -1,0 +1,231 @@
+{
+  "source": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+  "loss_source": "/workspace-SR008.nfs2/vkropotin/lm10-c1/gift/torchtitan/components/loss.py",
+  "variant": "current",
+  "chunks": 2,
+  "vendor": null,
+  "vendor_chunk_calls": null,
+  "logit_storage": "native",
+  "folded_rows_per_chunk": 8192,
+  "compile": {
+    "backend": "inductor",
+    "scope": "native loss",
+    "counters": {
+      "calls_captured": 3,
+      "unique_graphs": 1
+    },
+    "cuda_graphs": false
+  },
+  "head": "bias-free BF16; FP32 rank-local GFSDP accumulation/reduction",
+  "activation": {
+    "ce": "torchtitan.experiments.four_fusion.stable_ce.cross_entropy_loss",
+    "folded": true,
+    "staged_chunk_calls": [
+      true,
+      true
+    ],
+    "GIFT_STABLE_CE_FOLDED_BACKWARD": "1",
+    "GIFT_DIRECT_BF16_DHIDDEN": "1",
+    "GIFT_STAGED_HEAD_DW": "1",
+    "GIFT_FUSED_HIDDEN_Z_LOSS": "1"
+  },
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+  "device": {
+    "torch": "2.15.0.dev20260822+cu130",
+    "cuda": "13.0",
+    "name": "NVIDIA H100 80GB HBM3",
+    "visible": "GPU-8f5a8eb7-d9b2-6c7d-b377-5953bcf6c246"
+  },
+  "scope": "host wall incl. device sync; native label packing, head CE and BF16 dHidden, FP32 GFSDP dW, independent z-loss retained across head backward",
+  "singleton_reduction": "force-sum",
+  "allocator_retries_and_ooms": {
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "ce_route_calls": {
+    "folded_inplace": 2
+  },
+  "accumulation": "pre-existing sharded weight gradient retained across timed calls",
+  "warmup": 10,
+  "elapsed_ms": [
+    78.1980250030756,
+    74.72097501158714,
+    74.37553501222283,
+    72.9229410062544,
+    73.17449600668624,
+    75.17336698947474,
+    74.93747200351208,
+    74.22170997597277,
+    71.41271897125989,
+    79.59650602424517
+  ],
+  "median_ms": 74.54825501190498,
+  "total_gpu_gib": [
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875
+  ],
+  "peak_total_gpu_gib": 11.6375732421875,
+  "loss": [
+    0.059884000569581985,
+    2.7444108127383515e-05
+  ],
+  "arm": "fused",
+  "dw_first": false,
+  "native_inplace_ce_chunks": 2,
+  "writer": {
+    "name": "cublasLtMatmul",
+    "pair": "9.14",
+    "version": 130101,
+    "beta_calls": {
+      "0": 23,
+      "1": 23
+    },
+    "source_hidden_strides": {
+      "(4096, 1)": 46
+    },
+    "extra": null
+  },
+  "gather": {
+    "mode": "stack",
+    "nccl_version": [
+      2,
+      30,
+      7
+    ],
+    "group_rank": 0,
+    "group_size": 1,
+    "gather_calls": 24,
+    "native_all_gather_into_tensor_calls": 24,
+    "master_to_bf16_casts": 1,
+    "lazy_init_allocation_delta_bytes": 1050673152,
+    "input_data_ptr": 14170456064,
+    "output_data_ptr": 13119782912,
+    "input_storage_ptr": 14170456064,
+    "output_storage_ptr": 13119782912,
+    "distinct_bf16_gather_storages": 2,
+    "input_bytes": 1050673152,
+    "output_bytes": 1050673152
+  },
+  "expandable_segments": true,
+  "memory": [
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    },
+    {
+      "allocated_peak_bytes": 11111340544,
+      "reserved_peak_bytes": 11117002752,
+      "external_gib": 1.2840576171875,
+      "total_gib": 11.6375732421875
+    }
+  ],
+  "host_submit_ms": [
+    3.4181750379502773,
+    4.289454023819417,
+    3.333216009195894,
+    3.1085570226423442,
+    3.0856429948471487,
+    4.084574000444263,
+    3.8171940250322223,
+    4.251940990798175,
+    3.22762195719406,
+    4.296565020922571
+  ],
+  "host_wait_ms": [
+    74.77984996512532,
+    70.43152098776773,
+    71.04231900302693,
+    69.81438398361206,
+    70.08885301183909,
+    71.08879298903048,
+    71.12027797847986,
+    69.9697689851746,
+    68.18509701406583,
+    75.2999410033226
+  ],
+  "source_hashes": {
+    "gift/torchtitan/components/loss.py": "d0d3c7a89b3b8fcb06b8de285b8fb503c1aac0fa55b1189fa65ede57c24c9bb7",
+    "gift/torchtitan/distributed/gfsdp/_param_group.py": "e16c1a65f1df715e94950c9b3364983efed5ce8c881e8c9b47d8ff3cb37d9d3f",
+    "gift/torchtitan/distributed/gfsdp/_staged_head_dw.py": "951378e365373d223fd8f9da4a0e6b350bee1631d43dc558e9d94c760eed0e82",
+    "gift/torchtitan/distributed/gfsdp/_staged_head_dw_writer.py": "1f1f277092581b0730f2000158559a677438813509f1361b7cb1f29dcc5e1a6b",
+    "gift/torchtitan/experiments/four_fusion/stable_ce.py": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+  },
+  "torch_git": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+  "harness_sha256": "51470963898267f786d477b1f54893151fa87bcee1614a61a2d7485aa83cb56d",
+  "diagnostic_stage_events_ms": [],
+  "candidate": {
+    "method": "cuda-16",
+    "calls": 46,
+    "incoming_fp32_scales": [
+      4.769536303683708e-07,
+      1.4308609763702407e-07
+    ],
+    "prepared_fp32_scales": [
+      4.769536303683708e-07,
+      1.4308609763702407e-07
+    ],
+    "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+    "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+  },
+  "gather_mode": "regular",
+  "driver_sha256": "0ed3f39e8c98bc0bcd072663fca4a34cffd3e0323d8eb75e8f91c831024cc3f0"
+}

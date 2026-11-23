@@ -24,7 +24,7 @@ their actual effect. No persistent state or configuration switch is introduced.
 - [x] One warmed alternating eight-rank functional NCCL measurement of both
   the all-reduce and full aggregation fragment, with group-load parity,
   per-rank distributions and slowest-rank results.
-- [ ] Exactly one matched native D control/candidate pair, each 10 warmup plus
+- [x] Exactly one matched native D control/candidate pair, each 10 warmup plus
   10 measured complete optimizer updates, with the owner-requested saved D cache,
   actual configuration/activation, full series, TPS, memory and errors.
 - [ ] One candidate diagnostic: 20 warmup updates, update 21, ranks 0/1,
@@ -113,19 +113,46 @@ NCCL kernel execution. No eager latency benefit is resolved; full distributions,
 host scopes, tails, commands, hashes and the retained setup failure are in the
 [component JSON](component-results.json).
 
-The cached control completed all 20 optimizer updates on eight ranks. Updates
-11–20 cover 20,971,520 physical input tokens and 20,966,400 supervised main
-targets. The primary synchronized host envelope is 123.283711740 seconds,
-yielding 170,107.79 physical and 170,066.26 supervised tokens/s globally.
-Source/config guards pass, errors are empty and the child process group exited.
-The candidate and trace remain pending; no A/B throughput conclusion is available.
+### Native 10+10 comparison
 
-After this valid control completed, the task wrapper incorrectly applied its
-diagnostic receipt branch to orchestration role `control`, stopping before any
-candidate launch. The native control itself passed. The failed wrapper state
-and error are retained; correction must reuse this control and execute only the
-remaining candidate and diagnostic. The valid null component result does not
-cancel those requested measurements.
+The control and eight-counter candidate both passed on eight H100s with the
+same saved D cache and production-tokenizer data. Each completed 20 optimizer
+updates. The synchronized training window covers updates 11–20, with
+20,971,520 physical input tokens and 20,966,400 supervised main targets per arm.
+Memory values are maxima across eight ranks in that window. The total GPU
+memory estimate was recovered offline from the saved per-rank `memory: … GiB`
+lines. These round to 0.01 GiB. The table retains the original allocator peaks
+as historical evidence.
+
+| Metric | 128-counter control | 8-counter candidate | Change |
+| --- | ---: | ---: | ---: |
+| Global physical tokens/s | 170,107.79 | 169,988.91 | −118.88 (−0.070%) |
+| Global supervised tokens/s | 170,066.26 | 169,947.41 | −118.85 (−0.070%) |
+| Synchronized measured window, s | 123.283711740 | 123.369927269 | +0.086215529 |
+| GIFT total GPU memory estimate, GiB | 72.66 | 72.66 | 0.00 GiB at console precision |
+| Peak allocated, GiB | 65.891114 | 65.893310 | +2.25 MiB |
+| Peak reserved, GiB | 67.423828 | 67.423828 | 0 MiB |
+
+All ranks reported zero allocator retries and OOMs. Both completion receipts
+passed the source and configuration checks. The two resolved configurations
+differ only in `dump_folder`. The one serial pair establishes no throughput
+benefit or material peak-memory saving. The rounded values are the M5 row in
+the [overview](../../docs/overview.html#s4).
+
+The raw receipts are on SR008 under
+`/workspace-SR008.nfs2/vkropotin/optimization-task/runs/capacity-group-allreduce/artifacts/raw/`.
+
+| Run | `summary.json` SHA-256 |
+| --- | --- |
+| `capacity-control-timing-002` | `b0daaf3e80f5b3e101ae564e4b96b92039c5b7edd07ab6dbeb3a776c0cbc5a83` |
+| `capacity-candidate-timing-002` | `d7daea25872475686519ec42d75e5080aae9836499ce26d2b816321e24da314d` |
+
+The first wrapper attempt applied its diagnostic receipt branch to the valid
+control. The resumed campaign reused the control, completed the candidate
+timing, and recorded both arms as `PASS` in `native-campaign-state-002.json`.
+The separate `capacity-candidate-diagnostic-002` runner exited with SIGTERM
+(`-15`) before producing a completion receipt. The campaign state retains that
+failure. The diagnostic and trace acceptance remain open.
 
 ## Native configuration check
 

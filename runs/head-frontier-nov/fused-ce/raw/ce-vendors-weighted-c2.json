@@ -1,0 +1,256 @@
+{
+  "host": "lm-mpi-job-a3ca6417-b96b-4598-9403-d5497499590a-mpimaster-0",
+  "gpu": "NVIDIA H100 80GB HBM3",
+  "gpu_uuid": "GPU-ea279302-ec1d-0851-17db-85d99af14dc0",
+  "torch": "2.15.0.dev20260822+cu130",
+  "triton": "3.8.0",
+  "cuda": "13.0",
+  "capture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "capture_sha256": "15227882b1da44c2881b63622b6249bcddd307d90575216290f29ab9f720c727",
+  "source_hashes": {
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/fused-ce/centered.so": "41357457bb454c721ee72b5b9e4151cff7056f5e3b473a1241b39c4161925a11",
+    "/workspace-SR008.nfs2/vkropotin/lm10-c1/gift/contrib/flash-linear-attention/fla/modules/fused_linear_cross_entropy.py": "75fa652bf35850a89e53065ba2a647f0b2700eb60b18501b2e3003e335f08d7c",
+    "/workspace-SR008.nfs2/vkropotin/lm10-c1/gift/contrib/flash-linear-attention/fla/modules/fused_cross_entropy.py": "e419fc6adbfd4081e76f37a1840e2096306fc54153e59a7289ed3f15a5e93a7c",
+    "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/ce-only-compare.p8mXh69H/src/liger_kernel/ops/cross_entropy.py": "7149e6d6ae0f32498fb68b4974f5da79f410853c966bc9f83f805eee85d5d3f5"
+  },
+  "scope": "Second C2 chunk, CUDA Graph device events, same BF16 logits to unweighted FP32 row loss and scaled BF16 dLogits in place. No GEMMs or per-head loss sums. Input reset precedes each timed region.",
+  "shape": [
+    8192,
+    128256
+  ],
+  "chunks": 2,
+  "chunk_index": 1,
+  "ignored": 6,
+  "denominator": 2096640.0,
+  "scales": [
+    4.769536303683708e-07,
+    1.4308609763702407e-07
+  ],
+  "checks": {
+    "cuda-13": {
+      "sampled_loss_max_error": 9.5367431640625e-07,
+      "sampled_dlogits_relative_l2": 0.0007042199722491205
+    },
+    "liger-triton": {
+      "sampled_loss_max_error": 9.5367431640625e-07,
+      "sampled_dlogits_relative_l2": 0.0007042215438559651
+    },
+    "fla-ce": {
+      "sampled_loss_max_error": 9.5367431640625e-07,
+      "sampled_dlogits_relative_l2": 0.0007042199722491205
+    }
+  },
+  "results": {
+    "cuda-13": {
+      "median_ms": 1.6535840034484863,
+      "p10_ms": 1.65065598487854,
+      "p90_ms": 1.658784031867981,
+      "samples_ms": [
+        1.6535999774932861,
+        1.6575039625167847,
+        1.6591039896011353,
+        1.656607985496521,
+        1.6537920236587524,
+        1.6548479795455933,
+        1.6527680158615112,
+        1.6567039489746094,
+        1.65939199924469,
+        1.6564160585403442,
+        1.6509439945220947,
+        1.6559360027313232,
+        1.658784031867981,
+        1.6529279947280884,
+        1.6580480337142944,
+        1.6537280082702637,
+        1.651487946510315,
+        1.6514240503311157,
+        1.65065598487854,
+        1.6490559577941895,
+        1.6524159908294678,
+        1.65283203125,
+        1.6550079584121704,
+        1.6493439674377441,
+        1.6503360271453857,
+        1.6565760374069214,
+        1.651487946510315,
+        1.652608036994934,
+        1.6547520160675049,
+        1.6527999639511108,
+        1.660863995552063,
+        1.6516799926757812,
+        1.6556479930877686,
+        1.6535680294036865,
+        1.6514240503311157,
+        1.6514559984207153
+      ],
+      "profile_kernels": [
+        {
+          "name": "void exact_ce<8, 256>(uint4*, long const*, float*, float const*, int)",
+          "us": 1664.425
+        }
+      ]
+    },
+    "liger-triton": {
+      "median_ms": 3.2822400331497192,
+      "p10_ms": 3.279711961746216,
+      "p90_ms": 3.284543991088867,
+      "samples_ms": [
+        3.2825920581817627,
+        3.2828800678253174,
+        3.28003191947937,
+        3.2799999713897705,
+        3.2799038887023926,
+        3.284640073776245,
+        3.28220796585083,
+        3.281536102294922,
+        3.2819840908050537,
+        3.2835519313812256,
+        3.28003191947937,
+        3.280832052230835,
+        3.2785279750823975,
+        3.2847039699554443,
+        3.2790400981903076,
+        3.282815933227539,
+        3.2831358909606934,
+        3.282655954360962,
+        3.2805120944976807,
+        3.284543991088867,
+        3.281951904296875,
+        3.2826879024505615,
+        3.279776096343994,
+        3.2859199047088623,
+        3.2829439640045166,
+        3.2826240062713623,
+        3.283360004425049,
+        3.2828478813171387,
+        3.2822721004486084,
+        3.280672073364258,
+        3.277631998062134,
+        3.2839999198913574,
+        3.2828800678253174,
+        3.280224084854126,
+        3.28003191947937,
+        3.279711961746216
+      ],
+      "profile_kernels": [
+        {
+          "name": "liger_cross_entropy_kernel",
+          "us": 1842.505
+        },
+        {
+          "name": "rowwise_element_mul_kernel",
+          "us": 1433.063
+        }
+      ]
+    },
+    "fla-ce": {
+      "median_ms": 2.395535945892334,
+      "p10_ms": 2.3908159732818604,
+      "p90_ms": 2.4002559185028076,
+      "samples_ms": [
+        2.3954238891601562,
+        2.396127939224243,
+        2.3968639373779297,
+        2.3938241004943848,
+        2.397536039352417,
+        2.3949759006500244,
+        2.3950400352478027,
+        2.3981759548187256,
+        2.405344009399414,
+        2.3983678817749023,
+        2.392672061920166,
+        2.3908159732818604,
+        2.393631935119629,
+        2.394239902496338,
+        2.3957760334014893,
+        2.3963520526885986,
+        2.3956480026245117,
+        2.3986880779266357,
+        2.3962559700012207,
+        2.393951892852783,
+        2.394495964050293,
+        2.3951680660247803,
+        2.3903040885925293,
+        2.3962879180908203,
+        2.3898239135742188,
+        2.3963520526885986,
+        2.4004480838775635,
+        2.396415948867798,
+        2.3894081115722656,
+        2.4002559185028076,
+        2.394335985183716,
+        2.3917438983917236,
+        2.3935039043426514,
+        2.4019839763641357,
+        2.3917438983917236,
+        2.397279977798462
+      ],
+      "profile_kernels": [
+        {
+          "name": "cross_entropy_fwd_kernel",
+          "us": 905.06
+        },
+        {
+          "name": "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::MaxNanFunctor<float> >, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::MaxNanFunctor<float> >, unsigned int, float, 4, 4>)",
+          "us": 4.704999999999927
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<4, at::native::AbsFunctor<float>, std::array<char*, 2ul>, false>(int, at::native::AbsFunctor<float>, std::array<char*, 2ul>)",
+          "us": 1.2469999999998436
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<8, at::native::AUnaryFunctor<float, float, bool, at::native::(anonymous namespace)::CompareEqFunctor<float> >, std::array<char*, 2ul>, false>(int, at::native::AUnaryFunctor<float, float, bool, at::native::(anonymous namespace)::CompareEqFunctor<float> >, std::array<char*, 2ul>)",
+          "us": 1.1829999999999927
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)",
+          "us": 1.1839999999997417
+        },
+        {
+          "name": "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<float> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<float> const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::CUDAFunctor_add<float> >(at::TensorIteratorBase&, at::native::CUDAFunctor_add<float> const&)::{lambda(int)#1})",
+          "us": 1.9200000000000728
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<4, at::native::exp_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#2}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::exp_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#2}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>)",
+          "us": 1.4400000000000546
+        },
+        {
+          "name": "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+          "us": 4.030999999999949
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<4, at::native::log_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#2}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, false>(int, at::native::log_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#2}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>)",
+          "us": 1.5049999999996544
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, false>(int, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>)",
+          "us": 1.2799999999997453
+        },
+        {
+          "name": "void at::native::reduce_kernel<128, 4, at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::func_wrapper_t<float, at::native::sum_functor<float, float, float>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, float, 4, 4>)",
+          "us": 2.2719999999999345
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>, false>(int, at::native::CUDAFunctor_add<float>, std::array<char*, 3ul>)",
+          "us": 1.151999999999589
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul>, false>(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)",
+          "us": 1.0229999999996835
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<8, at::native::AUnaryFunctor<long, long, bool, at::native::(anonymous namespace)::CompareEqFunctor<long> >, std::array<char*, 2ul>, false>(int, at::native::AUnaryFunctor<long, long, bool, at::native::(anonymous namespace)::CompareEqFunctor<long> >, std::array<char*, 2ul>)",
+          "us": 1.88799999999992
+        },
+        {
+          "name": "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>, false>(int, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}, std::array<char*, 3ul>)",
+          "us": 1.1520000000000437
+        },
+        {
+          "name": "cross_entropy_bwd_kernel",
+          "us": 1467.4940000000001
+        }
+      ]
+    }
+  }
+}

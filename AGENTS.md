@@ -86,6 +86,12 @@ numerical capture and CUDA Graphs remain disabled in performance runs. Never
 promote an incomplete or failed control comparison. The current cleanup assignment
 does not authorize executing these future measurements or block comparisons.
 
+Use GIFT's total GPU memory estimate as the sole memory metric for performance
+comparisons. For 10+10, take the maximum native `memory: … GiB` across all
+ranks in updates 11–20 from the saved logs. Final approval requires 10+10 results
+for both the current EP8/eFSDP1 recipe and EP4/eFSDP2 on the same eight-GPU crop.
+Follow the [measurement and approval protocol](planning/validation.md#memory-and-final-approval).
+
 ## Bounded work and artifacts
 
 Define finite acceptance before execution. Reuse completed evidence. Repeat a

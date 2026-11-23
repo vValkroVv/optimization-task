@@ -44,8 +44,8 @@ A failed control cannot establish a candidate gain. Historical monitoring-inclus
 TPS is not directly comparable with the new monitoring-off configuration.
 
 Record physical input and valid-target TPS separately, global/per-GPU units,
-step series, median/spread, timer boundaries and excluded lifecycle costs. Pair
-memory scopes by phase. Separate device compute, host work, synchronization/idle,
+step series, median/spread, timer boundaries and excluded lifecycle costs.
+Separate device compute, host work, synchronization/idle,
 copies/communication and integrated elapsed time when evidence permits; mark
 unavailable scopes and never sum overlapping durations. Reuse historical traces
 for mechanism. The active assignment explicitly requires matched new candidate
@@ -71,6 +71,37 @@ Check structural invariants and affected stateful loader behavior with scoped
 checks. A local replay does not establish full-model continuation or convergence.
 Deliberate mathematical changes still need an agreed quality criterion. Do not
 implement another numerical framework or run these local checks during cleanup.
+
+## Memory and final approval
+
+Report one memory number per arm in benchmark comparisons, the maximum GIFT
+total GPU memory estimate in GiB across all eight ranks and optimizer updates
+11–20 for 10+10. Read `memory: … GiB` from the existing per-rank console logs
+after the run. The native logger records every update and rounds the console
+value to 0.01 GiB. The corresponding TensorBoard scalar is
+`memory/train/total_peak_mem`. Use console logs for the all-rank maximum when
+TensorBoard has a single logging rank. Reading the logs offline adds no work to
+timed training. [Runner logging](../runs/overnight-streaming-perf/run.py#L1085) ·
+[Native metrics](../gift/torchtitan/components/metrics.py#L500)
+
+GIFT computes the estimate as peak PyTorch reserved memory since the previous
+log plus non-PyTorch GPU usage at log time. Brief non-PyTorch peaks can fall
+between samples. Historical tables may contain allocator peaks. Use the native
+total metric for new comparisons. [Calculation](../gift/torchtitan/tools/utils.py#L278)
+
+Final approval requires a completed unprofiled 10+10 result with TPS and total
+GPU memory for each configuration of the same eight-H100 crop.
+
+| Configuration | EP | eFSDP |
+| --- | ---: | ---: |
+| Current selected recipe | 8 | 1 |
+| Additional expert-sharded recipe | 4 | 2 |
+
+Keep dense FSDP8, DP replication 1, PP/TP/CP1 and the rest of the agreed
+workload in both configurations. Confirm the resolved mesh and feature
+activation in each run. Compare each candidate with its control on the same
+topology when estimating a change. [Current recipe](../docs/baseline.md#current-final-task-baseline) ·
+[Expert mesh calculation](../gift/torchtitan/distributed/parallel_dims.py#L164)
 
 ## Trace capture window
 

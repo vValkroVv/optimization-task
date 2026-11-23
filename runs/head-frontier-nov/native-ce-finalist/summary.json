@@ -1,0 +1,818 @@
+{
+  "cuda-13-c2": {
+    "chunks": 2,
+    "method": "cuda-13",
+    "arms": [
+      "control",
+      "fused",
+      "fused",
+      "control",
+      "control",
+      "fused"
+    ],
+    "device": {
+      "torch": "2.15.0.dev20260822+cu130",
+      "cuda": "13.0",
+      "name": "NVIDIA H100 80GB HBM3",
+      "visible": "GPU-8f5a8eb7-d9b2-6c7d-b377-5953bcf6c246"
+    },
+    "source": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+    "source_hashes": {
+      "gift/torchtitan/components/loss.py": "d0d3c7a89b3b8fcb06b8de285b8fb503c1aac0fa55b1189fa65ede57c24c9bb7",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py": "e16c1a65f1df715e94950c9b3364983efed5ce8c881e8c9b47d8ff3cb37d9d3f",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw.py": "951378e365373d223fd8f9da4a0e6b350bee1631d43dc558e9d94c760eed0e82",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw_writer.py": "1f1f277092581b0730f2000158559a677438813509f1361b7cb1f29dcc5e1a6b",
+      "gift/torchtitan/experiments/four_fusion/stable_ce.py": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+    },
+    "candidate": {
+      "method": "cuda-13",
+      "calls": 46,
+      "incoming_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "prepared_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+      "binary_sha256": "41357457bb454c721ee72b5b9e4151cff7056f5e3b473a1241b39c4161925a11"
+    },
+    "variants": {
+      "fused": {
+        "method": "cuda-13",
+        "calls": 46,
+        "incoming_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "prepared_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+        "binary_sha256": "41357457bb454c721ee72b5b9e4151cff7056f5e3b473a1241b39c4161925a11"
+      }
+    },
+    "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+    "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+    "control": {
+      "wall_ms": 75.80297300592065,
+      "per_process_wall_ms": [
+        75.31282099080272,
+        75.80297300592065,
+        75.8615100348834
+      ],
+      "process_spread_ms": 0.5486890440806746,
+      "peak_gift_total_gib": 11.6375732421875,
+      "host_submit_ms": 4.918515507597476,
+      "host_wait_ms": 70.87965300888754
+    },
+    "fused": {
+      "wall_ms": 74.78672548313625,
+      "per_process_wall_ms": [
+        74.78672548313625,
+        74.69389899051748,
+        75.53698297124356
+      ],
+      "process_spread_ms": 0.8430839807260782,
+      "peak_gift_total_gib": 11.6375732421875,
+      "host_submit_ms": 4.49950248003006,
+      "host_wait_ms": 70.48772450070828
+    },
+    "wall_change_ms": -1.016247522784397,
+    "wall_change_pct": -1.3406433580184542,
+    "adjacent_pairs_fused_minus_control_ms": [
+      -0.5260955076664686,
+      -1.1090740154031664,
+      -0.3245270636398345
+    ],
+    "gift_total_change_gib": 0.0,
+    "external_gib": [
+      1.2840576171875
+    ],
+    "digest_matches_historical_control": "fused-ce/raw/regular-c2-exact/0-control.digest.json",
+    "bitwise_equal_digests": {
+      "loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "9370a357b2294b47a0d112ea3f8d499a13e2c1500ab68661bf5fefaa33e11381"
+      },
+      "dx": {
+        "shape": [
+          2,
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "90167cd49a8c521e9c050a1babee013da893e935864d898f60295c9b9e782c18"
+      },
+      "dw": {
+        "shape": [
+          128256,
+          4096
+        ],
+        "dtype": "torch.float32",
+        "sha256": "497db26aeb830b2ae24bc35e7d0b19bd7cb5c3a4bb54ca99f5cdfaad7571ffec"
+      },
+      "z_loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "bc0ec5fd5fa3938e847cdac18a3833b223229bbf898de252e4d3811521f9f8f3"
+      },
+      "z_dx": {
+        "shape": [
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "9bb7c2069a6cb10957be8839a1be781156ba51578bac8c531e2674a3c6d4d8e1"
+      }
+    }
+  },
+  "cuda-16-c2": {
+    "chunks": 2,
+    "method": "cuda-16",
+    "arms": [
+      "control",
+      "fused",
+      "fused",
+      "control"
+    ],
+    "device": {
+      "torch": "2.15.0.dev20260822+cu130",
+      "cuda": "13.0",
+      "name": "NVIDIA H100 80GB HBM3",
+      "visible": "GPU-8f5a8eb7-d9b2-6c7d-b377-5953bcf6c246"
+    },
+    "source": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+    "source_hashes": {
+      "gift/torchtitan/components/loss.py": "d0d3c7a89b3b8fcb06b8de285b8fb503c1aac0fa55b1189fa65ede57c24c9bb7",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py": "e16c1a65f1df715e94950c9b3364983efed5ce8c881e8c9b47d8ff3cb37d9d3f",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw.py": "951378e365373d223fd8f9da4a0e6b350bee1631d43dc558e9d94c760eed0e82",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw_writer.py": "1f1f277092581b0730f2000158559a677438813509f1361b7cb1f29dcc5e1a6b",
+      "gift/torchtitan/experiments/four_fusion/stable_ce.py": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+    },
+    "candidate": {
+      "method": "cuda-16",
+      "calls": 46,
+      "incoming_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "prepared_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+      "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+    },
+    "variants": {
+      "fused": {
+        "method": "cuda-16",
+        "calls": 46,
+        "incoming_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "prepared_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+        "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+      }
+    },
+    "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+    "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+    "control": {
+      "wall_ms": 75.67805226426572,
+      "per_process_wall_ms": [
+        75.49700650270097,
+        75.85909802583046
+      ],
+      "process_spread_ms": 0.362091523129493,
+      "peak_gift_total_gib": 11.6375732421875,
+      "host_submit_ms": 4.041512467665598,
+      "host_wait_ms": 71.52153400238603
+    },
+    "fused": {
+      "wall_ms": 74.73814449622296,
+      "per_process_wall_ms": [
+        74.54825501190498,
+        74.92803398054093
+      ],
+      "process_spread_ms": 0.3797789686359465,
+      "peak_gift_total_gib": 11.6375732421875,
+      "host_submit_ms": 3.394374012714252,
+      "host_wait_ms": 71.0655559960287
+    },
+    "wall_change_ms": -0.9399077680427581,
+    "wall_change_pct": -1.2419819748539849,
+    "adjacent_pairs_fused_minus_control_ms": [
+      -0.9487514907959849,
+      -0.9310640452895314
+    ],
+    "gift_total_change_gib": 0.0,
+    "external_gib": [
+      1.2840576171875
+    ],
+    "digest_matches_historical_control": "fused-ce/raw/regular-c2-exact/0-control.digest.json",
+    "bitwise_equal_digests": {
+      "loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "9370a357b2294b47a0d112ea3f8d499a13e2c1500ab68661bf5fefaa33e11381"
+      },
+      "dx": {
+        "shape": [
+          2,
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "90167cd49a8c521e9c050a1babee013da893e935864d898f60295c9b9e782c18"
+      },
+      "dw": {
+        "shape": [
+          128256,
+          4096
+        ],
+        "dtype": "torch.float32",
+        "sha256": "497db26aeb830b2ae24bc35e7d0b19bd7cb5c3a4bb54ca99f5cdfaad7571ffec"
+      },
+      "z_loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "bc0ec5fd5fa3938e847cdac18a3833b223229bbf898de252e4d3811521f9f8f3"
+      },
+      "z_dx": {
+        "shape": [
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "9bb7c2069a6cb10957be8839a1be781156ba51578bac8c531e2674a3c6d4d8e1"
+      }
+    }
+  },
+  "direct-c2": {
+    "chunks": 2,
+    "method": "cuda-16",
+    "arms": [
+      "cuda-13",
+      "cuda-16",
+      "cuda-16",
+      "cuda-13",
+      "cuda-13",
+      "cuda-16"
+    ],
+    "device": {
+      "torch": "2.15.0.dev20260822+cu130",
+      "cuda": "13.0",
+      "name": "NVIDIA H100 80GB HBM3",
+      "visible": "GPU-8f5a8eb7-d9b2-6c7d-b377-5953bcf6c246"
+    },
+    "source": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+    "source_hashes": {
+      "gift/torchtitan/components/loss.py": "d0d3c7a89b3b8fcb06b8de285b8fb503c1aac0fa55b1189fa65ede57c24c9bb7",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py": "e16c1a65f1df715e94950c9b3364983efed5ce8c881e8c9b47d8ff3cb37d9d3f",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw.py": "951378e365373d223fd8f9da4a0e6b350bee1631d43dc558e9d94c760eed0e82",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw_writer.py": "1f1f277092581b0730f2000158559a677438813509f1361b7cb1f29dcc5e1a6b",
+      "gift/torchtitan/experiments/four_fusion/stable_ce.py": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+    },
+    "candidate": {
+      "method": "cuda-16",
+      "calls": 46,
+      "incoming_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "prepared_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+      "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+    },
+    "variants": {
+      "cuda-13": {
+        "method": "cuda-13",
+        "calls": 46,
+        "incoming_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "prepared_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+        "binary_sha256": "41357457bb454c721ee72b5b9e4151cff7056f5e3b473a1241b39c4161925a11"
+      },
+      "cuda-16": {
+        "method": "cuda-16",
+        "calls": 46,
+        "incoming_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "prepared_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+        "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+      }
+    },
+    "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+    "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+    "cuda-13": {
+      "wall_ms": 74.74446701235138,
+      "per_process_wall_ms": [
+        74.69930750085041,
+        74.74446701235138,
+        75.00017897109501
+      ],
+      "process_spread_ms": 0.30087147024460137,
+      "peak_gift_total_gib": 11.6375732421875,
+      "host_submit_ms": 3.4871929965447634,
+      "host_wait_ms": 71.42499749897979
+    },
+    "cuda-16": {
+      "wall_ms": 74.6569329930935,
+      "per_process_wall_ms": [
+        74.6569329930935,
+        74.26374251372181,
+        74.76346203475259
+      ],
+      "process_spread_ms": 0.49971952103078365,
+      "peak_gift_total_gib": 11.6375732421875,
+      "host_submit_ms": 3.5843285149894655,
+      "host_wait_ms": 70.76373198651709
+    },
+    "wall_change_ms": -0.0875340192578733,
+    "wall_change_pct": -0.11711103544749134,
+    "adjacent_pairs_cuda-16_minus_cuda-13_ms": [
+      -0.04237450775690377,
+      -0.48072449862957,
+      -0.2367169363424182
+    ],
+    "gift_total_change_gib": 0.0,
+    "external_gib": [
+      1.2840576171875
+    ],
+    "digest_matches_historical_control": "fused-ce/raw/regular-c2-exact/0-control.digest.json",
+    "bitwise_equal_digests": {
+      "loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "9370a357b2294b47a0d112ea3f8d499a13e2c1500ab68661bf5fefaa33e11381"
+      },
+      "dx": {
+        "shape": [
+          2,
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "90167cd49a8c521e9c050a1babee013da893e935864d898f60295c9b9e782c18"
+      },
+      "dw": {
+        "shape": [
+          128256,
+          4096
+        ],
+        "dtype": "torch.float32",
+        "sha256": "497db26aeb830b2ae24bc35e7d0b19bd7cb5c3a4bb54ca99f5cdfaad7571ffec"
+      },
+      "z_loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "bc0ec5fd5fa3938e847cdac18a3833b223229bbf898de252e4d3811521f9f8f3"
+      },
+      "z_dx": {
+        "shape": [
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "9bb7c2069a6cb10957be8839a1be781156ba51578bac8c531e2674a3c6d4d8e1"
+      }
+    }
+  },
+  "cuda-13-c8": {
+    "chunks": 8,
+    "method": "cuda-13",
+    "arms": [
+      "fused",
+      "control",
+      "control",
+      "fused",
+      "fused",
+      "control"
+    ],
+    "device": {
+      "torch": "2.15.0.dev20260822+cu130",
+      "cuda": "13.0",
+      "name": "NVIDIA H100 80GB HBM3",
+      "visible": "GPU-88f1d954-f0f0-bae5-4051-7162e07d726f"
+    },
+    "source": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+    "source_hashes": {
+      "gift/torchtitan/components/loss.py": "d0d3c7a89b3b8fcb06b8de285b8fb503c1aac0fa55b1189fa65ede57c24c9bb7",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py": "e16c1a65f1df715e94950c9b3364983efed5ce8c881e8c9b47d8ff3cb37d9d3f",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw.py": "951378e365373d223fd8f9da4a0e6b350bee1631d43dc558e9d94c760eed0e82",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw_writer.py": "1f1f277092581b0730f2000158559a677438813509f1361b7cb1f29dcc5e1a6b",
+      "gift/torchtitan/experiments/four_fusion/stable_ce.py": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+    },
+    "candidate": {
+      "method": "cuda-13",
+      "calls": 184,
+      "incoming_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "prepared_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+      "binary_sha256": "41357457bb454c721ee72b5b9e4151cff7056f5e3b473a1241b39c4161925a11"
+    },
+    "variants": {
+      "fused": {
+        "method": "cuda-13",
+        "calls": 184,
+        "incoming_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "prepared_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+        "binary_sha256": "41357457bb454c721ee72b5b9e4151cff7056f5e3b473a1241b39c4161925a11"
+      }
+    },
+    "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+    "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+    "control": {
+      "wall_ms": 79.53218749025837,
+      "per_process_wall_ms": [
+        79.53218749025837,
+        78.90763049363159,
+        79.88856948213652
+      ],
+      "process_spread_ms": 0.9809389885049313,
+      "peak_gift_total_gib": 10.1336669921875,
+      "host_submit_ms": 10.38490398786962,
+      "host_wait_ms": 68.66455549607053
+    },
+    "fused": {
+      "wall_ms": 78.09988802182488,
+      "per_process_wall_ms": [
+        79.32595498277806,
+        77.37993251066655,
+        78.09988802182488
+      ],
+      "process_spread_ms": 1.9460224721115083,
+      "peak_gift_total_gib": 10.1336669921875,
+      "host_submit_ms": 8.844726980896667,
+      "host_wait_ms": 68.86978750117123
+    },
+    "wall_change_ms": -1.4322994684334844,
+    "wall_change_pct": -1.800905411546642,
+    "adjacent_pairs_fused_minus_control_ms": [
+      -0.2062325074803084,
+      -1.5276979829650372,
+      -1.7886814603116363
+    ],
+    "gift_total_change_gib": 0.0,
+    "external_gib": [
+      1.2840576171875
+    ],
+    "digest_matches_historical_control": "fused-ce/raw/regular-c8-exact/1-control.digest.json",
+    "bitwise_equal_digests": {
+      "loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "9370a357b2294b47a0d112ea3f8d499a13e2c1500ab68661bf5fefaa33e11381"
+      },
+      "dx": {
+        "shape": [
+          2,
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "90167cd49a8c521e9c050a1babee013da893e935864d898f60295c9b9e782c18"
+      },
+      "dw": {
+        "shape": [
+          128256,
+          4096
+        ],
+        "dtype": "torch.float32",
+        "sha256": "71cf2610070ddfc7feae4d9ae0465f86b52429da8b13de5c3c35de8585333f62"
+      },
+      "z_loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "bc0ec5fd5fa3938e847cdac18a3833b223229bbf898de252e4d3811521f9f8f3"
+      },
+      "z_dx": {
+        "shape": [
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "9bb7c2069a6cb10957be8839a1be781156ba51578bac8c531e2674a3c6d4d8e1"
+      }
+    }
+  },
+  "cuda-16-c8": {
+    "chunks": 8,
+    "method": "cuda-16",
+    "arms": [
+      "control",
+      "fused",
+      "fused",
+      "control"
+    ],
+    "device": {
+      "torch": "2.15.0.dev20260822+cu130",
+      "cuda": "13.0",
+      "name": "NVIDIA H100 80GB HBM3",
+      "visible": "GPU-88f1d954-f0f0-bae5-4051-7162e07d726f"
+    },
+    "source": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+    "source_hashes": {
+      "gift/torchtitan/components/loss.py": "d0d3c7a89b3b8fcb06b8de285b8fb503c1aac0fa55b1189fa65ede57c24c9bb7",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py": "e16c1a65f1df715e94950c9b3364983efed5ce8c881e8c9b47d8ff3cb37d9d3f",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw.py": "951378e365373d223fd8f9da4a0e6b350bee1631d43dc558e9d94c760eed0e82",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw_writer.py": "1f1f277092581b0730f2000158559a677438813509f1361b7cb1f29dcc5e1a6b",
+      "gift/torchtitan/experiments/four_fusion/stable_ce.py": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+    },
+    "candidate": {
+      "method": "cuda-16",
+      "calls": 184,
+      "incoming_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "prepared_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+      "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+    },
+    "variants": {
+      "fused": {
+        "method": "cuda-16",
+        "calls": 184,
+        "incoming_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "prepared_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+        "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+      }
+    },
+    "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+    "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+    "control": {
+      "wall_ms": 78.82291974965483,
+      "per_process_wall_ms": [
+        78.710289002629,
+        78.93555049668066
+      ],
+      "process_spread_ms": 0.22526149405166507,
+      "peak_gift_total_gib": 10.1336669921875,
+      "host_submit_ms": 10.0248180096969,
+      "host_wait_ms": 68.86544098961167
+    },
+    "fused": {
+      "wall_ms": 78.48243099579122,
+      "per_process_wall_ms": [
+        78.15947101335041,
+        78.80539097823203
+      ],
+      "process_spread_ms": 0.6459199648816139,
+      "peak_gift_total_gib": 10.1336669921875,
+      "host_submit_ms": 8.503486984409392,
+      "host_wait_ms": 69.90600252174772
+    },
+    "wall_change_ms": -0.3404887538636103,
+    "wall_change_pct": -0.4319666855085019,
+    "adjacent_pairs_fused_minus_control_ms": [
+      -0.5508179892785847,
+      -0.13015951844863594
+    ],
+    "gift_total_change_gib": 0.0,
+    "external_gib": [
+      1.2840576171875
+    ],
+    "digest_matches_historical_control": "fused-ce/raw/regular-c8-exact/1-control.digest.json",
+    "bitwise_equal_digests": {
+      "loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "9370a357b2294b47a0d112ea3f8d499a13e2c1500ab68661bf5fefaa33e11381"
+      },
+      "dx": {
+        "shape": [
+          2,
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "90167cd49a8c521e9c050a1babee013da893e935864d898f60295c9b9e782c18"
+      },
+      "dw": {
+        "shape": [
+          128256,
+          4096
+        ],
+        "dtype": "torch.float32",
+        "sha256": "71cf2610070ddfc7feae4d9ae0465f86b52429da8b13de5c3c35de8585333f62"
+      },
+      "z_loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "bc0ec5fd5fa3938e847cdac18a3833b223229bbf898de252e4d3811521f9f8f3"
+      },
+      "z_dx": {
+        "shape": [
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "9bb7c2069a6cb10957be8839a1be781156ba51578bac8c531e2674a3c6d4d8e1"
+      }
+    }
+  },
+  "direct-c8": {
+    "chunks": 8,
+    "method": "cuda-16",
+    "arms": [
+      "cuda-16",
+      "cuda-13",
+      "cuda-13",
+      "cuda-16",
+      "cuda-16",
+      "cuda-13"
+    ],
+    "device": {
+      "torch": "2.15.0.dev20260822+cu130",
+      "cuda": "13.0",
+      "name": "NVIDIA H100 80GB HBM3",
+      "visible": "GPU-88f1d954-f0f0-bae5-4051-7162e07d726f"
+    },
+    "source": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+    "source_hashes": {
+      "gift/torchtitan/components/loss.py": "d0d3c7a89b3b8fcb06b8de285b8fb503c1aac0fa55b1189fa65ede57c24c9bb7",
+      "gift/torchtitan/distributed/gfsdp/_param_group.py": "e16c1a65f1df715e94950c9b3364983efed5ce8c881e8c9b47d8ff3cb37d9d3f",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw.py": "951378e365373d223fd8f9da4a0e6b350bee1631d43dc558e9d94c760eed0e82",
+      "gift/torchtitan/distributed/gfsdp/_staged_head_dw_writer.py": "1f1f277092581b0730f2000158559a677438813509f1361b7cb1f29dcc5e1a6b",
+      "gift/torchtitan/experiments/four_fusion/stable_ce.py": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+    },
+    "candidate": {
+      "method": "cuda-16",
+      "calls": 184,
+      "incoming_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "prepared_fp32_scales": [
+        4.769536303683708e-07,
+        1.4308609763702407e-07
+      ],
+      "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+      "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+    },
+    "variants": {
+      "cuda-13": {
+        "method": "cuda-13",
+        "calls": 184,
+        "incoming_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "prepared_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+        "binary_sha256": "41357457bb454c721ee72b5b9e4151cff7056f5e3b473a1241b39c4161925a11"
+      },
+      "cuda-16": {
+        "method": "cuda-16",
+        "calls": 184,
+        "incoming_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "prepared_fp32_scales": [
+          4.769536303683708e-07,
+          1.4308609763702407e-07
+        ],
+        "launcher_sha256": "e764c7168a49b8bc3bde27547ddc2915681285a6d3f0c7ed2e73bda04a0e28b9",
+        "binary_sha256": "d51dc8eb43e75460ee8a9ea5489ae632c4702f3d1e2c1cfc58b1aea9f4e0fe8f"
+      }
+    },
+    "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+    "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+    "cuda-13": {
+      "wall_ms": 78.20854103192687,
+      "per_process_wall_ms": [
+        78.6201404989697,
+        78.04376498097554,
+        78.20854103192687
+      ],
+      "process_spread_ms": 0.5763755179941654,
+      "peak_gift_total_gib": 10.1336669921875,
+      "host_submit_ms": 8.760906988754869,
+      "host_wait_ms": 69.41006297711283
+    },
+    "cuda-16": {
+      "wall_ms": 77.72623299388215,
+      "per_process_wall_ms": [
+        77.72623299388215,
+        79.48186848079786,
+        77.50025897985324
+      ],
+      "process_spread_ms": 1.9816095009446144,
+      "peak_gift_total_gib": 10.1336669921875,
+      "host_submit_ms": 9.054326481418684,
+      "host_wait_ms": 69.07974698697217
+    },
+    "wall_change_ms": -0.4823080380447209,
+    "wall_change_pct": -0.6166948413573263,
+    "adjacent_pairs_cuda-16_minus_cuda-13_ms": [
+      -0.8939075050875545,
+      1.4381034998223186,
+      -0.7082820520736277
+    ],
+    "gift_total_change_gib": 0.0,
+    "external_gib": [
+      1.2840576171875
+    ],
+    "digest_matches_historical_control": "fused-ce/raw/regular-c8-exact/1-control.digest.json",
+    "bitwise_equal_digests": {
+      "loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "9370a357b2294b47a0d112ea3f8d499a13e2c1500ab68661bf5fefaa33e11381"
+      },
+      "dx": {
+        "shape": [
+          2,
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "90167cd49a8c521e9c050a1babee013da893e935864d898f60295c9b9e782c18"
+      },
+      "dw": {
+        "shape": [
+          128256,
+          4096
+        ],
+        "dtype": "torch.float32",
+        "sha256": "71cf2610070ddfc7feae4d9ae0465f86b52429da8b13de5c3c35de8585333f62"
+      },
+      "z_loss": {
+        "shape": [],
+        "dtype": "torch.float32",
+        "sha256": "bc0ec5fd5fa3938e847cdac18a3833b223229bbf898de252e4d3811521f9f8f3"
+      },
+      "z_dx": {
+        "shape": [
+          2,
+          4096,
+          4096
+        ],
+        "dtype": "torch.bfloat16",
+        "sha256": "9bb7c2069a6cb10957be8839a1be781156ba51578bac8c531e2674a3c6d4d8e1"
+      }
+    }
+  }
+}

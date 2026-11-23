@@ -1,0 +1,187 @@
+{
+  "source": "2c67c182e8de6145f3796d62203714ab1b815446",
+  "loss_source": "/workspace-SR008.nfs2/vkropotin/optimization-task/.worktrees/lm-head-mtp-fix/gift/torchtitan/components/loss.py",
+  "variant": "current",
+  "chunks": 8,
+  "writer": "cublas",
+  "vendor": null,
+  "vendor_chunk_calls": null,
+  "logit_storage": "reuse",
+  "folded_rows_per_chunk": 2048,
+  "compile": {
+    "backend": "inductor",
+    "scope": "native loss",
+    "counters": {},
+    "cuda_graphs": false
+  },
+  "head": "bias-free BF16; FP32 rank-local GFSDP accumulation/reduction",
+  "activation": {
+    "ce": "torchtitan.experiments.four_fusion.stable_ce.cross_entropy_loss",
+    "folded": true,
+    "staged_chunk_calls": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "GIFT_STABLE_CE_FOLDED_BACKWARD": "1",
+    "GIFT_DIRECT_BF16_DHIDDEN": "1",
+    "GIFT_STAGED_HEAD_DW": "1",
+    "GIFT_FUSED_HIDDEN_Z_LOSS": "1"
+  },
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+  "device": {
+    "torch": "2.15.0.dev20260822+cu130",
+    "cuda": "13.0",
+    "name": "NVIDIA H100 80GB HBM3",
+    "visible": "GPU-88f1d954-f0f0-bae5-4051-7162e07d726f"
+  },
+  "scope": "host wall incl. device sync; native label packing, head CE and BF16 dHidden, FP32 GFSDP dW, independent z-loss retained across head backward",
+  "singleton_reduction": "force-sum",
+  "allocator_retries_and_ooms": {
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "ce_route_calls": {
+    "folded": 8,
+    "ce": 0
+  },
+  "accumulation": "pre-existing sharded weight gradient retained across timed calls",
+  "warmup": 10,
+  "elapsed_ms": [
+    89.9141569971107,
+    88.24811602244154,
+    89.6325419889763,
+    91.0427289782092,
+    88.84448499884456,
+    88.47828797297552,
+    87.5147909973748,
+    87.78189902659506,
+    99.55075400648639,
+    85.47428203746676
+  ],
+  "median_ms": 88.66138648591004,
+  "total_gpu_gib": [
+    9.0594482421875,
+    9.0594482421875,
+    9.0594482421875,
+    9.0594482421875,
+    9.0594482421875,
+    9.0594482421875,
+    9.0594482421875,
+    9.0594482421875,
+    9.0594482421875,
+    9.0594482421875
+  ],
+  "peak_total_gpu_gib": 9.0594482421875,
+  "loss": [
+    0.059884000569581985,
+    2.7444108127383515e-05
+  ],
+  "dw_writer": {
+    "engine": "cublasLtMatmul",
+    "algorithms": [
+      {
+        "id": 66,
+        "tile": 29,
+        "split_k": 1,
+        "reduction": 0,
+        "swizzle": 0,
+        "custom": 1,
+        "stages": 35,
+        "inner": 0,
+        "cluster": 3
+      },
+      {
+        "id": 66,
+        "tile": 29,
+        "split_k": 1,
+        "reduction": 0,
+        "swizzle": 0,
+        "custom": 1,
+        "stages": 35,
+        "inner": 0,
+        "cluster": 3
+      }
+    ],
+    "cublasLt_version": 130101,
+    "tuning_sha256": "fa7b028c120594099d559d0d8d3897ec980f73e66e031a3751ab451f1b89baaa",
+    "calls": 352
+  },
+  "gather_probe": {
+    "mode": "alias",
+    "nccl_version": [
+      2,
+      30,
+      7
+    ],
+    "group_rank": 0,
+    "group_size": 1,
+    "gather_calls": 23,
+    "native_all_gather_into_tensor_calls": 23,
+    "master_to_bf16_casts": 23,
+    "lazy_init_allocation_delta_bytes": 0,
+    "input_data_ptr": 13119782912,
+    "output_data_ptr": 13119782912,
+    "input_storage_ptr": 13119782912,
+    "output_storage_ptr": 13119782912,
+    "distinct_bf16_gather_storages": 1,
+    "input_bytes": 1050673152,
+    "output_bytes": 1050673152
+  },
+  "memory": [
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    },
+    {
+      "allocated_peak_bytes": 8316902400,
+      "reserved_peak_bytes": 8348762112
+    }
+  ],
+  "panel": {
+    "active": true,
+    "split": 32768,
+    "grad_groups": 1,
+    "projection_calls_per_microbatch": 24,
+    "implemented_dhidden": "FP32 mm + FP32 addmm, then BF16 cast"
+  },
+  "source_git": "2c67c182e8de6145f3796d62203714ab1b815446"
+}

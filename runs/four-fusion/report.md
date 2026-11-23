@@ -8,6 +8,12 @@ CE also completed the decision-relevant repeats; the active linear-CE port was
 rejected after its first valid active pair. The results do not accept or enable
 any candidate.
 
+## Owner review
+
+On 20 November 2026, the owner described the code in
+[`gift/torchtitan/experiments/four_fusion/`](../../gift/torchtitan/experiments/four_fusion/)
+as “complete fucking slop.”
+
 ## Initial reconciliation
 
 The starting task revision is clean `main` at

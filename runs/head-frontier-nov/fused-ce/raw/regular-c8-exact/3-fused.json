@@ -1,0 +1,194 @@
+{
+  "source": "2c67c182e8de6145f3796d62203714ab1b815446",
+  "loss_source": "/workspace-SR008.nfs2/vkropotin/optimization-task/.worktrees/lm-head-mtp-fix/gift/torchtitan/components/loss.py",
+  "variant": "current",
+  "chunks": 8,
+  "writer": "cublas",
+  "vendor": null,
+  "vendor_chunk_calls": null,
+  "logit_storage": "reuse",
+  "folded_rows_per_chunk": 2048,
+  "compile": {
+    "backend": "inductor",
+    "scope": "native loss",
+    "counters": {
+      "calls_captured": 3,
+      "unique_graphs": 1
+    },
+    "cuda_graphs": false
+  },
+  "head": "bias-free BF16; FP32 rank-local GFSDP accumulation/reduction",
+  "activation": {
+    "ce": "torchtitan.experiments.four_fusion.stable_ce.cross_entropy_loss",
+    "folded": true,
+    "staged_chunk_calls": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "GIFT_STABLE_CE_FOLDED_BACKWARD": "1",
+    "GIFT_DIRECT_BF16_DHIDDEN": "1",
+    "GIFT_STAGED_HEAD_DW": "1",
+    "GIFT_FUSED_HIDDEN_Z_LOSS": "1"
+  },
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+  "device": {
+    "torch": "2.15.0.dev20260822+cu130",
+    "cuda": "13.0",
+    "name": "NVIDIA H100 80GB HBM3",
+    "visible": "GPU-94342dfc-a019-a7b6-e581-6dfa927d6f4d"
+  },
+  "scope": "host wall incl. device sync; native label packing, head CE and BF16 dHidden, FP32 GFSDP dW, independent z-loss retained across head backward",
+  "singleton_reduction": "force-sum",
+  "allocator_retries_and_ooms": {
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "ce_route_calls": {
+    "folded": 8,
+    "ce": 0
+  },
+  "accumulation": "pre-existing sharded weight gradient retained across timed calls",
+  "warmup": 10,
+  "elapsed_ms": [
+    79.53199098119512,
+    74.00624203728512,
+    78.71072797570378,
+    73.59467796050012,
+    81.45370299462229,
+    75.09955100249499,
+    80.70702699478716,
+    78.01832695258781,
+    78.97171098738909,
+    80.82902600290254
+  ],
+  "median_ms": 78.84121948154643,
+  "total_gpu_gib": [
+    10.1336669921875,
+    10.1336669921875,
+    10.1336669921875,
+    10.1336669921875,
+    10.1336669921875,
+    10.1336669921875,
+    10.1336669921875,
+    10.1336669921875,
+    10.1336669921875,
+    10.1336669921875
+  ],
+  "peak_total_gpu_gib": 10.1336669921875,
+  "loss": [
+    0.059884000569581985,
+    2.7444108127383515e-05
+  ],
+  "lifetime": "combined",
+  "early_release_gift_loop": true,
+  "harness_sha256": "024508da3d809ecd4bffaf01d321c1e4085f6fe8d2f5b112e54b06f58a6e5c96",
+  "dw_writer": {
+    "engine": "cublasLtMatmul",
+    "algorithm_pair": [
+      {
+        "order": "col",
+        "algo": "420000001d0000002300000001000000000000000000000001000000000003000100000035fc01000e0000000e00000000000000440000000000000000000000",
+        "workspace": 4,
+        "waves": 194.4242401123047,
+        "config": {
+          "id": 66,
+          "tile": 29,
+          "split_k": 1,
+          "reduction": 0,
+          "swizzle": 0,
+          "custom": 1,
+          "stages": 35,
+          "inner": 0,
+          "cluster": 3
+        }
+      },
+      {
+        "order": "col",
+        "algo": "420000001d0000002300000001000000000000000000000001000000000003000100000035fc01000e0000000e00000000000000440000000000000000000000",
+        "workspace": 4,
+        "waves": 194.4242401123047,
+        "config": {
+          "id": 66,
+          "tile": 29,
+          "split_k": 1,
+          "reduction": 0,
+          "swizzle": 0,
+          "custom": 1,
+          "stages": 35,
+          "inner": 0,
+          "cluster": 3
+        }
+      }
+    ],
+    "cublaslt_version": 130101,
+    "tuning_sha256": "fa7b028c120594099d559d0d8d3897ec980f73e66e031a3751ab451f1b89baaa",
+    "calls": 184
+  },
+  "stack_arm": "stack",
+  "profile": false,
+  "stack_sha256": "ce17d1ea3ad61ddcf0d49a2ac7baa790c2f1be765c8807fcd253c64050196980",
+  "candidate": {
+    "method": "cuda-13",
+    "calls": 184,
+    "observed_actual_incoming_fp32_scales": [
+      4.769536303683708e-07,
+      1.4308609763702407e-07
+    ],
+    "input_output_alias": true,
+    "launcher_sha256": "194babcb7e6b93683ecd497a746a1ff3d5aee7f6868737f3bca01a0a54f02567"
+  },
+  "arm": "fused",
+  "gpu_allocator_samples": [
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    },
+    {
+      "allocated_bytes": 9484999168,
+      "reserved_bytes": 9502195712
+    }
+  ],
+  "expandable_segments": true,
+  "gather_mode": "regular",
+  "gather_probe": null,
+  "source_loss_sha256": "dec809fa4d60fd8e85163c8f5cbfd3a771a58a1d0d6a59f04d49265400b2973a"
+}

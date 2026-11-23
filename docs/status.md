@@ -13,8 +13,15 @@ H100s. The active production launch adds the three expert GFSDP flags, folded
 CE, all four backward optimizations, and CuTe statistics-only SAC on the same
 topology. SwiGLU row16 remains experimental and disabled. [Recipe and launcher](baseline.md#current-final-task-baseline)
 
-TPS counts global physical input tokens per second. Memory is the maximum
-PyTorch allocator peak across eight ranks within the measurement window.
+New performance comparisons report only GIFT's total GPU memory estimate.
+For 10+10, take the maximum across all ranks in updates 11–20 from existing
+logs. Final approval requires results for the current EP8/eFSDP1 recipe and
+the additional EP4/eFSDP2 configuration on the same eight-H100 crop.
+EP4/eFSDP2 validation of the selected stack remains open.
+[Measurement and approval protocol](../planning/validation.md#memory-and-final-approval)
+
+TPS counts global physical input tokens per second. The historical table below
+records PyTorch allocator peaks across eight ranks within the measurement window.
 The 40+100 rows cover updates 41–140 and 209,715,200 physical tokens each.
 
 | Variant | Warmup + measured | TPS | Mean update, s | Peak allocated, GiB | Peak reserved, GiB | TPS vs A |
@@ -103,6 +110,11 @@ promotion, the CuTe stats-only SAC candidate measured 180,393.28 TPS and
 and +0.0195 GiB reserved. The owner then selected it for production, and the
 canonical launcher enables it by default. SwiGLU row16 remains experimental
 and disabled. [Original component and native results](../runs/fusion-pack/report.md) · [Native follow-up and receipts](../runs/fusion-followup/report.md)
+
+On 21 November 2026, the owner accepted the final fused LM-head CE based on
+the matched EP8 10+10 training runs and eight-rank isolated replays at 2, 8
+and 32 loss chunks. Code review remains open.
+[Acceptance results and memory analysis](group-reviews/lm-head-mtp.md#final-fused-ce-acceptance)
 
 ### Fixed-recipe control for expert GFSDP candidates
 
@@ -571,7 +583,7 @@ unresolved. Raw wrapper failures and protocol exclusions remain preserved. Task
 training processes and the telemetry logger are stopped, and all eight GPUs are
 idle; no further GPU work is scheduled.
 
-## Capacity destination-group all-reduce: candidate timing and profile pending
+## Capacity destination-group all-reduce
 
 The 15 November goal authorizes a narrow arithmetic reorder in this task's
 capacity path and measurements on the existing owner allocation. The candidate
@@ -579,9 +591,12 @@ is integrated and independently reviewed: local int64 expert counts are grouped
 before functional EP SUM, preserving the local/global gate and stable selection.
 Focused CPU/Gloo and CUDA compile/SAC checks pass; the payload regression fails
 on the original implementation and passes on the candidate. The
-[single report](../runs/capacity-group-allreduce/report.md) owns exact checks,
-the completed null eager component result and the remaining native pair/trace
-gates. Reduced tensor payload is established; a training-speed benefit is not.
+[experiment report](../runs/capacity-group-allreduce/report.md#native-1010-comparison)
+records the completed 10+10 pair. Reducing the payload from 1,024 to 64 bytes
+measured −0.070% TPS. The maximum GIFT total GPU memory estimate was 72.66 GiB
+in both arms at console precision.
+The component test found no latency benefit. The separate diagnostic exited
+with SIGTERM before completion, leaving trace acceptance open.
 The synchronized development tree retains the SR008 implementation. It groups
 the counters whenever `drop_by_group_capacity` is enabled. The selected
 [128-counter production recipe](baseline.md#current-final-task-baseline) is

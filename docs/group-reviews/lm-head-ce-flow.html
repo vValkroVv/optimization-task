@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>От входных токенов до градиентов · LM-head и CE</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d1219;
+    --panel: #151d28;
+    --cell: #101721;
+    --line: #2b3949;
+    --ink: #eef5fc;
+    --dim: #a6b7ca;
+    --old: #ffc285;
+    --new: #82e6c4;
+    --control: #c6dcff;
+    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font: 16px/1.52 system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); }
+  main { width: min(1420px, 100%); margin: 0 auto; padding: 48px clamp(16px, 4vw, 64px) 48px; }
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: clamp(2.25rem, 5vw, 4.75rem); line-height: 1.04; letter-spacing: -.055em; }
+  h2 { font-size: clamp(1.25rem, 2.3vw, 1.65rem); line-height: 1.15; letter-spacing: -.03em; }
+  h3 { font-size: .98rem; }
+  p { max-width: 76ch; }
+  a { color: var(--control); text-underline-offset: .2em; }
+  code { font-family: var(--mono); font-size: .92em; }
+  .intro { display: grid; gap: 12px; margin-bottom: 22px; }
+  .intro p { color: var(--dim); font-size: 1.05rem; }
+  .shape { display: flex; flex-wrap: wrap; gap: 9px 19px; font-size: .82rem; color: var(--dim); }
+  .shape span { border-left: 2px solid var(--line); padding-left: 9px; }
+  button {
+    font: inherit; color: var(--ink); cursor: pointer; background: var(--cell);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px;
+    min-height: 40px; font-size: .85rem;
+  }
+  button:hover:not(:disabled) { border-color: var(--control); }
+  button[aria-pressed="true"], .next:not(:disabled) {
+    background: var(--control); border-color: var(--control); color: #122135;
+  }
+  button:disabled { opacity: .48; cursor: default; }
+  :focus-visible { outline: 2px solid var(--control); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .nav {
+    position: sticky; z-index: 2; top: 0; padding: 10px 0;
+    background: var(--page); border-bottom: 1px solid var(--line);
+    display: grid; gap: 8px;
+  }
+  .nav-line { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+  .phase-nav { flex: 1; }
+  .actions { margin-left: auto; }
+  .progress {
+    height: 3px; overflow: hidden; border-radius: 3px; background: var(--line);
+  }
+  .progress span { display: block; height: 100%; background: var(--control); transition: width .18s ease; }
+  .heading {
+    padding: 22px 0 16px; display: flex; align-items: baseline; justify-content: space-between;
+    flex-wrap: wrap; gap: 9px;
+  }
+  #step-count { color: var(--dim); font: .81rem var(--mono); }
+  .operation {
+    display: grid; gap: 8px; padding: 13px 15px; margin-bottom: 12px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  }
+  .operation p { max-width: 100ch; color: var(--dim); font-size: .89rem; }
+  .operation strong { color: var(--ink); }
+  .formula { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 13px; }
+  .formula code { color: var(--control); font-size: .93rem; overflow-wrap: anywhere; }
+  .formula span { color: var(--dim); font: .79rem var(--mono); overflow-wrap: anywhere; }
+  .model-map { --accent: var(--control); border: 1px solid var(--line); border-radius: 12px; min-height: 0; }
+  .boards, .ledger-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .board, .ledger {
+    --accent: var(--old);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    min-width: 0;
+  }
+  .new { --accent: var(--new); }
+  .board { display: flex; flex-direction: column; overflow: hidden; }
+  .board-head {
+    padding: 12px 16px; display: flex; align-items: baseline; gap: 5px 12px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+  }
+  .board-head h3 { color: var(--accent); font-size: 1.06rem; }
+  .board-head span { color: var(--dim); font-size: .8rem; }
+  .graph {
+    display: flex; flex-direction: column;
+    padding: 16px max(10px, 5%); flex: 1;
+    background: radial-gradient(circle at 1px 1px, #3142576b 1px, transparent 0) 0 0 / 16px 16px,
+      var(--cell);
+  }
+  .flow-row { display: flex; justify-content: center; gap: 8px; }
+  .node {
+    flex: 1; max-width: 375px; min-width: 0; padding: 7px 10px; text-align: center;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 7px; overflow-wrap: anywhere;
+  }
+  .node strong { display: block; line-height: 1.22; font-size: .93rem; font-weight: 620; }
+  .node small { color: var(--dim); font-size: .75rem; line-height: 1.12; display: block; margin-top: 4px; }
+  .node.result { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); border-color: var(--accent); }
+  .node.result strong { color: var(--accent); }
+  .node.temp { border-style: dashed; }
+  .connector { height: 26px; position: relative; color: var(--accent); flex: none; }
+  .connector svg { display: block; width: 100%; height: 26px; overflow: visible; }
+  .connector path { stroke: currentColor; fill: none; vector-effect: non-scaling-stroke; }
+  .connector b {
+    position: absolute; width: 5px; height: 5px; top: 17px; margin-left: -2px;
+    border-right: 1px solid; border-bottom: 1px solid; transform: rotate(45deg);
+  }
+  .connector span {
+    position: absolute; top: 4px; left: calc(50% + 9px); max-width: calc(50% - 8px);
+    font-size: .67rem; line-height: 1.16;
+  }
+  .connector i {
+    position: absolute; top: 9px; margin-left: -2px; width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor; box-shadow: 0 0 8px currentColor; animation: flow 1.7s ease-in infinite;
+  }
+  .connector.split span { left: 29%; width: 42%; max-width: 42%; text-align: center; top: 12px; }
+  @keyframes flow { from { transform: translateY(0); opacity: .3; } to { transform: translateY(10px); opacity: 1; } }
+  .graph-note {
+    padding: 12px 16px; border-top: 1px solid var(--line); color: var(--dim); font-size: .87rem;
+    min-height: 83px;
+  }
+  .graph-note strong { color: var(--ink); }
+  .ledger-grid { margin-top: 12px; }
+  .ledger { padding: 13px 16px; }
+  .ledger > h3 { color: var(--accent); margin-bottom: 8px; }
+  .ledger-row + .ledger-row { margin-top: 10px; }
+  .row-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; font-size: .81rem; }
+  .row-label span { color: var(--dim); }
+  .slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
+  .slot {
+    text-align: center; background: var(--cell); border: 1px dashed var(--line);
+    color: var(--dim); font-size: .75rem; padding: 3px; white-space: nowrap;
+  }
+  .slot.filled {
+    background: color-mix(in srgb, var(--accent) 12%, var(--cell));
+    border: 1px solid color-mix(in srgb, var(--accent) 63%, var(--line)); color: var(--accent);
+  }
+  .row-value {
+    margin-top: 5px; min-height: 31px; display: flex; flex-wrap: wrap; align-items: center;
+    padding: 4px 8px; background: var(--cell); border: 1px solid var(--line);
+    border-radius: 5px; font: .79rem/1.4 var(--mono); color: var(--accent);
+  }
+  .foot { display: grid; gap: 8px; border-top: 1px solid var(--line); margin-top: 24px; padding-top: 12px; font-size: .86rem; }
+  .foot p { color: var(--dim); }
+  .foot .links { display: flex; flex-wrap: wrap; gap: 5px 16px; margin-top: 8px; }
+  @media (max-width: 740px) {
+    main { padding-top: 25px; }
+    .nav { position: static; }
+    .boards, .ledger-grid { gap: 7px; }
+    .board-head, .graph-note, .ledger { padding-left: 9px; padding-right: 9px; }
+    .graph { padding: 10px 6px; }
+    .node { padding: 6px 4px; }
+    .node strong { font-size: .82rem; }
+    .node small { font-size: .7rem; }
+    .connector span { font-size: .61rem; }
+    .slot { white-space: normal; padding: 2px; }
+  }
+  @media (max-width: 460px) {
+    .boards, .ledger-grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .connector i { display: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="intro">
+    <h1>От токенов до градиентов</h1>
+    <p>Прямой и обратный проход LM-head на двух чанках. На каждом шаге сначала показана математика, затем работа с буферами в Baseline A и финальной CE.</p>
+    <div class="shape" aria-label="Размеры примера">
+      <span>2 последовательности по 4 096 токенов</span>
+      <span>2 чанка по 2 048 позиций</span>
+      <span>4 096 чисел в скрытом векторе</span>
+      <span>128 256 классов словаря</span>
+      <span>Основная ветка + MTP1 · GFSDP8</span>
+    </div>
+  </header>
+
+  <nav class="nav" aria-label="Шаги схемы">
+    <div id="chunk-nav" class="nav-line" role="group" aria-label="Выбор участка"></div>
+    <div class="nav-line">
+      <div id="phase-nav" class="nav-line phase-nav" role="group" aria-label="Операция в чанке"></div>
+      <div class="nav-line actions">
+        <button id="prev" type="button" aria-label="Предыдущий шаг">← Назад</button>
+        <button id="next" class="next" type="button" aria-label="Следующий шаг">Дальше →</button>
+      </div>
+    </div>
+    <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+  </nav>
+
+  <div class="heading" aria-live="polite" aria-atomic="true">
+    <h2 id="step-title"></h2>
+    <p id="step-count"></p>
+  </div>
+  <section class="operation" id="operation" aria-label="Математика и размеры тензоров"></section>
+  <div class="graph model-map" id="model-graph" aria-label="Прямой проход модели"></div>
+  <section class="boards" id="boards" aria-label="Поток буферов до и после">
+    <article class="board old">
+      <header class="board-head"><h3>Как было</h3><span>Baseline A с компиляцией</span></header>
+      <div class="graph" id="old-graph"></div>
+      <p class="graph-note" id="old-note"></p>
+    </article>
+    <article class="board new">
+      <header class="board-head"><h3>Как стало</h3><span>Финальная CE cuda-13 + cuBLASLt</span></header>
+      <div class="graph" id="new-graph"></div>
+      <p class="graph-note" id="new-note"></p>
+    </article>
+  </section>
+  <section class="ledger-grid" id="ledgers" aria-label="Состояние буферов после шага">
+    <article class="ledger old" id="old-ledger"></article>
+    <article class="ledger new" id="new-ledger"></article>
+  </section>
+
+  <footer class="foot">
+    <p>МиБ показывают размер самого тензора на одном ранге. Пик всей GPU-памяти зависит от того, какие буферы живут одновременно.</p>
+    <div class="links">
+      <a href="lm-head-mtp.md#final-fused-ce-acceptance">Приёмочные замеры</a>
+    </div>
+    <p>Шаги можно переключать клавишами ← и →.</p>
+  </footer>
+  <noscript><p>Для пошаговой схемы включи JavaScript.</p></noscript>
+</main>
+<script>
+"use strict";
+
+const chunks = [
+  {label: "Чанк 1", symbol: "₁", range: "[0:2 048)"},
+  {label: "Чанк 2", symbol: "₂", range: "[2 048:4 096)"}
+];
+const dims = {
+  sequence: "[2 × 4 096 × 4 096]",
+  combined: "[4 × 4 096 × 4 096]",
+  chunk: "[4 × 2 048 × 4 096]",
+  rows: "[8 192 × 4 096]",
+  logits: "[8 192 × 128 256]",
+  perHead: "[4 096 × 128 256]",
+  weight: "[128 256 × 4 096]",
+  shard: "[16 032 × 4 096]"
+};
+const byId = id => document.getElementById(id);
+const graph = (rows, edges, note = "") => ({rows, edges, note});
+const node = (title, meta = "", kind = "") => ({title, meta, kind});
+
+function model() {
+  return graph([
+    [node("X · индексы входных токенов", "[2 × 4 096] · в каждой ячейке один индекс")],
+    [node("E = Embedding(X)", dims.sequence + " · каждому индексу соответствует вектор [4 096]")],
+    [node("U = слои декодера(E)", dims.sequence + " · контекстные векторы до финальной нормы")],
+    [
+      node("Hₘₐᵢₙ = Norm(U)", dims.sequence + " · основная ветка", "result"),
+      node("Hₘₜₚ = MTP1(U, сдвиг E)", dims.sequence + " · ветка предсказания через один токен", "result")
+    ]
+  ], ["Заменить индексы векторами", "Обработать весь контекст", "Развести по веткам"]);
+}
+
+function split(isNew) {
+  return graph([
+    [node("Hₘₐᵢₙ и Hₘₜₚ", "По " + dims.sequence + " · BF16")],
+    [node("H · объединённый батч", dims.combined + " · BF16 · 128 МиБ")],
+    [
+      node("H₁ · позиции " + chunks[0].range, dims.chunk + " · 64 МиБ", "result"),
+      node("H₂ · позиции " + chunks[1].range, dims.chunk + " · 64 МиБ", "result")
+    ]
+  ], ["Объединить по батчу", "Разделить последовательность"],
+  isNew
+    ? "Для будущего <code>dH</code> выделяется буфер " + dims.combined + " в <strong>BF16, 128 МиБ</strong>. Оба среза будут записаны целиком."
+    : "Для будущего <code>dH</code> выделяется буфер " + dims.combined + " в <strong>FP32, 256 МиБ</strong>. Исходно он заполнен нулями.");
+}
+
+function projection(_, chunk) {
+  return graph([
+    [
+      node("H" + chunk.symbol + " · вход LM-head", dims.rows + " · BF16 · 64 МиБ"),
+      node("W · полные веса LM-head", dims.weight + " · BF16 · 1 002 МиБ")
+    ],
+    [node("Z" + chunk.symbol + " · logits", dims.logits + " · BF16 · 2 004 МиБ", "result")]
+  ], ["Умножить H на Wᵀ"],
+  chunk === chunks[0]
+    ? "GFSDP делает обычный all-gather из BF16 шардов по 125,25 МиБ. Полный <code>W</code> нужен здесь и в обоих обратных проходах чанков. Для backward также сохраняется <code>H₁</code>."
+    : "Используется тот же полный <code>W</code>. Для backward текущего чанка сохраняются <code>H₂</code> и <code>W</code>.");
+}
+
+function crossEntropy(isNew, chunk) {
+  const z = "Z" + chunk.symbol;
+  const dz = "dZ" + chunk.symbol;
+  if (isNew) {
+    return graph([
+      [node(z + " · logits", dims.logits + " · BF16 · 2 004 МиБ")],
+      [node("Финальная CE", "Статистика softmax и масштабированный градиент в FP32")],
+      [
+        node(dz + " поверх " + z, "Тот же BF16 буфер · 2 004 МиБ", "result"),
+        node("Суммы потерь", "По одному FP32 скаляру для main и MTP1")
+      ]
+    ], ["Прочитать logits", "Записать loss и градиент"],
+    "Ядро читает строку в shared memory и использует её для loss и градиента. <strong>Градиент сразу перезаписывает исходный буфер</strong>. Вызов CE backward передаёт его в backward LM-head.");
+  }
+  return graph([
+    [node(z + " · logits", dims.logits + " · BF16 · 2 004 МиБ")],
+    [node("CE основной ветки", dims.perHead + " · срез Z"), node("CE ветки MTP1", dims.perHead + " · срез Z")],
+    [node("dZ основной ветки", dims.perHead + " · BF16 · 1 002 МиБ", "temp"), node("dZ ветки MTP1", dims.perHead + " · BF16 · 1 002 МиБ", "temp")],
+    [node(dz + " · общий dLogits", dims.logits + " · BF16 · 2 004 МиБ", "result")]
+  ], ["Разделить строки", "Обратный проход CE", "Скопировать в общий выход"],
+  "Обе CE читают свои срезы исходного <code>Z</code>. В backward каждая выдаёт отдельный BF16 градиент. Затем оба градиента копируются в новый общий <code>dZ</code> для LM-head.");
+}
+
+function activationGrad(_, chunk) {
+  return graph([
+    [
+      node("dZ" + chunk.symbol + " = ∂L/∂Z" + chunk.symbol, dims.logits + " · BF16 · 2 004 МиБ"),
+      node("W · веса из прямого прохода", dims.weight + " · BF16 · 1 002 МиБ")
+    ],
+    [node("dH" + chunk.symbol + " = ∂L/∂H" + chunk.symbol, dims.rows + " · BF16 · 64 МиБ", "result")]
+  ], ["Сумма по классам словаря"],
+  "Один выходной вектор <code>dH[t,:]</code> имеет 4 096 элементов. Он относится к той же строке, что <code>dZ[t,:]</code>. В обеих версиях GEMM даёт отдельный BF16 результат для чанка.");
+}
+
+function weightGrad(isNew, chunk) {
+  const first = chunk === chunks[0];
+  const current = "G" + chunk.symbol;
+  const sum = isNew
+    ? (first ? "G₁" : "G₁ + G₂")
+    : (first ? "BF16(G₁)" : "BF16(G₁) + BF16(G₂)");
+  const slot = node("S · полный FP32 слот GFSDP", dims.weight + " · 2 004 МиБ · " + sum, "result");
+  const rows = [
+    [
+      node("dZ" + chunk.symbol + "ᵀ", "[128 256 × 8 192] · BF16"),
+      node("H" + chunk.symbol, dims.rows + " · BF16")
+    ]
+  ];
+  const edges = [];
+  if (isNew) {
+    rows.push([node("cuBLASLt · S ← " + current + (first ? "" : " + S"), first ? "β = 0 · перезапись" : "β = 1 · чтение и обновление S")]);
+    edges.push("Умножить с FP32 накоплением");
+    edges.push("Записать FP32 на месте");
+  } else {
+    rows.push([node("Временный " + current, dims.weight + " · BF16 · 1 002 МиБ", "temp")]);
+    edges.push("Умножить и округлить до BF16");
+    edges.push(first ? "Копия BF16 → FP32" : "Прибавить BF16 к FP32");
+  }
+  rows.push([slot]);
+  return graph(rows, edges,
+  isNew
+    ? "Оба входа BF16. Результат GEMM остаётся в FP32. " + (first ? "Первый вклад перезаписывает слот." : "Второй GEMM добавляет вклад к уже записанному <code>G₁</code>.")
+    : "GEMM накапливает произведения в FP32 и округляет результат до BF16 при записи. GFSDP " + (first ? "копирует его в FP32 слот." : "прибавляет его к FP32 сумме.") + " После этого временный BF16 вклад освобождается.");
+}
+
+function reduce(isNew) {
+  const sum = isNew ? "G₁ + G₂" : "BF16(G₁) + BF16(G₂)";
+  return graph([
+    [node("S · полный dW текущего ранга", dims.weight + " · FP32 · 2 004 МиБ · " + sum)],
+    [node("FP32 reduce-scatter", "Суммирует вклады 8 рангов и отдаёт каждому его часть")],
+    [node("Локальный W.grad", dims.shard + " · FP32 · 250,5 МиБ", "result")]
+  ], ["После второго GEMM", "Записать или прибавить"],
+  "Полный <code>S</code> живёт до завершения коллективной операции. Первый микробатч записывает результат в локальный <code>W.grad</code>, следующие прибавляют свои вклады. Каждый микробатч заново заполняет рабочий слот <code>S</code>.");
+}
+
+function storeHidden(isNew, chunk) {
+  const rows = [[node("dH" + chunk.symbol + " · вернуть оси батча и позиций", dims.chunk + " · BF16 · 64 МиБ")]];
+  const edges = [];
+  if (!isNew) {
+    rows.push([node("Временный FP32 срез dH" + chunk.symbol, dims.chunk + " · 128 МиБ", "temp")]);
+    edges.push("Привести BF16 к FP32");
+  }
+  rows.push([node("dH · записать позиции " + chunk.range, dims.combined + (isNew ? " · BF16 · 128 МиБ" : " · FP32 · 256 МиБ"), "result")]);
+  edges.push("Копия в срез");
+  return graph(rows, edges,
+  isNew
+    ? "Копируется BF16 срез. После этого сбрасывается ссылка на <code>dH</code> чанка и на <code>Z</code>, уже занятый градиентом. Следующая проекция может переиспользовать эту память."
+    : "Срез преобразуется в FP32 и копируется в общий буфер. Ссылка на <code>dH</code> чанка сбрасывается. Исходный <code>Z</code> удерживается до следующего присваивания или выхода из цикла.");
+}
+
+function finish(isNew) {
+  const rows = [[node("dH · оба среза собраны", dims.combined + (isNew ? " · BF16 · 128 МиБ" : " · FP32 · 256 МиБ"))]];
+  const edges = [];
+  if (!isNew) {
+    rows.push([node("Полный dH в BF16", dims.combined + " · 128 МиБ", "temp")]);
+    edges.push("Привести весь буфер к BF16");
+  }
+  rows.push([
+    node("dHₘₐᵢₙ → финальная норма", dims.sequence + " · BF16", "result"),
+    node("dHₘₜₚ → блок MTP1", dims.sequence + " · BF16", "result")
+  ]);
+  edges.push("Восстановить ось голов");
+  return graph(rows, edges,
+  (isNew ? "Собранный BF16 <code>dH</code> сразу возвращается модели." : "Собранный FP32 <code>dH</code> приводится к BF16 перед передачей модели.") +
+  " Hidden z-loss добавляет свой вклад у входа финальной нормы. " +
+  (isNew ? "Модуль <code>U</code> вычисляется внутри ядра. Для суммы по строкам сохраняется FP32 буфер экспонент."
+    : "Старая реализация z-loss отдельно вычисляет FP32 модуль <code>U</code> перед logsumexp."));
+}
+
+const stages = {
+  model: {
+    title: "Модель · от индексов токенов до двух веток",
+    formulas: [["X → E → U", "[2 × 4 096] → [2 × 4 096 × 4 096] → [2 × 4 096 × 4 096]"],
+               ["Входная проекция MTP1", "Для позиции: два нормализованных вектора [4 096] → [8 192] × [8 192 × 4 096] → [4 096]"]],
+    text: "Слои декодера видят полные последовательности. Основная ветка берёт финальную норму от <code>U</code>. Ветка MTP1 берёт <code>U</code> в текущей позиции и эмбеддинг <code>E</code> следующего токена. Она нормализует их отдельно, соединяет по каналам и проецирует обратно в 4 096 чисел. Затем применяет свой слой и свою финальную норму.",
+    draw: model
+  },
+  split: {
+    title: "Подготовка LM-head · объединяем головы и делим позиции",
+    formulas: [["H = объединить Hₘₐᵢₙ и Hₘₜₚ", "[2 × 2 × 4 096 × 4 096] → [4 × 4 096 × 4 096]"],
+               ["H → H₁, H₂", "Каждый: [4 × 2 048 × 4 096] → [8 192 × 4 096] для GEMM"]],
+    text: "В каждом чанке есть строки обеих голов. У main цель — следующий токен, у MTP1 — токен через один. Массив целей каждого чанка после разворота имеет форму <code>[8 192]</code>. Для каждого чанка выполняются проекция, CE и обратный проход LM-head. Только потом берётся следующий чанк.",
+    draw: split
+  },
+  projection: {
+    label: "Проекция", title: "Прямой проход LM-head",
+    formulas: [["Zᵢ = Hᵢ × Wᵀ", "[8 192 × 4 096] × [4 096 × 128 256] → [8 192 × 128 256]"],
+               ["Zᵢ[t,v] = Σᵈ Hᵢ[t,d] · W[v,d]", "Для одной строки: hₜ [4 096] → zₜ [128 256]"]],
+    text: "Строка <code>t</code> задаёт голову, последовательность и позицию. Строка <code>W[v,:]</code> — вектор класса <code>v</code>. Скалярное произведение двух векторов длиной 4 096 даёт один logit. Вес <code>W</code> общий для обеих голов и обоих чанков.",
+    draw: projection
+  },
+  ce: {
+    label: "CE и dLogits", title: "Loss и dLogits · производная по логитам",
+    formulas: [["pₜ = softmax(Zᵢ[t,:])", "Вектор [128 256] для одной строки"],
+               ["ℓₜ = −log(pₜ[yₜ])", "Один скаляр на строку"],
+               ["dZᵢ[t,v] = ∂L/∂Zᵢ[t,v] = aₜ · (pₜ[v] − 1[v = yₜ])", "dZᵢ: [8 192 × 128 256]"]],
+    text: "<code>L</code> — взвешенная сумма потерь по строкам обоих чанков. <code>aₜ</code> равен <code>1/N</code> для main или <code>0,3/N</code> для MTP1, где <code>N</code> — общий счётчик валидных целей основной головы за шаг. В игнорируемой строке loss и производная нулевые. <code>pₜ</code> — вектор вероятностей, используемый в формуле для одной строки.",
+    draw: crossEntropy
+  },
+  dh: {
+    label: "dHidden", title: "Обратный проход · dHidden по входу LM-head",
+    formulas: [["∂Zᵢ[t,v]/∂Hᵢ[t,d] = W[v,d]", "Меняем один скрытый канал d в строке t"],
+               ["dHᵢ[t,d] = Σᵥ dZᵢ[t,v] · W[v,d]", "Цепное правило для ∂L/∂Hᵢ[t,d]"],
+               ["dHᵢ = dZᵢ × W", "[8 192 × 128 256] × [128 256 × 4 096] → [8 192 × 4 096]"]],
+    text: "Изменение одной активации <code>Hᵢ[t,d]</code> влияет на все классы <code>v</code> той же строки. Поэтому складываем вклад каждого класса. Индекс <code>t</code> остаётся прежним, и каждый чанк получает градиент только для своих позиций.",
+    draw: activationGrad
+  },
+  dw: {
+    label: "dW", title: "Обратный проход · вклад в градиент общих весов",
+    formulas: [["∂Zᵢ[t,v]/∂W[v,d] = Hᵢ[t,d]", "Вес W[v,d] используется в каждой строке"],
+               ["Gᵢ[v,d] = Σₜ dZᵢ[t,v] · Hᵢ[t,d]", "Цепное правило для ∂Lᵢ/∂W[v,d], где Lᵢ — часть L для чанка i"],
+               ["Gᵢ = dZᵢᵀ × Hᵢ", "[128 256 × 8 192] × [8 192 × 4 096] → [128 256 × 4 096]"]],
+    text: "Один вес <code>W[v,d]</code> влияет на logit класса <code>v</code> во всех строках. Поэтому складываем по строкам <code>t</code>. И <code>G₁</code>, и <code>G₂</code> покрывают всю матрицу весов. Математически <code>dW = G₁ + G₂</code> для одного микробатча на одном ранге. Округление зависит от способа записи.",
+    draw: weightGrad
+  },
+  reduce: {
+    label: "Reduce-scatter", title: "Распределённое накопление · от полного dW к локальному шарду",
+    formulas: [["Локальный вклад = часть суммы S по 8 рангам", "[128 256 × 4 096] → [16 032 × 4 096] на ранг"]],
+    text: "В одном микробатче reduce-scatter запускается в callback второго чанка после записи <code>G₂</code>. Коллективная операция идёт асинхронно, поэтому дальнейшая работа с <code>dH</code> может идти параллельно.",
+    draw: reduce
+  },
+  store: {
+    label: "Укладка dHidden", title: "Укладка dHidden · запись в свой диапазон позиций",
+    formulas: [["dH[:, позиции чанка, :] ← dHᵢ", "[8 192 × 4 096] → [4 × 2 048 × 4 096]"]],
+    text: "Градиенты чанков занимают разные позиции, поэтому здесь присваивание в срез. Полный <code>dH</code> собирается вдоль последовательности. Для <code>dW</code> оба чанка обновляли одни и те же элементы.",
+    draw: storeHidden
+  },
+  finish: {
+    title: "Обратный проход модели · куда уходят оба градиента",
+    formulas: [["dH → dHₘₐᵢₙ и dHₘₜₚ", "[4 × 4 096 × 4 096] → два [2 × 4 096 × 4 096]"],
+               ["∂L/∂U = вклад финальной нормы + вклад MTP1", "[2 × 4 096 × 4 096]"]],
+    text: "Вход <code>U</code> общий, поэтому его градиенты из двух веток складываются в autograd и идут назад по слоям. MTP1 также возвращает производную через сдвинутые эмбеддинги. Локальный <code>W.grad</code> уже обновляется на пути GFSDP. Оптимизатор использует его после завершения накопления микробатчей.",
+    draw: finish
+  }
+};
+
+function renderConnector(fromCount, toCount, text) {
+  const namespace = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(namespace, "svg");
+  svg.setAttribute("viewBox", "0 0 100 26");
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(namespace, "path");
+  const from = fromCount === 1 ? [50] : [25, 75];
+  const to = toCount === 1 ? [50] : [25, 75];
+  const segments = fromCount === toCount
+    ? from.map(x => "M" + x + " 0V22")
+    : [...from.map(x => "M" + x + " 0V8H50"), ...to.map(x => "M50 8H" + x + "V22")];
+  path.setAttribute("d", segments.join(" "));
+  svg.append(path);
+
+  const arrow = document.createElement("div");
+  arrow.className = toCount === 2 ? "connector split" : "connector";
+  const label = document.createElement("span");
+  label.textContent = text;
+  arrow.append(svg, label);
+  for (const x of to) {
+    for (const tag of ["b", "i"]) {
+      const mark = document.createElement(tag);
+      mark.setAttribute("aria-hidden", "true");
+      mark.style.left = x + "%";
+      arrow.append(mark);
+    }
+  }
+  return arrow;
+}
+
+function renderGraph(target, spec) {
+  const fragment = document.createDocumentFragment();
+  spec.rows.forEach((nodes, index) => {
+    if (index > 0) {
+      fragment.append(renderConnector(spec.rows[index - 1].length, nodes.length, spec.edges[index - 1]));
+    }
+    const row = document.createElement("div");
+    row.className = "flow-row";
+    for (const item of nodes) {
+      const box = document.createElement("div");
+      box.className = ["node", item.kind].filter(Boolean).join(" ");
+      const title = document.createElement("strong");
+      title.textContent = item.title;
+      const meta = document.createElement("small");
+      meta.textContent = item.meta;
+      box.append(title, meta);
+      row.append(box);
+    }
+    fragment.append(row);
+  });
+  target.replaceChildren(fragment);
+}
+
+
+const phases = ["projection", "ce", "dh", "dw", "reduce", "store"];
+const steps = [
+  {key: "model", group: "model"},
+  {key: "split", group: "split"},
+  ...chunks.flatMap((chunk, i) => phases
+    .filter(key => key !== "reduce" || i === chunks.length - 1)
+    .map(key => ({key, chunk, group: "c" + (i + 1)}))),
+  {key: "finish", group: "finish"}
+];
+const finalStep = steps.length - 1;
+const weightsBefore = ["dw", "reduce", "store"];
+const groups = [
+  ["model", "Модель"], ["split", "Два чанка"],
+  ["c1", chunks[0].label], ["c2", chunks[1].label], ["finish", "Назад в модель"]
+];
+const prev = byId("prev");
+const next = byId("next");
+let step = 0;
+
+function makeButton(label, onClick, target) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  target.append(button);
+  return button;
+}
+
+const groupButtons = groups.map(([group, label]) => makeButton(label,
+  () => show(steps.findIndex(item => item.group === group)), byId("chunk-nav")));
+const phaseButtons = phases.map(key => makeButton(stages[key].label,
+  () => show(steps.findIndex(item => item.group === steps[step].group && item.key === key)),
+  byId("phase-nav")));
+
+function renderOperation(stage) {
+  const lines = stage.formulas.map(([formula, shape]) => {
+    const row = document.createElement("p");
+    row.className = "formula";
+    const expression = document.createElement("code");
+    const dimensions = document.createElement("span");
+    expression.textContent = formula;
+    dimensions.textContent = shape;
+    row.append(expression, dimensions);
+    return row;
+  });
+  const text = document.createElement("p");
+  text.innerHTML = stage.text;
+  byId("operation").replaceChildren(...lines, text);
+}
+
+function renderLedger(target, isNew, current) {
+  const {key, chunk} = current;
+  const c2 = chunk === chunks[1];
+  const finished = key === "finish";
+  const writes = finished ? 2 : Number(c2) + Number(key === "store");
+  const contributions = finished ? 2 : Number(c2) + Number(weightsBefore.includes(key));
+  const sums = isNew ? ["", "G₁", "G₁ + G₂"] : ["", "BF16(G₁)", "BF16(G₁) + BF16(G₂)"];
+  const reduced = contributions === 2 && key !== "dw";
+  const hiddenSize = finished || isNew ? "BF16 · 128 МиБ" : "FP32 · 256 МиБ";
+  const slots = chunks.map(({range}, i) => {
+    const filled = i < writes;
+    return '<div class="slot' + (filled ? ' filled' : '') + '">' +
+      range + (filled ? ' · записан' : ' · ожидает') + '</div>';
+  }).join("");
+  const value = reduced ? "Результат reduce-scatter идёт в локальный шард"
+    : sums[contributions] || "Первый вклад ещё не записан";
+  target.innerHTML = '<h3>Состояние после шага</h3>' +
+    '<div class="ledger-row"><div class="row-label"><strong>dH</strong><span>' + hiddenSize +
+    ' · ' + writes + '/2 срезов</span></div><div class="slots">' + slots + '</div></div>' +
+    '<div class="ledger-row"><div class="row-label"><strong>dW</strong><span>FP32 · ' +
+    contributions + '/2 вкладов этого ранга</span></div><div class="row-value">' + value + '</div></div>';
+}
+
+function show(value) {
+  step = Math.max(0, Math.min(finalStep, value));
+  const current = steps[step];
+  const stage = stages[current.key];
+  const modelStep = current.key === "model";
+  byId("model-graph").hidden = !modelStep;
+  byId("boards").hidden = modelStep;
+  byId("ledgers").hidden = modelStep || current.key === "split";
+  byId("phase-nav").hidden = !current.chunk;
+  byId("step-title").textContent = (current.chunk ? current.chunk.label + " · " : "") + stage.title;
+  byId("step-count").textContent = "Шаг " + (step + 1) + " / " + steps.length;
+  byId("progress").style.width = ((step + 1) / steps.length * 100) + "%";
+  groupButtons.forEach((button, i) => button.setAttribute("aria-pressed", String(groups[i][0] === current.group)));
+  phaseButtons.forEach((button, i) => {
+    button.hidden = !steps.some(item => item.group === current.group && item.key === phases[i]);
+    button.setAttribute("aria-pressed", String(phases[i] === current.key));
+  });
+  prev.disabled = step === 0;
+  next.disabled = step === finalStep;
+  if (prev.disabled && document.activeElement === prev) next.focus();
+  if (next.disabled && document.activeElement === next) prev.focus();
+
+  renderOperation(stage);
+  if (modelStep) {
+    renderGraph(byId("model-graph"), stage.draw());
+    return;
+  }
+
+  for (const [name, isNew] of [["old", false], ["new", true]]) {
+    const spec = stage.draw(isNew, current.chunk);
+    renderGraph(byId(name + "-graph"), spec);
+    byId(name + "-note").innerHTML = spec.note;
+    renderLedger(byId(name + "-ledger"), isNew, current);
+  }
+}
+
+prev.addEventListener("click", () => show(step - 1));
+next.addEventListener("click", () => show(step + 1));
+document.addEventListener("keydown", event => {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.defaultPrevented) return;
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    event.preventDefault();
+    show(step + (event.key === "ArrowLeft" ? -1 : 1));
+  }
+});
+show(0);
+</script>
+</body>
+</html>
