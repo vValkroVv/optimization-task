@@ -16,8 +16,10 @@ from torchtitan.tools.logging import logger
 
 LIBRARY_ENV = "GIFT_EXACT_FOLDED_CE_LIBRARY"
 LIBRARY_SHA256 = "41357457bb454c721ee72b5b9e4151cff7056f5e3b473a1241b39c4161925a11"
+SUPPORTED_CHUNKS = (2, 8, 32)
 _METHOD = 13
-_ROWS = 8192
+_FOLDED_BATCH = 4
+_SEQUENCE_LENGTH = 4096
 _VOCAB = 128256
 
 
@@ -57,13 +59,14 @@ def _consume(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     # The artifact is validated at loss construction. The tensor arguments
     # come from ExactFoldedCrossEntropy's guarded, first-order training path.
-    losses = logits.new_empty((_ROWS,), dtype=torch.float32)
+    rows = logits.size(0)
+    losses = logits.new_empty((rows,), dtype=torch.float32)
     status = _load_launcher(library_path)(
         logits.data_ptr(),
         labels.data_ptr(),
         losses.data_ptr(),
         scales.data_ptr(),
-        _ROWS,
+        rows,
         torch.cuda.current_stream(logits.device).cuda_stream,
         _METHOD,
     )
@@ -107,7 +110,7 @@ class _PrecomputedGradient(torch.autograd.Function):
             logger.info(
                 "LM_HEAD_EXACT_FOLDED_CE_ACTIVE method=cuda-13 backend=inductor "
                 "rows=%d vocab=%d sha256=%s",
-                _ROWS,
+                logits.size(0),
                 _VOCAB,
                 LIBRARY_SHA256,
             )
@@ -115,9 +118,13 @@ class _PrecomputedGradient(torch.autograd.Function):
 
 
 class ExactFoldedCrossEntropy:
-    def __init__(self, library_path: str) -> None:
+    def __init__(self, library_path: str, num_chunks: int) -> None:
+        if num_chunks not in SUPPORTED_CHUNKS:
+            raise ValueError(f"Exact folded CE supports loss chunks {SUPPORTED_CHUNKS}")
         _load_launcher(library_path)
         self.library_path = library_path
+        self.chunk_length = _SEQUENCE_LENGTH // num_chunks
+        self.rows = _FOLDED_BATCH * self.chunk_length
         self.compiled = torch.compile(_consume, backend="inductor", fullgraph=True)
         self.scales_checked = False
         self._weight_key: tuple[torch.device, int, tuple[float, ...]] | None = None
@@ -136,7 +143,7 @@ class ExactFoldedCrossEntropy:
             not logits.requires_grad
             or not logits.is_cuda
             or logits.dtype != torch.bfloat16
-            or logits.shape != (4, 2048, _VOCAB)
+            or logits.shape != (_FOLDED_BATCH, self.chunk_length, _VOCAB)
             or not logits.is_contiguous()
             or logits.storage_offset() % 8
             or labels.shape != logits.shape[:-1]
@@ -146,7 +153,8 @@ class ExactFoldedCrossEntropy:
             or len(weights) != 2
         ):
             raise ValueError(
-                "Exact folded CE requires the C2/B2/S4096 MTP1 BF16 logits "
+                f"Exact folded CE requires contiguous BF16 logits "
+                f"with shape {(_FOLDED_BATCH, self.chunk_length, _VOCAB)} "
                 "and matching contiguous int64 labels"
             )
         if (
@@ -175,5 +183,5 @@ class ExactFoldedCrossEntropy:
             self._scales = self._weights / global_valid_tokens
             self._denominator = global_valid_tokens
         return _PrecomputedGradient.apply(
-            logits.view(_ROWS, _VOCAB), labels.view(_ROWS), self._scales, self
+            logits.view(self.rows, _VOCAB), labels.view(self.rows), self._scales, self
         )

@@ -208,8 +208,8 @@ def select_staged_head_dw(
     if mode not in ("previous", "new"):
         raise ValueError(f"{_MODE_ENV} must be previous or new")
     expected_chunks = os.environ.get(_CHUNKS_ENV)
-    if expected_chunks not in ("2", "8") or len(chunks) != int(expected_chunks):
-        raise ValueError(f"{_CHUNKS_ENV} must match the actual 2 or 8 LM-head chunks")
+    if expected_chunks not in ("2", "8", "32") or len(chunks) != int(expected_chunks):
+        raise ValueError(f"{_CHUNKS_ENV} must match the actual 2, 8 or 32 LM-head chunks")
 
     rows_per_chunk = _ROWS_PER_BATCH // len(chunks)
     if (

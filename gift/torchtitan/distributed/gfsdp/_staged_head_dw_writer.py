@@ -89,6 +89,15 @@ _CUBLAS_LT_VERSION = 130101
 
 # Selected beta=0/beta=1 entries in frontier-dw/tune-{2,8}.json.
 # These are the serialized cuBLASLt 13.1.1 H100 algorithms, with 4 B workspace.
+_ALGO_5_5 = (
+    "5.5",
+    False,
+    (
+        "420000001d000000230000000100000000000000000000000100000000000300"
+        "0100000035fc01000e0000000e00000000000000440000000000000000000000",
+    )
+    * 2,
+)
 _LT_ALGOS = {
     2: (
         "9.14",
@@ -100,15 +109,9 @@ _LT_ALGOS = {
             "0100000035fc01000e0000000e00000000000000440000000000000000000000",
         ),
     ),
-    8: (
-        "5.5",
-        False,
-        (
-            "420000001d000000230000000100000000000000000000000100000000000300"
-            "0100000035fc01000e0000000e00000000000000440000000000000000000000",
-        )
-        * 2,
-    ),
+    8: _ALGO_5_5,
+    # This plan was also verified with both beta values on the 512-row C32 chunk.
+    32: _ALGO_5_5,
 }
 
 

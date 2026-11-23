@@ -35,7 +35,9 @@ run_id="final-ep8-$(date +%Y%m%d-%H%M%S)"
   --overwrite-build "${overwrite_build}" --scratch-root "${short_personal_scratch}"
 ```
 
-Select `--ep 4` for eFSDP2. The launcher verifies the pinned libraries, data
+Select `--ep 4` for eFSDP2. Set `--loss-chunks 8` or `--loss-chunks 32` to
+change the chunk count and select the corresponding exact CE shape and cuBLASLt
+plan. The default is two. The launcher verifies the pinned libraries, data
 and tokenizer against their receipts, requires eight idle H100s, and uses
 separate caches under each attempt. The short writable scratch path holds
 multiprocessing sockets. The probe records CPU/CUDA execution for one

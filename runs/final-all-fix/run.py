@@ -63,6 +63,7 @@ def main():
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ep", type=int, choices=(4, 8), required=True)
+    parser.add_argument("--loss-chunks", type=int, choices=(2, 8, 32), default=2)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--steps", type=int, default=1)
     parser.add_argument("--probe", action="store_true")
@@ -143,7 +144,7 @@ def main():
         GIFT_EXACT_FOLDED_CE_LIBRARY=str(args.ce_library.resolve()),
         GIFT_ROUTED_DW_BF16_OVERWRITE_BUILD=str(args.overwrite_build.resolve()),
         GIFT_EXPERIMENT_LM_HEAD_MATRIX="new",
-        GIFT_EXPERIMENT_LM_HEAD_MATRIX_CHUNKS="2",
+        GIFT_EXPERIMENT_LM_HEAD_MATRIX_CHUNKS=str(args.loss_chunks),
     )
     cmd = [
         sys.executable,
@@ -172,6 +173,8 @@ def main():
             str(HERE / f"ep{args.ep}.yaml"),
             "--training.steps",
             str(args.steps),
+            "--loss.num_chunks",
+            str(args.loss_chunks),
             "--validator.enable",
             "false",
             "--dump_folder",

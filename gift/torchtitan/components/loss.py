@@ -1013,18 +1013,24 @@ class MTPLoss(ChunkedCELoss):
                 self._folded_ce = torch.compile(self._folded_ce, backend=backend)
                 self._folded_ce_compiled = True
             if exact_ce_library:
-                from torchtitan.ops.exact_folded_ce import ExactFoldedCrossEntropy
+                from torchtitan.ops.exact_folded_ce import (
+                    ExactFoldedCrossEntropy,
+                    SUPPORTED_CHUNKS,
+                )
 
                 if (
                     backend != "inductor"
-                    or config.num_chunks != 2
-                    or config.num_chunks_on_monitoring_steps not in (None, 2)
+                    or config.num_chunks not in SUPPORTED_CHUNKS
+                    or config.num_chunks_on_monitoring_steps not in (None, config.num_chunks)
                     or len(self.loss_weights) != 1
                 ):
                     raise ValueError(
-                        f"{exact_ce_env} requires C2, MTP1 and the Inductor loss backend"
+                        f"{exact_ce_env} requires fixed C2, C8 or C32, MTP1 "
+                        "and the Inductor loss backend"
                     )
-                self._exact_folded_ce = ExactFoldedCrossEntropy(exact_ce_library)
+                self._exact_folded_ce = ExactFoldedCrossEntropy(
+                    exact_ce_library, config.num_chunks
+                )
             elif self._release_chunk_logits:
                 self._folded_ce_consume = make_consuming_folded_cross_entropy(backend)
                 logger.info("Stable CE consuming BF16 logits enabled")

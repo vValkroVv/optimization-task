@@ -13,12 +13,12 @@ def test_exact_folded_ce_rejects_unverified_library(tmp_path):
     library = tmp_path / "centered.so"
     library.write_bytes(b"unverified")
     with pytest.raises(ValueError, match="SHA256"):
-        exact_folded_ce.ExactFoldedCrossEntropy(str(library))
+        exact_folded_ce.ExactFoldedCrossEntropy(str(library), num_chunks=2)
 
 
 @pytest.mark.parametrize("mtp_weight", [0.3, 0.8])
-def test_exact_folded_ce_bridge_checks_weighted_backward(monkeypatch, mtp_weight):
-    rows = 4
+@pytest.mark.parametrize("rows", [8192, 2048, 512])
+def test_exact_folded_ce_bridge_checks_weighted_backward(monkeypatch, mtp_weight, rows):
     vocab = 3
     expected_grad = torch.arange(rows * vocab, dtype=torch.bfloat16).view(rows, vocab)
     denominator = 17.0
@@ -35,10 +35,9 @@ def test_exact_folded_ce_bridge_checks_weighted_backward(monkeypatch, mtp_weight
         destination = (ctypes.c_int16 * expected_grad.numel()).from_address(logit_ptr)
         destination[:] = expected_grad.view(torch.int16).flatten().tolist()
         row_losses = (ctypes.c_float * rows).from_address(loss_ptr)
-        row_losses[:] = [2.0, 3.0, 5.0, 7.0]
+        row_losses[:] = [2.0] * (rows // 2) + [5.0] * (rows // 2)
         return 0
 
-    monkeypatch.setattr(exact_folded_ce, "_ROWS", rows)
     monkeypatch.setattr(exact_folded_ce, "_load_launcher", lambda _: stub_launcher)
     monkeypatch.setattr(
         torch.cuda, "current_stream", lambda _: SimpleNamespace(cuda_stream=0)
@@ -51,8 +50,8 @@ def test_exact_folded_ce_bridge_checks_weighted_backward(monkeypatch, mtp_weight
     main, mtp = exact_folded_ce._PrecomputedGradient.apply(
         predicted, labels, scales, loss
     )
-    torch.testing.assert_close(main.detach(), torch.tensor(5.0))
-    torch.testing.assert_close(mtp.detach(), torch.tensor(12.0))
+    torch.testing.assert_close(main.detach(), torch.tensor(float(rows)))
+    torch.testing.assert_close(mtp.detach(), torch.tensor(5.0 * (rows // 2)))
     torch.testing.assert_close(predicted, expected_grad)
     total = main / denominator + (mtp / denominator) * mtp_weight
     if mtp_weight == 0.3:

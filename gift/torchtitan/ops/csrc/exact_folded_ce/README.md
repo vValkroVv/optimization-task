@@ -1,6 +1,6 @@
 # Exact folded cross-entropy
 
-These sources reproduce the CUDA shared library used for the C2 MTP1 LM-head
+These sources reproduce the CUDA shared library used for the C2, C8 and C32 MTP1 LM-head
 acceptance runs. The GIFT runtime selects launcher method 13, which writes weighted
 BF16 gradients into the logits allocation and reports FP32 row losses. It supports
 the validated H100 input with local batch 2, sequence length 4096, and vocabulary
@@ -27,7 +27,8 @@ different digest needs validation before changing the pin.
 
 The exact kernel requires `GIFT_STABLE_CE_FOLDED_BACKWARD=1`,
 `GIFT_EXPERIMENT_LM_HEAD_MATRIX=new`, and
-`GIFT_EXPERIMENT_LM_HEAD_MATRIX_CHUNKS=2` with Inductor loss compilation,
-`loss.num_chunks=2`, and one MTP head. The accepted recipe also sets
+`GIFT_EXPERIMENT_LM_HEAD_MATRIX_CHUNKS` set to the same value as
+`loss.num_chunks` (2, 8 or 32), with Inductor loss compilation and one MTP
+head. The tuned head dW plans are 9.14 for C2 and 5.5 for C8 and C32. The recipe also sets
 `GIFT_DIRECT_BF16_DHIDDEN=1` and `GIFT_FUSED_HIDDEN_Z_LOSS=1`, and uses
 regular BF16 GFSDP all-gather.

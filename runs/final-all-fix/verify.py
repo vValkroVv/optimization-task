@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 
 
-def verify(attempt: Path, ep: int) -> dict:
+def verify(attempt: Path, ep: int, loss_chunks: int = 2) -> dict:
     def check(condition, message):
         if not condition:
             raise ValueError(message)
@@ -25,7 +25,7 @@ def verify(attempt: Path, ep: int) -> dict:
     )
     check(
         config["activation_checkpoint"]["mode"] == "selective"
-        and config["loss"]["num_chunks"] == 2,
+        and config["loss"]["num_chunks"] == loss_chunks,
         "unexpected checkpointing or head configuration",
     )
     check(config["dataloader"]["num_prefetch_batches"] == 32, "prefetch depth")
@@ -111,13 +111,20 @@ def verify(attempt: Path, ep: int) -> dict:
         ]
         for marker in expected_log:
             check(marker in logs, f"rank {rank}: missing {marker}")
+        folded_rows = 4 * 4096 // loss_chunks
+        writer_plan = "9.14" if loss_chunks == 2 else "5.5"
+        check(
+            f"backend=inductor rows={folded_rows} vocab=128256" in logs
+            and f"chunks={loss_chunks} writer=cublasLtMatmul pair={writer_plan}" in logs,
+            f"rank {rank}: exact CE shape or staged head dW writer",
+        )
         if ep == 4:
             check(
                 "GFSDP compact BF16 owner transport active" in logs,
                 "compact owner initialization",
             )
         if rank == 0:
-            check("LM_HEAD_MATRIX_DW_REDUCED" in logs, "C2 head reduction")
+            check("LM_HEAD_MATRIX_DW_REDUCED" in logs, "staged head dW reduction")
         metrics = re.search(r"step:\s*1\s+loss:\s*(\S+)\s+grad_norm:\s*(\S+)", logs)
         check(
             metrics and all(math.isfinite(float(x)) for x in metrics.groups()),
@@ -177,5 +184,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("attempt", type=Path)
     parser.add_argument("--ep", type=int, choices=(8, 4), required=True)
+    parser.add_argument("--loss-chunks", type=int, choices=(2, 8, 32), default=2)
     args = parser.parse_args()
-    print(json.dumps(verify(args.attempt, args.ep), indent=2))
+    print(json.dumps(verify(args.attempt, args.ep, args.loss_chunks), indent=2))
