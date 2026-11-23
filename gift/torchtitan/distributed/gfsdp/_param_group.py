@@ -245,9 +245,12 @@ class GFSDPParamGroup:
         # - CUDA events for stream synchronization
         # Holds all-gather sync objects
         self._all_gather_result: AllGatherResult | None = None
+        self._protect_data_buffer_lease = False
         # Holds the CUDA event that marks the end of the group's post-backward,
         # which should be waited on at the end of backward
         self._post_reduce_event: torch.Event | None = None
+        # Optional one-way transition set by the root after buffer dealing.
+        self._post_backward_prefetch_target: GFSDPParamGroup | None = None
 
         # The expert cache reuses the existing all-gather input. Its values
         # stay valid across microbatches until a supported weight writer bumps
@@ -932,6 +935,8 @@ class GFSDPParamGroup:
     def wait_for_unshard(self) -> AllGatherResult | None:
         if (all_gather_result := self._all_gather_result) is None:
             return None
+        if self._protect_data_buffer_lease and self.data_buffer_ctx.owner is not self:
+            raise RuntimeError(f"{self} lost its data buffer before all-gather wait")
         all_gather_result.wait()
         self._to_unsharded()
         self._all_gather_result = None
@@ -946,6 +951,12 @@ class GFSDPParamGroup:
             # we need to reshard anyway to release the shared data buffer
             if not self.reshard_after_forward and torch.is_grad_enabled():
                 return
+        if self._protect_data_buffer_lease and (
+            self._all_gather_result is not None or self.data_buffer_ctx.owner is not self
+        ):
+            # The detached head's backward also visits idle groups. Keep a
+            # prefetched alias reserved until its consumer or final cleanup.
+            return
         logger.debug(
             "%s", self._with_fqn(f"GFSDP::{self._training_state.name.lower()}_reshard")
         )
@@ -1001,6 +1012,7 @@ class GFSDPParamGroup:
         # This method should be idempotent and safe to call even when this
         # FSDP parameter group was not used in backward (should be a no-op)
         logger.debug("%s", self._with_fqn("GFSDP::post_backward"))
+        was_in_backward = self._training_state == TrainingState.PRE_BACKWARD
         self._training_state = TrainingState.POST_BACKWARD
         if (grad_buffer_ctx := self.grad_buffer_ctx) is not None:
             if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
@@ -1091,6 +1103,7 @@ class GFSDPParamGroup:
 
         assert grad_buffer_ctx is not None
         logger.debug("%s", self._with_fqn("GFSDP::post_backward_reduce"))
+        reduce_scatter_enqueued = False
         with record_function(self._with_fqn("GFSDP::post_backward_reduce")):
             for (
                 all_gather_dtype,
@@ -1124,8 +1137,19 @@ class GFSDPParamGroup:
                         all_gather_dtype
                     ),
                 )
+                reduce_scatter_enqueued = True
         grad_buffer_ctx.release_event = self._post_reduce_event
         grad_buffer_ctx.owner = None
+
+        if (
+            was_in_backward
+            and reduce_scatter_enqueued
+            and self.reduce_grads
+            and self.reshard_after_backward
+            and self.data_buffer_ctx.owner is None
+            and self._post_backward_prefetch_target is not None
+        ):
+            self._prefetch_unshard(self._post_backward_prefetch_target, "backward")
 
     def finalize_backward(self) -> None:
         self._wait_for_post_backward()
@@ -1135,7 +1159,13 @@ class GFSDPParamGroup:
             logger.debug("%s", self._with_fqn("GFSDP::wait_for_mistargeted_unshard"))
             self._all_gather_result.wait()
             self._all_gather_result = None
-            self.data_buffer_ctx.owner = None
+            if not self._protect_data_buffer_lease:
+                self.data_buffer_ctx.owner = None
+            elif self.data_buffer_ctx.owner is self:
+                self.data_buffer_ctx.release_event = (
+                    self.device_handle.current_stream().record_event()
+                )
+                self.data_buffer_ctx.owner = None
         self._post_forward_indices.clear()
         if self._bf16_cache_enabled:
             if self._bf16_cache_prepared_generation != self._bf16_cache_generation:

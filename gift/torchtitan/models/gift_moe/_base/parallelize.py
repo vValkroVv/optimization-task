@@ -69,6 +69,35 @@ def _validate_row_owner_request(
         raise ValueError("gfsdp_row_owner_embeddings requires tok_embeddings")
 
 
+def _validate_mtp_transition_request(
+    model: GiftMoEModel,
+    *,
+    parallel_dims: ParallelDims,
+    parallelism: ParallelismConfig,
+) -> None:
+    if not parallelism.gfsdp_mtp_transition_prefetch:
+        return
+    if parallelism.fsdp_backend != "gfsdp2":
+        raise ValueError("gfsdp_mtp_transition_prefetch requires fsdp_backend='gfsdp2'")
+    if not parallelism.gfsdp_split_mtp_ffn:
+        raise ValueError("gfsdp_mtp_transition_prefetch requires gfsdp_split_mtp_ffn")
+    if parallel_dims.pp != 1:
+        raise ValueError("gfsdp_mtp_transition_prefetch currently requires PP1")
+    mtp = getattr(model, "mtp", None)
+    if mtp is None or "0" not in mtp.layers:
+        raise ValueError("gfsdp_mtp_transition_prefetch requires mtp.layers.0")
+    if len(mtp.layers) != 1:
+        raise ValueError(
+            "gfsdp_mtp_transition_prefetch currently requires exactly one MTP layer"
+        )
+    if not model.layers:
+        raise ValueError("gfsdp_mtp_transition_prefetch requires a trunk layer")
+    if model.norm is None or model.lm_head is None:
+        raise ValueError(
+            "gfsdp_mtp_transition_prefetch requires model.norm and model.lm_head"
+        )
+
+
 def parallelize_gift_moe(
     model: GiftMoEModel,
     *,
@@ -91,6 +120,11 @@ def parallelize_gift_moe(
         model,
         parallel_dims=parallel_dims,
         training=training,
+        parallelism=parallelism,
+    )
+    _validate_mtp_transition_request(
+        model,
+        parallel_dims=parallel_dims,
         parallelism=parallelism,
     )
 
@@ -175,6 +209,7 @@ def parallelize_gift_moe(
                 parallelism.gfsdp_reuse_bf16_expert_weights
             ),
             row_owner_embeddings=parallelism.gfsdp_row_owner_embeddings,
+            mtp_transition_prefetch=parallelism.gfsdp_mtp_transition_prefetch,
             **fsdp_kwargs,
         )
     elif parallelism.fsdp_backend == "fsdp2":
@@ -210,6 +245,7 @@ def apply_gfsdp(
     enable_symm_mem: bool = False,
     reuse_bf16_expert_weights: bool = False,
     row_owner_embeddings: bool = False,
+    mtp_transition_prefetch: bool = False,
 ):
     """
     Apply data parallelism (via GFSDP2) to the model.
@@ -221,6 +257,27 @@ def apply_gfsdp(
         raise ValueError("CPU offload is not realized in GFSDP yet")
     if enable_symm_mem:
         raise ValueError("GFSDP does not support FSDP symmetric memory yet")
+
+    mtp = getattr(model, "mtp", None)
+    if mtp_transition_prefetch:
+        if pp_enabled:
+            raise ValueError("MTP transition prefetch currently requires PP1")
+        if mtp is None or "0" not in mtp.layers:
+            raise ValueError("MTP transition prefetch requires mtp.layers.0")
+        if len(mtp.layers) != 1:
+            raise ValueError(
+                "MTP transition prefetch currently requires exactly one MTP layer"
+            )
+        if getattr(mtp.layers["0"], "_ffn_overlap_regions", None) is None:
+            raise ValueError(
+                "MTP transition prefetch requires a split mtp.layers.0 FFN"
+            )
+        if not model.layers:
+            raise ValueError("MTP transition prefetch requires a trunk layer")
+        if model.norm is None or model.lm_head is None:
+            raise ValueError(
+                "MTP transition prefetch requires model.norm and model.lm_head"
+            )
 
     row_owner = None
     if row_owner_embeddings:
@@ -337,7 +394,6 @@ def apply_gfsdp(
             reshard_after_forward=reshard_after_forward,
         )
 
-    mtp = getattr(model, "mtp", None)
     if mtp is not None:
         for name, mtp_layer in mtp.layers.items():
             shard_block_unit(mtp_layer, mtp_layer.block, f"mtp.layers.{name}")
@@ -394,11 +450,20 @@ def apply_gfsdp(
     # forward can share one and zero-3 dies on step 1.
     root.set_shard_order(chain)
 
+    if mtp_transition_prefetch:
+        assert mtp is not None
+        last_trunk_layer = model.layers[list(model.layers.keys())[-1]]
+        root.set_buffer_region_transition(
+            source=mtp.layers["0"].block.feed_forward,
+            data_target=last_trunk_layer,
+            grad_target=norm,
+        )
+
     if row_owner is not None:
         row_owner.attach_comm_context(root)
 
     # D2H syncs in the expert path interfere with the implicit prefetch.
-    if ep_degree == 1:
+    if ep_degree == 1 and not mtp_transition_prefetch:
         return
 
     # An explicit list REPLACES the implicit prefetch, so a unit missing from the
@@ -406,8 +471,10 @@ def apply_gfsdp(
     def _link(source: GFSDPModule, target: GFSDPModule, pass_type: str) -> None:
         getattr(source, f"set_modules_to_{pass_type}_prefetch")([target])
 
-    for source, target in zip(chain, chain[1:]):
-        _link(source, target, "forward")
+    # EP1 uses implicit forward prefetch, including inference that skips MTP.
+    if ep_degree > 1:
+        for source, target in zip(chain, chain[1:]):
+            _link(source, target, "forward")
 
     # A nested parent enters backward on the suffix gradient, before its FFN.
     # Reverse top-level units, retaining parent-before-child within each one.
@@ -416,3 +483,8 @@ def apply_gfsdp(
     ]
     for source, target in zip(reverse, reverse[1:]):
         _link(source, target, "backward")
+
+    if mtp_transition_prefetch:
+        assert head is not None and mtp is not None
+        mtp_layer = mtp.layers["0"]
+        head.set_modules_to_backward_prefetch([mtp_layer, mtp_layer.block.feed_forward])

@@ -1,0 +1,1418 @@
+diff --git a/gift/tests/unit_tests/test_ffn_overlap.py b/gift/tests/unit_tests/test_ffn_overlap.py
+index af7b59a82..5f832f28a 100644
+--- a/gift/tests/unit_tests/test_ffn_overlap.py
++++ b/gift/tests/unit_tests/test_ffn_overlap.py
+@@ -1,6 +1,7 @@
+ """Local compute and wrapping contracts for the two FFN overlap boundaries."""
+ 
+ import copy
++from types import SimpleNamespace
+ 
+ import pytest
+ import torch
+@@ -11,10 +12,16 @@ from torchtitan.config import (
+     CompileConfig,
+     ParallelismConfig,
+ )
++from torchtitan.config.decode import decode
+ from torchtitan.distributed.activation_checkpoint import apply_ac
+ from torchtitan.distributed.compile import apply_compile, EagerWindow
+ from torchtitan.distributed.ffn_overlap import enable_ffn_overlap
+ from torchtitan.distributed.gfsdp._param_group import GFSDPBufferContext
++from torchtitan.distributed.gfsdp._state import _alias_buffer_region
++from torchtitan.models.gift_moe._base.parallelize import (
++    _validate_mtp_transition_request,
++    apply_gfsdp,
++)
+ from torchtitan.protocols.module import Module, ModuleDict
+ from tests.unit_tests.test_mtp import _block_config, _module_config
+ 
+@@ -203,16 +210,96 @@ def test_regions_alias_existing_storage_and_detect_all_overlaps():
+     assert ffn.conflicting_owner(object()) is owner
+ 
+ 
++def test_nested_transition_alias_uses_absolute_storage_ranges_and_borrow_registry():
++    ctx = GFSDPBufferContext(GFSDPBufferContext.BufferType.ALL_GATHER)
++    ctx.lazy_init({None: 128}, torch.device("cpu"))
++    source = ctx.region({None: 96}, {None: 16})
++    source.buffers[None].copy_(torch.arange(96, dtype=torch.uint8))
++
++    target = _alias_buffer_region(source, {None: 64})
++
++    assert target._storage_ctx is ctx
++    assert target._ranges[None] == (16, 80)
++    assert target.buffers[None].storage_offset() == 16
++    torch.testing.assert_close(target.buffers[None], source.buffers[None][:64])
++    assert source.overlaps(target)
++
++    owner = object()
++    target.owner = owner
++    assert ctx.conflicting_owner(object()) is owner
++    with pytest.raises(RuntimeError, match="live owner"):
++        with ctx.borrow(None):
++            pass
++
++
+ def test_flags_default_off_and_repeated_enable_rejected():
+     config = ParallelismConfig()
+     assert not config.gfsdp_split_mtp_ffn
+     assert not config.gfsdp_split_layer0_ffn
++    assert not config.gfsdp_mtp_transition_prefetch
+     model = _model(False)
+     enable_ffn_overlap(model.unit)
+     with pytest.raises(ValueError, match="already configured"):
+         enable_ffn_overlap(model.unit)
+ 
+ 
++def test_transition_config_requires_split_but_not_layer0_or_row_owner():
++    config = decode(
++        ParallelismConfig,
++        {"fsdp_backend": "gfsdp2", "gfsdp_mtp_transition_prefetch": True},
++        path="parallelism",
++    )
++    model = SimpleNamespace(
++        mtp=SimpleNamespace(layers={"0": object()}),
++        layers={"0": object()},
++        norm=object(),
++        lm_head=object(),
++    )
++    parallel_dims = SimpleNamespace(pp=1)
++    with pytest.raises(ValueError, match="requires gfsdp_split_mtp_ffn"):
++        _validate_mtp_transition_request(
++            model, parallel_dims=parallel_dims, parallelism=config
++        )
++    config.gfsdp_split_mtp_ffn = True
++    assert not config.gfsdp_split_layer0_ffn
++    assert not config.gfsdp_row_owner_embeddings
++    _validate_mtp_transition_request(
++        model, parallel_dims=parallel_dims, parallelism=config
++    )
++    model.mtp.layers["1"] = object()
++    with pytest.raises(ValueError, match="exactly one MTP layer"):
++        _validate_mtp_transition_request(
++            model, parallel_dims=parallel_dims, parallelism=config
++        )
++    config.gfsdp_mtp_transition_prefetch = False
++    _validate_mtp_transition_request(
++        model, parallel_dims=parallel_dims, parallelism=config
++    )
++
++
++@pytest.mark.parametrize(
++    ("pp_enabled", "mtp_layers", "message"),
++    [
++        (True, {"0": object()}, "requires PP1"),
++        (False, {"0": object(), "1": object()}, "exactly one MTP layer"),
++        (False, {"0": object()}, "requires a split mtp.layers.0 FFN"),
++    ],
++)
++def test_direct_apply_gfsdp_rejects_unsupported_transition(
++    pp_enabled, mtp_layers, message
++):
++    model = SimpleNamespace(mtp=SimpleNamespace(layers=mtp_layers))
++    with pytest.raises(ValueError, match=message):
++        apply_gfsdp(
++            model,
++            dp_mesh=None,
++            param_dtype=torch.bfloat16,
++            reduce_dtype=torch.float32,
++            pp_enabled=pp_enabled,
++            mtp_transition_prefetch=True,
++        )
++
++
+ def test_ordinal_mm_half_policy_is_explicitly_rejected_for_split_regions():
+     model = _model(False)
+     enable_ffn_overlap(model.unit)
+@@ -221,10 +308,19 @@ def test_ordinal_mm_half_policy_is_explicitly_rejected_for_split_regions():
+ 
+ 
+ @pytest.mark.parametrize(
+-    "split_layer0,split_mtp",
+-    [(False, False), (True, False), (False, True), (True, True)],
++    "split_layer0,split_mtp,mtp_transition,ep_degree",
++    [
++        (False, False, False, 2),
++        (True, False, False, 2),
++        (False, True, False, 2),
++        (True, True, False, 2),
++        (False, True, True, 2),
++        (False, True, True, 1),
++    ],
+ )
+-def test_nested_wrapping_and_prefetch_entry_order(monkeypatch, split_layer0, split_mtp):
++def test_nested_wrapping_and_prefetch_entry_order(
++    monkeypatch, split_layer0, split_mtp, mtp_transition, ep_degree
++):
+     import torchtitan.models.gift_moe._base.parallelize as parallelize
+     from tests.unit_tests.test_mtp import _make_tiny_decoder
+ 
+@@ -232,6 +328,9 @@ def test_nested_wrapping_and_prefetch_entry_order(monkeypatch, split_layer0, spl
+         def set_buffer_region_child(self, child):
+             self.buffer_region_child = child
+ 
++        def set_buffer_region_transition(self, **modules):
++            self.buffer_region_transition = modules
++
+         def set_own_grad_buffer(self):
+             self.private_grad = True
+ 
+@@ -268,16 +367,16 @@ def test_nested_wrapping_and_prefetch_entry_order(monkeypatch, split_layer0, spl
+         enable_ffn_overlap(model.layers["0"])
+     if split_mtp:
+         enable_ffn_overlap(model.mtp.layers["0"])
+-    # The second layer is dense in this fixture. ep_degree=2 selects the
+-    # production explicit prefetch wiring without executing any collectives.
++    # Capture the explicit prefetch wiring without executing collectives.
+     parallelize.apply_gfsdp(
+         model,
+         object(),
+         param_dtype=torch.bfloat16,
+         reduce_dtype=torch.float32,
+         pp_enabled=False,
+-        ep_degree=2,
+-        edp_mesh=object(),
++        ep_degree=ep_degree,
++        edp_mesh=object() if ep_degree > 1 else None,
++        mtp_transition_prefetch=mtp_transition,
+     )
+     units = [
+         model.tok_embeddings,
+@@ -302,8 +401,26 @@ def test_nested_wrapping_and_prefetch_entry_order(monkeypatch, split_layer0, spl
+     forward = [entered for unit in units for entered in expand(unit)]
+     backward = [entered for unit in reversed(units) for entered in expand(unit)]
+     assert model.shard_order == forward
+-    for source, target in zip(forward, forward[1:]):
+-        assert source.forward_prefetch == [target]
++    if ep_degree > 1:
++        for source, target in zip(forward, forward[1:]):
++            assert source.forward_prefetch == [target]
++    else:
++        assert all(not hasattr(unit, "forward_prefetch") for unit in forward)
+     for source, target in zip(backward, backward[1:]):
+-        assert source.backward_prefetch == [target]
++        if source is model.lm_head and mtp_transition:
++            mtp_layer = model.mtp.layers["0"]
++            assert source.backward_prefetch == [
++                mtp_layer,
++                mtp_layer.block.feed_forward,
++            ]
++        else:
++            assert source.backward_prefetch == [target]
+     assert all(unit.divide_factor == 1 for unit in sharded)
++    if mtp_transition:
++        mtp_layer = model.mtp.layers["0"]
++        assert model.buffer_region_transition == {
++            "source": mtp_layer.block.feed_forward,
++            "data_target": model.layers[list(model.layers.keys())[-1]],
++            "grad_target": model.norm,
++        }
++        assert mtp_layer.backward_prefetch == [mtp_layer.block.feed_forward]
+diff --git a/gift/tests/unit_tests/test_gfsdp_buffer_order.py b/gift/tests/unit_tests/test_gfsdp_buffer_order.py
+index 29c713174..d7a981614 100644
+--- a/gift/tests/unit_tests/test_gfsdp_buffer_order.py
++++ b/gift/tests/unit_tests/test_gfsdp_buffer_order.py
+@@ -32,8 +32,17 @@ pytest.importorskip("torch")
+ 
+ import torch  # noqa: E402
+ 
+-from torchtitan.distributed.gfsdp._param_group import GFSDPParamGroup  # noqa: E402
++from torchtitan.distributed.gfsdp._common import (  # noqa: E402
++    DataParallelMeshInfo,
++    TrainingState,
++)
++from torchtitan.distributed.gfsdp._param import ShardedState  # noqa: E402
++from torchtitan.distributed.gfsdp._param_group import (  # noqa: E402
++    GFSDPBufferContext,
++    GFSDPParamGroup,
++)
+ from torchtitan.distributed.gfsdp._state import (  # noqa: E402
++    GFSDPState,
+     _forward_ordered_states,
+     _grad_buffer_ctx_idx_map,
+     get_buffer_ctx2ctx_using_param_groups_map,
+@@ -277,7 +286,280 @@ def test_a_buffer_the_target_already_owns_is_not_an_obstacle():
+     target.data_buffer_ctx.owner = target
+ 
+     GFSDPParamGroup._prefetch_unshard(target, "forward")
++    assert target.unsharded
++
++
++class _FakeStream:
++    def __init__(self):
++        self.events = []
++
++    def record_event(self):
++        event = object()
++        self.events.append(event)
++        return event
++
++
++class _FakeBufferContext:
++    def __init__(self):
++        self.owner = None
++        self.release_event = None
++        self.yccl_handles = {torch.float32: None}
++
++    def conflicting_owner(self, owner):
++        return (
++            self.owner if self.owner is not None and self.owner is not owner else None
++        )
++
++    def wait_for_release(self, _stream):
++        return None
++
++
++def _post_backward_group(
++    *, training_state, has_grad, reduce_grads, reshard_after_backward
++):
++    group = object.__new__(GFSDPParamGroup)
++    stream = _FakeStream()
++    param = torch.nn.Parameter(torch.ones(2))
++    param.grad = torch.ones_like(param) if has_grad else None
++    fsdp_param = SimpleNamespace(
++        unsharded_param=param,
++        unsharded_accumulated_grad=None,
++        _unsharded_accumulated_grad=torch.zeros_like(param),
++        unsharded_grad_data=param.grad,
++        sharded_param=SimpleNamespace(grad=None, requires_grad=True),
++    )
++    group._training_state = training_state
++    group._module_fqn = "test.group"
++    group._with_fqn = lambda name: name
++    group.fsdp_params = [fsdp_param]
++    group._all_gather_dtype_to_fsdp_params = {torch.float32: [fsdp_param]}
++    group.grad_buffer_ctx = _FakeBufferContext()
++    group.data_buffer_ctx = _FakeBufferContext()
++    group.device_handle = SimpleNamespace(current_stream=lambda: stream)
++    group.device = torch.device("cpu")
++    group.orig_dtype = torch.float32
++    group.param_dtype = torch.float32
++    group.reduce_dtype = torch.float32
++    group.gradient_divide_factor = None
++    group.force_sum_reduction_for_comms = False
++    group.mp_policy = SimpleNamespace(bit32_acc_for_bit16_reduce_scatter=False)
++    group._reduce_scatter_input = {torch.float32: torch.zeros(4)}
++    group._padded_sharded_param_grad = {torch.float32: torch.zeros(2)}
++    group.mesh_info = object.__new__(DataParallelMeshInfo)
++    group.mesh_info.shard_process_group = object()
++    group.comm_ctx = SimpleNamespace(reduce_scatter_stream=stream)
++    group.reduce_grads = reduce_grads
++    group.reshard_after_backward = reshard_after_backward
++    group._post_reduce_event = object()  # Must not count as a new reduction.
++    group._post_backward_prefetch_target = object()
++    group.data_buffer_ctx.owner = group
++    return group, stream
++
++
++@pytest.mark.parametrize(
++    (
++        "training_state",
++        "has_grad",
++        "reduce_grads",
++        "reshard_after_backward",
++        "expected_reductions",
++        "expected_prefetches",
++    ),
++    [
++        (TrainingState.PRE_BACKWARD, True, True, True, 1, 1),
++        (TrainingState.IDLE, False, True, True, 0, 0),
++        # A callback with stale group state and a nonempty grad still is not an
++        # actual PRE_BACKWARD completion for this call.
++        (TrainingState.IDLE, True, True, True, 1, 0),
++        (TrainingState.PRE_BACKWARD, True, False, True, 0, 0),
++        (TrainingState.PRE_BACKWARD, True, True, False, 1, 0),
++    ],
++)
++def test_post_backward_transition_requires_real_reduced_resharded_backward(
++    monkeypatch,
++    training_state,
++    has_grad,
++    reduce_grads,
++    reshard_after_backward,
++    expected_reductions,
++    expected_prefetches,
++):
++    import torchtitan.distributed.gfsdp._param_group as param_group_module
++
++    group, _stream = _post_backward_group(
++        training_state=training_state,
++        has_grad=has_grad,
++        reduce_grads=reduce_grads,
++        reshard_after_backward=reshard_after_backward,
++    )
++    reductions = []
++    prefetches = []
++    reduce_event = object()
++
++    def fake_reduce_scatter(*_args, **_kwargs):
++        reductions.append(True)
++        return reduce_event
++
++    def fake_reshard(self):
++        self.data_buffer_ctx.release_event = _stream.record_event()
++        self.data_buffer_ctx.owner = None
++
++    monkeypatch.setattr(param_group_module, "reduce_scatter", fake_reduce_scatter)
++    monkeypatch.setattr(GFSDPParamGroup, "reshard", fake_reshard)
++    monkeypatch.setattr(
++        GFSDPParamGroup,
++        "_prefetch_unshard",
++        staticmethod(lambda target, pass_type: prefetches.append((target, pass_type))),
++    )
+ 
++    group.post_backward()
++
++    assert len(reductions) == expected_reductions
++    assert len(prefetches) == expected_prefetches
++    if expected_prefetches:
++        assert prefetches == [(group._post_backward_prefetch_target, "backward")]
++    if not reduce_grads and has_grad:
++        assert group.grad_buffer_ctx.owner is group
++
++
++@pytest.mark.parametrize(
++    "policy, buffer_name",
++    [
++        ("reshard_after_forward", "data buffer"),
++        ("reshard_after_backward", "data buffer"),
++        ("reduce_grads", "grad buffer"),
++    ],
++)
++def test_region_retention_validation_only_compares_aliased_storage(
++    monkeypatch, policy, buffer_name
++):
++    def buffer(buffer_type):
++        ctx = GFSDPBufferContext(buffer_type)
++        ctx.lazy_init({None: 128}, torch.device("cpu"))
++        return ctx
++
++    def group(name, data=None, grad=None):
++        return SimpleNamespace(
++            name=name,
++            data_buffer_ctx=data or buffer(GFSDPBufferContext.BufferType.ALL_GATHER),
++            grad_buffer_ctx=grad
++            or buffer(GFSDPBufferContext.BufferType.REDUCE_SCATTER),
++            _post_backward_prefetch_target=None,
++            reshard_after_forward=True,
++            reshard_after_backward=True,
++            reduce_grads=True,
++        )
++
++    data = buffer(GFSDPBufferContext.BufferType.ALL_GATHER)
++    grad = buffer(GFSDPBufferContext.BufferType.REDUCE_SCATTER)
++    source = group(
++        "ffn",
++        data.region({None: 64}, {None: 64}),
++        grad.region({None: 64}, {None: 64}),
++    )
++    target = group("layer7", data.region({None: 32}, {None: 64}))
++    norm = group("norm", grad=grad.region({None: 32}, {None: 64}))
++    sibling = group(
++        "disjoint",
++        data.region({None: 64}, {None: 0}),
++        grad.region({None: 64}, {None: 0}),
++    )
++    whole_slot = group("whole_slot", data, grad)
++    unrelated = group("unrelated")
++
++    root = GFSDPState()
++    root._modules = (torch.nn.Module(),)
++    root._fsdp_param_groups = [source, target, norm, sibling, whole_slot, unrelated]
++    root._state_ctx.all_states = [root]
++
++    overlaps = GFSDPBufferContext.overlaps
++    comparisons = []
++
++    def count_overlap(left, right):
++        comparisons.append((left._storage_ctx, right._storage_ctx))
++        return overlaps(left, right)
++
++    monkeypatch.setattr(GFSDPBufferContext, "overlaps", count_overlap)
++    setattr(sibling, policy, False)
++    setattr(unrelated, policy, False)
++    root.validate_shared_state()
++    assert comparisons == []
++
++    root._state_ctx.buffer_region_transition_groups = (source, target)
++    root.validate_shared_state()
++    assert comparisons == []
++
++    setattr(whole_slot, policy, False)
++    with pytest.raises(ValueError, match=f"share a {buffer_name}"):
++        root.validate_shared_state()
++    expected_root = data if buffer_name == "data buffer" else grad
++    assert comparisons == [(expected_root, expected_root)]
++
++
++@pytest.mark.parametrize("consume_gather", [True, False])
++def test_nonfinal_backward_keeps_pending_transition_data_lease(consume_gather):
++    root = GFSDPState()
++    group, stream = _post_backward_group(
++        training_state=TrainingState.IDLE,
++        has_grad=False,
++        reduce_grads=True,
++        reshard_after_backward=True,
++    )
++    root._fsdp_param_groups = [group]
++    root._state_ctx.all_states = [root]
++    root._state_ctx.is_last_backward = False
++    root._comm_ctx.post_forward_order = []
++
++    backing = GFSDPBufferContext(GFSDPBufferContext.BufferType.ALL_GATHER)
++    backing.lazy_init({None: 128}, torch.device("cpu"))
++    group.data_buffer_ctx = backing.region({None: 64}, {None: 64})
++    group.grad_buffer_ctx = None
++    group._sharded_state = ShardedState.SHARDED
++    group._protect_data_buffer_lease = True
++    group._post_reduce_event = None
++    group._post_forward_indices = []
++    group._all_gather_input_set_dtypes = set()
++    group._bf16_cache_enabled = False
++    group.fsdp_params[0].to_unsharded = lambda: None
++    group.fsdp_params[0].to_sharded = lambda: None
++
++    waits = []
++    gather = SimpleNamespace(wait=lambda: waits.append(group.data_buffer_ctx.owner))
++    group._all_gather_result = gather
++    group.data_buffer_ctx.owner = group
++
++    root._root_post_backward_final_callback()
++
++    assert group._all_gather_result is gather
++    assert waits == []
++    assert group.data_buffer_ctx.owner is group
++    assert group.data_buffer_ctx.release_event is None
++
++    peer = object.__new__(GFSDPParamGroup)
++    peer.__dict__.update(group.__dict__)
++    peer._all_gather_result = None
++    peer.reshard()
++    assert group.data_buffer_ctx.owner is group
++    assert group.data_buffer_ctx.release_event is None
++
++    target = _FakeTarget(owner=None)
++    target.data_buffer_ctx = backing.region({None: 32}, {None: 64})
++    GFSDPParamGroup._prefetch_unshard(target, "backward")
++    assert not target.unsharded
++
++    if consume_gather:
++        group.wait_for_unshard()
++        assert group.data_buffer_ctx.owner is group
++        group.reshard()
++    else:
++        root._state_ctx.is_last_backward = True
++        root._root_post_backward_final_callback()
++
++    assert waits == [group]
++    assert group._all_gather_result is None
++    assert group.data_buffer_ctx.owner is None
++    assert group.data_buffer_ctx.release_event is stream.events[-1]
++    GFSDPParamGroup._prefetch_unshard(target, "backward")
+     assert target.unsharded
+ 
+ 
+diff --git a/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py b/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py
+index 4d274680a..27a1ca8b3 100644
+--- a/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py
++++ b/gift/tests/unit_tests/test_gfsdp_ffn_overlap.py
+@@ -8,7 +8,9 @@ all-eight-rank schedule still require the native crop diagnostic.
+ import shutil
+ import uuid
+ from pathlib import Path
++from unittest.mock import patch
+ 
++import pytest
+ import torch
+ import torch.distributed as dist
+ import torch.distributed.checkpoint as dcp
+@@ -24,8 +26,13 @@ from torchtitan.distributed.activation_checkpoint import apply_ac
+ from torchtitan.distributed.compile import apply_compile
+ from torchtitan.distributed.ffn_overlap import enable_ffn_overlap
+ from torchtitan.distributed.gfsdp._dcp import GFSDPCheckpointAdapter
+-from torchtitan.distributed.gfsdp._param_group import GFSDPBufferContext
++from torchtitan.distributed.gfsdp._param_group import (
++    GFSDPBufferContext,
++    GFSDPParamGroup,
++)
++from torchtitan.distributed.gfsdp._state import _alias_buffer_region
+ from torchtitan.models.gift_moe._base.parallelize import apply_gfsdp
++from torchtitan.models.common.ffn import FeedForward
+ from tests.unit_tests.test_mtp import _make_tiny_decoder
+ 
+ 
+@@ -161,12 +168,16 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
+         ctx = GFSDPBufferContext(GFSDPBufferContext.BufferType.REDUCE_SCATTER)
+         ctx.lazy_init({None: 262144}, torch.device("cuda", self.rank))
+         regions = [ctx.region({None: 131072}, {None: offset}) for offset in (0, 131072)]
++        readers = [
++            _alias_buffer_region(regions[0], {None: 65536}),
++            regions[1],
++        ]
+         streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+         snapshots = []
+-        for region in regions:
++        for region in readers:
+             region.buffers[None].view(torch.float32).fill_(self.rank + 1)
+         torch.cuda.synchronize()
+-        for region, stream in zip(regions, streams):
++        for region, stream in zip(readers, streams):
+             with torch.cuda.stream(stream):
+                 # Keep actual collective readers pending while the whole-slot
+                 # writer is submitted on the default stream.
+@@ -183,10 +194,161 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
+                 snapshot, torch.full_like(snapshot, 3), rtol=0, atol=0
+             )
+ 
+-    def _build(self, split):
++    @with_comms
++    @torch.no_grad()
++    def test_mtp_transition_aliases_bounded_existing_regions(self):
++        control, _ = self._build(split=True, transition_fixture=True)
++        candidate, _ = self._build(split=True, transition=True, transition_fixture=True)
++        assert _buffer_budget(candidate) == _buffer_budget(control)
++
++        root = candidate._get_fsdp_state()
++        mtp_ffn = candidate.mtp.layers["0"].block.feed_forward
++        source_group = mtp_ffn._get_fsdp_state()._fsdp_param_groups[0]
++        source_pg = source_group.mesh_info.shard_process_group
++        last_layer = candidate.layers[list(candidate.layers.keys())[-1]]
++        data_target_groups = [
++            group
++            for group in last_layer._get_fsdp_state()._fsdp_param_groups
++            if group.mesh_info.shard_process_group is source_pg
++        ]
++        norm_groups = [
++            group
++            for group in candidate.norm._get_fsdp_state()._fsdp_param_groups
++            if group.mesh_info.shard_process_group is source_pg
++        ]
++        assert len(data_target_groups) == len(norm_groups) == 1
++        data_target = data_target_groups[0]
++        grad_target = norm_groups[0]
++        assert source_group._post_backward_prefetch_target is data_target
++
++        for target_group, source_ctx, attr, itemsize in (
++            (
++                data_target,
++                source_group.data_buffer_ctx,
++                "data_buffer_ctx",
++                lambda dtype, group: (
++                    (dtype or group.param_dtype or group.orig_dtype).itemsize
++                ),
++            ),
++            (
++                grad_target,
++                source_group.grad_buffer_ctx,
++                "grad_buffer_ctx",
++                lambda _dtype, group: (
++                    (
++                        group.reduce_dtype or group.param_dtype or group.orig_dtype
++                    ).itemsize
++                ),
++            ),
++        ):
++            target_ctx = getattr(target_group, attr)
++            assert source_ctx is not None
++            assert target_ctx._storage_ctx is source_ctx._storage_ctx
++            assert source_ctx.overlaps(target_ctx)
++            for dtype, target_view in target_ctx.buffers.items():
++                source_start, source_end = source_ctx._ranges[dtype]
++                target_start, target_end = target_ctx._ranges[dtype]
++                alignment = (
++                    target_group.mesh_info.shard_mesh_size
++                    * target_group._shard_alignment
++                    * itemsize(dtype, target_group)
++                )
++                assert source_start <= target_start < target_end <= source_end
++                assert target_view.storage_offset() == target_start
++                assert target_start % alignment == 0
++                assert (target_end - target_start) % alignment == 0
++                assert (
++                    target_view.untyped_storage().data_ptr()
++                    == source_ctx.buffers[dtype].untyped_storage().data_ptr()
++                )
++                assert (
++                    target_view.untyped_storage().nbytes()
++                    == source_ctx._storage_ctx.buffers[dtype].numel()
++                )
++
++        with pytest.raises(RuntimeError, match="before the first forward"):
++            candidate.set_buffer_region_transition(
++                source=mtp_ffn,
++                data_target=last_layer,
++                grad_target=candidate.norm,
++            )
++
++        original_source_forward = source_group.post_forward_mesh_info
++        original_target_forward = data_target.post_forward_mesh_info
++        source_group.post_forward_mesh_info = None
++        data_target.post_forward_mesh_info = None
++        with pytest.raises(ValueError, match="share a data buffer"):
++            root.validate_shared_state()
++        source_group.post_forward_mesh_info = original_source_forward
++        data_target.post_forward_mesh_info = original_target_forward
++
++        source_group.reshard_after_backward = False
++        with pytest.raises(ValueError, match="source must reshard after backward"):
++            root.validate_shared_state()
++        source_group.reshard_after_backward = True
++
++        # Isolate the target-specific guard from the generic overlap check if
++        # the FFN is configured to retain its forward data region.
++        source_group.post_forward_mesh_info = original_target_forward
++        data_target.post_forward_mesh_info = None
++        with pytest.raises(ValueError, match="target must reshard after forward"):
++            root.validate_shared_state()
++        data_target.post_forward_mesh_info = original_target_forward
++        source_group.post_forward_mesh_info = original_source_forward
++        data_target.reshard_after_backward = False
++        with pytest.raises(ValueError, match="target must reshard after backward"):
++            root.validate_shared_state()
++        data_target.reshard_after_backward = True
++
++        source_group.reduce_grads = False
++        root.validate_shared_state()
++        grad_target.reduce_grads = False
++        with pytest.raises(ValueError, match="no grad reduce"):
++            root.validate_shared_state()
++        source_group.reduce_grads = True
++        grad_target.reduce_grads = True
++
++    @with_comms
++    @torch.no_grad()
++    def test_parent_child_prefetch_does_not_duplicate_all_gather(self):
++        import torchtitan.distributed.gfsdp._param_group as param_group_module
++
++        model, _ = self._build(split=True)
++        parent = model.mtp.layers["0"]
++        ffn = parent.block.feed_forward
++        parent_group = parent._get_fsdp_state()._fsdp_param_groups[0]
++        ffn_group = ffn._get_fsdp_state()._fsdp_param_groups[0]
++        original_all_gather = param_group_module.all_gather
++        calls = []
++
++        def count_all_gather(group, *args, **kwargs):
++            calls.append(group)
++            return original_all_gather(group, *args, **kwargs)
++
++        with patch.object(param_group_module, "all_gather", count_all_gather):
++            # The parent prefetch and the later generic child prefetch may
++            # request the FFN more than once without enqueuing another gather.
++            GFSDPParamGroup._prefetch_unshard(parent_group, "backward")
++            GFSDPParamGroup._prefetch_unshard(ffn_group, "backward")
++            GFSDPParamGroup._prefetch_unshard(ffn_group, "backward")
++            parent_group.wait_for_unshard()
++            ffn_group.wait_for_unshard()
++
++        assert calls.count(parent_group) == len(
++            parent_group._all_gather_dtype_to_fsdp_params
++        )
++        assert calls.count(ffn_group) == len(ffn_group._all_gather_dtype_to_fsdp_params)
++
++    def _build(self, split, transition=False, transition_fixture=False):
+         torch._dynamo.reset()
+         torch.manual_seed(2048)
+         model = _make_tiny_decoder(1, n_layers=2).to(self.device_type)
++        if transition_fixture:
++            mtp_ffn = model.mtp.layers["0"].block.feed_forward
++            model.mtp.layers["0"].block.feed_forward = FeedForward.Config(
++                dim=mtp_ffn.w1.in_features,
++                hidden_dim=256,
++            ).build()
+         model.init_weights(buffer_device=torch.device(self.device_type))
+         if split:
+             enable_ffn_overlap(model.layers["0"])
+@@ -208,6 +370,7 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
+             param_dtype=torch.bfloat16,
+             reduce_dtype=torch.float32,
+             pp_enabled=False,
++            mtp_transition_prefetch=transition,
+         )
+         model.train()
+         model.lazy_init()
+@@ -282,7 +445,7 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
+ 
+     @with_comms
+     def test_baseline_checkpoint_loads_split_layout_and_continues(self):
+-        baseline, baseline_optimizer = self._build(False)
++        baseline, baseline_optimizer = self._build(False, transition_fixture=True)
+         self._update(baseline, baseline_optimizer)
+         original_parameters = _full_parameters(baseline)
+         original_optimizer = _full_optimizer(baseline_optimizer)
+@@ -309,7 +472,9 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
+                 },
+                 checkpoint_id=checkpoint_path,
+             )
+-            candidate, candidate_optimizer = self._build(True)
++            candidate, candidate_optimizer = self._build(
++                True, transition=True, transition_fixture=True
++            )
+             assert _buffer_budget(candidate) == _buffer_budget(baseline)
+             for unit in (candidate.layers["0"], candidate.mtp.layers["0"]):
+                 block = getattr(unit, "block", unit)
+diff --git a/gift/torchtitan/config/configs.py b/gift/torchtitan/config/configs.py
+index 9f10920e4..b92024fec 100644
+--- a/gift/torchtitan/config/configs.py
++++ b/gift/torchtitan/config/configs.py
+@@ -160,6 +160,9 @@ class ParallelismConfig:
+     gfsdp_row_owner_embeddings: bool = False
+     """Route input embedding rows to dense GFSDP owners instead of sharding the full table."""
+ 
++    gfsdp_mtp_transition_prefetch: bool = False
++    """Prefetch the last trunk layer after split MTP FFN backward using its released buffer region."""
++
+     fsdp_reshard_after_forward: Literal["default", "always", "never"] = "default"
+     """
+     `reshard_after_forward` specifies the policy for applying `reshard_after_forward`
+diff --git a/gift/torchtitan/distributed/gfsdp/_param_group.py b/gift/torchtitan/distributed/gfsdp/_param_group.py
+index 97d34f98a..93dc441cf 100644
+--- a/gift/torchtitan/distributed/gfsdp/_param_group.py
++++ b/gift/torchtitan/distributed/gfsdp/_param_group.py
+@@ -245,9 +245,12 @@ class GFSDPParamGroup:
+         # - CUDA events for stream synchronization
+         # Holds all-gather sync objects
+         self._all_gather_result: AllGatherResult | None = None
++        self._protect_data_buffer_lease = False
+         # Holds the CUDA event that marks the end of the group's post-backward,
+         # which should be waited on at the end of backward
+         self._post_reduce_event: torch.Event | None = None
++        # Optional one-way transition set by the root after buffer dealing.
++        self._post_backward_prefetch_target: GFSDPParamGroup | None = None
+ 
+         # The expert cache reuses the existing all-gather input. Its values
+         # stay valid across microbatches until a supported weight writer bumps
+@@ -932,6 +935,8 @@ class GFSDPParamGroup:
+     def wait_for_unshard(self) -> AllGatherResult | None:
+         if (all_gather_result := self._all_gather_result) is None:
+             return None
++        if self._protect_data_buffer_lease and self.data_buffer_ctx.owner is not self:
++            raise RuntimeError(f"{self} lost its data buffer before all-gather wait")
+         all_gather_result.wait()
+         self._to_unsharded()
+         self._all_gather_result = None
+@@ -946,6 +951,12 @@ class GFSDPParamGroup:
+             # we need to reshard anyway to release the shared data buffer
+             if not self.reshard_after_forward and torch.is_grad_enabled():
+                 return
++        if self._protect_data_buffer_lease and (
++            self._all_gather_result is not None or self.data_buffer_ctx.owner is not self
++        ):
++            # The detached head's backward also visits idle groups. Keep a
++            # prefetched alias reserved until its consumer or final cleanup.
++            return
+         logger.debug(
+             "%s", self._with_fqn(f"GFSDP::{self._training_state.name.lower()}_reshard")
+         )
+@@ -1001,6 +1012,7 @@ class GFSDPParamGroup:
+         # This method should be idempotent and safe to call even when this
+         # FSDP parameter group was not used in backward (should be a no-op)
+         logger.debug("%s", self._with_fqn("GFSDP::post_backward"))
++        was_in_backward = self._training_state == TrainingState.PRE_BACKWARD
+         self._training_state = TrainingState.POST_BACKWARD
+         if (grad_buffer_ctx := self.grad_buffer_ctx) is not None:
+             if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
+@@ -1091,6 +1103,7 @@ class GFSDPParamGroup:
+ 
+         assert grad_buffer_ctx is not None
+         logger.debug("%s", self._with_fqn("GFSDP::post_backward_reduce"))
++        reduce_scatter_enqueued = False
+         with record_function(self._with_fqn("GFSDP::post_backward_reduce")):
+             for (
+                 all_gather_dtype,
+@@ -1124,9 +1137,20 @@ class GFSDPParamGroup:
+                         all_gather_dtype
+                     ),
+                 )
++                reduce_scatter_enqueued = True
+         grad_buffer_ctx.release_event = self._post_reduce_event
+         grad_buffer_ctx.owner = None
+ 
++        if (
++            was_in_backward
++            and reduce_scatter_enqueued
++            and self.reduce_grads
++            and self.reshard_after_backward
++            and self.data_buffer_ctx.owner is None
++            and self._post_backward_prefetch_target is not None
++        ):
++            self._prefetch_unshard(self._post_backward_prefetch_target, "backward")
++
+     def finalize_backward(self) -> None:
+         self._wait_for_post_backward()
+         if self._all_gather_result is not None:
+@@ -1135,7 +1159,13 @@ class GFSDPParamGroup:
+             logger.debug("%s", self._with_fqn("GFSDP::wait_for_mistargeted_unshard"))
+             self._all_gather_result.wait()
+             self._all_gather_result = None
+-            self.data_buffer_ctx.owner = None
++            if not self._protect_data_buffer_lease:
++                self.data_buffer_ctx.owner = None
++            elif self.data_buffer_ctx.owner is self:
++                self.data_buffer_ctx.release_event = (
++                    self.device_handle.current_stream().record_event()
++                )
++                self.data_buffer_ctx.owner = None
+         self._post_forward_indices.clear()
+         if self._bf16_cache_enabled:
+             if self._bf16_cache_prepared_generation != self._bf16_cache_generation:
+diff --git a/gift/torchtitan/distributed/gfsdp/_state.py b/gift/torchtitan/distributed/gfsdp/_state.py
+index 2d0f5958e..71a719b99 100644
+--- a/gift/torchtitan/distributed/gfsdp/_state.py
++++ b/gift/torchtitan/distributed/gfsdp/_state.py
+@@ -36,6 +36,48 @@ if TYPE_CHECKING:
+ logger = logging.getLogger("gfsdp")
+ 
+ 
++def _alias_buffer_region(
++    source: GFSDPBufferContext, sizes: dict[torch.dtype | None, int]
++) -> GFSDPBufferContext:
++    """Create a bounded alias using storage-root-relative byte offsets."""
++    offsets = {}
++    for dtype, size in sizes.items():
++        if dtype not in source.buffers:
++            raise ValueError(f"Buffer region does not contain dtype bucket {dtype}")
++        if size < 0 or size > source.buffers[dtype].numel():
++            raise ValueError(
++                f"Requested {size} bytes from a {source.buffers[dtype].numel()}-byte "
++                f"{dtype} buffer region"
++            )
++        # region() offsets are relative to _storage_ctx, even when the source
++        # view is nested. Keep this range inside the source's absolute interval.
++        offsets[dtype] = source._ranges[dtype][0]
++    return source._storage_ctx.region(sizes, offsets)
++
++
++def _validate_region_retention(
++    transition_ctx: GFSDPBufferContext,
++    groups_by_ctx: dict[GFSDPBufferContext, list[GFSDPParamGroup]],
++    retains: Callable[[GFSDPParamGroup], bool],
++    buffer_name: str,
++    policy: str,
++) -> None:
++    # Exact-context conflicts are already checked. Compare live groups only
++    # across distinct views of the storage reused by the transition.
++    retained: dict[GFSDPBufferContext, GFSDPParamGroup] = {}
++    for ctx in transition_ctx._storage_ctx._regions:
++        for group in groups_by_ctx.get(ctx, ()):
++            if retains(group):
++                for other_ctx, other in retained.items():
++                    if ctx.overlaps(other_ctx):
++                        raise ValueError(
++                            "Only one parameter group across groups which share a "
++                            f"{buffer_name} is allowed to have {policy}, but got "
++                            f"{group=} and {other=}"
++                        )
++                retained[ctx] = group
++
++
+ class GFSDPStateContext:
+     def __init__(self) -> None:
+         """Initialize state shared by all GFSDP wrappers under one root."""
+@@ -53,6 +95,11 @@ class GFSDPStateContext:
+         self.post_backward_final_callback_queued: bool = False
+         # Whether to finalize backward in this backward's final callback
+         self.is_last_backward: bool = True
++        # Set once after dealing buffers. Validation also runs from submodule
++        # setters, so they must see the same two transition storage roots.
++        self.buffer_region_transition_groups: (
++            tuple[GFSDPParamGroup, GFSDPParamGroup] | None
++        ) = None
+         # Optional user-provided event recorded after optimizer for the
+         # all-gather streams to wait on in the root pre-forward
+         self.post_optim_event: torch.Event | None = None
+@@ -77,6 +124,7 @@ class GFSDPState(_State):
+         self._shard_order: "list[GFSDPState] | None" = None
+         self._own_grad_buffer: bool = False
+         self._buffer_region_child: GFSDPState | None = None
++        self._buffer_region_transition: "tuple[GFSDPState, GFSDPState, GFSDPState] | None" = None
+         self._allow_no_grad_reduce: bool = False
+ 
+     # Define a separate init since `__init__` is called in the contract
+@@ -451,6 +499,150 @@ class GFSDPState(_State):
+                 param_group.grad_buffer_ctx = grad_buffer_ctx
+                 partition(param_group, grad_buffer_ctx, grad=True)
+ 
++        if self._buffer_region_transition is not None:
++            source_state, data_target_state, grad_target_state = (
++                self._buffer_region_transition
++            )
++            if any(
++                state not in ordered_states
++                for state in (source_state, data_target_state, grad_target_state)
++            ):
++                raise ValueError(
++                    "Buffer region transition modules must belong to the root state"
++                )
++            if len(source_state._fsdp_param_groups) != 1:
++                raise ValueError(
++                    "Buffer region transition source must have exactly one "
++                    "parameter group"
++                )
++            source_group = source_state._fsdp_param_groups[0]
++            source_process_group = source_group.mesh_info.shard_process_group
++
++            def matching_group(state: GFSDPState, name: str) -> GFSDPParamGroup:
++                matches = [
++                    group
++                    for group in state._fsdp_param_groups
++                    if group.mesh_info.shard_process_group is source_process_group
++                ]
++                if len(matches) != 1:
++                    raise ValueError(
++                        f"Buffer region transition requires one {name} parameter "
++                        f"group on the source dense process group; got {len(matches)}"
++                    )
++                return matches[0]
++
++            data_target_group = matching_group(data_target_state, "data target")
++            grad_target_group = matching_group(grad_target_state, "gradient target")
++
++            def alias_target(
++                source_ctx: GFSDPBufferContext,
++                target_group: GFSDPParamGroup,
++                *,
++                grad: bool,
++            ) -> tuple[GFSDPBufferContext, dict[torch.dtype | None, int]]:
++                if (
++                    source_group.mesh_info.shard_mesh_size
++                    != target_group.mesh_info.shard_mesh_size
++                    or source_group.mesh_info.shard_mesh_rank
++                    != target_group.mesh_info.shard_mesh_rank
++                    or source_group._shard_alignment != target_group._shard_alignment
++                    or source_group.param_dtype != target_group.param_dtype
++                    or source_group.reduce_dtype != target_group.reduce_dtype
++                    or source_group.orig_dtype != target_group.orig_dtype
++                    or source_group.mp_policy != target_group.mp_policy
++                ):
++                    raise ValueError(
++                        "Buffer region transition groups must have matching mesh "
++                        "and precision"
++                    )
++                sizes = buffer_sizes(target_group, grad=grad)
++                offsets = {}
++                for dtype, size in sizes.items():
++                    if dtype not in source_ctx.buffers:
++                        raise ValueError(
++                            "Buffer region transition dtype buckets do not match: "
++                            f"{dtype} is missing from the MTP FFN region"
++                        )
++                    start, end = source_ctx._ranges[dtype]
++                    item_dtype = (
++                        target_group.reduce_dtype
++                        or target_group.param_dtype
++                        or target_group.orig_dtype
++                        if grad
++                        else dtype
++                        or target_group.param_dtype
++                        or target_group.orig_dtype
++                    )
++                    alignment = (
++                        target_group.mesh_info.shard_mesh_size
++                        * target_group._shard_alignment
++                        * item_dtype.itemsize
++                    )
++                    capacity = end - start
++                    if size > capacity:
++                        raise ValueError(
++                            "Buffer region transition exceeds MTP FFN region "
++                            f"capacity for {dtype}: need {size} bytes, have {capacity}"
++                        )
++                    if start % alignment or size % alignment:
++                        raise ValueError(
++                            "Buffer region transition is not shard-aligned for "
++                            f"{dtype}: offset={start}, size={size}, alignment={alignment}"
++                        )
++                    offsets[dtype] = start
++                return _alias_buffer_region(source_ctx, sizes), offsets
++
++            source_data_ctx = source_group.data_buffer_ctx
++            source_grad_ctx = source_group.grad_buffer_ctx
++            if source_grad_ctx is None:
++                raise ValueError(
++                    "Buffer region transition source has no gradient buffer"
++                )
++            data_alias, data_offsets = alias_target(
++                source_data_ctx, data_target_group, grad=False
++            )
++            grad_alias, grad_offsets = alias_target(
++                source_grad_ctx, grad_target_group, grad=True
++            )
++            data_target_group.data_buffer_ctx = data_alias
++            grad_target_group.grad_buffer_ctx = grad_alias
++            for group in param_groups:
++                if group.data_buffer_ctx._storage_ctx is source_data_ctx._storage_ctx:
++                    group._protect_data_buffer_lease = True
++            source_group._post_backward_prefetch_target = data_target_group
++            self._state_ctx.buffer_region_transition_groups = (
++                source_group,
++                data_target_group,
++            )
++
++            def alias_summary(
++                alias: GFSDPBufferContext,
++                source_ctx: GFSDPBufferContext,
++                offsets: dict[torch.dtype | None, int],
++            ) -> dict[str, dict[str, int]]:
++                return {
++                    str(dtype): {
++                        "offset_bytes": offsets[dtype],
++                        "size_bytes": size,
++                        "capacity_bytes": source_ctx.buffers[dtype].numel(),
++                        "pool_bytes": alias._storage_ctx.buffers[dtype].numel(),
++                    }
++                    for dtype, size in (
++                        (dtype, tensor.numel())
++                        for dtype, tensor in alias.buffers.items()
++                    )
++                }
++
++            logger.info(
++                "GFSDP buffer region transition active: source=%s data_target=%s "
++                "grad_target=%s data=%s grad=%s",
++                source_group._module_fqn,
++                data_target_group._module_fqn,
++                grad_target_group._module_fqn,
++                alias_summary(data_alias, source_data_ctx, data_offsets),
++                alias_summary(grad_alias, source_grad_ctx, grad_offsets),
++            )
++
+     def validate_shared_state(self) -> None:
+         data_buffer_ctx2ctx_using_param_groups: dict[
+             GFSDPBufferContext, list[GFSDPParamGroup]
+@@ -534,6 +726,45 @@ class GFSDPState(_State):
+                     " is allowed to have no grad reduce"
+                     f", but got {param_groups_with_no_reduce_grads=}"
+                 )
++        if (transition := self._state_ctx.buffer_region_transition_groups) is not None:
++            source, target = transition
++            _validate_region_retention(
++                source.data_buffer_ctx,
++                data_buffer_ctx2ctx_using_param_groups,
++                lambda group: not group.reshard_after_forward,
++                "data buffer",
++                "no reshard after forward",
++            )
++            _validate_region_retention(
++                source.data_buffer_ctx,
++                data_buffer_ctx2ctx_using_param_groups,
++                lambda group: not group.reshard_after_backward,
++                "data buffer",
++                "no reshard after backward",
++            )
++            if source.grad_buffer_ctx is not None:
++                _validate_region_retention(
++                    source.grad_buffer_ctx,
++                    grad_buffer_ctx2ctx_using_param_groups,
++                    lambda group: not group.reduce_grads,
++                    "grad buffer",
++                    "no grad reduce",
++                )
++            if not source.reshard_after_backward:
++                raise ValueError(
++                    "MTP transition source must reshard after backward to "
++                    "release its data region"
++                )
++            if not target.reshard_after_forward:
++                raise ValueError(
++                    "MTP transition data target must reshard after forward "
++                    "to release the shared region"
++                )
++            if not target.reshard_after_backward:
++                raise ValueError(
++                    "MTP transition data target must reshard after backward "
++                    "to release the region for the next microbatch"
++                )
+         data_buffer_ctx2module_prefix: dict[GFSDPBufferContext, str] = {}
+         grad_buffer_ctx2module_prefix: dict[GFSDPBufferContext, str] = {}
+         state2modules_to_run_forward: dict[GFSDPState, set[nn.Module]] = {}
+diff --git a/gift/torchtitan/distributed/gfsdp/fully_shard.py b/gift/torchtitan/distributed/gfsdp/fully_shard.py
+index 285b31683..e2ac5d560 100644
+--- a/gift/torchtitan/distributed/gfsdp/fully_shard.py
++++ b/gift/torchtitan/distributed/gfsdp/fully_shard.py
+@@ -366,6 +366,40 @@ class GFSDPModule(FSDPModule):
+             )
+         state._buffer_region_child = child_state
+ 
++    def set_buffer_region_transition(
++        self,
++        *,
++        source: "GFSDPModule",
++        data_target: "GFSDPModule",
++        grad_target: "GFSDPModule",
++    ) -> None:
++        """Reuse a source unit's existing buffer regions for later target units.
++
++        The root resolves matching parameter groups and creates bounded aliases
++        during lazy initialization, after the original slots have been dealt.
++        This must be configured before the first forward.
++        """
++        modules = [source, data_target, grad_target]
++        _assert_all_fsdp_modules(modules)
++        state = self._get_fsdp_state()
++        if state._is_root is not None:
++            raise RuntimeError(
++                "set_buffer_region_transition must be called before the first "
++                "forward: the buffers it reuses are bound during lazy init"
++            )
++        if state._buffer_region_transition is not None:
++            raise ValueError("A buffer region transition is already configured")
++        available_modules = set(cast("nn.Module", self).modules())
++        if any(module not in available_modules for module in modules):
++            raise ValueError(
++                "Buffer region transition modules must belong to the root module"
++            )
++        if len(set(modules)) != len(modules):
++            raise ValueError("Buffer region transition modules must be distinct")
++        state._buffer_region_transition = tuple(
++            module._get_fsdp_state() for module in modules
++        )
++
+     def set_shard_order(self, modules: "list[GFSDPModule]") -> None:
+         """Declare the order forward enters these units, for buffer dealing.
+ 
+diff --git a/gift/torchtitan/distributed/gfsdp/row_owner_embedding.py b/gift/torchtitan/distributed/gfsdp/row_owner_embedding.py
+index 395cdd3d8..29165e18b 100644
+--- a/gift/torchtitan/distributed/gfsdp/row_owner_embedding.py
++++ b/gift/torchtitan/distributed/gfsdp/row_owner_embedding.py
+@@ -100,6 +100,7 @@ class RowOwnerEmbedding(Module):
+         result.num_embeddings = vocab
+         result.embedding_dim = width
+         result.mesh_info = info
++        result._route_process_group = info.shard_process_group
+         result.rows_per_owner = vocab // info.shard_mesh_size
+         result.row_start = result.rows_per_owner * info.shard_mesh_rank
+         result._comm_ctx = None
+@@ -130,6 +131,31 @@ class RowOwnerEmbedding(Module):
+         result.train(embedding.training)
+         return result
+ 
++    def enable_dedicated_nccl_process_group(self, max_ctas: int) -> None:
++        """Create a separate, rank-identical communicator for the row protocol."""
++        dense_group = self.mesh_info.shard_process_group
++        if self._route_process_group is not dense_group:
++            raise RuntimeError("row-owner already has a dedicated process group")
++        ranks = dist.get_process_group_ranks(dense_group)
++        if ranks != list(range(dist.get_world_size())):
++            raise ValueError("dedicated row-owner routing requires the ordered world mesh")
++        if self.mesh_info.mesh.device_type != "cuda" or dist.group.WORLD.bound_device_id is not None:
++            raise ValueError("dedicated row-owner routing requires a lazily initialized CUDA default group")
++
++        options = dist.ProcessGroupNCCL.Options()
++        options.config.max_ctas = max_ctas
++        route_group = dist.new_group(
++            ranks=ranks,
++            backend="nccl",
++            pg_options=options,
++            sort_ranks=False,
++            group_desc="row_owner_embedding",
++        )
++        if route_group is dense_group or route_group.rank() != self.mesh_info.shard_mesh_rank:
++            raise RuntimeError("dedicated row-owner routing changed the shard rank mapping")
++        self._route_process_group = route_group
++        logger.info("row_owner_embedding dedicated NCCL communicator active max_ctas=%d", max_ctas)
++
+     def reset_parameters(self) -> None:
+         # Configurable embedding initialization normally uses _param_init.
+         nn.init.normal_(self.weight)
+@@ -198,6 +224,8 @@ class RowOwnerEmbedding(Module):
+                 "attach the initialized GFSDP root communication context before lookup"
+             )
+         current = torch.cuda.current_stream(self.weight.device)
++        # Synchronous c10d calls join this same origin stream for both
++        # communicators, preserving the order with dense GFSDP collectives.
+         stream = self._comm_ctx.all_gather_stream
+         stream.wait_event(current.record_event())
+         for tensor in inputs:
+@@ -278,7 +306,7 @@ class RowOwnerEmbedding(Module):
+         with self._stage("counts"):
+             matrix = metadata.new_empty(world * (world + 1))
+             dist.all_gather_into_tensor(
+-                matrix, metadata, group=self.mesh_info.shard_process_group
++                matrix, metadata, group=self._route_process_group
+             )
+             # One explicit host read supplies splits and coordinated validity.
+             host = matrix.view(world, world + 1).cpu()
+@@ -295,7 +323,7 @@ class RowOwnerEmbedding(Module):
+                 unique,
+                 list(receive),
+                 list(send),
+-                group=self.mesh_info.shard_process_group,
++                group=self._route_process_group,
+             )
+         return unique, inverse, requested, send, receive
+ 
+@@ -369,7 +397,7 @@ class _OwnerLookup(torch.autograd.Function):
+                         values,
+                         list(send),
+                         list(receive),
+-                        group=owner.mesh_info.shard_process_group,
++                        group=owner._route_process_group,
+                     )
+                 with owner._stage("reconstruct"):
+                     output = returned.index_select(0, inverse).view(*ids.shape, width)
+@@ -424,7 +452,7 @@ class _OwnerLookup(torch.autograd.Function):
+                         coalesced,
+                         list(receive),
+                         list(send),
+-                        group=owner.mesh_info.shard_process_group,
++                        group=owner._route_process_group,
+                     )
+                 with owner._stage("owner_reduction"):
+                     offset = 0
+diff --git a/gift/torchtitan/models/gift_moe/_base/parallelize.py b/gift/torchtitan/models/gift_moe/_base/parallelize.py
+index ef4ef3d94..3d396fc40 100644
+--- a/gift/torchtitan/models/gift_moe/_base/parallelize.py
++++ b/gift/torchtitan/models/gift_moe/_base/parallelize.py
+@@ -69,6 +69,35 @@ def _validate_row_owner_request(
+         raise ValueError("gfsdp_row_owner_embeddings requires tok_embeddings")
+ 
+ 
++def _validate_mtp_transition_request(
++    model: GiftMoEModel,
++    *,
++    parallel_dims: ParallelDims,
++    parallelism: ParallelismConfig,
++) -> None:
++    if not parallelism.gfsdp_mtp_transition_prefetch:
++        return
++    if parallelism.fsdp_backend != "gfsdp2":
++        raise ValueError("gfsdp_mtp_transition_prefetch requires fsdp_backend='gfsdp2'")
++    if not parallelism.gfsdp_split_mtp_ffn:
++        raise ValueError("gfsdp_mtp_transition_prefetch requires gfsdp_split_mtp_ffn")
++    if parallel_dims.pp != 1:
++        raise ValueError("gfsdp_mtp_transition_prefetch currently requires PP1")
++    mtp = getattr(model, "mtp", None)
++    if mtp is None or "0" not in mtp.layers:
++        raise ValueError("gfsdp_mtp_transition_prefetch requires mtp.layers.0")
++    if len(mtp.layers) != 1:
++        raise ValueError(
++            "gfsdp_mtp_transition_prefetch currently requires exactly one MTP layer"
++        )
++    if not model.layers:
++        raise ValueError("gfsdp_mtp_transition_prefetch requires a trunk layer")
++    if model.norm is None or model.lm_head is None:
++        raise ValueError(
++            "gfsdp_mtp_transition_prefetch requires model.norm and model.lm_head"
++        )
++
++
+ def parallelize_gift_moe(
+     model: GiftMoEModel,
+     *,
+@@ -93,6 +122,11 @@ def parallelize_gift_moe(
+         training=training,
+         parallelism=parallelism,
+     )
++    _validate_mtp_transition_request(
++        model,
++        parallel_dims=parallel_dims,
++        parallelism=parallelism,
++    )
+ 
+     # CP: wrap inner attention forward BEFORE parallelize() so CP logic
+     # runs inside the local_map boundary on local tensors.
+@@ -175,6 +209,7 @@ def parallelize_gift_moe(
+                 parallelism.gfsdp_reuse_bf16_expert_weights
+             ),
+             row_owner_embeddings=parallelism.gfsdp_row_owner_embeddings,
++            mtp_transition_prefetch=parallelism.gfsdp_mtp_transition_prefetch,
+             **fsdp_kwargs,
+         )
+     elif parallelism.fsdp_backend == "fsdp2":
+@@ -210,6 +245,7 @@ def apply_gfsdp(
+     enable_symm_mem: bool = False,
+     reuse_bf16_expert_weights: bool = False,
+     row_owner_embeddings: bool = False,
++    mtp_transition_prefetch: bool = False,
+ ):
+     """
+     Apply data parallelism (via GFSDP2) to the model.
+@@ -222,6 +258,27 @@ def apply_gfsdp(
+     if enable_symm_mem:
+         raise ValueError("GFSDP does not support FSDP symmetric memory yet")
+ 
++    mtp = getattr(model, "mtp", None)
++    if mtp_transition_prefetch:
++        if pp_enabled:
++            raise ValueError("MTP transition prefetch currently requires PP1")
++        if mtp is None or "0" not in mtp.layers:
++            raise ValueError("MTP transition prefetch requires mtp.layers.0")
++        if len(mtp.layers) != 1:
++            raise ValueError(
++                "MTP transition prefetch currently requires exactly one MTP layer"
++            )
++        if getattr(mtp.layers["0"], "_ffn_overlap_regions", None) is None:
++            raise ValueError(
++                "MTP transition prefetch requires a split mtp.layers.0 FFN"
++            )
++        if not model.layers:
++            raise ValueError("MTP transition prefetch requires a trunk layer")
++        if model.norm is None or model.lm_head is None:
++            raise ValueError(
++                "MTP transition prefetch requires model.norm and model.lm_head"
++            )
++
+     row_owner = None
+     if row_owner_embeddings:
+         if dp_mesh.ndim != 1:
+@@ -240,6 +297,7 @@ def apply_gfsdp(
+         )
+ 
+         row_owner = RowOwnerEmbedding.from_embedding(model.tok_embeddings, dp_mesh)
++        row_owner.enable_dedicated_nccl_process_group(8)
+         model.tok_embeddings = row_owner
+ 
+     mp_policy = GMixedPrecisionPolicy(
+@@ -337,7 +395,6 @@ def apply_gfsdp(
+             reshard_after_forward=reshard_after_forward,
+         )
+ 
+-    mtp = getattr(model, "mtp", None)
+     if mtp is not None:
+         for name, mtp_layer in mtp.layers.items():
+             shard_block_unit(mtp_layer, mtp_layer.block, f"mtp.layers.{name}")
+@@ -394,11 +451,20 @@ def apply_gfsdp(
+     # forward can share one and zero-3 dies on step 1.
+     root.set_shard_order(chain)
+ 
++    if mtp_transition_prefetch:
++        assert mtp is not None
++        last_trunk_layer = model.layers[list(model.layers.keys())[-1]]
++        root.set_buffer_region_transition(
++            source=mtp.layers["0"].block.feed_forward,
++            data_target=last_trunk_layer,
++            grad_target=norm,
++        )
++
+     if row_owner is not None:
+         row_owner.attach_comm_context(root)
+ 
+     # D2H syncs in the expert path interfere with the implicit prefetch.
+-    if ep_degree == 1:
++    if ep_degree == 1 and not mtp_transition_prefetch:
+         return
+ 
+     # An explicit list REPLACES the implicit prefetch, so a unit missing from the
+@@ -406,8 +472,10 @@ def apply_gfsdp(
+     def _link(source: GFSDPModule, target: GFSDPModule, pass_type: str) -> None:
+         getattr(source, f"set_modules_to_{pass_type}_prefetch")([target])
+ 
+-    for source, target in zip(chain, chain[1:]):
+-        _link(source, target, "forward")
++    # EP1 uses implicit forward prefetch, including inference that skips MTP.
++    if ep_degree > 1:
++        for source, target in zip(chain, chain[1:]):
++            _link(source, target, "forward")
+ 
+     # A nested parent enters backward on the suffix gradient, before its FFN.
+     # Reverse top-level units, retaining parent-before-child within each one.
+@@ -416,3 +484,8 @@ def apply_gfsdp(
+     ]
+     for source, target in zip(reverse, reverse[1:]):
+         _link(source, target, "backward")
++
++    if mtp_transition_prefetch:
++        assert head is not None and mtp is not None
++        mtp_layer = mtp.layers["0"]
++        head.set_modules_to_backward_prefetch([mtp_layer, mtp_layer.block.feed_forward])

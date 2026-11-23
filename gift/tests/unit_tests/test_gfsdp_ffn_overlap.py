@@ -8,7 +8,9 @@ all-eight-rank schedule still require the native crop diagnostic.
 import shutil
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
+import pytest
 import torch
 import torch.distributed as dist
 import torch.distributed.checkpoint as dcp
@@ -24,8 +26,13 @@ from torchtitan.distributed.activation_checkpoint import apply_ac
 from torchtitan.distributed.compile import apply_compile
 from torchtitan.distributed.ffn_overlap import enable_ffn_overlap
 from torchtitan.distributed.gfsdp._dcp import GFSDPCheckpointAdapter
-from torchtitan.distributed.gfsdp._param_group import GFSDPBufferContext
+from torchtitan.distributed.gfsdp._param_group import (
+    GFSDPBufferContext,
+    GFSDPParamGroup,
+)
+from torchtitan.distributed.gfsdp._state import _alias_buffer_region
 from torchtitan.models.gift_moe._base.parallelize import apply_gfsdp
+from torchtitan.models.common.ffn import FeedForward
 from tests.unit_tests.test_mtp import _make_tiny_decoder
 
 
@@ -161,12 +168,16 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
         ctx = GFSDPBufferContext(GFSDPBufferContext.BufferType.REDUCE_SCATTER)
         ctx.lazy_init({None: 262144}, torch.device("cuda", self.rank))
         regions = [ctx.region({None: 131072}, {None: offset}) for offset in (0, 131072)]
+        readers = [
+            _alias_buffer_region(regions[0], {None: 65536}),
+            regions[1],
+        ]
         streams = [torch.cuda.Stream(), torch.cuda.Stream()]
         snapshots = []
-        for region in regions:
+        for region in readers:
             region.buffers[None].view(torch.float32).fill_(self.rank + 1)
         torch.cuda.synchronize()
-        for region, stream in zip(regions, streams):
+        for region, stream in zip(readers, streams):
             with torch.cuda.stream(stream):
                 # Keep actual collective readers pending while the whole-slot
                 # writer is submitted on the default stream.
@@ -183,10 +194,161 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
                 snapshot, torch.full_like(snapshot, 3), rtol=0, atol=0
             )
 
-    def _build(self, split):
+    @with_comms
+    @torch.no_grad()
+    def test_mtp_transition_aliases_bounded_existing_regions(self):
+        control, _ = self._build(split=True, transition_fixture=True)
+        candidate, _ = self._build(split=True, transition=True, transition_fixture=True)
+        assert _buffer_budget(candidate) == _buffer_budget(control)
+
+        root = candidate._get_fsdp_state()
+        mtp_ffn = candidate.mtp.layers["0"].block.feed_forward
+        source_group = mtp_ffn._get_fsdp_state()._fsdp_param_groups[0]
+        source_pg = source_group.mesh_info.shard_process_group
+        last_layer = candidate.layers[list(candidate.layers.keys())[-1]]
+        data_target_groups = [
+            group
+            for group in last_layer._get_fsdp_state()._fsdp_param_groups
+            if group.mesh_info.shard_process_group is source_pg
+        ]
+        norm_groups = [
+            group
+            for group in candidate.norm._get_fsdp_state()._fsdp_param_groups
+            if group.mesh_info.shard_process_group is source_pg
+        ]
+        assert len(data_target_groups) == len(norm_groups) == 1
+        data_target = data_target_groups[0]
+        grad_target = norm_groups[0]
+        assert source_group._post_backward_prefetch_target is data_target
+
+        for target_group, source_ctx, attr, itemsize in (
+            (
+                data_target,
+                source_group.data_buffer_ctx,
+                "data_buffer_ctx",
+                lambda dtype, group: (
+                    (dtype or group.param_dtype or group.orig_dtype).itemsize
+                ),
+            ),
+            (
+                grad_target,
+                source_group.grad_buffer_ctx,
+                "grad_buffer_ctx",
+                lambda _dtype, group: (
+                    (
+                        group.reduce_dtype or group.param_dtype or group.orig_dtype
+                    ).itemsize
+                ),
+            ),
+        ):
+            target_ctx = getattr(target_group, attr)
+            assert source_ctx is not None
+            assert target_ctx._storage_ctx is source_ctx._storage_ctx
+            assert source_ctx.overlaps(target_ctx)
+            for dtype, target_view in target_ctx.buffers.items():
+                source_start, source_end = source_ctx._ranges[dtype]
+                target_start, target_end = target_ctx._ranges[dtype]
+                alignment = (
+                    target_group.mesh_info.shard_mesh_size
+                    * target_group._shard_alignment
+                    * itemsize(dtype, target_group)
+                )
+                assert source_start <= target_start < target_end <= source_end
+                assert target_view.storage_offset() == target_start
+                assert target_start % alignment == 0
+                assert (target_end - target_start) % alignment == 0
+                assert (
+                    target_view.untyped_storage().data_ptr()
+                    == source_ctx.buffers[dtype].untyped_storage().data_ptr()
+                )
+                assert (
+                    target_view.untyped_storage().nbytes()
+                    == source_ctx._storage_ctx.buffers[dtype].numel()
+                )
+
+        with pytest.raises(RuntimeError, match="before the first forward"):
+            candidate.set_buffer_region_transition(
+                source=mtp_ffn,
+                data_target=last_layer,
+                grad_target=candidate.norm,
+            )
+
+        original_source_forward = source_group.post_forward_mesh_info
+        original_target_forward = data_target.post_forward_mesh_info
+        source_group.post_forward_mesh_info = None
+        data_target.post_forward_mesh_info = None
+        with pytest.raises(ValueError, match="share a data buffer"):
+            root.validate_shared_state()
+        source_group.post_forward_mesh_info = original_source_forward
+        data_target.post_forward_mesh_info = original_target_forward
+
+        source_group.reshard_after_backward = False
+        with pytest.raises(ValueError, match="source must reshard after backward"):
+            root.validate_shared_state()
+        source_group.reshard_after_backward = True
+
+        # Isolate the target-specific guard from the generic overlap check if
+        # the FFN is configured to retain its forward data region.
+        source_group.post_forward_mesh_info = original_target_forward
+        data_target.post_forward_mesh_info = None
+        with pytest.raises(ValueError, match="target must reshard after forward"):
+            root.validate_shared_state()
+        data_target.post_forward_mesh_info = original_target_forward
+        source_group.post_forward_mesh_info = original_source_forward
+        data_target.reshard_after_backward = False
+        with pytest.raises(ValueError, match="target must reshard after backward"):
+            root.validate_shared_state()
+        data_target.reshard_after_backward = True
+
+        source_group.reduce_grads = False
+        root.validate_shared_state()
+        grad_target.reduce_grads = False
+        with pytest.raises(ValueError, match="no grad reduce"):
+            root.validate_shared_state()
+        source_group.reduce_grads = True
+        grad_target.reduce_grads = True
+
+    @with_comms
+    @torch.no_grad()
+    def test_parent_child_prefetch_does_not_duplicate_all_gather(self):
+        import torchtitan.distributed.gfsdp._param_group as param_group_module
+
+        model, _ = self._build(split=True)
+        parent = model.mtp.layers["0"]
+        ffn = parent.block.feed_forward
+        parent_group = parent._get_fsdp_state()._fsdp_param_groups[0]
+        ffn_group = ffn._get_fsdp_state()._fsdp_param_groups[0]
+        original_all_gather = param_group_module.all_gather
+        calls = []
+
+        def count_all_gather(group, *args, **kwargs):
+            calls.append(group)
+            return original_all_gather(group, *args, **kwargs)
+
+        with patch.object(param_group_module, "all_gather", count_all_gather):
+            # The parent prefetch and the later generic child prefetch may
+            # request the FFN more than once without enqueuing another gather.
+            GFSDPParamGroup._prefetch_unshard(parent_group, "backward")
+            GFSDPParamGroup._prefetch_unshard(ffn_group, "backward")
+            GFSDPParamGroup._prefetch_unshard(ffn_group, "backward")
+            parent_group.wait_for_unshard()
+            ffn_group.wait_for_unshard()
+
+        assert calls.count(parent_group) == len(
+            parent_group._all_gather_dtype_to_fsdp_params
+        )
+        assert calls.count(ffn_group) == len(ffn_group._all_gather_dtype_to_fsdp_params)
+
+    def _build(self, split, transition=False, transition_fixture=False):
         torch._dynamo.reset()
         torch.manual_seed(2048)
         model = _make_tiny_decoder(1, n_layers=2).to(self.device_type)
+        if transition_fixture:
+            mtp_ffn = model.mtp.layers["0"].block.feed_forward
+            model.mtp.layers["0"].block.feed_forward = FeedForward.Config(
+                dim=mtp_ffn.w1.in_features,
+                hidden_dim=256,
+            ).build()
         model.init_weights(buffer_device=torch.device(self.device_type))
         if split:
             enable_ffn_overlap(model.layers["0"])
@@ -208,6 +370,7 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
             param_dtype=torch.bfloat16,
             reduce_dtype=torch.float32,
             pp_enabled=False,
+            mtp_transition_prefetch=transition,
         )
         model.train()
         model.lazy_init()
@@ -282,7 +445,7 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
 
     @with_comms
     def test_baseline_checkpoint_loads_split_layout_and_continues(self):
-        baseline, baseline_optimizer = self._build(False)
+        baseline, baseline_optimizer = self._build(False, transition_fixture=True)
         self._update(baseline, baseline_optimizer)
         original_parameters = _full_parameters(baseline)
         original_optimizer = _full_optimizer(baseline_optimizer)
@@ -309,7 +472,9 @@ class TestGFSDPFFNOverlap(DTensorTestBase):
                 },
                 checkpoint_id=checkpoint_path,
             )
-            candidate, candidate_optimizer = self._build(True)
+            candidate, candidate_optimizer = self._build(
+                True, transition=True, transition_fixture=True
+            )
             assert _buffer_budget(candidate) == _buffer_budget(baseline)
             for unit in (candidate.layers["0"], candidate.mtp.layers["0"]):
                 block = getattr(unit, "block", unit)
