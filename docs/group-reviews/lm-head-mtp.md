@@ -1,6 +1,6 @@
 # LM-head and MTP loss group review
 
-Updated 22 November 2026. The current production recipe enables the five
+Updated 26 November 2026. The current production recipe enables the five
 changes described below. The final fused CE acceptance is recorded separately
 in this review. The historical measurements used an eight-layer crop on eight
 H100s with local B2/S4096, hidden width 4096, vocabulary 128256, MTP1 and two
@@ -14,6 +14,91 @@ in two GEMMs, `dHidden = dLogits @ weight` and
 `dHidden` goes back to the decoder and MTP branches in disjoint sequence
 slices. Every chunk contributes to the same `dW` matrix, so GFSDP sums those
 contributions before reduction. [Chunked loss and decoder bridge](../../gift/torchtitan/components/loss.py#L675)
+
+## Six-rank sequence-length grid, 26 November
+
+The full isolated head ran on physical GPUs 0–5 of `sr008-gpu1`, with local
+batch 1 and main plus MTP1. Each comparison kept sequence length and chunk
+count fixed. The timed head includes BF16 weight all-gather and FP32 gradient
+reduce-scatter. The candidate uses the final shape-specific CE and GEMM plans,
+including the corrected ATen projection route for 100B C8 at 128k. Each
+configuration ran twice per variant in opposite orders, with 10 warmups and
+10 timed calls per process. Times are the median of the two run medians, using
+the slowest of six ranks per call. Peak memory is the maximum per-GPU GIFT
+total across both runs and all timed calls; GIFT adds peak PyTorch reserved
+memory to current non-PyTorch usage. Throughput gain is
+`100 × (baseline time / candidate time − 1)`. OOMs occurred in both runs at
+the initial head call before warmup. There were 76 successful runs and eight
+CUDA OOMs.
+
+### 100B · C2
+
+| Sequence | Baseline A + compile, ms / GiB | Our CE + cuBLASLt, ms / GiB | Throughput gain | Peak memory change |
+|---:|---:|---:|---:|---:|
+| 4k | 51.31 / 8.819 | 46.00 / 6.651 | +11.6% | -24.6% (-2.168 GiB) |
+| 8k | 91.89 / 12.140 | 82.90 / 7.901 | +10.8% | -34.9% (-4.238 GiB) |
+| 16k | 175.02 / 18.800 | 162.73 / 10.343 | +7.6% | -45.0% (-8.457 GiB) |
+| 32k | 342.41 / 32.688 | 319.59 / 15.247 | +7.1% | -53.4% (-17.441 GiB) |
+| 64k | 694.30 / 59.917 | 634.41 / 25.093 | +9.4% | -58.1% (-34.824 GiB) |
+| 128k | OOM | 1223.43 / 44.763 | — | — |
+| 256k | OOM | OOM | — | — |
+
+### 100B · C8
+
+| Sequence | Baseline A + compile, ms / GiB | Our CE + cuBLASLt, ms / GiB | Throughput gain | Peak memory change |
+|---:|---:|---:|---:|---:|
+| 4k | 64.69 / 7.667 | 50.87 / 6.026 | +27.2% | -21.4% (-1.641 GiB) |
+| 8k | 104.61 / 8.702 | 86.57 / 6.358 | +20.8% | -26.9% (-2.344 GiB) |
+| 16k | 185.85 / 10.030 | 163.08 / 7.354 | +14.0% | -26.7% (-2.676 GiB) |
+| 32k | 350.94 / 15.071 | 309.50 / 9.212 | +13.4% | -38.9% (-5.859 GiB) |
+| 64k | 682.08 / 24.682 | 623.40 / 12.983 | +9.4% | -47.4% (-11.699 GiB) |
+| 128k | 1345.24 / 45.854 | 1251.16 / 20.542 | +7.5% | -55.2% (-25.312 GiB) |
+| 256k | 2751.71 / 78.474 | 2497.93 / 35.622 | +10.2% | -54.6% (-42.852 GiB) |
+
+### 700B · C8
+
+| Sequence | Baseline A + compile, ms / GiB | Our CE + cuBLASLt, ms / GiB | Throughput gain | Peak memory change |
+|---:|---:|---:|---:|---:|
+| 4k | 112.03 / 11.378 | 89.25 / 8.839 | +25.5% | -22.3% (-2.539 GiB) |
+| 8k | 185.38 / 12.804 | 151.99 / 9.425 | +22.0% | -26.4% (-3.379 GiB) |
+| 16k | 319.43 / 15.128 | 277.65 / 10.616 | +15.0% | -29.8% (-4.512 GiB) |
+| 32k | 593.11 / 20.325 | 537.00 / 12.923 | +10.4% | -36.4% (-7.402 GiB) |
+| 64k | 1150.16 / 28.784 | 1074.06 / 17.671 | +7.1% | -38.6% (-11.113 GiB) |
+| 128k | 2284.18 / 49.272 | 2123.82 / 27.065 | +7.6% | -45.1% (-22.207 GiB) |
+| 256k | OOM | 4190.98 / 45.835 | — | — |
+
+All 4,560 measured rank calls had thermal counter samples bracketing each
+call. No thermal counter increased, and no thermal slowdown or power-brake
+flag was sampled. Peak core and HBM temperatures were 79 °C and 78 °C. The
+software power cap was active in 16,368 of 16,415 in-call GPU samples. Physical
+GPUs 6 and 7 had zero sampled utilization; this six-rank experiment does not
+establish the cause of the earlier eight-rank timing anomaly.
+[Full six-rank report](../../runs/head-frontier-nov/shape-matrix/length-grid/final-grid/gpu1-six-matrix/report.md) ·
+[Per-rank measurements and launch summaries](../../runs/head-frontier-nov/shape-matrix/length-grid/final-grid/gpu1-six-matrix/replay/summary.json) ·
+[Thermal evidence](../../runs/head-frontier-nov/shape-matrix/length-grid/final-grid/gpu1-six-matrix/thermal/verdicts.json) ·
+[Telemetry methodology](../../runs/head-frontier-nov/shape-matrix/length-grid/final-grid/gpu1-six-matrix/thermal/README.md)
+
+## Generalized CE and cuBLASLt comparison, 25 November
+
+The isolated study adds 700B (GIFT 3.5) at C8 to the 100B C2/C8 comparisons.
+The experimental kernel takes the runtime head count, row count and vocabulary.
+The direct FP32 writer selects its cuBLASLt plan from operand dimensions and
+alignment. The tables report elapsed milliseconds and GIFT total GiB per GPU
+for both the standalone CE and the eight-rank head, with FP64 comparisons on
+the same fixtures. The production acceptance below still refers to the November
+21 code. [Shapes, results and precision checks](../../runs/head-frontier-nov/shape-matrix/report.md)
+
+### Tuned CUDA CE and cuBLASLt versus Baseline A + compile
+
+The timer covers one full LM-head microbatch on eight H100s, including the weight all-gather, all loss chunks, backward and the gradient reduce-scatter. Each row compares the same model shape and loss chunk count. Baseline A uses the median from the earlier compiled baseline run. The tuned result is the mean of two independent run medians, each measured over 20 microbatches after 10 warmups. [Baseline measurements](../../runs/head-frontier-nov/shape-matrix/report.md#whole-head-eight-h100s) · [Tuned runs and timing method](../../runs/head-frontier-nov/shape-matrix/tuning/report.md#eight-rank-head-results)
+
+| Preset | Baseline A + compile, ms | Tuned CUDA CE + cuBLASLt, ms | Time reduction | Head throughput gain | Peak GIFT total per GPU, baseline → tuned (GiB) |
+|---|---:|---:|---:|---:|---:|
+| 100B C2 | 91.60 | 83.57 | 8.8% | 9.6% | 11.946 → 7.727 |
+| 100B C8 | 104.54 | 87.08 | 16.7% | 20.1% | 8.548 → 6.165 |
+| 700B C8 | 252.27 | 216.60 | 14.1% | 16.5% | 13.157 → 9.661 |
+
+Head throughput gain is `baseline time / tuned time − 1` for the same token count. These percentages apply to the isolated head. On 700B C8, the full package saved 35.67 ms and 3.496 GiB per GPU versus Baseline A. The latest tuning alone saved 8.33 ms versus the previous `cuda-13` + cuBLASLt head in the paired runs, with both peaking at 9.661 GiB per GPU. [Paired run receipts](../../runs/head-frontier-nov/shape-matrix/tuning/head-summary.json)
 
 ## Final fused CE acceptance
 
@@ -77,30 +162,111 @@ FLA applies the row scale in its CE backward kernel before storing BF16.
 `dLogits`. These are isolated CE timings.
 [Production-scale measurements and kernel profiles](../../runs/head-frontier-nov/fused-ce/raw/ce-vendors-weighted-c2.json)
 
-### Open follow-up for configurable MTP depth
+### Open code review for the integrated LM head
 
-The accepted `cuda-13` path supports the main head plus one MTP head. The
-Python wrapper requires `num_heads == 2` and reduces `losses.chunk(2)`.
-The CUDA launcher passes `rows / 2` as the head size, and the kernel selects
-one of two scales with `row >= rows_per_head`.
-[PyTorch wrapper](../../runs/head-frontier-nov/train-ep8/final_child.py#L124) ·
+The source review below covers `final-all-fix@3783bf33e`, where the final CE
+(`cuda-13`) has a native loss wrapper. The standalone acceptance above used
+the benchmark hook. The integrated results cover EP8/eFSDP1 and EP4/eFSDP2
+at C2 and C8, all with dense FSDP8. The standalone EP8 acceptance also covers
+C32. [Combined results](all-fixes.md#1010-results) ·
+[Integrated run and trace evidence](../../runs/final-all-fix/artifact-index.json)
+
+#### Standardize cuBLASLt plan selection
+
+`_staged_head_dw_writer.py` selects serialized descriptors by chunk count and
+requires cuBLASLt 13.1.1. The labels are candidate indices from the tuner,
+ordered by the first (`beta=0`) and subsequent (`beta=1`) writes. Both pairs
+use cuBLASLt algorithm 66. C2 uses row-major descriptors with tiles 24 and
+495. C8 and C32 use equivalent column-major descriptors with tile 29 for
+both writes. All selected plans request four bytes of workspace and use
+split-K 1. The selected writer also requires 256-byte-aligned operands and
+reuses its descriptors and workspace on the original stream. See
+`lm-head-mtp-fix@1d3bc5ca9`, `runs/lm-head-mtp/frontier-dw/tune-{2,8}.json`.
+In the separate Lt versus GemmEx replay on that branch, the C2 wall-time
+difference was within control spread. C8 improved by 3.21% at equal peak
+total memory. See `runs/lm-head-mtp/frontier-dw/report.md` at the same revision.
+
+Use one FP32 `dW` writer with a per-device plan cache keyed by actual GEMM
+dimensions, strides and layout, dtype and compute type, pointer alignment,
+and beta mode. Target the validated H100 Docker image and its cuBLASLt build.
+Establish a bounded workspace budget. Query
+`cublasLtMatmulAlgoGetHeuristic` at setup or on the first use of a descriptor
+and validate the candidate and actual alignment. Keep the current plans as
+measured regression controls. If no compatible Lt plan fits the budget,
+test the existing `cublasGemmEx` writer with BF16 inputs, FP32 compute and
+the same FP32 destination. Select that path before the first write. Compare
+the entire `dW` chain at fixed chunk counts before switching the default.
+[NVIDIA heuristics cache](https://docs.nvidia.com/cuda/archive/13.1.1/cublas/index.html#heuristics-cache) ·
+[NVIDIA descriptor validation](https://docs.nvidia.com/cuda/archive/13.1.1/cublas/index.html#cublasltmatmulalgocheck)
+
+#### Required support for chunk counts, MTP depth and model dimensions
+
+The final CE and `dW` writer must work with C4, C16 and the effective chunk
+count on monitoring steps, including switching back on the following ordinary
+step. The trainer already changes and restores `loss_fn.num_chunks` for this.
+Derive each call's dimensions from the actual chunk and support a shorter
+last chunk. Keep batch, sequence length, hidden width and vocabulary out of
+the preset guards. CUDA needs real row strides and safe vector tails and
+vocabulary tiling within shared-memory limits. GEMM planning and the FP32
+slot dimensions follow the actual operands.
+
+Use the runtime MTP head count and validated loss weights, with MTP10 as a
+validation case. The regular `MTPLoss` already folds a runtime count. The
+current CUDA path returns two FP32 sums, passes `rows / 2` to CUDA and selects
+between two scales. The `dW` selector separately fixes 16,384 folded rows.
+Pass `rows_per_head` to CUDA, index `scales[row / rows_per_head]` and return
+one FP32 sum per head. Preserve per-head weights, the shared main-token
+denominator, label shifts, `-100` masks, BF16 `logits` reuse and `dHidden`
+slice assembly. At C8 with B2/S4096, MTP1
+to MTP3 raises the folded row count from 2,048 to 4,096 and doubles the
+logits buffer from 501 to 1,002 MiB. The shared `dW` shape stays `[V,D]`.
+[Acceptance wrapper](../../runs/head-frontier-nov/train-ep8/final_child.py#L124) ·
 [CUDA launcher](../../runs/head-frontier-nov/fused-ce/centered.cu#L208) ·
 [Kernel scale selection](../../runs/head-frontier-nov/fused-ce/exact.cuh#L164)
 
-Generalize the path to the configured number of MTP heads for valid folded
-shapes that fit the workload's memory budget. Use `num_heads = 1 + num_mtp`
-throughout the wrapper and launcher, derive `rows_per_head` from the folded
-shape, and select the gradient scale with `scales[row / rows_per_head]`
-using integer division in CUDA. Return one FP32 loss sum per head and keep
-the existing per-head weights, shared valid-token denominator, ignored rows,
-and in-place BF16 `logits` to `dLogits` write. Use the same path for every
-supported head count.
+The combined recipe also enables `gfsdp_mtp_transition_prefetch`. Its
+separate startup guard requires one MTP layer and its buffer transition is
+defined for `mtp.layers.0`. This is an integration gate for multi-head runs
+with the combined preset. See `models/gift_moe/_base/parallelize.py`,
+`_validate_mtp_transition_request` and `set_buffer_region_transition`.
 
-Verify the compiled path for MTP1, MTP2, MTP3 and a larger practical count.
-Compare per-head loss sums, folded `dLogits` and `dHidden`, and the shared
-reduced `dW` with the corresponding reference at a fixed chunk count. Check
-cuBLASLt plan selection for the resulting folded row counts, since extra
-heads also increase the number of input rows in each LM-head GEMM.
+#### Parallelism and the loss contract
+
+| Area | Current behavior and required follow-up |
+|---|---|
+| CP | Each rank sees fewer sequence positions. CE can operate on local token rows with a full vocabulary. The legacy dense GFSDP mesh includes the CP ranks and can sum their `dW` contributions. The existing MTP code shifts targets and input embeddings after CP partitions the sequence. Matching CP1 requires preserving both shifts across shard and load-balancer seams. See `trainer.py`, `distributed/parallel_dims.py`, `MTPLoss._shift_labels` and `models/common/decoder_blocks/mtp.py`. |
+| PP and deferred sync | The last stage runs the head at the pipeline microbatch size. The schedule also makes a shape probe that must leave weight gradients untouched. Under PP, GFSDP allocates a private gradient buffer per group through the no-reduction policy, while the selector checks a head-specific flag set only under PP1. More importantly, the writer expects a clean slot and one reduce-scatter at the last loss chunk. PP can hold the unreduced gradient across loss calls. Direct `dW` must preserve that contribution and obey the schedule's reduction boundary. Also restore the caller's reshard policy. |
+| Tied input and output weights | For shared `W`, the projection and the input lookup both contribute to `W.grad`. The lookup contribution arrives during model backward, after the current head lease has handed off `dW`. A tied implementation must combine the contributions under the shared parameter's ownership, either before reduction or in aligned sharded gradients. The current GIFT `gfsdp2` setup rejects weight tying and row-owner embeddings require untied weights. The CE calculation itself uses logits, labels and scales. |
+| CE and writer selection | The final CE is currently conditional on the direct `dW` lease. Give the two paths separate eligibility checks. The CE needs a complete vocabulary per row and exclusive use of logits through the overwrite. The direct writer needs an owned FP32 slot and the correct reduction boundary. |
+| GIFT 700B dimensions | The bundled 700B presets use local B3/S4096, hidden width 7168 and vocabulary 128256. GIFT 4 also uses `Unembedding` with softcap 30.0 and needs its derivative. The fused hidden z-loss currently uses the regular implementation at width 7168. See `configs/presets/train/gift_700b.yaml` and the GIFT 3.5 and GIFT 4 model presets. |
+
+The combined preset's row-owner embeddings separately require TP/PP/CP1.
+Their scratch path can borrow the head gradient buffer after its release.
+Any tied design that holds this buffer through model backward must account
+for that borrowing if it retains row-owner routing.
+
+The non-PP trainer calls `loss = loss_fn(pred, labels, global_valid_tokens)`
+and then `loss.backward()`. Inside `loss_fn`, each `chunk_loss.backward()`
+has already produced `dW` and the BF16 `dHidden` slice with the per-head
+weights and token normalization. The outer backward feeds the assembled
+`dHidden` to the decoder with upstream scale 1. A factor applied after the
+loss call cannot change the already accumulated `dW`; the inherited decoder
+bridge also ignores the outer `grad_output`. Replaying backward on the same
+loss cannot replay the per-chunk head work. These are limits of the chunked
+loss interface. Existing in-loss weights and trainer accumulation work within
+its normal single-backward contract.
+
+Verify with compiled isolated replays for C4 and C16 with the existing C2/C8/C32
+controls, a monitoring chunk switch, representative alternate B/S/D/V shapes,
+and MTP1/2/3/10. Include unequal and zero weights, an entirely masked head,
+and a shorter last chunk. Compare per-head losses, BF16 `dLogits` and `dHidden`,
+reduced FP32 `dW`, and total GPU memory at fixed chunk count.
+Check the fallback and the GFSDP slot lifecycle separately, including
+distinct inputs across ranks and microbatches. `beta=0` starts a new full
+slot each microbatch, then native reduce-scatter adds that microbatch to the
+persistent sharded gradient. The saved isolated replay compares a reset
+gradient and uses the same rank-zero input on all ranks.
+[Isolated receipts](../../runs/head-frontier-nov/isolated-ep8/iso01-summary.json)
 
 ### Full-training acceptance runs
 

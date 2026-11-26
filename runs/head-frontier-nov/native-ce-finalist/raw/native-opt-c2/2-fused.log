@@ -1,0 +1,95 @@
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+INFO:root:Building device mesh with parallelism: pp=1, dp_replicate=1, dp_shard=1, cp=1, tp=1, ep=1
+INFO:root:Successfully created meshes with active dimensions: []
+INFO:root:Compiling the loss function with torch.compile
+INFO:root:Chunked loss direct BF16 dHidden enabled
+INFO:root:Stable CE consuming BF16 logits enabled
+INFO:root:Stable CE folded backward enabled
+INFO:torchtitan.ops.hidden_z_loss:LM_HEAD_MATRIX_FUSED_Z_LOSS_ACTIVE shape=(2, 4096, 4096) dtype=torch.bfloat16 stride=(16777216, 4096, 1)
+INFO:root:GFSDP staged LM-head dW active
+INFO:root:Stable Folded CE active: compiled=True inplace=True early_logits_release=True
+INFO:gfsdp:LM_HEAD_MATRIX_DW_WRITER rank=0 mode=new chunks=2 writer=cublasLtMatmul pair=9.14 version=130101 slot=GFSDP.reduce_scatter_input dtype=torch.float32 shape=(128256, 4096)
+INFO:gfsdp:LM_HEAD_MATRIX_DW_REDUCED rank=0 mode=new chunks=2 slot=GFSDP.reduce_scatter_input dtype=torch.float32 shape=(128256, 4096)
+{
+  "source": "e9b7cdbb4cd687685cbbfdeebaf2d6bd6e19e85f",
+  "loss_source": "/workspace-SR008.nfs2/vkropotin/lm10-c1/gift/torchtitan/components/loss.py",
+  "variant": "current",
+  "chunks": 2,
+  "writer": "native",
+  "vendor": null,
+  "vendor_chunk_calls": null,
+  "logit_storage": "native",
+  "folded_rows_per_chunk": 8192,
+  "compile": {
+    "backend": "inductor",
+    "scope": "native loss",
+    "counters": {
+      "calls_captured": 3,
+      "unique_graphs": 1
+    },
+    "cuda_graphs": false
+  },
+  "head": "bias-free BF16; FP32 rank-local GFSDP accumulation/reduction",
+  "activation": {
+    "ce": "torchtitan.experiments.four_fusion.stable_ce.cross_entropy_loss",
+    "folded": true,
+    "staged_chunk_calls": [
+      true,
+      true
+    ],
+    "GIFT_STABLE_CE_FOLDED_BACKWARD": "1",
+    "GIFT_DIRECT_BF16_DHIDDEN": "1",
+    "GIFT_STAGED_HEAD_DW": "1",
+    "GIFT_FUSED_HIDDEN_Z_LOSS": "1"
+  },
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+  "device": {
+    "torch": "2.15.0.dev20260822+cu130",
+    "cuda": "13.0",
+    "name": "NVIDIA H100 80GB HBM3",
+    "visible": "GPU-8f5a8eb7-d9b2-6c7d-b377-5953bcf6c246"
+  },
+  "scope": "host wall incl. device sync; native label packing, head CE and BF16 dHidden, FP32 GFSDP dW, independent z-loss retained across head backward",
+  "singleton_reduction": "force-sum",
+  "allocator_retries_and_ooms": {
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "ce_route_calls": {
+    "folded_inplace": 2
+  },
+  "accumulation": "pre-existing sharded weight gradient retained across timed calls",
+  "warmup": 10,
+  "elapsed_ms": [
+    81.74973801942542,
+    73.85685003828257,
+    75.0332559691742,
+    74.41190502140671,
+    74.86130396137014,
+    74.99476399971172,
+    75.89492300758138,
+    74.38799901865423,
+    73.04621598450467,
+    77.26387400180101
+  ],
+  "median_ms": 74.92803398054093,
+  "total_gpu_gib": [
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875,
+    11.6375732421875
+  ],
+  "peak_total_gpu_gib": 11.6375732421875,
+  "loss": [
+    0.059884000569581985,
+    2.7444108127383515e-05
+  ]
+}

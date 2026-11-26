@@ -1,0 +1,390 @@
+{
+  "argv": [
+    "ce_bench.py",
+    "--case",
+    "700b",
+    "--chunks",
+    "8",
+    "--part",
+    "7",
+    "--variant",
+    "baseline",
+    "--fixture",
+    "inputs/700b.pt",
+    "--exact-so",
+    "native-ce/centered-folded-v1.so",
+    "--exact-sha256",
+    "17b006cc257566200112b089199c97bb76f7e7ad95118dde923eebf845adcac8",
+    "--graph",
+    "--output",
+    "output/ce/700b-c8-baseline.json"
+  ],
+  "case": "700b",
+  "chunks": 8,
+  "variant": "baseline",
+  "warmup": 10,
+  "samples": 32,
+  "source_hashes": {
+    "ce_bench.py": "5b2d22d5a93e51e3de38afc5e74202b5fc70d9ba88c8bd3463f4efd7876f4d91",
+    "vendor_ops.py": "a3787e1cece6fc98aa0010704e364ce29a9f722b58db08f2b73857ba7905ef3a",
+    "matrix_fixture.py": "592651d1910a13e980f147aea691c9f5fcea54805c77c88d0e0cb355cbe46fc4"
+  },
+  "environment": {
+    "host": "lm-mpi-job-60cdca27-79a8-46e2-ade4-2adcbb2e59a3-mpimaster-0",
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "gpu_uuid": "441785ae-d49a-aa45-d573-557c8d0e8327",
+    "gpu_capacity_gib": 79.1893310546875,
+    "torch": "2.15.0.dev20260822+cu130",
+    "torch_git": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+    "triton": "3.8.0",
+    "cuda_runtime": "13.0",
+    "cuda_visible_devices": "0",
+    "allocator_config": "expandable_segments:True",
+    "tf32": false
+  },
+  "route": {
+    "backend": "GIFT FP32-input PyTorch CE, compiled separately per head",
+    "source": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/integrated/gift/torchtitan/components/loss.py",
+    "source_sha256": "cef8361552374c621e0dd0b4e5e478c4705c7b28676f5b9896bf0c5c1ce02d30"
+  },
+  "fixture": {
+    "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/inputs/700b.pt",
+    "file_bytes": 2191149887,
+    "provenance": {
+      "input_type": "real data-002 targets and positions; seeded synthetic hidden, z-hidden and weights",
+      "seed": 2048,
+      "rows": [
+        {
+          "domain": "wikipedia_en",
+          "index": 0,
+          "sha256": "af8a8fa9ebd73c4da47357f8c0e55107370086b75872c4e54cd1b52998a158a2"
+        },
+        {
+          "domain": "math_finemath_3plus",
+          "index": 1,
+          "sha256": "547aca97057a58a2dae2e8dd5215a53e6e5dad5dcce5b256e7eead977aabb1f9"
+        },
+        {
+          "domain": "python_starcoder2",
+          "index": 2,
+          "sha256": "22ec4eff4b24c30fcc47eb53305609ef7c00ff89a6f95f666b3a158f2dd8ef5b"
+        }
+      ],
+      "model": "700b"
+    },
+    "chunk_index": 7,
+    "logits_shape": [
+      6,
+      512,
+      128256
+    ],
+    "logits_dtype": "torch.bfloat16",
+    "logits_bytes": 788004864,
+    "projected_vocab_stride_4093_sample_sha256": "742773d6b6a489e50a04c79c111ba43367145ee4cd4f9c0e47cee2a49cc68643",
+    "target_sha256": "a3014a02fb55db1d842cd576633dd107fb68ee1b243c383542d58a039261f0de",
+    "valid_rows_by_head": [
+      1533,
+      1529
+    ],
+    "head_weights": [
+      1.0,
+      0.1
+    ],
+    "global_denominator": 3144960.0,
+    "denominator_type": "float"
+  },
+  "timing": {
+    "scope": "single-stream CE forward, two FP32 head sums, weighted normalization and external BF16 dZ backward; input restoration and projection excluded",
+    "cuda_event_submission_inclusive": {
+      "samples_ms": [
+        23.359392166137695,
+        1.786944031715393,
+        1.742624044418335,
+        1.7504639625549316,
+        1.7403520345687866,
+        1.7502080202102661,
+        1.7379839420318604,
+        1.7358720302581787,
+        1.7347520589828491,
+        1.7408000230789185,
+        1.7360639572143555,
+        1.736448049545288,
+        1.7369600534439087,
+        1.7374720573425293,
+        1.7404799461364746,
+        1.7402880191802979,
+        1.7377279996871948,
+        1.73471999168396,
+        1.7356480360031128,
+        1.7373440265655518,
+        1.7350080013275146,
+        1.7420159578323364,
+        1.731328010559082,
+        1.7371840476989746,
+        1.7352639436721802,
+        1.7361600399017334,
+        1.733407974243164,
+        1.740831971168518,
+        1.735327959060669,
+        1.7355519533157349,
+        1.7301440238952637,
+        1.7307519912719727
+      ],
+      "median_ms": 1.7370720505714417,
+      "min_ms": 1.7301440238952637,
+      "max_ms": 23.359392166137695
+    },
+    "host_submission": {
+      "samples_ms": [
+        22.996895015239716,
+        0.6149369291961193,
+        0.46649621799588203,
+        0.4702848382294178,
+        0.46642497181892395,
+        0.45595597475767136,
+        0.4400447942316532,
+        0.44538499787449837,
+        0.44828513637185097,
+        0.4336251877248287,
+        0.4377649165689945,
+        0.501326285302639,
+        0.4627453163266182,
+        0.45553501695394516,
+        0.4548560827970505,
+        0.4387549124658108,
+        0.4407349042594433,
+        0.45782560482621193,
+        0.4575951024889946,
+        0.4335753619670868,
+        0.4242253489792347,
+        0.42817508801817894,
+        0.42322510853409767,
+        0.4815859720110893,
+        0.4443149082362652,
+        0.4257550463080406,
+        0.4205252043902874,
+        0.43616490438580513,
+        0.42613502591848373,
+        0.4262048751115799,
+        0.4235352389514446,
+        0.4145749844610691
+      ],
+      "median_ms": 0.44252490624785423,
+      "min_ms": 0.4145749844610691,
+      "max_ms": 22.996895015239716
+    },
+    "host_final_sync": {
+      "samples_ms": [
+        0.4402250051498413,
+        1.1896640062332153,
+        1.2921751476824284,
+        1.298384740948677,
+        1.29044521600008,
+        1.3101049698889256,
+        1.3140952214598656,
+        1.3065850362181664,
+        1.302075106650591,
+        1.3231448829174042,
+        1.315155066549778,
+        1.2520547024905682,
+        1.2914049439132214,
+        1.2978753075003624,
+        1.3026748783886433,
+        1.3180552050471306,
+        1.313794869929552,
+        1.2933150865137577,
+        1.3011852279305458,
+        1.3198447413742542,
+        1.3260049745440483,
+        1.3312548398971558,
+        1.3243560679256916,
+        1.2716338969767094,
+        1.307775266468525,
+        1.3265358284115791,
+        1.3295947574079037,
+        1.3227052986621857,
+        1.3254862278699875,
+        1.324895303696394,
+        1.322485040873289,
+        1.3318350538611412
+      ],
+      "median_ms": 1.3119499199092388,
+      "min_ms": 0.4402250051498413,
+      "max_ms": 1.3318350538611412
+    },
+    "wall_synchronized": {
+      "samples_ms": [
+        23.437120020389557,
+        1.8046009354293346,
+        1.7586713656783104,
+        1.7686695791780949,
+        1.756870187819004,
+        1.766060944646597,
+        1.7541400156915188,
+        1.7519700340926647,
+        1.7503602430224419,
+        1.756770070642233,
+        1.7529199831187725,
+        1.7533809877932072,
+        1.7541502602398396,
+        1.7534103244543076,
+        1.7575309611856937,
+        1.7568101175129414,
+        1.7545297741889954,
+        1.7511406913399696,
+        1.7587803304195404,
+        1.753420103341341,
+        1.750230323523283,
+        1.7594299279153347,
+        1.7475811764597893,
+        1.7532198689877987,
+        1.7520901747047901,
+        1.7522908747196198,
+        1.750119961798191,
+        1.7588702030479908,
+        1.7516212537884712,
+        1.7511001788079739,
+        1.7460202798247337,
+        1.7464100383222103
+      ],
+      "median_ms": 1.7534152138978243,
+      "min_ms": 1.7460202798247337,
+      "max_ms": 23.437120020389557
+    },
+    "gradient_aliases_working_logits": false,
+    "memory": {
+      "scope": "timed eager invocations only, including retained pristine logits and the working allocation",
+      "starting_allocated_bytes": 1609588736,
+      "starting_reserved_bytes": 1637875712,
+      "peak_allocated_bytes": 3185600512,
+      "peak_reserved_bytes": 3231711232,
+      "gift_external_gib": 0.6688232421875,
+      "gift_total_peak_gib": 3.6785888671875,
+      "allocator_retries": 0
+    }
+  },
+  "numerical": {
+    "oracle_scope": "all rows and columns of the timed BF16 input; FP64 centered CE, FP64 sums and FP64 VJP using the exact FP32 GIFT upstream scale",
+    "accepted_reference_route": {
+      "backend": "GIFT historical stable folded CE, compiled",
+      "source": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/integrated/gift/torchtitan/experiments/four_fusion/stable_ce.py",
+      "source_sha256": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+    },
+    "incoming_fp32_scales": [
+      3.179690679644409e-07,
+      3.179690821752956e-08
+    ],
+    "heads": [
+      {
+        "oracle_raw_fp64_sum": 18242.68569260475,
+        "elements": 197001216,
+        "bit_diff_vs_folded": 15446,
+        "candidate": {
+          "relative_l2_vs_fp64": 0.0017162578636413161,
+          "max_abs_vs_fp64": 5.551467726483875e-10,
+          "bit_diff_vs_once_rounded_oracle": 9281,
+          "nonfinite": 0,
+          "ignored_dz_not_positive_zero": 3,
+          "raw_fp32_sum": 18242.685546875,
+          "raw_sum_abs_error": 0.00014572975123883225
+        },
+        "folded": {
+          "relative_l2_vs_fp64": 0.0017162578636417203,
+          "max_abs_vs_fp64": 5.551467726483875e-10,
+          "bit_diff_vs_once_rounded_oracle": 16863,
+          "nonfinite": 0,
+          "ignored_dz_not_positive_zero": 0,
+          "raw_fp32_sum": 18242.68359375,
+          "raw_sum_abs_error": 0.0020988547512388323
+        }
+      },
+      {
+        "oracle_raw_fp64_sum": 18211.917585185907,
+        "elements": 197001216,
+        "bit_diff_vs_folded": 13293,
+        "candidate": {
+          "relative_l2_vs_fp64": 0.003180633830583477,
+          "max_abs_vs_fp64": 1.0302452055873424e-10,
+          "bit_diff_vs_once_rounded_oracle": 7639,
+          "nonfinite": 0,
+          "ignored_dz_not_positive_zero": 7,
+          "raw_fp32_sum": 18211.91796875,
+          "raw_sum_abs_error": 0.00038356409277184866
+        },
+        "folded": {
+          "relative_l2_vs_fp64": 0.0031806338305836943,
+          "max_abs_vs_fp64": 1.0302452055873424e-10,
+          "bit_diff_vs_once_rounded_oracle": 13080,
+          "nonfinite": 0,
+          "ignored_dz_not_positive_zero": 0,
+          "raw_fp32_sum": 18211.91796875,
+          "raw_sum_abs_error": 0.00038356409277184866
+        }
+      }
+    ],
+    "weighted_loss": 0.006379692815244198,
+    "weighted_loss_folded": 0.006379691883921623,
+    "weighted_loss_oracle_fp64": 0.006379692412979289,
+    "weighted_loss_abs_errors": {
+      "candidate": 4.0226490888306543e-10,
+      "folded": 5.290576657324131e-10
+    },
+    "bitwise_folded": false,
+    "strict_non_regression": {
+      "finite_and_ignored_positive_zero": false,
+      "raw_head_sums": [
+        true,
+        true
+      ],
+      "weighted_loss": true,
+      "dz_relative_l2_and_max_abs": true,
+      "passed": false
+    }
+  },
+  "graph": {
+    "status": "measured",
+    "scope": "same-stream warm-cache CUDA Graph replay span; CE, two head sums, normalization and dZ; events exclude restoration and Python submission, include device gaps",
+    "discarded_priming_replays": 1,
+    "gradient_aliases_working_logits": false,
+    "elapsed": {
+      "samples_ms": [
+        1.6416640281677246,
+        1.6424640417099,
+        1.6445759534835815,
+        1.6440320014953613,
+        1.6428159475326538,
+        1.6439679861068726,
+        1.6418559551239014,
+        1.6435199975967407,
+        1.6440000534057617,
+        1.6444159746170044,
+        1.643839955329895,
+        1.643936038017273,
+        1.6418559551239014,
+        1.6465920209884644,
+        1.6399680376052856,
+        1.645311951637268,
+        1.642240047454834,
+        1.6437760591506958,
+        1.6463359594345093,
+        1.6399999856948853,
+        1.641152024269104,
+        1.6435840129852295,
+        1.6445759534835815,
+        1.6442879438400269,
+        1.6421120166778564,
+        1.6446720361709595,
+        1.6460800170898438,
+        1.643455982208252,
+        1.6410880088806152,
+        1.640895962715149,
+        1.643455982208252,
+        1.6442240476608276
+      ],
+      "median_ms": 1.6436800360679626,
+      "min_ms": 1.6399680376052856,
+      "max_ms": 1.6465920209884644
+    }
+  },
+  "status": "measured"
+}

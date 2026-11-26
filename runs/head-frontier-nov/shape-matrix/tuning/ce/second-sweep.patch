@@ -1,0 +1,91 @@
+--- a/centered.cu
++++ b/centered.cu
+@@ -272,7 +272,8 @@
+     const dim3 grid(rows_per_head * ctas, num_heads);
+     return launch_kernel<ctas, threads, shared_bytes>(
+         exact_ce<ctas, threads, (CE_TUNING & 1), row_tiles, fixed_vocab, true, aligned,
+-            (CE_TUNING & 2) != 0, retain_in_registers>, grid, stream,
++            (CE_TUNING & 2) != 0, retain_in_registers, (CE_TUNING & 16) != 0,
++            (CE_TUNING & 32) != 0, (CE_TUNING & 64) != 0>, grid, stream,
+         static_cast<uint4*>(logits), static_cast<const int64_t*>(labels),
+         static_cast<float*>(loss), static_cast<const float*>(scales), rows_per_head, row_vocab
+     );
+--- a/exact.cuh
++++ b/exact.cuh
+@@ -61,7 +61,9 @@
+ template <
+     int ctas, int threads, int optimization = 0, int row_tiles = tiles_per_row,
+     int fixed_vocab = vocab, bool folded_grid = false, bool aligned = true,
+-    bool prepare_rescale = false, bool retain_in_registers = false
++    bool prepare_rescale = false, bool retain_in_registers = false,
++    bool integer_warp_max = false, bool parallel_pair_max = false,
++    bool unroll_rescale = false
+ >
+ __global__ __launch_bounds__(threads) void exact_ce(
+     uint4* logits, const int64_t* target, float* loss,
+@@ -112,7 +114,12 @@
+     // Register retention uses the same vector owner in all three phases.
+     uint4 retained[retain_in_registers ? vectors_per_thread : 1];
+     float local_max = -CUDART_INF_F;
+-    unsigned int packed_max = 0xff80ff80U;
++    constexpr unsigned int neg_inf_pair = 0xff80ff80U;
++    unsigned int packed_max[parallel_pair_max ? 4 : 1];
++    #pragma unroll
++    for (int i = 0; i < (parallel_pair_max ? 4 : 1); ++i) {
++        packed_max[i] = neg_inf_pair;
++    }
+     #pragma unroll
+     for (int i = 0; i < vectors_per_thread; ++i) {
+         const int vector = threadIdx.x % (32 * warps_per_tile) + i * 32 * warps_per_tile;
+@@ -124,16 +131,36 @@
+         const unsigned int pairs[] = {values.x, values.y, values.z, values.w};
+         #pragma unroll
+         for (int pair = 0; pair < 4; ++pair) {
+-            if constexpr (optimization > 0) packed_max = bf16_pair_max(packed_max, pairs[pair]);
+-            else local_max = fmaxf(local_max, fmaxf(unpack(pairs[pair], 0), unpack(pairs[pair], 1)));
++            if constexpr (optimization > 0) {
++                const int accumulator = parallel_pair_max ? pair : 0;
++                packed_max[accumulator] = bf16_pair_max(packed_max[accumulator], pairs[pair]);
++            } else {
++                local_max = fmaxf(local_max, fmaxf(unpack(pairs[pair], 0), unpack(pairs[pair], 1)));
++            }
+         }
+     }
+     if constexpr (optimization > 0) {
+-        local_max = fmaxf(unpack(packed_max, 0), unpack(packed_max, 1));
+-    }
+-    #pragma unroll
+-    for (int step = 16; step > 0; step /= 2) {
+-        local_max = fmaxf(local_max, __shfl_xor_sync(0xffffffff, local_max, step));
++        unsigned int packed = packed_max[0];
++        if constexpr (parallel_pair_max) {
++            packed = bf16_pair_max(
++                bf16_pair_max(packed, packed_max[1]),
++                bf16_pair_max(packed_max[2], packed_max[3])
++            );
++        }
++        local_max = fmaxf(unpack(packed, 0), unpack(packed, 1));
++    }
++    if constexpr (integer_warp_max) {
++        // The maximum is never NaN here. This reversible mapping gives floats
++        // the same signed integer order, including -0 before +0.
++        const int bits = __float_as_int(local_max);
++        const int ordered = bits ^ ((bits >> 31) & 0x7fffffff);
++        const int reduced = __reduce_max_sync(0xffffffff, ordered);
++        local_max = __int_as_float(reduced ^ ((reduced >> 31) & 0x7fffffff));
++    } else {
++        #pragma unroll
++        for (int step = 16; step > 0; step /= 2) {
++            local_max = fmaxf(local_max, __shfl_xor_sync(0xffffffff, local_max, step));
++        }
+     }
+     if (lane == 0) warp_data[tile][warp] = local_max;
+     __syncthreads();
+@@ -207,6 +234,7 @@
+         }
+         float denominator = 0.0f;
+         float last = -CUDART_INF_F;
++        #pragma unroll (unroll_rescale ? row_tiles : 1)
+         for (int i = 0; i < row_tiles; ++i) {
+             const float add = __shfl_sync(0xffffffff, subtotal, i);
+             if constexpr (prepare_rescale) {

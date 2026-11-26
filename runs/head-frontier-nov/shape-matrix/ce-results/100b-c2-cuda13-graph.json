@@ -1,0 +1,141 @@
+{
+  "argv": [
+    "ce_bench_graph.py",
+    "--case",
+    "100b",
+    "--chunks",
+    "2",
+    "--part",
+    "1",
+    "--variant",
+    "cuda13",
+    "--fixture",
+    "inputs/100b.pt",
+    "--exact-so",
+    "native-ce/centered-folded-v1.so",
+    "--exact-sha256",
+    "17b006cc257566200112b089199c97bb76f7e7ad95118dde923eebf845adcac8",
+    "--graph-only",
+    "--output",
+    "output/ce/100b-c2-cuda13-graph.json"
+  ],
+  "case": "100b",
+  "chunks": 2,
+  "variant": "cuda13",
+  "warmup": 10,
+  "samples": 32,
+  "graph_only": true,
+  "source_hashes": {
+    "ce_bench.py": "3449f80a478e20bcd67b707088d94779b8bf18fdfe4df6ca5b59fd6cc5dc49d7",
+    "vendor_ops.py": "a3787e1cece6fc98aa0010704e364ce29a9f722b58db08f2b73857ba7905ef3a",
+    "matrix_fixture.py": "592651d1910a13e980f147aea691c9f5fcea54805c77c88d0e0cb355cbe46fc4"
+  },
+  "environment": {
+    "host": "lm-mpi-job-60cdca27-79a8-46e2-ade4-2adcbb2e59a3-mpimaster-0",
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "gpu_uuid": "441785ae-d49a-aa45-d573-557c8d0e8327",
+    "gpu_capacity_gib": 79.1893310546875,
+    "torch": "2.15.0.dev20260822+cu130",
+    "torch_git": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+    "triton": "3.8.0",
+    "cuda_runtime": "13.0",
+    "cuda_visible_devices": "0",
+    "allocator_config": "expandable_segments:True",
+    "tf32": false
+  },
+  "route": {
+    "backend": "GIFT generalized cuda13",
+    "binary": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/native-ce/centered-folded-v1.so",
+    "binary_sha256": "17b006cc257566200112b089199c97bb76f7e7ad95118dde923eebf845adcac8",
+    "source_sha256": "85280c6e3785c14de775298f9481d62da0462b3db9f8c7b4b759621ab3022f5d",
+    "scales_checked": true
+  },
+  "fixture": {
+    "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/inputs/100b.pt",
+    "file_bytes": 1252100984,
+    "provenance": {
+      "input_type": "real data-002 targets and positions; seeded synthetic hidden, z-hidden and weights",
+      "seed": 2048,
+      "rows": [
+        {
+          "domain": "wikipedia_en",
+          "index": 0,
+          "sha256": "af8a8fa9ebd73c4da47357f8c0e55107370086b75872c4e54cd1b52998a158a2"
+        },
+        {
+          "domain": "math_finemath_3plus",
+          "index": 1,
+          "sha256": "547aca97057a58a2dae2e8dd5215a53e6e5dad5dcce5b256e7eead977aabb1f9"
+        }
+      ],
+      "model": "100b"
+    },
+    "chunk_index": 1,
+    "logits_shape": [
+      4,
+      2048,
+      128256
+    ],
+    "logits_dtype": "torch.bfloat16",
+    "logits_bytes": 2101346304,
+    "projected_vocab_stride_4093_sample_sha256": "15c1599bf58af30277701ce6557d6cbe37083a4c0d1a95ebd862b8defc9f8f42",
+    "target_sha256": "765ed403a5454bca493d576b9eb6d15ae15dba4fd373619b928471b85023cd75",
+    "valid_rows_by_head": [
+      4094,
+      4087
+    ],
+    "head_weights": [
+      1.0,
+      0.3
+    ],
+    "global_denominator": 2096640.0,
+    "denominator_type": "float"
+  },
+  "graph": {
+    "status": "measured",
+    "scope": "same-stream warm-cache CUDA Graph replay span; CE, two head sums, normalization and dZ; events exclude restoration and Python submission, include device gaps",
+    "capture_stream_warmup": 10,
+    "discarded_priming_replays": 1,
+    "gradient_aliases_working_logits": true,
+    "elapsed": {
+      "samples_ms": [
+        1.5994880199432373,
+        1.6006720066070557,
+        1.6014399528503418,
+        1.6039040088653564,
+        1.5994559526443481,
+        1.602336049079895,
+        1.6039040088653564,
+        1.6048320531845093,
+        1.6038399934768677,
+        1.6016960144042969,
+        1.6008960008621216,
+        1.5960960388183594,
+        1.602944016456604,
+        1.601248025894165,
+        1.5967040061950684,
+        1.6035200357437134,
+        1.6013120412826538,
+        1.6034239530563354,
+        1.6028480529785156,
+        1.6046719551086426,
+        1.6015360355377197,
+        1.599679946899414,
+        1.606112003326416,
+        1.6027519702911377,
+        1.5998400449752808,
+        1.6072640419006348,
+        1.6033920049667358,
+        1.5994880199432373,
+        1.602720022201538,
+        1.6005439758300781,
+        1.5985599756240845,
+        1.5994880199432373
+      ],
+      "median_ms": 1.6016160249710083,
+      "min_ms": 1.5960960388183594,
+      "max_ms": 1.6072640419006348
+    }
+  },
+  "status": "measured"
+}

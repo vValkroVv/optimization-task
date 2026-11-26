@@ -1,0 +1,1056 @@
+{
+  "schema": 1,
+  "rows": [
+    {
+      "case": "100b-c8",
+      "model": "100b",
+      "chunks": 8,
+      "batch": 1,
+      "sequence": 131072,
+      "folded_rows_per_chunk": 32768,
+      "pairs": [
+        {
+          "repeat": 1,
+          "order": [
+            "baseline",
+            "cuda13"
+          ],
+          "baseline": {
+            "status": "success",
+            "attempts": [
+              {
+                "status": "success",
+                "returncode": 0,
+                "started_at": "2026-11-26T12:48:09.673971+00:00",
+                "ended_at": "2026-11-26T12:49:07.637032+00:00",
+                "oom_ranks": [],
+                "reason": null,
+                "path": "100b-c8-b1-s131072/pair-01/baseline/attempt-001"
+              }
+            ],
+            "manifests": {},
+            "ms": 1371.507245581597,
+            "steps_ms": [
+              1349.5616549625993,
+              1356.230841949582,
+              1362.8092231228948,
+              1365.227545145899,
+              1358.6827050894499,
+              1377.7869460172951,
+              1378.0482662841678,
+              1438.261624891311,
+              1456.8788702599704,
+              1429.4769978150725
+            ],
+            "max_wall_ranks": [
+              6,
+              6,
+              6,
+              6,
+              6,
+              6,
+              6,
+              6,
+              6,
+              6
+            ],
+            "submit_ms": 12.594951083883643,
+            "wait_ms": 1358.9021230582148,
+            "total_gib": 42.7508544921875,
+            "max_memory_sample": 10,
+            "max_memory_rank": 7,
+            "allocator_retry_count_process": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "loss": 0.06010836735367775,
+            "components": {
+              "loss_ce": 0.04623239487409592,
+              "loss_mtp": 0.0462532639503479
+            },
+            "valid_tokens": 131040,
+            "valid_mtp_tokens": 130976,
+            "denominator": 33546240.0,
+            "ce_route": "compiled-aten-per-head",
+            "routes": []
+          },
+          "cuda13": {
+            "status": "success",
+            "attempts": [
+              {
+                "status": "success",
+                "returncode": 0,
+                "started_at": "2026-11-26T12:49:07.848399+00:00",
+                "ended_at": "2026-11-26T12:49:59.309863+00:00",
+                "oom_ranks": [],
+                "reason": null,
+                "path": "100b-c8-b1-s131072/pair-01/cuda13/attempt-001"
+              }
+            ],
+            "manifests": {
+              "linear": {
+                "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/length-grid/final-grid/full-head/linear-100b-c8-s131072.json",
+                "sha256": "32d4630986747e0cf067b5a05715fe0bb68491795dcb62b66ef05e0c544a3464"
+              },
+              "dw": {
+                "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/length-grid/final-grid/dw/dw-plans.selected.c8.json",
+                "sha256": "e3f1d16761928146a72138da083533ac148168b4b4538d23359e05b7d987d7f4"
+              },
+              "ce": {
+                "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/tuning/ce/centered-tuned.so",
+                "sha256": "d3343cd518a05a6d5bea58b0493fa33373e040f1ce3dd5864b14c03033528929"
+              }
+            },
+            "ms": 1359.1096145100892,
+            "steps_ms": [
+              1288.6355863884091,
+              1334.0952638536692,
+              1387.7226510085166,
+              1328.0957280658185,
+              1366.4213721640408,
+              1351.7978568561375,
+              1466.48602001369,
+              1329.3614415451884,
+              1414.8274683393538,
+              1405.8213722892106
+            ],
+            "max_wall_ranks": [
+              5,
+              6,
+              6,
+              7,
+              6,
+              6,
+              6,
+              4,
+              0,
+              7
+            ],
+            "submit_ms": 9.298923192545772,
+            "wait_ms": 1349.9643616378307,
+            "total_gib": 20.3485107421875,
+            "max_memory_sample": 10,
+            "max_memory_rank": 7,
+            "allocator_retry_count_process": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "loss": 0.06010836735367775,
+            "components": {
+              "loss_ce": 0.04623239487409592,
+              "loss_mtp": 0.0462532639503479
+            },
+            "valid_tokens": 131040,
+            "valid_mtp_tokens": 130976,
+            "denominator": 33546240.0,
+            "ce_route": "cuda13-consuming",
+            "routes": [
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              }
+            ]
+          },
+          "throughput_gain_pct": 0.9121877249008259,
+          "savings_gib": 22.40234375
+        },
+        {
+          "repeat": 2,
+          "order": [
+            "cuda13",
+            "baseline"
+          ],
+          "cuda13": {
+            "status": "success",
+            "attempts": [
+              {
+                "status": "success",
+                "returncode": 0,
+                "started_at": "2026-11-26T12:49:59.551298+00:00",
+                "ended_at": "2026-11-26T12:50:52.113187+00:00",
+                "oom_ranks": [],
+                "reason": null,
+                "path": "100b-c8-b1-s131072/pair-02/cuda13/attempt-001"
+              }
+            ],
+            "manifests": {
+              "linear": {
+                "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/length-grid/final-grid/full-head/linear-100b-c8-s131072.json",
+                "sha256": "32d4630986747e0cf067b5a05715fe0bb68491795dcb62b66ef05e0c544a3464"
+              },
+              "dw": {
+                "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/length-grid/final-grid/dw/dw-plans.selected.c8.json",
+                "sha256": "e3f1d16761928146a72138da083533ac148168b4b4538d23359e05b7d987d7f4"
+              },
+              "ce": {
+                "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/tuning/ce/centered-tuned.so",
+                "sha256": "d3343cd518a05a6d5bea58b0493fa33373e040f1ce3dd5864b14c03033528929"
+              }
+            },
+            "ms": 1358.1952629610896,
+            "steps_ms": [
+              1409.7090107388794,
+              1311.1153589561582,
+              1457.8987169079483,
+              1426.5628191642463,
+              1415.8889716491103,
+              1355.162100866437,
+              1361.2284250557423,
+              1314.5409156568348,
+              1350.0146362930536,
+              1315.6373365782201
+            ],
+            "max_wall_ranks": [
+              6,
+              0,
+              6,
+              2,
+              5,
+              6,
+              7,
+              6,
+              1,
+              6
+            ],
+            "submit_ms": 9.332306450232863,
+            "wait_ms": 1348.50387647748,
+            "total_gib": 20.3485107421875,
+            "max_memory_sample": 10,
+            "max_memory_rank": 7,
+            "allocator_retry_count_process": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "loss": 0.06010836735367775,
+            "components": {
+              "loss_ce": 0.04623239487409592,
+              "loss_mtp": 0.0462532639503479
+            },
+            "valid_tokens": 131040,
+            "valid_mtp_tokens": 130976,
+            "denominator": 33546240.0,
+            "ce_route": "cuda13-consuming",
+            "routes": [
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              },
+              {
+                "counts": {
+                  "projection": 0,
+                  "dhidden": 0
+                },
+                "plans": [
+                  {
+                    "route": "cublasLtMatmul-replay",
+                    "cublasLt_version": 130101,
+                    "tuned_calls_beta0_beta1": [
+                      0,
+                      0
+                    ],
+                    "plans": [
+                      {
+                        "shape": [
+                          32768,
+                          128256,
+                          4096
+                        ],
+                        "alignments": [
+                          256,
+                          256,
+                          256
+                        ],
+                        "pair": "native-generic"
+                      }
+                    ],
+                    "native_generic_calls_beta0_beta1": [
+                      23,
+                      161
+                    ]
+                  }
+                ],
+                "linear_route": {
+                  "candidate": 0,
+                  "fallback": 368,
+                  "descriptor_fallback": 0,
+                  "uncalibrated_shape": {
+                    "projection": 184,
+                    "dhidden": 184
+                  }
+                },
+                "linear_descriptors": {}
+              }
+            ]
+          },
+          "baseline": {
+            "status": "success",
+            "attempts": [
+              {
+                "status": "success",
+                "returncode": 0,
+                "started_at": "2026-11-26T12:50:52.504130+00:00",
+                "ended_at": "2026-11-26T12:51:50.724989+00:00",
+                "oom_ranks": [],
+                "reason": null,
+                "path": "100b-c8-b1-s131072/pair-02/baseline/attempt-001"
+              }
+            ],
+            "manifests": {},
+            "ms": 1353.222815785557,
+            "steps_ms": [
+              1346.937000285834,
+              1354.7520297579467,
+              1355.403256136924,
+              1352.3721261881292,
+              1354.053646326065,
+              1352.391985245049,
+              1350.768965203315,
+              1356.6493480466306,
+              1358.520763926208,
+              1351.8521948717535
+            ],
+            "max_wall_ranks": [
+              0,
+              6,
+              0,
+              0,
+              0,
+              1,
+              6,
+              5,
+              6,
+              6
+            ],
+            "submit_ms": 12.798014795407653,
+            "wait_ms": 1340.7445438206196,
+            "total_gib": 42.7508544921875,
+            "max_memory_sample": 10,
+            "max_memory_rank": 7,
+            "allocator_retry_count_process": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "loss": 0.06010836735367775,
+            "components": {
+              "loss_ce": 0.04623239487409592,
+              "loss_mtp": 0.0462532639503479
+            },
+            "valid_tokens": 131040,
+            "valid_mtp_tokens": 130976,
+            "denominator": 33546240.0,
+            "ce_route": "compiled-aten-per-head",
+            "routes": []
+          },
+          "throughput_gain_pct": -0.36610694434994207,
+          "savings_gib": 22.40234375
+        }
+      ],
+      "status": "complete",
+      "baseline": {
+        "status": "success",
+        "ms": 1362.365030683577,
+        "total_gib": 42.7508544921875,
+        "repeat_spread_pct": 1.3511765825072741
+      },
+      "tuned": {
+        "status": "success",
+        "ms": 1358.6524387355894,
+        "total_gib": 20.3485107421875,
+        "repeat_spread_pct": 0.0673210674440261
+      },
+      "throughput_gain_pct": 0.2730403902754419,
+      "savings_gib": 22.40234375
+    }
+  ]
+}

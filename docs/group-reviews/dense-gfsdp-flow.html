@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dense GFSDP · расписание и память эмбеддингов</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d1219;
+    --panel: #151d28;
+    --cell: #101721;
+    --line: #2b3949;
+    --ink: #eff5fc;
+    --dim: #b2c1d2;
+    --old: #ffc285;
+    --new: #82e6c4;
+    --blue: #a6caff;
+    --purple: #c9adff;
+    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font: 16px/1.48 system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); }
+  main { width: min(1360px, 100%); margin: auto; padding: 48px clamp(16px, 4vw, 60px) 40px; }
+  h1, h2, h3, p, figure, ol, ul, dl, dd { margin: 0; }
+  h1 { font-size: clamp(2rem, 5vw, 4.5rem); line-height: 1; letter-spacing: -.06em; }
+  h2 { font-size: clamp(1.4rem, 3vw, 2rem); line-height: 1.2; letter-spacing: -.035em; }
+  h3 { font-size: 1rem; }
+  p { max-width: 85ch; }
+  a { color: var(--blue); text-underline-offset: .2em; }
+  code, .numbers { font-family: var(--mono); font-size: .88em; }
+  code { overflow-wrap: anywhere; }
+  small, .muted { color: var(--dim); }
+  small { font-size: .84rem; }
+  [hidden] { display: none !important; }
+  button, select {
+    background: var(--cell); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; min-height: 44px; padding: 8px 12px; font: inherit;
+    font-size: .86rem;
+  }
+  button, select { cursor: pointer; }
+  button:hover:not(:disabled), select:hover { border-color: var(--blue); }
+  button[aria-pressed="true"] { background: var(--blue); color: #10213b; border-color: var(--blue); }
+  button:disabled { opacity: .45; cursor: default; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+  .intro, .step, .track { display: grid; gap: 16px; }
+  .intro { margin-bottom: 22px; gap: 11px; }
+  .intro > p { color: var(--dim); font-size: 1.04rem; }
+  .summary, .toolbar, .links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .summary { gap: 8px 22px; font-size: .87rem; }
+  .summary strong { color: var(--new); }
+  .navigation { display: grid; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+  .toolbar { gap: 7px; }
+  .paging { margin-left: auto; }
+  .step { align-content: start; }
+  .step > p, figcaption, .note { color: var(--dim); }
+  .pair, .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .board {
+    --accent: var(--old);
+    min-width: 0; overflow: hidden; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px;
+  }
+  .board.optimized { --accent: var(--new); }
+  .board h3 {
+    color: var(--accent); padding: 12px 14px; border-bottom: 1px solid var(--line);
+  }
+  .board .body { display: grid; gap: 12px; padding: 14px; }
+  .flow {
+    list-style: none; padding: 0; display: grid; gap: 16px;
+    background: radial-gradient(circle at 1px 1px, #3142576b 1px, transparent 0) 0 0 / 16px 16px, var(--cell);
+    align-content: start;
+  }
+  .board .flow { padding: 14px; }
+  .flow li, .node {
+    position: relative; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 7px; padding: 8px 10px; min-width: 0; overflow-wrap: anywhere;
+  }
+  .flow li + li::before {
+    content: '↓'; color: var(--accent); position: absolute; top: -18px;
+    left: 50%; transform: translateX(-50%); line-height: 18px;
+  }
+  .flow small, .node small { display: block; }
+  .region { border-left: 3px solid var(--accent, var(--blue)); }
+  .overlap {
+    display: grid; gap: 5px; padding: 8px; border: 1px dashed var(--line);
+    border-radius: 8px; background: var(--cell);
+  }
+  .overlap span { padding: 4px 6px; border-radius: 4px; background: #23334a; }
+  .overlap .collective { background: #3a2e50; }
+  .figure { display: grid; gap: 9px; }
+  figcaption, .note { font-size: .85rem; }
+  .controls { gap: 10px 20px; }
+  .controls label { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: .87rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .82rem; color: var(--dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { display: inline-block; inline-size: 13px; block-size: 10px; border-radius: 2px; }
+  .ag, .swatch.reserve { background: var(--blue); }
+  .rs, .swatch.external { background: var(--purple); }
+  .mark { background: var(--new); }
+  .swatch.mark { inline-size: 8px; block-size: 8px; transform: rotate(45deg); }
+  .timeline { padding: 12px 14px; }
+  .trace-row, .trace-axis {
+    display: grid; grid-template-columns: minmax(106px, 29%) minmax(0, 1fr);
+    gap: 10px; align-items: center; font-size: .8rem;
+  }
+  .trace-row { min-height: 29px; }
+  .trace-axis { color: var(--dim); margin-top: 8px; }
+  .plot {
+    position: relative; min-width: 0; height: 23px; background: var(--cell);
+    border-bottom: 1px solid var(--line);
+  }
+  .plot::before {
+    content: ''; position: absolute; left: var(--zero); top: 0; bottom: 0;
+    border-left: 1px dashed var(--old);
+  }
+  .span { position: absolute; top: 6px; height: 10px; border-radius: 2px; min-width: 2px; }
+  .span.mark { width: 8px; height: 8px; top: 7px; transform: translateX(-50%) rotate(45deg); }
+  .ticks { display: flex; justify-content: space-between; font: .75rem var(--mono); }
+  .facts { display: grid; gap: 6px; font-size: .85rem; margin-top: 9px; }
+  .facts div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; }
+  .facts dd { font-family: var(--mono); text-align: right; color: var(--accent); }
+  .handoff { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+  .handoff .edge { color: var(--new); text-align: center; font-size: .83rem; }
+  .handoff .edge span { display: block; font-size: 1.15rem; }
+  .ledger { display: grid; gap: 12px; }
+  .metric { border: 1px solid var(--line); border-radius: 9px; background: var(--cell); padding: 10px 12px; }
+  .metric b { display: block; color: var(--new); font-size: 1.23rem; }
+  .metric.warning b { color: var(--old); }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .86rem; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+  th[scope="col"] { color: var(--dim); font-weight: 500; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .memory-plot { display: grid; gap: 12px; padding: 14px; }
+  .memory-row, .memory-axis {
+    display: grid; grid-template-columns: minmax(130px, 26%) minmax(0, 1fr) 87px;
+    gap: 8px; align-items: center; font-size: .84rem;
+  }
+  .memory-axis { color: var(--dim); }
+  .memory-bar { display: flex; height: 15px; background: var(--cell); border-radius: 3px; overflow: hidden; }
+  .memory-bar span { display: block; height: 100%; }
+  .memory-total { text-align: right; font-size: .84rem; }
+  .memory-row[data-final="true"] .memory-total { color: var(--new); font-weight: 700; }
+  footer { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--dim); font-size: .85rem; }
+  @media (max-width: 760px) {
+    main { padding-top: 28px; }
+    .pair { grid-template-columns: 1fr; }
+    .paging { margin-left: 0; }
+  }
+  @media (max-width: 510px) {
+    .metrics { grid-template-columns: 1fr; }
+    .handoff { grid-template-columns: 1fr; }
+    .handoff .edge span { display: inline; }
+    .handoff .edge span::after { content: '↓'; }
+    .handoff .edge span { font-size: 0; }
+    .handoff .edge span::after { font-size: 1rem; margin-left: 5px; }
+    .memory-row, .memory-axis { grid-template-columns: minmax(0, 1fr) 80px; gap: 3px 8px; }
+    .memory-bar, .memory-axis .ticks { grid-column: 1 / -1; grid-row: 2; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="intro">
+    <h1>Dense GFSDP</h1>
+    <p>Как изменились порядок backward и расход памяти входных эмбеддингов.</p>
+    <div class="summary" aria-label="Финальный вариант относительно compiled Original A">
+      <span>EP8 · <strong>+2,18% TPS · −2,81 GiB</strong></span>
+      <span>EP4 · <strong>+1,29% TPS · −3,49 GiB</strong></span>
+      <span>8 × H100 · GFSDP8 · 10+10</span>
+    </div>
+  </header>
+
+  <nav class="navigation" aria-label="Разделы и шаги" hidden>
+    <div class="toolbar" role="group" aria-label="Группа изменений">
+      <button type="button" data-track="schedule" aria-controls="schedule">FFN и расписание MTP</button>
+      <button type="button" data-track="embedding" aria-controls="embedding">Входные эмбеддинги</button>
+    </div>
+    <div class="toolbar">
+      <div class="toolbar" id="steps" role="group" aria-label="Шаги раздела"></div>
+      <div class="toolbar paging">
+        <button type="button" id="previous">← Назад</button>
+        <button type="button" id="next">Дальше →</button>
+      </div>
+    </div>
+  </nav>
+
+  <section class="track" id="schedule" aria-label="FFN и расписание MTP">
+    <section class="step" data-label="Две группы FFN">
+      <h2>Когда можно редуцировать градиенты FFN</h2>
+      <p>FFN — dense MLP внутри блока. Разделение применили в первом блоке основной модели и в MTP. В обоих случаях каждая группа шардируется по тем же восьми dense-рангам.</p>
+      <div class="pair">
+        <article class="board">
+          <h3>Как было · compiled Original A</h3>
+          <ol class="flow">
+            <li>Одна GFSDP-группа<small>FFN, attention, нормы и другие параметры блока</small></li>
+            <li>Backward суффикса → FFN → префикса</li>
+            <li class="region">Общий FP32 reduce-scatter<small>Запускается после готовности градиентов всей группы.</small></li>
+          </ol>
+        </article>
+        <article class="board optimized">
+          <h3>Как стало · FFN выделен</h3>
+          <ol class="flow">
+            <li>Родительская группа + отдельная группа <code>feed_forward</code><small>Два непересекающихся среза прежнего пула.</small></li>
+            <li>Backward суффикса → FFN</li>
+            <li class="region">
+              <div class="overlap" aria-label="Допустимое перекрытие">
+                <span>Вычисления · backward префикса</span>
+                <span class="collective">Связь · FP32 reduce-scatter FFN</span>
+              </div>
+              <small>Как только градиенты FFN готовы, его reduce-scatter может идти параллельно префиксу.</small>
+            </li>
+          </ol>
+        </article>
+      </div>
+      <div class="metrics">
+        <div class="metric"><b>1,504–1,813 мс</b><small><code>layers.0</code> · reduce-scatter FFN пересекается с backward своего префикса.</small></div>
+        <div class="metric"><b>4,409–4,561 мс</b><small><code>mtp.layers.0</code> · reduce-scatter FFN пересекается с backward своей родительской группы.</small></div>
+      </div>
+      <p class="note">Перекрытия измерены в пакете с первыми четырьмя правками, EP8, ранги 0 и 1, три микробатча на ранг. <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/artifacts/raw/native-001/diagnostic/ep8-all-traces/native/profiling/traces/iteration_11/rank0_trace.json">Трасса ранга 0</a> · <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/artifacts/raw/native-001/diagnostic/ep8-all-traces/native/profiling/traces/iteration_11/rank1_trace.json">Трасса ранга 1</a></p>
+      <div class="table-wrap">
+        <table aria-label="Изолированные блоки и полные прогоны после разбиения">
+          <thead><tr><th scope="col">Блок</th><th scope="col" class="num">Блок F+B</th><th scope="col" class="num">EP8 · TPS / пик</th><th scope="col" class="num">EP4 · TPS / пик</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><code>layers.0</code></th><td class="num">25,274 → 23,375 мс</td><td class="num">−0,11% / +0,16 GiB</td><td class="num">−0,22% / +0,09 GiB</td></tr>
+            <tr><th scope="row"><code>mtp.layers.0</code></th><td class="num">32,221 → 30,136 мс</td><td class="num">−0,19% / −1,83 GiB</td><td class="num">−0,47% / −2,51 GiB</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">Это сравнения каждой правки с её контролем. Изолированные блоки измеряют forward и backward. TPS и полный пик взяты из отдельных прогонов 10+10. <a href="dense-gfsdp.md#isolated-and-earlier-training-experiments">Измерения и условия</a></p>
+    </section>
+
+    <section class="step" data-label="Таймлайн MTP">
+      <h2>Что пересекалось в MTP backward</h2>
+      <p>В Original A LM head заранее запрашивал веса MTP одной группой. Чтобы измерить эффект расписания после разбиения, в обеих трассах ниже MTP FFN уже выделен. Ноль на каждой шкале — старт reduce-scatter LM head в соответствующем прогоне.</p>
+      <div class="toolbar controls" id="trace-controls" hidden>
+        <label for="trace-sample">Трасса EP8 <select id="trace-sample"></select></label>
+        <label for="trace-variant">Правый таймлайн
+          <select id="trace-variant">
+            <option value="transition">Только новое расписание</option>
+            <option value="all">Первые четыре правки вместе</option>
+          </select>
+        </label>
+      </div>
+      <figure class="figure">
+        <div class="legend" aria-label="Обозначения таймлайна">
+          <span><i class="swatch ag" aria-hidden="true"></i>BF16 all-gather</span>
+          <span><i class="swatch rs" aria-hidden="true"></i>FP32 reduce-scatter</span>
+          <span><i class="swatch mark" aria-hidden="true"></i>Старт операции</span>
+        </div>
+        <div class="pair" id="timelines"></div>
+        <figcaption>GPU-метки из 11-го апдейта. Полосы отражают длительность выбранных операций. Место начала <code>layers.7</code> backward отмечено точкой. Вычисления, отсутствующие на выбранных дорожках, продолжаются между метками. <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/artifacts/raw/native-001/validation/mtp-trace-analysis.json">Данные трасс</a></figcaption>
+      </figure>
+      <div class="table-wrap">
+        <table aria-label="Диапазоны по шести наблюдениям в каждом прогоне">
+          <thead><tr><th scope="col">GPU-метки · ранги 0–1, по 3 микробатча</th><th scope="col">Прежнее расписание</th><th scope="col">Новое расписание</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">All-gather MTP FFN относительно reduce-scatter LM head</th><td>Старт через 0,003–0,263 мс после конца</td><td>Финиш за 22,60–28,69 мс до старта</td></tr>
+            <tr><th scope="row">Старт dense all-gather <code>layers.7</code> после reduce-scatter MTP FFN</th><td>13,58–14,04 мс</td><td>0,071–0,440 мс</td></tr>
+            <tr><th scope="row">Часть dense all-gather <code>layers.7</code> вне наблюдаемых вычислений</th><td>0,423–0,829 мс</td><td>0,011–0,055 мс</td></tr>
+            <tr><th scope="row">Старт упаковки <code>model.norm</code> относительно конца редукции MTP parent</th><td>Через 0,003–0,058 мс после</td><td>За 0,143–4,711 мс до конца</td></tr>
+            <tr><th scope="row">Перекрытие <code>layers.7</code> backward с reduce-scatter MTP parent</th><td>0 мс</td><td>0 мс</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">All-gather родительской группы MTP уже выполнялся заранее. В каждом прогоне у каждой MTP-группы был один backward all-gather на микробатч. Трасса показывает порядок и перекрытие на GPU. Точные пары CUDA record/wait в захвате отсутствуют. <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/artifacts/raw/native-001/validation/mtp-parent-boundary.json">Граница запуска layers.7</a></p>
+    </section>
+
+    <section class="step" data-label="Кто ждёт буфер">
+      <h2>Кому передаётся память MTP FFN</h2>
+      <p>Разбиение MTP создаёт отдельные области весов и градиентов FFN. Новое расписание отдаёт каждую область следующему потребителю после завершения её прежнего использования.</p>
+      <div class="pair">
+        <article class="board">
+          <h3>Как было · штатные слоты</h3>
+          <div class="body ledger">
+            <div class="node">Область весов MTP<small>В Original A FFN находится внутри родительской группы.</small></div>
+            <div class="node">Dense-веса <code>layers.7</code><small>Собираются в назначенный GFSDP-слот.</small></div>
+            <div class="node"><code>model.norm</code><small>Упаковывает градиент в свой штатный слот подготовки редукции.</small></div>
+          </div>
+        </article>
+        <article class="board optimized">
+          <h3>Как стало · две передачи области</h3>
+          <div class="body ledger">
+            <div class="handoff">
+              <div class="node region">MTP FFN · BF16 веса<small>256,50 MiB</small></div>
+              <div class="edge">Освобождение<span aria-hidden="true">→</span></div>
+              <div class="node region"><code>layers.7</code> · dense all-gather<small>162,56 MiB в той же памяти</small></div>
+            </div>
+            <div class="handoff">
+              <div class="node region">MTP FFN · FP32 область градиента<small>Её читает reduce-scatter FFN.</small></div>
+              <div class="edge">Освобождение<span aria-hidden="true">→</span></div>
+              <div class="node region"><code>model.norm</code> · упаковка FP32<small>528 KiB в той же памяти</small></div>
+            </div>
+            <p class="note">Обе передачи защищены событиями освобождения соответствующего среза. Раннее заполнение BF16-области даёт готовые dense-веса к запуску <code>layers.7</code>.</p>
+          </div>
+        </article>
+      </div>
+      <div class="metrics">
+        <div class="metric"><b>+0,85% / +0,79% TPS</b><small>Только перенос расписания, EP8 / EP4. Изменение полного пика в обоих сравнениях 0,00 GiB.</small></div>
+        <div class="metric"><b><code>layers.0</code> · отдельная правка</b><small><code>layers.7</code> — последний блок основной модели в этом прогоне. <code>model.norm</code> — её финальная норма. Оба заимствуют области MTP FFN независимо от разбиения первого блока.</small></div>
+      </div>
+      <p class="note">Стрелки обозначают зависимости, заданные реализацией. В трассе с четырьмя правками рядом с запуском <code>layers.7</code> видна копия 576 MiB на expert-пути. Она завершалась за 2,30–7,55 мкс до первого backward-ядра. Причинную связь по этому захвату установить нельзя. <a href="dense-gfsdp.md#what-the-mtp-backward-trace-showed">Разбор трассы и ссылки на код</a></p>
+    </section>
+  </section>
+
+  <section class="track" id="embedding" aria-label="Входные эмбеддинги">
+    <section class="step" data-label="Путь строк и градиентов">
+      <h2>От полной таблицы к обмену строками</h2>
+      <p>Пусть <code>V</code> — размер словаря, <code>H</code> — ширина строки, <code>U</code> — число уникальных ID на ранге. Вес, который хранит каждый владелец, остаётся шардом таблицы.</p>
+      <div class="pair">
+        <article class="board">
+          <h3>Как было · compiled Original A</h3>
+          <ol class="flow">
+            <li class="region">Forward · all-gather BF16-таблицы<small>Ранг собирает весь тензор V × H, 1 002 MiB в этом прогоне.</small></li>
+            <li>Lookup по ID<small>Выбирает строки из собранной таблицы.</small></li>
+            <li>Backward · локальный градиент всей таблицы<small>Градиенты пакуются в 2 004 MiB FP32 перед reduce-scatter.</small></li>
+            <li class="region">Reduce-scatter FP32<small>Каждому рангу возвращается градиент его шарда.</small></li>
+          </ol>
+        </article>
+        <article class="board optimized">
+          <h3>Как стало · финальный row-owner</h3>
+          <ol class="flow">
+            <li>Forward · уникальные ID и их владельцы<small>① Обмен счётчиками · ② Запросы int64 ID.</small></li>
+            <li class="region">③ Владельцы возвращают запрошенные BF16-строки<small>Запрашивающий ранг восстанавливает исходный порядок токенов.</small></li>
+            <li>Backward · компактное суммирование повторов<small>Прямой выход BF16 на U строк, с внутренним padding при необходимости.</small></li>
+            <li class="region">④ Отправка BF16-градиентов владельцам<small>Владелец расширяет BF16 до FP32 и суммирует вклады по порядку рангов.</small></li>
+          </ol>
+        </article>
+      </div>
+      <p class="note">Четыре обмена используют выделенный NCCL-коммуникатор. Эта схема относится к <code>model.tok_embeddings</code>. Untied <code>model.lm_head</code> сохраняет свой GFSDP-путь. Изолированный forward + backward первого row-owner занял 2,777 мс вместо 12,894 мс. <a href="dense-gfsdp.md#changes-under-review">Пути в коде</a> · <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/embedding-replay-result.json">Замер эмбеддингов</a></p>
+    </section>
+
+    <section class="step" data-label="Два источника памяти">
+      <h2>Где возникла дополнительная память</h2>
+      <p>В первой версии row-owner полная таблица ушла из forward. Первый разреженный обмен завёл новые буферы NCCL, а backward всё ещё создавал временный BF16-тензор на весь словарь.</p>
+      <div class="pair">
+        <article class="board">
+          <h3>Вне PyTorch · буферы NCCL</h3>
+          <div class="body">
+            <ol class="flow">
+              <li>Первый разреженный обмен int64 ID на общем коммуникаторе<small>NCCL запускает P2P send/recv. Буферы сохраняются после обмена.</small></li>
+              <li>32 канала × 7 соседей на GPU<small>224 пары буферов 10 MiB + 2 MiB. Это ≈2,625 GiB из измеренных 2,686 GiB.</small></li>
+              <li class="region">Финал · выделенный коммуникатор на 4 канала<small>Остальные dense-коллективы продолжают использовать 32 канала.</small></li>
+            </ol>
+            <p class="note"><strong>2,213 GiB</strong> экономии на GPU относительно общего коммуникатора в изолированном replay. <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/artifacts/raw/row-owner-external-memory-001/comparison.json">Первое выделение</a> · <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/artifacts/raw/row-owner-narrow-communicator-001/comparison.json">Сравнение каналов</a></p>
+          </div>
+        </article>
+        <article class="board optimized">
+          <h3>В PyTorch · временный градиент на стороне запроса</h3>
+          <div class="body">
+            <ol class="flow">
+              <li>Первый row-owner · ATen создаёт BF16 V × H<small><code>index_select</code> копирует U строк в буфер отправки.</small></li>
+              <li class="region">Финал · ATen сразу считает компактный BF16-выход<small>Сохраняем порядок токенов и группы повторов. Padding сохраняет упорядоченное CUDA-ядро при малом U.</small></li>
+              <li>В обмен идут ровно U строк<small>Формат обмена BF16, итоговый градиент владельца FP32.</small></li>
+            </ol>
+            <p class="note"><strong>1 002 → 17,45 MiB</strong> у BF16-выхода при U = 2 234. FP32-область частичных сумм при этом уменьшается со 140,80 до 47,70 MiB. <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/compact-source-coalescing.md">Размеры тензоров и dispatch</a></p>
+          </div>
+        </article>
+      </div>
+      <p class="note">Часть временных данных row-owner использует свободный срез отдельного 2 004 MiB буфера LM head. Его выделение сохраняется. Слева показана резидентная память NCCL в изолированном replay, справа размеры тензоров. Полный пик измеряется отдельно на тренировке. <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/report.md#combined-embedding-memory-campaign">Время жизни буферов</a></p>
+      <p class="note">В отдельном 10+10 сравнении добавление row-owner к тому же разбиению <code>layers.0</code> увеличило память вне PyTorch примерно на 2,69 GiB на обеих топологиях. Полный пик вырос на 0,75 GiB на EP8 и на 0,24 GiB на EP4. <a href="dense-gfsdp.md#isolated-and-earlier-training-experiments">Парные сравнения</a></p>
+    </section>
+
+    <section class="step" data-label="Пик EP8 и EP4">
+      <h2>Как менялся полный пик GPU</h2>
+      <p>Сравнение 10+10 на одной топологии. Все варианты после Original A включают обе FFN-правки, новое расписание MTP и row-owner.</p>
+      <div class="toolbar" id="memory-controls" role="group" aria-label="Топология" hidden>
+        <button type="button" data-topology="ep8" aria-pressed="true">EP8 / eFSDP1</button>
+        <button type="button" data-topology="ep4" aria-pressed="false">EP4 / eFSDP2</button>
+      </div>
+      <figure class="figure">
+        <div class="legend" aria-label="Состав показателя памяти">
+          <span><i class="swatch reserve" aria-hidden="true"></i>Зарезервировано PyTorch</span>
+          <span><i class="swatch external" aria-hidden="true"></i>Память вне PyTorch</span>
+        </div>
+        <div class="board optimized memory-plot" id="memory-plot"></div>
+        <figcaption>Столбец берёт ранг и апдейт с наибольшим значением GIFT на апдейтах 11–20. PyTorch — пик reserved за интервал, внешняя память — сэмпл на момент лога. Пики разных рангов или апдейтов не складываются.</figcaption>
+      </figure>
+      <div class="metrics" id="memory-facts" aria-live="polite"></div>
+      <div class="table-wrap" id="memory-table"></div>
+      <p class="note">Каждое значение TPS — один прогон. Различия меньше процента описывают эти замеры. <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/artifacts/raw/embedding-combined-001/ep8/results.json">Результаты EP8</a> · <a href="../../.worktrees/dense-gfsdp-fix/runs/dense-gfsdp-fix/artifacts/raw/embedding-combined-001/ep4/results.json">Результаты EP4</a></p>
+    </section>
+  </section>
+
+  <footer class="links">
+    <a href="dense-gfsdp.md">Обзор, ветка и bitwise-проверки</a>
+    <a href="lm-head-ce-flow.html">Схема LM-head и CE</a>
+    <noscript><p>Для выбора захвата таймлайна и топологии включите JavaScript.</p></noscript>
+  </footer>
+</main>
+<script>
+"use strict";
+
+// Device intervals are relative to LM-head reduce-scatter start, in milliseconds.
+const traceSamples = [
+  {"rank": 0, "microbatch": 1, "control": [[-45.192909, -33.22951], [5.905091, 6.650438], [0.0, 5.902531], [14.183571, 15.930365], [28.024102, 29.583248], [29.586831, 30.361332], [29.589807], [30.768247]], "transition": [[-44.014267, -31.258834], [-30.190636, -28.686274], [0.0, 6.549158], [9.899865, 11.754243], [23.7522, 25.229328], [12.184582, 12.966538], [25.086192], [25.630419]], "all": [[-42.830201, -31.408184], [-29.553068, -27.401087], [0.0, 9.515479], [10.153627, 14.830677], [24.281836, 28.47978], [14.836597, 17.331428], [25.476787], [28.881287]]},
+  {"rank": 0, "microbatch": 2, "control": [[-45.533199, -33.926282], [5.985315, 6.734761], [0.0, 5.726433], [14.440885, 16.040799], [28.575497, 29.991187], [30.05413, 30.567829], [30.049362], [30.97324]], "transition": [[-29.774442, -29.016773], [-28.945797, -27.627005], [0.0, 8.177967], [10.122842, 13.53982], [24.127178, 27.357979], [13.979824, 14.710484], [25.299217], [27.816735]], "all": [[-30.887795, -29.804781], [-29.739021, -26.211608], [0.0, 10.78419], [11.773316, 16.328223], [25.197521, 29.949612], [16.537088, 17.884296], [26.339416], [30.408816]]},
+  {"rank": 0, "microbatch": 3, "control": [[-32.076958, -28.083014], [10.713185, 11.466692], [0.0, 10.451295], [19.198738, 20.744827], [32.612482, 34.731472], [34.785615, 35.547315], [34.788943], [35.955734]], "transition": [[-31.585908, -29.283175], [-29.215559, -26.752249], [0.0, 9.243157], [10.726461, 15.406392], [25.868883, 28.926245], [15.477528, 16.961218], [27.075674], [29.383304]], "all": [[-31.219669, -29.130825], [-29.076201, -24.464814], [0.0, 13.729232], [14.952791, 19.536689], [28.486373, 33.539106], [19.809715, 22.44349], [29.6883], [33.999365]]},
+  {"rank": 1, "microbatch": 1, "control": [[-41.706058, -28.287358], [10.819934, 11.548577], [0.0, 10.816509], [18.454952, 20.889559], [31.414961, 34.466786], [34.474178, 35.315879], [34.469954], [35.718377]], "transition": [[-29.315679, -24.673317], [-24.564068, -22.603931], [0.0, 12.784133], [13.367111, 18.025601], [25.49444, 31.35204], [18.309475, 19.082534], [26.641328], [31.753194]], "all": [[-29.875333, -27.382359], [-27.2718, -23.611268], [0.0, 13.505259], [14.260559, 18.79796], [25.674382, 32.435188], [20.545586, 21.285494], [26.80594], [32.835605]]},
+  {"rank": 1, "microbatch": 2, "control": [[-31.10011, -29.161667], [10.862237, 11.609986], [0.0, 10.599196], [19.375789, 20.898326], [32.290038, 34.807652], [34.865092, 35.412264], [34.86154], [35.817931]], "transition": [[-31.047176, -29.872386], [-29.798433, -28.420857], [0.0, 7.236904], [10.277176, 12.620997], [24.31738, 26.184046], [12.762053, 13.737322], [25.486153], [26.640016]], "all": [[-28.994976, -25.816303], [-25.742158, -22.580573], [0.0, 14.634482], [15.654839, 20.157456], [25.429869, 33.719291], [20.357394, 21.771962], [26.555251], [34.17987]]},
+  {"rank": 1, "microbatch": 3, "control": [[-44.003863, -26.983287], [11.573346, 12.316518], [0.0, 11.312288], [19.636303, 21.598521], [32.647607, 35.407623], [35.466695, 36.384749], [35.462312], [36.792271]], "transition": [[-32.305199, -28.850973], [-28.791996, -26.582769], [0.0, 9.510067], [10.725338, 15.625076], [25.593481, 29.230557], [15.835732, 17.210491], [26.789903], [29.685536]], "all": [[-31.788304, -28.881248], [-28.810688, -23.997478], [0.0, 14.137166], [15.426933, 19.926285], [26.130641, 33.941884], [20.918355, 22.819646], [27.242071], [34.39683]]}
+];
+// Each row contains window TPS, the total GIFT peak and the non-PyTorch sample at that peak.
+const memory = {
+  "ep8": [[155695.872975, 72.32, 2.56], [158691.748369, 73.34, 5.24], [158671.515548, 71.09, 3.02], [158944.537255, 71.52, 3.43], [159093.390034, 69.51, 3.02]],
+  "ep4": [[146782.874266, 75.98, 2.91], [149390.291617, 76.32, 5.6], [148765.333132, 74.09, 3.39], [148737.553157, 74.51, 3.8], [148678.949522, 72.49, 3.39]]
+};
+
+const byId = id => document.getElementById(id);
+const format = (value, digits = 2) => new Intl.NumberFormat("ru-RU", {
+  minimumFractionDigits: digits,
+  maximumFractionDigits: digits,
+}).format(value);
+const signed = (value, digits = 2) => (value < 0 ? "−" : "+") + format(Math.abs(value), digits);
+
+const navigation = document.querySelector(".navigation");
+const tracks = [...document.querySelectorAll(".track")];
+const trackButtons = [...navigation.querySelectorAll("[data-track]")];
+const stepButtons = byId("steps");
+const previous = byId("previous");
+const next = byId("next");
+let activeTrack = "schedule";
+let activeStep = 0;
+
+function show(track, index, restoreFocus = false) {
+  const selected = byId(track);
+  const steps = [...selected.querySelectorAll(".step")];
+  activeTrack = track;
+  activeStep = Math.max(0, Math.min(index, steps.length - 1));
+  for (const panel of tracks) panel.hidden = panel !== selected;
+  for (const button of trackButtons) button.setAttribute("aria-pressed", String(button.dataset.track === track));
+  for (const [i, step] of steps.entries()) step.hidden = i !== activeStep;
+  stepButtons.replaceChildren(...steps.map((step, i) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = step.dataset.label;
+    button.setAttribute("aria-pressed", String(i === activeStep));
+    button.addEventListener("click", () => show(track, i, true));
+    return button;
+  }));
+  previous.disabled = activeStep === 0;
+  next.disabled = activeStep === steps.length - 1;
+  if (restoreFocus) stepButtons.children[activeStep].focus();
+}
+
+for (const button of trackButtons) button.addEventListener("click", () => show(button.dataset.track, 0));
+previous.addEventListener("click", () => show(activeTrack, activeStep - 1, true));
+next.addEventListener("click", () => show(activeTrack, activeStep + 1, true));
+document.addEventListener("keydown", event => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
+      event.target.closest("select, input, textarea, [contenteditable], .table-wrap")) return;
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    event.preventDefault();
+    show(activeTrack, activeStep + (event.key === "ArrowLeft" ? -1 : 1), true);
+  }
+});
+
+const traceRows = [
+  ["MTP parent · AG", "ag"],
+  ["MTP FFN · AG", "ag"],
+  ["LM head · RS", "rs"],
+  ["MTP FFN · RS", "rs"],
+  ["MTP parent · RS", "rs"],
+  ["layers.7 dense · AG", "ag"],
+  ["model.norm · упаковка", "mark"],
+  ["layers.7 · backward", "mark"],
+];
+const traceSample = byId("trace-sample");
+const traceVariant = byId("trace-variant");
+for (const sample of traceSamples) {
+  const option = document.createElement("option");
+  option.textContent = "Ранг " + sample.rank + " · микробатч " + sample.microbatch;
+  traceSample.append(option);
+}
+
+function renderTimeline(title, spans, optimized, min, max) {
+  const percent = value => 100 * (value - min) / (max - min);
+  const axis = Array.from({length: 6}, (_, i) => Math.round(min + i * (max - min) / 5));
+  const intervals = traceRows.map(([label, type], i) => {
+    const [start, end] = spans[i];
+    const range = end === undefined ? format(start, 3) : format(start, 3) + " → " + format(end, 3);
+    const position = "left:" + percent(start) + "%";
+    const size = end === undefined ? "" : ";width:" + (percent(end) - percent(start)) + "%";
+    return '<div class="trace-row"><span>' + label + '</span><div class="plot" role="img" aria-label="' +
+      label + ' · ' + range + ' мс"><span class="span ' + type + '" style="' + position + size +
+      '" title="' + range + ' мс"></span></div></div>';
+  }).join("");
+  const [[headStart, headEnd], [ffnStart, ffnEnd]] = [spans[2], spans[1]];
+  const gather = ffnEnd < headStart
+    ? "за " + format(headStart - ffnEnd, 3) + " мс до старта"
+    : "через " + format(ffnStart - headEnd, 3) + " мс после конца";
+  return '<article class="board' + (optimized ? ' optimized' : '') + '" style="--zero:' + percent(0) +
+    '%"><h3>' + title + '</h3><div class="timeline">' + intervals +
+    '<div class="trace-axis"><span>мс от старта LM head RS</span><div class="ticks" aria-hidden="true">' +
+    axis.map(tick => '<span>' + tick + '</span>').join("") +
+    '</div></div><dl class="facts"><div><dt>FFN AG относительно LM head RS</dt><dd>' + gather +
+    '</dd></div><div><dt>Старт layers.7 AG после FFN RS</dt><dd>' + format(spans[5][0] - spans[3][1], 3) +
+    ' мс</dd></div></dl></div></article>';
+}
+
+function renderTraces() {
+  const sample = traceSamples[traceSample.selectedIndex];
+  const optimized = sample[traceVariant.value];
+  const points = [...sample.control.flat(), ...optimized.flat()];
+  const min = Math.floor(Math.min(...points) / 10) * 10;
+  const max = Math.ceil(Math.max(...points) / 10) * 10;
+  const title = traceVariant.value === "all" ? "Первые четыре правки вместе" : "Новое расписание MTP";
+  byId("timelines").innerHTML = renderTimeline("Прежнее расписание · MTP FFN выделен", sample.control, false, min, max) +
+    renderTimeline(title, optimized, true, min, max);
+}
+
+const memoryLabels = [
+  "Compiled Original A", "Row-owner · общий NCCL", "Row-owner · 4 канала",
+  "Row-owner · 8 каналов", "4 канала + compact · финал",
+];
+const topologyButtons = [...byId("memory-controls").querySelectorAll("button")];
+
+function renderMemory(topology) {
+  for (const button of topologyButtons) button.setAttribute("aria-pressed", String(button.dataset.topology === topology));
+  const rows = memory[topology];
+  const memoryBars = rows.map(([, total, external], i) => {
+    const reserved = total - external;
+    const label = "Зарезервировано PyTorch " + format(reserved) + " GiB, вне PyTorch " + format(external) + " GiB";
+    return '<div class="memory-row" data-final="' + (i === rows.length - 1) + '"><span>' + memoryLabels[i] +
+      '</span><div class="memory-bar" role="img" aria-label="' + label +
+      '"><span class="swatch reserve" style="width:' + reserved / 80 * 100 + '%" title="PyTorch · ' + format(reserved) +
+      ' GiB"></span><span class="swatch external" style="width:' + external / 80 * 100 +
+      '%" title="Вне PyTorch · ' + format(external) + ' GiB"></span></div><span class="memory-total numbers">' +
+      format(total) + ' GiB</span></div>';
+  }).join("");
+  byId("memory-plot").innerHTML = memoryBars + '<div class="memory-axis"><span>GiB на GPU</span>' +
+    '<div class="ticks" aria-hidden="true"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span></div></div>';
+
+  const [baseline, shared, four, , final] = rows;
+  const tpsDelta = (candidate, control) => 100 * (candidate[0] / control[0] - 1);
+  byId("memory-facts").innerHTML =
+    '<div class="metric warning"><b>' + signed(shared[2] - baseline[2]) +
+    ' GiB вне PyTorch</b><small>Общий NCCL с row-owner относительно Original A. PyTorch reserved упал на ' +
+    format((baseline[1] - baseline[2]) - (shared[1] - shared[2])) + ' GiB, общий пик вырос на ' +
+    format(shared[1] - baseline[1]) + ' GiB.</small></div>' +
+    '<div class="metric"><b>' + signed(final[1] - shared[1]) +
+    ' GiB полного пика</b><small>Финал относительно общего NCCL с row-owner · ' +
+    signed(tpsDelta(final, shared), 3) + '% TPS. Из этого перехода compact после ограничения каналов экономит ещё ' +
+    format(four[1] - final[1]) + ' GiB.</small></div>';
+
+  const tableRows = rows.map(([tps, total, external], i) => '<tr><th scope="row">' + memoryLabels[i] +
+    '</th><td class="num">' + format(tps) + '</td><td class="num">' + format(total - external) +
+    '</td><td class="num">' + format(external) + '</td><td class="num">' + format(total) + '</td></tr>').join("");
+  byId("memory-table").innerHTML = '<table aria-label="Метрики прогона на выбранной топологии">' +
+    '<thead><tr><th scope="col">Вариант</th><th scope="col" class="num">Window TPS</th>' +
+    '<th scope="col" class="num">PyTorch, GiB</th><th scope="col" class="num">Вне PyTorch, GiB</th>' +
+    '<th scope="col" class="num">Пик, GiB</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
+}
+
+traceSample.addEventListener("change", renderTraces);
+traceVariant.addEventListener("change", renderTraces);
+for (const button of topologyButtons) button.addEventListener("click", () => renderMemory(button.dataset.topology));
+renderTraces();
+renderMemory("ep8");
+show("schedule", 0);
+navigation.hidden = false;
+byId("trace-controls").hidden = false;
+byId("memory-controls").hidden = false;
+</script>
+</body>
+</html>

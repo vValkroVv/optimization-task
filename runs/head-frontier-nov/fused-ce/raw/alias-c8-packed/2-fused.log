@@ -1,0 +1,92 @@
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+Activated one-read BF16 in-place centered CE with cuda-16
+{
+  "source": "2c67c182e8de6145f3796d62203714ab1b815446",
+  "loss_source": "/workspace-SR008.nfs2/vkropotin/optimization-task/.worktrees/lm-head-mtp-fix/gift/torchtitan/components/loss.py",
+  "variant": "current",
+  "chunks": 8,
+  "writer": "cublas",
+  "vendor": null,
+  "vendor_chunk_calls": null,
+  "logit_storage": "reuse",
+  "folded_rows_per_chunk": 2048,
+  "compile": {
+    "backend": "inductor",
+    "scope": "native loss",
+    "counters": {
+      "calls_captured": 3,
+      "unique_graphs": 1
+    },
+    "cuda_graphs": false
+  },
+  "head": "bias-free BF16; FP32 rank-local GFSDP accumulation/reduction",
+  "activation": {
+    "ce": "torchtitan.experiments.four_fusion.stable_ce.cross_entropy_loss",
+    "folded": true,
+    "staged_chunk_calls": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "GIFT_STABLE_CE_FOLDED_BACKWARD": "1",
+    "GIFT_DIRECT_BF16_DHIDDEN": "1",
+    "GIFT_STAGED_HEAD_DW": "1",
+    "GIFT_FUSED_HIDDEN_Z_LOSS": "1"
+  },
+  "fixture": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/kernel-fusion/artifacts/raw/backward-inputs-001/component-inputs/rank0.pt",
+  "hidden_z_fixture_sha256": "dced479c2bea4ff5cc5ade9dad04531d075d74f4bbc5c79e3f069c049d8863a1",
+  "device": {
+    "torch": "2.15.0.dev20260822+cu130",
+    "cuda": "13.0",
+    "name": "NVIDIA H100 80GB HBM3",
+    "visible": "GPU-94342dfc-a019-a7b6-e581-6dfa927d6f4d"
+  },
+  "scope": "host wall incl. device sync; native label packing, head CE and BF16 dHidden, FP32 GFSDP dW, independent z-loss retained across head backward",
+  "singleton_reduction": "force-sum",
+  "allocator_retries_and_ooms": {
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "ce_route_calls": {
+    "folded": 8,
+    "ce": 0
+  },
+  "accumulation": "pre-existing sharded weight gradient retained across timed calls",
+  "warmup": 10,
+  "elapsed_ms": [
+    78.38748302310705,
+    78.70276999892667,
+    77.54506304627284,
+    77.47364102397114,
+    76.74565998604521,
+    76.68996800202876,
+    76.29610795993358,
+    77.51830900087953,
+    77.08270300645381,
+    84.16294498601928
+  ],
+  "median_ms": 77.49597501242533,
+  "total_gpu_gib": [
+    9.1766357421875,
+    9.1766357421875,
+    9.1766357421875,
+    9.1766357421875,
+    9.1766357421875,
+    9.1766357421875,
+    9.1766357421875,
+    9.1766357421875,
+    9.1766357421875,
+    9.1766357421875
+  ],
+  "peak_total_gpu_gib": 9.1766357421875,
+  "loss": [
+    0.059884000569581985,
+    2.7444108127383515e-05
+  ]
+}

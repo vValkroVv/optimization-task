@@ -1,0 +1,385 @@
+{
+  "argv": [
+    "ce_bench.py",
+    "--case",
+    "100b",
+    "--chunks",
+    "2",
+    "--part",
+    "1",
+    "--variant",
+    "baseline",
+    "--fixture",
+    "inputs/100b.pt",
+    "--exact-so",
+    "native-ce/centered-folded-v1.so",
+    "--exact-sha256",
+    "17b006cc257566200112b089199c97bb76f7e7ad95118dde923eebf845adcac8",
+    "--graph",
+    "--output",
+    "output/ce/100b-c2-baseline.json"
+  ],
+  "case": "100b",
+  "chunks": 2,
+  "variant": "baseline",
+  "warmup": 10,
+  "samples": 32,
+  "source_hashes": {
+    "ce_bench.py": "5b2d22d5a93e51e3de38afc5e74202b5fc70d9ba88c8bd3463f4efd7876f4d91",
+    "vendor_ops.py": "a3787e1cece6fc98aa0010704e364ce29a9f722b58db08f2b73857ba7905ef3a",
+    "matrix_fixture.py": "592651d1910a13e980f147aea691c9f5fcea54805c77c88d0e0cb355cbe46fc4"
+  },
+  "environment": {
+    "host": "lm-mpi-job-60cdca27-79a8-46e2-ade4-2adcbb2e59a3-mpimaster-0",
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "gpu_uuid": "441785ae-d49a-aa45-d573-557c8d0e8327",
+    "gpu_capacity_gib": 79.1893310546875,
+    "torch": "2.15.0.dev20260822+cu130",
+    "torch_git": "8b353065ce260336c5fdfa74d754e8bd9b91b062",
+    "triton": "3.8.0",
+    "cuda_runtime": "13.0",
+    "cuda_visible_devices": "0",
+    "allocator_config": "expandable_segments:True",
+    "tf32": false
+  },
+  "route": {
+    "backend": "GIFT FP32-input PyTorch CE, compiled separately per head",
+    "source": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/integrated/gift/torchtitan/components/loss.py",
+    "source_sha256": "cef8361552374c621e0dd0b4e5e478c4705c7b28676f5b9896bf0c5c1ce02d30"
+  },
+  "fixture": {
+    "path": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/inputs/100b.pt",
+    "file_bytes": 1252100984,
+    "provenance": {
+      "input_type": "real data-002 targets and positions; seeded synthetic hidden, z-hidden and weights",
+      "seed": 2048,
+      "rows": [
+        {
+          "domain": "wikipedia_en",
+          "index": 0,
+          "sha256": "af8a8fa9ebd73c4da47357f8c0e55107370086b75872c4e54cd1b52998a158a2"
+        },
+        {
+          "domain": "math_finemath_3plus",
+          "index": 1,
+          "sha256": "547aca97057a58a2dae2e8dd5215a53e6e5dad5dcce5b256e7eead977aabb1f9"
+        }
+      ],
+      "model": "100b"
+    },
+    "chunk_index": 1,
+    "logits_shape": [
+      4,
+      2048,
+      128256
+    ],
+    "logits_dtype": "torch.bfloat16",
+    "logits_bytes": 2101346304,
+    "projected_vocab_stride_4093_sample_sha256": "15c1599bf58af30277701ce6557d6cbe37083a4c0d1a95ebd862b8defc9f8f42",
+    "target_sha256": "765ed403a5454bca493d576b9eb6d15ae15dba4fd373619b928471b85023cd75",
+    "valid_rows_by_head": [
+      4094,
+      4087
+    ],
+    "head_weights": [
+      1.0,
+      0.3
+    ],
+    "global_denominator": 2096640.0,
+    "denominator_type": "float"
+  },
+  "timing": {
+    "scope": "single-stream CE forward, two FP32 head sums, weighted normalization and external BF16 dZ backward; input restoration and projection excluded",
+    "cuda_event_submission_inclusive": {
+      "samples_ms": [
+        45.47267150878906,
+        4.424992084503174,
+        4.34822416305542,
+        4.36195182800293,
+        4.3409600257873535,
+        4.348671913146973,
+        4.352735996246338,
+        4.351391792297363,
+        4.348095893859863,
+        4.359104156494141,
+        4.363872051239014,
+        4.34768009185791,
+        4.342207908630371,
+        4.350912094116211,
+        4.352992057800293,
+        4.363039970397949,
+        4.3370561599731445,
+        4.3500800132751465,
+        4.365471839904785,
+        4.376543998718262,
+        4.357696056365967,
+        4.375711917877197,
+        4.355679988861084,
+        4.359871864318848,
+        4.353631973266602,
+        4.3496317863464355,
+        4.360288143157959,
+        4.359519958496094,
+        4.356991767883301,
+        4.354911804199219,
+        4.3600640296936035,
+        4.364704132080078
+      ],
+      "median_ms": 4.356335878372192,
+      "min_ms": 4.3370561599731445,
+      "max_ms": 45.47267150878906
+    },
+    "host_submission": {
+      "samples_ms": [
+        44.238660018891096,
+        0.7144780829548836,
+        0.5148658528923988,
+        0.5468660965561867,
+        0.5093161016702652,
+        0.48681581392884254,
+        0.49666641280055046,
+        0.5614869296550751,
+        0.5638767033815384,
+        0.5458970554172993,
+        0.5158358253538609,
+        0.5044061690568924,
+        0.48032496124505997,
+        0.48029469326138496,
+        0.5347263067960739,
+        0.5011558532714844,
+        0.4801461473107338,
+        0.5146060138940811,
+        0.5757668986916542,
+        0.5571572110056877,
+        0.5237660370767117,
+        0.6539276801049709,
+        0.6443867459893227,
+        0.5441061221063137,
+        0.5177161656320095,
+        0.5406658165156841,
+        0.5264356732368469,
+        0.533615704625845,
+        0.533335842192173,
+        0.5155256949365139,
+        0.5121459253132343,
+        0.54983701556921
+      ],
+      "median_ms": 0.52988575771451,
+      "min_ms": 0.4801461473107338,
+      "max_ms": 44.238660018891096
+    },
+    "host_final_sync": {
+      "samples_ms": [
+        1.3147946447134018,
+        3.7330142222344875,
+        3.854034934192896,
+        3.8359747268259525,
+        3.8529951125383377,
+        3.8811853155493736,
+        3.8791047409176826,
+        3.8126539438962936,
+        3.80509439855814,
+        3.8357540033757687,
+        3.8683838210999966,
+        3.863393794745207,
+        3.881834913045168,
+        3.892465028911829,
+        3.8449536077678204,
+        3.884764853864908,
+        3.8760839961469173,
+        3.85539373382926,
+        3.8157240487635136,
+        3.8517736829817295,
+        3.8636443205177784,
+        3.745943307876587,
+        3.736053127795458,
+        3.8412739522755146,
+        3.8581741973757744,
+        3.8350350223481655,
+        3.8556549698114395,
+        3.851615358144045,
+        3.8500442169606686,
+        3.865924198180437,
+        3.873405046761036,
+        3.8416841998696327
+      ],
+      "median_ms": 3.8523843977600336,
+      "min_ms": 1.3147946447134018,
+      "max_ms": 3.892465028911829
+    },
+    "wall_synchronized": {
+      "samples_ms": [
+        45.5534546636045,
+        4.447492305189371,
+        4.368900787085295,
+        4.382840823382139,
+        4.362311214208603,
+        4.368001129478216,
+        4.375771153718233,
+        4.374140873551369,
+        4.368971101939678,
+        4.381651058793068,
+        4.384219646453857,
+        4.367799963802099,
+        4.362159874290228,
+        4.372759722173214,
+        4.379679914563894,
+        4.385920707136393,
+        4.356230143457651,
+        4.369999747723341,
+        4.391490947455168,
+        4.408930893987417,
+        4.38741035759449,
+        4.399870987981558,
+        4.3804398737847805,
+        4.385380074381828,
+        4.375890363007784,
+        4.37570083886385,
+        4.382090643048286,
+        4.38523106276989,
+        4.383380059152842,
+        4.381449893116951,
+        4.38555097207427,
+        4.391521215438843
+      ],
+      "median_ms": 4.3815504759550095,
+      "min_ms": 4.356230143457651,
+      "max_ms": 45.5534546636045
+    },
+    "gradient_aliases_working_logits": false,
+    "memory": {
+      "scope": "timed eager invocations only, including retained pristine logits and the working allocation",
+      "starting_allocated_bytes": 4236312576,
+      "starting_reserved_bytes": 4259315712,
+      "peak_allocated_bytes": 8439007232,
+      "peak_reserved_bytes": 8474591232,
+      "gift_external_gib": 0.6688232421875,
+      "gift_total_peak_gib": 8.5614013671875,
+      "allocator_retries": 0
+    }
+  },
+  "numerical": {
+    "oracle_scope": "all rows and columns of the timed BF16 input; FP64 centered CE, FP64 sums and FP64 VJP using the exact FP32 GIFT upstream scale",
+    "accepted_reference_route": {
+      "backend": "GIFT historical stable folded CE, compiled",
+      "source": "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/integrated/gift/torchtitan/experiments/four_fusion/stable_ce.py",
+      "source_sha256": "c36d13e14c2221d8d3d0329d11355b0d1eb7c50bf0335262f79d659846b7418b"
+    },
+    "incoming_fp32_scales": [
+      4.769536303683708e-07,
+      1.4308609763702407e-07
+    ],
+    "heads": [
+      {
+        "oracle_raw_fp64_sum": 48437.72302363095,
+        "elements": 525336576,
+        "bit_diff_vs_folded": 35601,
+        "candidate": {
+          "relative_l2_vs_fp64": 0.00023644749331610358,
+          "max_abs_vs_fp64": 1.1557766469605576e-10,
+          "bit_diff_vs_once_rounded_oracle": 19736,
+          "nonfinite": 0,
+          "ignored_dz_not_positive_zero": 2,
+          "raw_fp32_sum": 48437.72265625,
+          "raw_sum_abs_error": 0.00036738094786414877
+        },
+        "folded": {
+          "relative_l2_vs_fp64": 0.00023644749332002058,
+          "max_abs_vs_fp64": 1.1557766469605576e-10,
+          "bit_diff_vs_once_rounded_oracle": 38431,
+          "nonfinite": 0,
+          "ignored_dz_not_positive_zero": 0,
+          "raw_fp32_sum": 48437.72265625,
+          "raw_sum_abs_error": 0.00036738094786414877
+        }
+      },
+      {
+        "oracle_raw_fp64_sum": 48383.80137344194,
+        "elements": 525336576,
+        "bit_diff_vs_folded": 38171,
+        "candidate": {
+          "relative_l2_vs_fp64": 0.0023670750550535778,
+          "max_abs_vs_fp64": 3.412785161411068e-10,
+          "bit_diff_vs_once_rounded_oracle": 22653,
+          "nonfinite": 0,
+          "ignored_dz_not_positive_zero": 9,
+          "raw_fp32_sum": 48383.8046875,
+          "raw_sum_abs_error": 0.0033140580635517836
+        },
+        "folded": {
+          "relative_l2_vs_fp64": 0.0023670750550538766,
+          "max_abs_vs_fp64": 3.412785161411068e-10,
+          "bit_diff_vs_once_rounded_oracle": 38592,
+          "nonfinite": 0,
+          "ignored_dz_not_positive_zero": 0,
+          "raw_fp32_sum": 48383.80078125,
+          "raw_sum_abs_error": 0.0005921919364482164
+        }
+      }
+    ],
+    "weighted_loss": 0.030025597661733627,
+    "weighted_loss_folded": 0.030025597661733627,
+    "weighted_loss_oracle_fp64": 0.030025594968932923,
+    "weighted_loss_abs_errors": {
+      "candidate": 2.6928007046400637e-09,
+      "folded": 2.6928007046400637e-09
+    },
+    "bitwise_folded": false,
+    "strict_non_regression": {
+      "finite_and_ignored_positive_zero": false,
+      "raw_head_sums": [
+        true,
+        false
+      ],
+      "weighted_loss": true,
+      "dz_relative_l2_and_max_abs": true,
+      "passed": false
+    }
+  },
+  "graph": {
+    "status": "measured",
+    "scope": "same-stream warm-cache CUDA Graph replay span; CE, two head sums, normalization and dZ; events exclude restoration and Python submission, include device gaps",
+    "discarded_priming_replays": 1,
+    "gradient_aliases_working_logits": false,
+    "elapsed": {
+      "samples_ms": [
+        4.233983993530273,
+        4.237887859344482,
+        4.227871894836426,
+        4.231071949005127,
+        4.2363200187683105,
+        4.234176158905029,
+        4.233952045440674,
+        4.2296319007873535,
+        4.235775947570801,
+        4.228960037231445,
+        4.232223987579346,
+        4.237215995788574,
+        4.232704162597656,
+        4.234335899353027,
+        4.2284159660339355,
+        4.237631797790527,
+        4.22822380065918,
+        4.235136032104492,
+        4.241504192352295,
+        4.228447914123535,
+        4.2336320877075195,
+        4.23795223236084,
+        4.240511894226074,
+        4.238463878631592,
+        4.233791828155518,
+        4.229695796966553,
+        4.233119964599609,
+        4.22870397567749,
+        4.233759880065918,
+        4.228384017944336,
+        4.236192226409912,
+        4.238304138183594
+      ],
+      "median_ms": 4.233871936798096,
+      "min_ms": 4.227871894836426,
+      "max_ms": 4.241504192352295
+    }
+  },
+  "status": "measured"
+}

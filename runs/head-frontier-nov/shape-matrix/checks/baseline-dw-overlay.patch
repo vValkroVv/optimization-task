@@ -1,0 +1,979 @@
+--- a/torchtitan/components/loss.py
++++ b/torchtitan/components/loss.py
+@@ -4,6 +4,7 @@
+ # This source code is licensed under the BSD-style license found in the
+ # LICENSE file in the root directory of this source tree.
+ 
++import os
+ import weakref
+ from abc import ABC, abstractmethod
+ from collections.abc import Callable
+@@ -567,6 +568,9 @@
+ 
+         self.fn: LossFunction = stable_ce
+         self._maybe_compile(compile_config)
++        self._staged_head_dw_enabled = bool(
++            os.environ.get("GIFT_EXPERIMENT_LM_HEAD_MATRIX")
++        )
+         self.num_chunks = config.num_chunks
+         self.num_chunks_on_monitoring_steps = config.num_chunks_on_monitoring_steps
+         self.lm_head: nn.Module | None = None
+@@ -712,6 +716,19 @@
+             c.detach().requires_grad_(requires_grad) for c in _chunk(hidden_states)
+         ]
+         label_chunks = list(_chunk(labels))
++        staged_dw = None
++        if (
++            self._staged_head_dw_enabled
++            and requires_grad
++            and torch.is_grad_enabled()
++            and lm_head.training
++            and not shape_probe
++        ):
++            from torchtitan.distributed.gfsdp._staged_head_dw import (
++                select_staged_head_dw,
++            )
++
++            staged_dw = select_staged_head_dw(lm_head, h_chunks)
+ 
+         grad_accumulator = GradAccumulator(
+             hidden_states,
+@@ -732,6 +749,8 @@
+             lm_head.set_is_last_backward(False)
+ 
+         try:
++            if staged_dw is not None:
++                staged_dw.begin()
+             last_idx = len(h_chunks) - 1
+             for i, (h_chunk, label_chunk) in enumerate(zip(h_chunks, label_chunks)):
+                 # torch FSDP: sync unconditionally, as before the gfsdp
+@@ -743,7 +762,11 @@
+                         # the sync setter also arms AR, so override it last
+                         lm_head.set_requires_all_reduce(sync_all_reduce, recurse=False)
+ 
+-                logits = lm_head(h_chunk)
++                logits = (
++                    lm_head(h_chunk, staged_head_dw=staged_dw)
++                    if staged_dw is not None
++                    else lm_head(h_chunk)
++                )
+                 if argmax_sink is not None:
+                     # Greedy predictions for the acceptance counters, taken from
+                     # the logits this loop already materializes; cat over the
+@@ -768,7 +791,11 @@
+                     assert h_chunk.grad is not None
+                     grad_accumulator.add(h_chunk.grad)
+                     h_chunk.grad = None
++            if staged_dw is not None:
++                staged_dw.check_reduced()
+         finally:
++            if staged_dw is not None:
++                staged_dw.close()
+             if fsdp_enabled:
+                 lm_head.set_is_last_backward(was_last_backward)
+                 lm_head.set_reshard_after_forward(True)
+--- a/torchtitan/distributed/gfsdp/_param_group.py
++++ b/torchtitan/distributed/gfsdp/_param_group.py
+@@ -19,6 +19,9 @@
+ from ._param import ParamModuleInfo, ShardedState, GFSDPParam
+ 
+ if TYPE_CHECKING:
++    from ._staged_head_dw import StagedHeadDw
++    from ._staged_head_dw_writer import HeadDwWriter
++
+     try:
+         import yccl
+     except ImportError:
+@@ -248,6 +251,9 @@
+         # Holds the CUDA event that marks the end of the group's post-backward,
+         # which should be waited on at the end of backward
+         self._post_reduce_event: torch.Event | None = None
++        self._staged_head_dw: StagedHeadDw | None = None
++        self._staged_head_dw_writer: HeadDwWriter | None = None
++        self._staged_head_dw_reduced = False
+ 
+         # The expert cache reuses the existing all-gather input. Its values
+         # stay valid across microbatches until a supported weight writer bumps
+@@ -1001,8 +1007,13 @@
+         # This method should be idempotent and safe to call even when this
+         # FSDP parameter group was not used in backward (should be a no-op)
+         logger.debug("%s", self._with_fqn("GFSDP::post_backward"))
++        was_in_backward = self._training_state == TrainingState.PRE_BACKWARD
+         self._training_state = TrainingState.POST_BACKWARD
+-        if (grad_buffer_ctx := self.grad_buffer_ctx) is not None:
++        grad_buffer_ctx = self.grad_buffer_ctx
++        if self._staged_head_dw is not None:
++            if self._staged_head_dw.post_backward(was_in_backward):
++                return
++        elif grad_buffer_ctx is not None:
+             if (owner := grad_buffer_ctx.conflicting_owner(self)) is not None:
+                 raise RuntimeError(
+                     f"{self} tried to acquire its gradient buffer, but it is in use by {owner}."
+--- /dev/null
++++ b/torchtitan/distributed/gfsdp/_staged_head_dw.py
+@@ -0,0 +1,327 @@
++"""Lease the native GFSDP FP32 LM-head gradient slot across loss chunks."""
++
++import logging
++import os
++from typing import TYPE_CHECKING
++
++import torch
++import torch.distributed as dist
++from torch.distributed.tensor import DTensor
++
++from ._common import TrainingState
++from ._staged_head_dw_writer import make_head_dw_writer
++
++if TYPE_CHECKING:
++    from ._param import GFSDPParam
++    from ._param_group import GFSDPBufferContext, GFSDPParamGroup
++
++
++logger = logging.getLogger("gfsdp")
++_MODE_ENV = "GIFT_EXPERIMENT_LM_HEAD_MATRIX"
++_CHUNKS_ENV = "GIFT_EXPERIMENT_LM_HEAD_MATRIX_CHUNKS"
++_HISTORICAL_HEAD_SHAPE = (128256, 4096)
++_HISTORICAL_ROWS_PER_BATCH = 16384
++
++
++class StagedHeadDw:
++    def __init__(
++        self,
++        group: "GFSDPParamGroup",
++        param: "GFSDPParam",
++        context: "GFSDPBufferContext",
++        slot: torch.Tensor,
++        mode: str,
++        num_chunks: int,
++    ) -> None:
++        self.group = group
++        self.param = param
++        self.context = context
++        self.slot = slot
++        self.mode = mode
++        self.num_chunks = num_chunks
++        self.writes = 0
++        self.completed_callbacks = 0
++        self.stream: torch.Stream | None = None
++
++    def begin(self) -> None:
++        if self.group._staged_head_dw is not None:
++            raise RuntimeError("The GFSDP LM head already has a direct dW lease")
++        self.group._staged_head_dw = self
++
++    def close(self) -> None:
++        # Once handed off, the native reduction owns the slot and its event.
++        if self.group._staged_head_dw is self:
++            self.group._staged_head_dw = None
++            if self.stream is not None and self.context.owner is self.group:
++                self.context.release_event = self.stream.record_event()
++                self.context.owner = None
++
++    def check_reduced(self) -> None:
++        group = self.group
++        if (
++            self.completed_callbacks != self.num_chunks
++            or group._staged_head_dw is not None
++            or self.context.owner is group
++            or group._post_reduce_event is None
++            or self.param.sharded_param.grad is not self.param.sharded_param_grad
++        ):
++            raise RuntimeError("GFSDP did not reduce the complete direct LM-head dW")
++        if not group._staged_head_dw_reduced:
++            group._staged_head_dw_reduced = True
++            if dist.get_rank() == 0:
++                logger.info(
++                    "LM_HEAD_MATRIX_DW_REDUCED rank=0 mode=%s chunks=%d "
++                    "slot=GFSDP.reduce_scatter_input dtype=%s shape=%s",
++                    self.mode,
++                    self.num_chunks,
++                    self.slot.dtype,
++                    tuple(self.slot.shape),
++                )
++
++    def write(self, grad: torch.Tensor, hidden: torch.Tensor) -> None:
++        group = self.group
++        index = self.writes
++        if (
++            group._staged_head_dw is not self
++            or group._training_state != TrainingState.PRE_BACKWARD
++            or index >= self.num_chunks
++            or index != self.completed_callbacks
++            or group.reduce_grads != (index == self.num_chunks - 1)
++            or self.param.unsharded_param.grad is not None
++            or self.param.unsharded_accumulated_grad is not None
++        ):
++            raise RuntimeError("Unexpected GFSDP callback state for direct LM-head dW")
++        if (
++            grad.dtype != torch.bfloat16
++            or hidden.dtype != torch.bfloat16
++            or grad.device != self.slot.device
++            or hidden.device != self.slot.device
++            or grad.ndim != 2
++            or hidden.ndim != 2
++            or not grad.is_contiguous()
++            or not hidden.is_contiguous()
++            or grad.size(0) != hidden.size(0)
++            or (grad.size(1), hidden.size(1)) != self.slot.shape
++        ):
++            raise ValueError(
++                "Direct LM-head dW requires contiguous BF16 operands matching its FP32 slot"
++            )
++
++        stream = group.device_handle.current_stream()
++        if stream.device != self.slot.device:
++            raise RuntimeError("Direct LM-head dW must run on the slot's CUDA device")
++        if index == 0:
++            if (
++                self.context.owner is not None
++                or self.context.conflicting_owner(group) is not None
++            ):
++                raise RuntimeError(
++                    "The direct LM-head gradient buffer already has an owner"
++                )
++            self.context.wait_for_release(stream)
++            self.context.owner = group
++            self.stream = stream
++        elif self.context.owner is not group or self.stream != stream:
++            raise RuntimeError(
++                "The direct LM-head gradient lease changed between chunks"
++            )
++
++        writer = group._staged_head_dw_writer
++        if writer is None:
++            vocab, width = self.slot.shape
++            writer = make_head_dw_writer(
++                self.mode, self.num_chunks, hidden.size(0), vocab, width, stream
++            )
++            group._staged_head_dw_writer = writer
++            logger.info(
++                "LM_HEAD_MATRIX_DW_WRITER rank=%d mode=%s chunks=%d writer=%s "
++                "pair=%s version=%s slot=GFSDP.reduce_scatter_input dtype=%s shape=%s",
++                dist.get_rank(),
++                self.mode,
++                self.num_chunks,
++                writer.name,
++                getattr(writer, "pair", None),
++                getattr(writer, "version", None),
++                self.slot.dtype,
++                tuple(self.slot.shape),
++            )
++        writer(grad, hidden, self.slot, index != 0, stream)
++        self.writes += 1
++
++    def post_backward(self, was_in_backward: bool) -> bool:
++        """Return whether the no-sync callback keeps the slot leased."""
++        group = self.group
++        if (
++            not was_in_backward
++            or self.writes != self.completed_callbacks + 1
++            or self.context.owner is not group
++            or self.stream != group.device_handle.current_stream()
++            or group.reshard_after_backward
++        ):
++            raise RuntimeError("GFSDP did not complete the direct LM-head dW write")
++        self.completed_callbacks += 1
++        if not group.reduce_grads:
++            return True
++        if self.writes != self.num_chunks:
++            raise RuntimeError("Every direct LM-head write must precede reduction")
++
++        # The optimizer-facing sharded gradient can already hold earlier
++        # microbatches. Native reduce_scatter adds this microbatch to that buffer.
++        self.param.unsharded_accumulated_grad = self.slot
++        group._staged_head_dw = None
++        return False
++
++    def linear(self, input: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
++        return _StagedHeadLinear.apply(input, weight, self)
++
++
++class _StagedHeadLinear(torch.autograd.Function):
++    @staticmethod
++    def forward(ctx, input, weight, lease):
++        if (
++            weight is not lease.param.unsharded_param
++            or weight.dtype != torch.bfloat16
++            or not weight.is_contiguous()
++        ):
++            raise RuntimeError("The direct LM head did not receive its BF16 weight")
++        ctx.save_for_backward(input, weight)
++        ctx.lease = lease
++        return torch.nn.functional.linear(input, weight)
++
++    @staticmethod
++    def backward(ctx, grad):
++        input, weight = ctx.saved_tensors
++        grad = grad.flatten(0, -2)
++        dx = torch.mm(grad, weight).view_as(input)
++        ctx.lease.write(grad, input.flatten(0, -2))
++        return dx, None, None
++
++
++def select_staged_head_dw(
++    head: torch.nn.Module, chunks: list[torch.Tensor]
++) -> StagedHeadDw | None:
++    from torchtitan.models.common.nn_modules import Linear
++
++    from .fully_shard import GFSDPModule
++
++    mode = os.environ.get(_MODE_ENV)
++    if not mode:
++        return None
++    if mode not in ("previous", "new", "generic"):
++        raise ValueError(f"{_MODE_ENV} must be previous, new or generic")
++    expected_chunks = os.environ.get(_CHUNKS_ENV)
++    historical = mode != "generic"
++    if historical:
++        if expected_chunks not in ("2", "8", "32") or expected_chunks != str(
++            len(chunks)
++        ):
++            raise ValueError(
++                f"{_CHUNKS_ENV} must match the actual 2, 8 or 32 LM-head chunks"
++            )
++        rows_per_chunk = _HISTORICAL_ROWS_PER_BATCH // len(chunks)
++    elif expected_chunks and expected_chunks != str(len(chunks)):
++        raise ValueError(
++            f"{_CHUNKS_ENV} must match the actual number of LM-head chunks"
++        )
++    if (
++        not chunks
++        or not isinstance(head, GFSDPModule)
++        or getattr(type(head), "_gfsdp_orig_cls", None) is not Linear
++        or head.bias is not None
++        or head._compiled_call_impl is not None
++        or not head.training
++        or not torch.is_grad_enabled()
++        or any(
++            not x.is_cuda
++            or isinstance(x, DTensor)
++            or x.dtype != torch.bfloat16
++            or x.ndim != 3
++            or x.size(0) == 0
++            or x.size(1) == 0
++            or (historical and x.size(0) * x.size(1) != rows_per_chunk)
++            or not x.requires_grad
++            or not x.is_contiguous()
++            for x in chunks
++        )
++        or (
++            torch.is_autocast_enabled("cuda")
++            and torch.get_autocast_dtype("cuda") != torch.bfloat16
++        )
++    ):
++        raise RuntimeError(
++            "Direct LM-head dW requires the targeted eager GFSDP Linear and BF16 chunks"
++        )
++    if "forward" in head.__dict__:
++        contract = head._parallelized_forward_contract
++        if contract is None:
++            raise RuntimeError(
++                "Direct LM-head dW requires the original Linear forward wrapper"
++            )
++        wrapped, original, parallel_dims = contract
++        if (
++            head.forward is not wrapped
++            or getattr(original, "__func__", None) is not Linear.forward
++            or parallel_dims.tp_enabled
++            or parallel_dims.cp_enabled
++            or parallel_dims.pp_enabled
++        ):
++            raise RuntimeError(
++                "Direct LM-head dW requires the original Linear forward with TP/CP/PP disabled"
++            )
++    state = head._get_fsdp_state()
++    groups = state._fsdp_param_groups
++    if (
++        state._is_root is None
++        or state._modules != (head,)
++        or not state._own_grad_buffer
++        or len(groups) != 1
++    ):
++        raise RuntimeError(
++            "Direct LM-head dW requires one initialized GFSDP head with its own gradient buffer"
++        )
++    group = groups[0]
++    context = group.grad_buffer_ctx
++    if (
++        len(group.fsdp_params) != 1
++        or not group.reduce_grads
++        or group.orig_dtype != torch.float32
++        or group.param_dtype != torch.bfloat16
++        or group.reduce_dtype != torch.float32
++        or group.mesh_info.mesh.ndim != 1
++        or context is None
++        or context.yccl_handles.get(None) is not None
++    ):
++        raise RuntimeError(
++            "Direct LM-head dW requires synchronized one-dimensional NCCL GFSDP with an FP32 gradient slot"
++        )
++    param = group.fsdp_params[0]
++    info = param._module_info
++    slot = param._unsharded_accumulated_grad
++    reduction_slot = group._reduce_scatter_input.get(None)
++    weight = param.unsharded_param
++    if (
++        info.module is not head
++        or info.param_name != "weight"
++        or info.shared_modules
++        or param.is_dtensor
++        or slot is None
++        or slot.ndim != 2
++        or slot.shape != weight.shape
++        or (historical and slot.shape != _HISTORICAL_HEAD_SHAPE)
++        or slot.dtype != torch.float32
++        or not slot.is_contiguous()
++        or reduction_slot is None
++        or slot.numel() != reduction_slot.numel()
++        or slot.data_ptr() != reduction_slot.data_ptr()
++        or any(x.size(-1) != slot.size(1) or x.device != slot.device for x in chunks)
++        or not weight.requires_grad
++        or weight._backward_hooks
++        or weight._post_accumulate_grad_hooks
++        or weight.grad is not None
++        or param.unsharded_accumulated_grad is not None
++    ):
++        raise RuntimeError(
++            "Direct LM-head dW requires the targeted weight and its actual reduce-scatter input"
++        )
++
++    return StagedHeadDw(group, param, context, slot, mode, len(chunks))
+--- /dev/null
++++ b/torchtitan/distributed/gfsdp/_staged_head_dw_writer.py
+@@ -0,0 +1,496 @@
++"""CUDA writers for the experimental FP32 LM-head reduce-scatter input."""
++
++import ctypes as c
++import logging
++import weakref
++from collections import OrderedDict
++from contextlib import ExitStack
++from dataclasses import dataclass
++
++import torch
++
++
++logger = logging.getLogger("gfsdp")
++
++
++class _CublasGemmEx:
++    name = "cublasGemmEx"
++
++    def __init__(self) -> None:
++        lib = c.CDLL("libcublas.so.13")
++        self.gemm = lib.cublasGemmEx
++        self.gemm.argtypes = [
++            _Ptr,
++            _Int,
++            _Int,
++            _Int,
++            _Int,
++            _Int,
++            _Ptr,
++            _Ptr,
++            _Int,
++            _Int,
++            _Ptr,
++            _Int,
++            _Int,
++            _Ptr,
++            _Ptr,
++            _Int,
++            _Int,
++            _Int,
++            _Int,
++        ]
++        self.gemm.restype = _Int
++        self.pointer_mode = lib.cublasGetPointerMode_v2
++        self.pointer_mode.argtypes = [_Ptr, c.POINTER(_Int)]
++        self.pointer_mode.restype = _Int
++        self.checked_handles: set[int] = set()
++
++    def __call__(self, grad, hidden, slot, add, stream) -> None:
++        # The row-major [V,H] destination is [H,V] to column-major cuBLAS.
++        rows, vocab = grad.shape
++        width = hidden.shape[1]
++        handle = torch.cuda.current_blas_handle()
++        if handle not in self.checked_handles:
++            mode = _Int()
++            _check(self.pointer_mode, handle, c.byref(mode))
++            if mode.value != 0:
++                raise RuntimeError(
++                    "Direct LM-head dW requires host cuBLAS pointer mode"
++                )
++            self.checked_handles.add(handle)
++        _check(
++            self.gemm,
++            handle,
++            _OP_N,
++            _OP_T,
++            width,
++            vocab,
++            rows,
++            c.byref(_ONE),
++            hidden.data_ptr(),
++            _BF16,
++            width,
++            grad.data_ptr(),
++            _BF16,
++            vocab,
++            c.byref(_BETA[add]),
++            slot.data_ptr(),
++            _FP32,
++            width,
++            _COMPUTE_32F,
++            _GEMM_DEFAULT,
++        )
++
++
++_Ptr, _Int, _U64, _Size = c.c_void_p, c.c_int, c.c_uint64, c.c_size_t
++_OP_N, _OP_T = 0, 1
++_BF16, _FP32, _COMPUTE_32F, _GEMM_DEFAULT = 14, 0, 68, -1
++_TRANS_A, _TRANS_B, _LAYOUT_ORDER = 3, 4, 1
++_ROW_MAJOR = 1
++_ONE = c.c_float(1)
++_BETA = (c.c_float(0), _ONE)
++_Algo = _U64 * 8
++_CUBLAS_LT_VERSION = 130101
++_PREF_MAX_WORKSPACE_BYTES = 1
++_PREF_REDUCTION_SCHEME_MASK = 3
++_PREF_MIN_ALIGNMENT_A_BYTES = 5
++_FP32_REDUCTION_SCHEMES = 1 | 2  # In-place FP32 output or FP32 compute type.
++_WORKSPACE_LIMIT_BYTES = 32 * 1024 * 1024
++_ALGO_CONFIG_ID, _ALGO_CONFIG_TILE_ID = 0, 1
++_MAX_CACHED_PLANS = 8
++
++
++class _HeuristicResult(c.Structure):
++    _fields_ = [
++        ("algo", _Algo),
++        ("workspace_bytes", _Size),
++        ("state", _Int),
++        ("waves", c.c_float),
++        ("reserved", _Int * 4),
++    ]
++
++
++# Selected beta=0/beta=1 entries in frontier-dw/tune-{2,8}.json.
++# These are the serialized cuBLASLt 13.1.1 H100 algorithms, with 4 B workspace.
++_ALGO_5_5 = (
++    "5.5",
++    False,
++    (
++        "420000001d000000230000000100000000000000000000000100000000000300"
++        "0100000035fc01000e0000000e00000000000000440000000000000000000000",
++    )
++    * 2,
++)
++_LT_ALGOS = {
++    2: (
++        "9.14",
++        True,
++        (
++            "4200000018000000230000000100000000000000000000000700000000000500"
++            "0100000035fc01000e0000000e00000000000000440000000000000000000000",
++            "42000000ef010000230000000100000000000000000000000700000000000500"
++            "0100000035fc01000e0000000e00000000000000440000000000000000000000",
++        ),
++    ),
++    8: _ALGO_5_5,
++    # This plan was also verified with both beta values on the 512-row C32 chunk.
++    32: _ALGO_5_5,
++}
++
++
++def _check(fn, *args) -> None:
++    if status := fn(*args):
++        raise RuntimeError(f"{fn.__name__} returned CUDA BLAS status {status}")
++
++
++def _set_attribute(fn, descriptor, key, value):
++    _check(fn, descriptor, key, c.byref(value), c.sizeof(value))
++
++
++@dataclass
++class _MatmulLayout:
++    operation: _Ptr
++    a: _Ptr
++    b: _Ptr
++    cd: _Ptr
++    row_major: bool
++
++
++@dataclass
++class _MatmulPlan:
++    layout: _MatmulLayout
++    algorithms: tuple[_Algo, _Algo]
++    workspace_bytes: int
++    resources: ExitStack
++
++
++class _CublasLtMatmul:
++    name = "cublasLtMatmul"
++
++    def __init__(
++        self,
++        chunks: int | None,
++        rows: int,
++        vocab: int,
++        width: int,
++        stream: torch.Stream,
++    ) -> None:
++        if chunks is None:
++            cuda_version = torch.version.cuda
++            if cuda_version is None:
++                raise RuntimeError("Direct cuBLASLt LM-head dW requires a CUDA build")
++            soname = f"libcublasLt.so.{cuda_version.split('.')[0]}"
++        else:
++            soname = "libcublasLt.so.13"
++        lib = c.CDLL(soname)
++
++        def bind(name, *args, result=_Int):
++            fn = getattr(lib, "cublasLt" + name)
++            fn.argtypes, fn.restype = list(args), result
++            return fn
++
++        self.version = bind("GetVersion", result=_Size)()
++        if chunks is not None and self.version != _CUBLAS_LT_VERSION:
++            raise RuntimeError(
++                "Direct LM-head dW requires the tuned cuBLASLt 13.1.1 build "
++                f"({_CUBLAS_LT_VERSION}), got {self.version}"
++            )
++
++        self.stream = stream
++        create = bind("Create", _Ptr)
++        destroy = bind("Destroy", _Ptr)
++        self.desc_create = bind("MatmulDescCreate", _Ptr, _Int, _Int)
++        self.desc_destroy = bind("MatmulDescDestroy", _Ptr)
++        self.desc_attr = bind("MatmulDescSetAttribute", _Ptr, _Int, _Ptr, _Size)
++        self.layout_create = bind(
++            "MatrixLayoutCreate", _Ptr, _Int, _U64, _U64, c.c_int64
++        )
++        self.layout_destroy = bind("MatrixLayoutDestroy", _Ptr)
++        self.layout_attr = bind("MatrixLayoutSetAttribute", _Ptr, _Int, _Ptr, _Size)
++        self.matmul = bind(
++            "Matmul",
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Ptr,
++            _Size,
++            _Ptr,
++        )
++        self._plans: OrderedDict[tuple[int, int, int, int], _MatmulPlan] = OrderedDict()
++        self._fixed_plan = None
++        self.workspace: torch.Tensor | None = None
++        with torch.cuda.stream(stream), ExitStack() as resources:
++            self.handle = _Ptr()
++            _check(create, c.byref(self.handle))
++            resources.callback(_check, destroy, self.handle)
++            if chunks is None:
++                self.pair = "heuristic"
++                self.pref_create = bind("MatmulPreferenceCreate", _Ptr)
++                self.pref_destroy = bind("MatmulPreferenceDestroy", _Ptr)
++                self.pref_attr = bind(
++                    "MatmulPreferenceSetAttribute", _Ptr, _Int, _Ptr, _Size
++                )
++                self.heuristic = bind(
++                    "MatmulAlgoGetHeuristic",
++                    _Ptr,
++                    _Ptr,
++                    _Ptr,
++                    _Ptr,
++                    _Ptr,
++                    _Ptr,
++                    _Ptr,
++                    _Int,
++                    _Ptr,
++                    _Ptr,
++                )
++                self.config_attr = bind(
++                    "MatmulAlgoConfigGetAttribute", _Ptr, _Int, _Ptr, _Size, _Ptr
++                )
++            else:
++                self.pair, row_major, (first, later) = _LT_ALGOS[chunks]
++                layout = self._layout(row_major, rows, vocab, width, resources)
++                self._fixed_plan = _MatmulPlan(
++                    layout,
++                    (
++                        _Algo.from_buffer_copy(bytes.fromhex(first)),
++                        _Algo.from_buffer_copy(bytes.fromhex(later)),
++                    ),
++                    4,
++                    resources,
++                )
++                self.workspace = torch.empty(4, dtype=torch.uint8, device=stream.device)
++            cleanup = resources.pop_all()
++
++        plans = self._plans
++
++        def close():
++            with torch.cuda.device(stream.device):
++                try:
++                    for plan in plans.values():
++                        plan.resources.close()
++                finally:
++                    cleanup.close()
++
++        weakref.finalize(self, close)
++
++    def _layout(self, row_major, rows, vocab, width, resources) -> _MatmulLayout:
++        operation = _Ptr()
++        _check(self.desc_create, c.byref(operation), _COMPUTE_32F, _FP32)
++        resources.callback(_check, self.desc_destroy, operation)
++        _set_attribute(
++            self.desc_attr,
++            operation,
++            _TRANS_A if row_major else _TRANS_B,
++            _Int(_OP_T),
++        )
++
++        def matrix(dtype, m, n, ld):
++            layout = _Ptr()
++            _check(self.layout_create, c.byref(layout), dtype, m, n, ld)
++            resources.callback(_check, self.layout_destroy, layout)
++            if row_major:
++                _set_attribute(
++                    self.layout_attr, layout, _LAYOUT_ORDER, _Int(_ROW_MAJOR)
++                )
++            return layout
++
++        if row_major:
++            a = matrix(_BF16, rows, vocab, vocab)
++            b = matrix(_BF16, rows, width, width)
++            cd = matrix(_FP32, vocab, width, width)
++        else:
++            # A row-major [V,H] slot is the same storage as a column-major [H,V].
++            a = matrix(_BF16, width, rows, width)
++            b = matrix(_BF16, vocab, rows, vocab)
++            cd = matrix(_FP32, width, vocab, width)
++        return _MatmulLayout(operation, a, b, cd, row_major)
++
++    def _heuristic_plan(self, rows, vocab, width, alignment) -> _MatmulPlan:
++        with torch.cuda.stream(self.stream), ExitStack() as preferences:
++            preference = _Ptr()
++            _check(self.pref_create, c.byref(preference))
++            preferences.callback(_check, self.pref_destroy, preference)
++            _set_attribute(
++                self.pref_attr,
++                preference,
++                _PREF_MAX_WORKSPACE_BYTES,
++                _U64(_WORKSPACE_LIMIT_BYTES),
++            )
++            _set_attribute(
++                self.pref_attr,
++                preference,
++                _PREF_REDUCTION_SCHEME_MASK,
++                c.c_uint32(_FP32_REDUCTION_SCHEMES),
++            )
++            for attr in range(
++                _PREF_MIN_ALIGNMENT_A_BYTES, _PREF_MIN_ALIGNMENT_A_BYTES + 4
++            ):
++                _set_attribute(self.pref_attr, preference, attr, c.c_uint32(alignment))
++
++            for row_major in (False, True):
++                with ExitStack() as resources:
++                    layout = self._layout(row_major, rows, vocab, width, resources)
++                    results = (_HeuristicResult * 8)()
++                    returned = _Int()
++                    _check(
++                        self.heuristic,
++                        self.handle,
++                        layout.operation,
++                        layout.a,
++                        layout.b,
++                        layout.cd,
++                        layout.cd,
++                        preference,
++                        len(results),
++                        results,
++                        c.byref(returned),
++                    )
++                    for result in results[: returned.value]:
++                        if (
++                            result.state != 0
++                            or result.workspace_bytes > _WORKSPACE_LIMIT_BYTES
++                        ):
++                            continue
++                        self._record_plan(
++                            rows,
++                            vocab,
++                            width,
++                            alignment,
++                            row_major,
++                            result,
++                        )
++                        # The descriptor and alignment apply to both host beta values.
++                        return _MatmulPlan(
++                            layout,
++                            (result.algo, result.algo),
++                            result.workspace_bytes,
++                            resources.pop_all(),
++                        )
++        raise RuntimeError(
++            "cuBLASLt found no FP32 LM-head dW algorithm for "
++            f"rows={rows}, vocab={vocab}, width={width}, alignment={alignment}, "
++            f"version={self.version}"
++        )
++
++    def _record_plan(self, rows, vocab, width, alignment, row_major, result) -> None:
++        if not logger.isEnabledFor(logging.INFO):
++            return
++        algorithm, tile = c.c_uint32(), c.c_uint32()
++        for key, value in ((_ALGO_CONFIG_ID, algorithm), (_ALGO_CONFIG_TILE_ID, tile)):
++            _check(
++                self.config_attr,
++                c.byref(result.algo),
++                key,
++                c.byref(value),
++                c.sizeof(value),
++                None,
++            )
++        logger.info(
++            "LM_HEAD_MATRIX_DW_PLAN rows=%d vocab=%d width=%d alignment=%d "
++            "layout=%s algorithm=%d tile=%d workspace_bytes=%d version=%d",
++            rows,
++            vocab,
++            width,
++            alignment,
++            "row" if row_major else "column",
++            algorithm.value,
++            tile.value,
++            result.workspace_bytes,
++            self.version,
++        )
++
++    def __call__(self, grad, hidden, slot, add, stream) -> None:
++        if stream != self.stream:
++            raise RuntimeError(
++                "Direct cuBLASLt LM-head dW changed its workspace stream"
++            )
++        grad_ptr, hidden_ptr, out_ptr = (
++            grad.data_ptr(),
++            hidden.data_ptr(),
++            slot.data_ptr(),
++        )
++        combined_ptr = grad_ptr | hidden_ptr | out_ptr
++        plan = self._fixed_plan
++        if plan is not None:
++            if combined_ptr % 256:
++                raise RuntimeError(
++                    "Tuned cuBLASLt LM-head dW requires 256-byte aligned operands"
++                )
++        else:
++            rows, vocab = grad.shape
++            width = hidden.size(1)
++            alignment = min(256, combined_ptr & -combined_ptr)
++            key = (rows, vocab, width, alignment)
++            plan = self._plans.get(key)
++            if plan is None:
++                plan = self._heuristic_plan(*key)
++                try:
++                    if plan.workspace_bytes > (
++                        self.workspace.numel() if self.workspace is not None else 0
++                    ):
++                        with torch.cuda.stream(stream):
++                            self.workspace = torch.empty(
++                                plan.workspace_bytes,
++                                dtype=torch.uint8,
++                                device=stream.device,
++                            )
++                except BaseException:
++                    plan.resources.close()
++                    raise
++                self._plans[key] = plan
++                if len(self._plans) > _MAX_CACHED_PLANS:
++                    _, evicted = self._plans.popitem(last=False)
++                    evicted.resources.close()
++            else:
++                self._plans.move_to_end(key)
++
++        layout = plan.layout
++        a_ptr, b_ptr = (
++            (grad_ptr, hidden_ptr) if layout.row_major else (hidden_ptr, grad_ptr)
++        )
++        workspace_ptr = self.workspace.data_ptr() if plan.workspace_bytes else None
++        _check(
++            self.matmul,
++            self.handle,
++            layout.operation,
++            c.byref(_ONE),
++            a_ptr,
++            layout.a,
++            b_ptr,
++            layout.b,
++            c.byref(_BETA[add]),
++            out_ptr,
++            layout.cd,
++            out_ptr,
++            layout.cd,
++            c.byref(plan.algorithms[add]),
++            workspace_ptr,
++            plan.workspace_bytes,
++            stream.cuda_stream,
++        )
++
++
++HeadDwWriter = _CublasGemmEx | _CublasLtMatmul
++
++
++def make_head_dw_writer(
++    mode: str, chunks: int, rows: int, vocab: int, width: int, stream: torch.Stream
++) -> HeadDwWriter:
++    if mode == "previous":
++        return _CublasGemmEx()
++    if mode == "generic":
++        return _CublasLtMatmul(None, rows, vocab, width, stream)
++    if mode != "new":
++        raise ValueError(f"Unknown direct LM-head dW mode {mode!r}")
++    return _CublasLtMatmul(chunks, rows, vocab, width, stream)
+--- a/torchtitan/models/common/nn_modules.py
++++ b/torchtitan/models/common/nn_modules.py
+@@ -14,9 +14,10 @@
+ :mod:`torchtitan.models.common.embeddings`; import them from there.
+ """
+ 
++from typing import TYPE_CHECKING, TypeAlias
++
+ import torch.nn as nn
+-
+-from typing import TypeAlias
++from torch import Tensor
+ 
+ from torchtitan.config.schema.models.common.nn_modules import (
+     Conv1dConfig,
+@@ -27,6 +28,9 @@
+     SiLUConfig,
+ )
+ from torchtitan.protocols.module import Module
++
++if TYPE_CHECKING:
++    from torchtitan.distributed.gfsdp._staged_head_dw import StagedHeadDw
+ 
+ 
+ class Conv1d(nn.Conv1d, Module):
+@@ -94,6 +98,13 @@
+         in_features, out_features = config.require_features()
+         super().__init__(in_features, out_features, bias=config.bias)
+ 
++    def forward(
++        self, input: Tensor, *, staged_head_dw: "StagedHeadDw | None" = None
++    ) -> Tensor:
++        if staged_head_dw is not None:
++            return staged_head_dw.linear(input, self.weight)
++        return super().forward(input)
++
+ 
+ class SiLU(nn.SiLU, Module):
+     """Configurable nn.SiLU."""

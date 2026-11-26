@@ -1,0 +1,23 @@
+0, GPU-441785ae-d49a-aa45-d573-557c8d0e8327, NVIDIA H100 80GB HBM3, 0 MiB, 0 %
+/opt/torchtitan-venv/lib/python3.12/site-packages/torch/cuda/__init__.py:68: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+INFO:root:LM_HEAD_EXACT_FOLDED_CE_ACTIVE method=cuda-13 backend=inductor rows=3072 vocab=128256 heads=2 sha256=17b006cc257566200112b089199c97bb76f7e7ad95118dde923eebf845adcac8
+700b-c8 shape=(3072, 128256, 7168) alignments=(256, 256, 256) CUDA_VISIBLE_DEVICES=GPU-441785ae-d49a-aa45-d573-557c8d0e8327
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/tuning/lt/lt_bench.py", line 329, in <module>
+    main()
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/tuning/lt/lt_bench.py", line 325, in main
+    run(args, stream)
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/tuning/lt/lt_bench.py", line 231, in run
+    candidates = search.candidates(args.heuristics)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/tuning/lt/lt_writer.py", line 63, in candidates
+    for candidate in self._query(layout, order, (*alignments, alignments[2]), cap, count):
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/tuning/lt/lt_writer.py", line 90, in _query
+    yield self._candidate(order, result.algo, rank, cap)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace-SR008.nfs2/vkropotin/optimization-task/runs/head-frontier-nov/shape-matrix-1125/tuning/lt/lt_writer.py", line 100, in _candidate
+    raise RuntimeError("cuBLASLt algorithm check disagreed with the requested workspace")
+RuntimeError: cuBLASLt algorithm check disagreed with the requested workspace
